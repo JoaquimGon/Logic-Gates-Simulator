@@ -26,7 +26,7 @@ Gate::Gate(GateType gateType, bool outInverted)
 		break;
 	}
 	
-	m_inPins.resize(inPinsCount, false);	
+	m_stateInPins.resize(inPinsCount, false);
 }
 
 void Gate::evaluateOut()
@@ -34,24 +34,24 @@ void Gate::evaluateOut()
 	switch (m_gateType)
 	{
 	case NOT:
-		m_outPin = !m_inPins[0];
+		m_stateOutPin = !m_stateInPins[0];
 		break;
 	case AND:
-		m_outPin = m_inPins[0] && m_inPins[1];
+		m_stateOutPin = m_stateInPins[0] && m_stateInPins[1];
 		break;
 	case OR:
-		m_outPin = m_inPins[0] || m_inPins[1];
+		m_stateOutPin = m_stateInPins[0] || m_stateInPins[1];
 		break;
 	case XOR:
-		m_outPin = m_inPins[0] ^ m_inPins[1];
+		m_stateOutPin = m_stateInPins[0] ^ m_stateInPins[1];
 		break;
 	default:
-		m_outPin = false;
+		m_stateOutPin = false;
 		break;
 	}
 	if (m_outInverted)
 	{
-		m_outPin = !m_outPin;
+		m_stateOutPin = !m_stateOutPin;
 	}
 }
 
@@ -66,3 +66,5 @@ bool Gate::hasInput()
 		return true;
 	}
 }
+
+
