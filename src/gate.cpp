@@ -1,4 +1,5 @@
 #include "gate.h"
+#include <iostream>
 
 Gate::Gate(GateType gateType, bool outInverted) 
 	: m_gateType(gateType),
@@ -23,9 +24,11 @@ Gate::Gate(GateType gateType, bool outInverted)
 	default:
 		inPinsCount = 0;
 		//outPinsCount = 0;
+		std::cout << "Gate type unspecified\n";
 		break;
 	}
 	
+	// Default input pins to LOW
 	m_stateInPins.resize(inPinsCount, false);
 }
 

@@ -1,13 +1,65 @@
 #include "main.h"
 #include "gate.h"
+#include "circuit.h"
+#include <vector>
+#include <iostream>
 
 int main()
 {
-	
-	Gate gate1(GateType::AND, false);
-	Gate gate2(GateType::AND, false);
-	Gate gate3(GateType::XOR, false);
+
+	// Example circuit of the function (a*b) ^ (c*d)
+
+	Circuit circuit;
+
+	int gate0 = circuit.addGate(GateType::AND); // ID: 0
+	int gate1 = circuit.addGate(GateType::AND); // ID: 1
+	int gate2 = circuit.addGate(GateType::XOR); // ID: 2
+
+	circuit.connectGates(gate0, gate2, 0);
+	circuit.connectGates(gate1, gate2, 1);
+
+	bool a, b, c, d;
+	a = b = c = d = false;
+
+	std::vector<bool> answer = { 0,0,0,1,0,0,0,1,0,0,0,1,1,1,1,0 };
+
+	for (int i = 0; i < pow(2,4); i++)
+	{	
+		if (i != 0)
+		{
+			a = !a;
+			if (i % 2 == 0) { b = !b; }
+			if (i % 4 == 0) { c = !c; }
+			if (i % 8 == 0) { d = !d; }
+		}
+		circuit.getGate(gate0).setStateInPins(0, a);
+		circuit.getGate(gate0).setStateInPins(1, b);
+		circuit.getGate(gate1).setStateInPins(0, c);
+		circuit.getGate(gate1).setStateInPins(1, d);
 
 
+		
+		if (i == 0) {
+			std::vector<int> propagationOrder = circuit.getEvaluationOrder();
+			std::cout << "Order: ";
+			for (int j = 0; j < 3; j++)
+			{
+				std::cout << propagationOrder[j] << ", ";
+			}
 
+		}
+
+		circuit.propagate();
+
+		// Truth table to terminal
+		// F is a hardcoded answer for proof
+		std::cout << "\n\D | C | B | A | f | F\n";
+		std::cout << circuit.getGate(gate1).getStateInPins()[1] << " | ";
+		std::cout << circuit.getGate(gate1).getStateInPins()[0] << " | ";
+		std::cout << circuit.getGate(gate0).getStateInPins()[1] << " | ";
+		std::cout << circuit.getGate(gate0).getStateInPins()[0] << " | ";
+		std::cout << circuit.getGate(gate2).getStateOutPin() << " | ";
+		std::cout << answer[i]<< "\n";
+
+	}
 }

@@ -3,7 +3,7 @@
 #include "gate.h"
 #include <vector>
 #include <stdexcept>
-
+#include <iostream>
    
 
 int Circuit::addGate(GateType type, bool outInverted)
@@ -71,6 +71,18 @@ void Circuit::propagate()
     std::vector<int> order = getEvaluationOrder();
     for (int id : order)
     {
+        // Update current gate
         m_gates[id].evaluateOut();
+
+        bool currentOutput = m_gates[id].getStateOutPin();
+
+        // Update the child gates
+        std::vector<Connection> connections{ m_gates[id].getConnections() };
+
+        for (const auto& connection : m_gates[id].getConnections())
+        {
+            m_gates[connection.gateId].setStateInPins(connection.pinIndex, currentOutput);
+        }
+
     }
 }
