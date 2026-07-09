@@ -64,7 +64,15 @@ void Gate::evaluateOut()
 	}
 }
 
-bool Gate::hasInput()
+void Gate::addConnection(int gateId, int pinIndex)
+{
+	Connection connection;
+	connection.gateId = gateId;
+	connection.pinIndex = pinIndex;
+	m_connections.push_back(connection);
+}
+
+bool Gate::hasConnection()
 {
 	if (m_connections.size() == 0)
 	{
