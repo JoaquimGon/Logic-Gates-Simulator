@@ -1,6 +1,6 @@
 # Logic Gates Simulator
 
-A C++20 digital logic simulator designed to evaluate gate networks and propagate states through a directed graph architecture. The project features topological sorting for event evaluation and built-in dependency cycle detection.
+A C++20 digital logic simulator designed to evaluate gate networks and propagate states through a directed graph architecture. The project features topological sorting for event evaluation.
 
 ---
 
