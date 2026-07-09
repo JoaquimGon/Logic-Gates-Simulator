@@ -6,11 +6,12 @@ A C++20 digital logic simulator designed to evaluate gate networks and propagate
 
 ## Project Objectives
 
-The ultimate goal of this project is to build a complete, virtual hardware simulation engine from the ground up:
+The ultimate goal of this project is to build a complete, virtual hardware simulation engine from the ground up, rendered entirely using a custom OpenGL interface without heavy external UI frameworks.
 1. **Gate-Level Foundations:** Implement basic logical primitives with deterministic evaluation orders.
-2. **Clock-Staged Architecture:** Introduce Latches and Flip-Flops to manage state feedback over synchronized clock cycles.
-3. **Sub-Circuit Bundling:** Group discrete logic arrays into modular components (Adders, Multiplexers, Registers).
-4. **RISC Core Implementation:** Combine components to construct a functional arithmetic logic unit (ALU) and control units.
+2. **Custom Graphics Frontend:** Develop a lightweight, hardware-accelerated user interface from scratch using raw OpenGL to draw interactive circuit components, wires, and state transitions.
+3. **Clock-Staged Architecture:** Introduce Latches and Flip-Flops to manage state feedback over synchronized clock cycles.
+4. **Sub-Circuit Bundling:** Group discrete logic arrays into modular components (Adders, Multiplexers, Registers).
+5. **RISC Core Implementation:** Combine components to construct a functional arithmetic logic unit (ALU) and control units.
 
 ---
 
