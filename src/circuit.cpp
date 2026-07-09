@@ -64,3 +64,13 @@ void Circuit::dfsSort(int gateId, std::vector<bool>& visited, std::vector<bool>&
 
     order.push_back(gateId);
 }
+
+// Propagation, by iterating the sorted list
+void Circuit::propagate()
+{
+    std::vector<int> order = getEvaluationOrder();
+    for (int id : order)
+    {
+        m_gates[id].evaluateOut();
+    }
+}

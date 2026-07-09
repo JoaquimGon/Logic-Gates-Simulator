@@ -19,7 +19,9 @@ add_executable (Logic-Gates-Simulator
     "src/main.cpp" 
     "src/main.h"
     "src/gate.cpp"
-"src/gate.h")
+    "src/gate.h" 
+    "src/circuit.cpp" 
+    "src/circuit.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Logic-Gates-Simulator PROPERTY CXX_STANDARD 20)

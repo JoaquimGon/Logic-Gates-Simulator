@@ -18,4 +18,6 @@ public:
     void connectGates(int srcGateId, int destGateId, int destPinIndex);
 
     std::vector<int> getEvaluationOrder();
+
+    void propagate();
 };
