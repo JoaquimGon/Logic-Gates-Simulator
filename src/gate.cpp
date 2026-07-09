@@ -29,6 +29,15 @@ Gate::Gate(GateType gateType, bool outInverted)
 	m_stateInPins.resize(inPinsCount, false);
 }
 
+// Getters
+GateType Gate::getType() { return m_gateType; }
+std::vector<bool> Gate::getStateInPins() { return m_stateInPins; }
+void Gate::setStateInPins(int pinIndex, bool state) { m_stateInPins[pinIndex] = state; }
+bool Gate::getStateOutPin() { return m_stateOutPin; }
+std::vector<Connection> Gate::getConnections() { return m_connections; }
+//
+
+
 void Gate::evaluateOut()
 {
 	switch (m_gateType)
@@ -57,7 +66,7 @@ void Gate::evaluateOut()
 
 bool Gate::hasInput()
 {
-	if (m_inConnections[0].gateId == -1)
+	if (m_connections.size() == 0)
 	{
 		return false;
 	}
