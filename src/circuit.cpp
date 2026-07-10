@@ -9,6 +9,8 @@
 int Circuit::addGate(GateType type, bool outInverted)
 {
     m_gates.emplace_back(type, outInverted);
+    m_evalOrderDirty = true;
+
     // return ID
     return m_gates.size() - 1;
 }
@@ -36,21 +38,21 @@ bool Circuit::connectGates(int srcGateId, int destGateId, int destPinIndex)
 }
 
 // Topological sort
-std::vector<int> Circuit::getEvaluationOrder()
+void Circuit::evaluateOrder()
 {
     std::vector<bool> visited(m_gates.size(), false);
     std::vector<bool> scheduled(m_gates.size(), false);
     std::vector<int> order;
 
-    for (size_t i = 0; i < m_gates.size(); ++i)
+    for (int i = 0; i < m_gates.size(); ++i)
     {
         if (!visited[i]) {
             Circuit::dfsSort(i, visited, scheduled, order);
         }
     }
 
-    std::reverse(order.begin(), order.end());
-    return order;
+    m_evaluationOrder = order;
+    std::reverse(m_evaluationOrder.begin(), m_evaluationOrder.end());
 }
 
 
@@ -79,8 +81,19 @@ void Circuit::dfsSort(int gateId, std::vector<bool>& visited, std::vector<bool>&
 // Propagation, by iterating the sorted list
 void Circuit::propagate()
 {
-    std::vector<int> order = getEvaluationOrder();
-    for (int id : order)
+    if (m_evalOrderDirty)
+    {
+        evaluateOrder();
+        m_evalOrderDirty = false;
+        std::cout << "Order evaluated: ";
+        for (int i = 0; i < m_evaluationOrder.size()-1; i++)
+        {
+            std::cout << "" << m_evaluationOrder[i] << "  ";
+        }
+        std::cout << "\n";
+    }
+
+    for (int id : m_evaluationOrder)
     {
 
         m_gates[id].evaluateOut();

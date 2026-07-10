@@ -44,18 +44,12 @@ int main()
 		circuit.getGate(gate1).setStateInPins(1, d);
 
 
+		circuit.propagate();
 		
 		if (i == 0) {
-			std::vector<int> propagationOrder = circuit.getEvaluationOrder();
-			std::cout << "Order: ";
-			for (int j = 0; j < 3; j++)
-			{
-				std::cout << propagationOrder[j] << ", ";
-			}
 			std::cout << "\nD | C | B | A | f | F\n";
 		}
 
-		circuit.propagate();
 
 		// Truth table to terminal
 		// F is a hardcoded answer for proof
