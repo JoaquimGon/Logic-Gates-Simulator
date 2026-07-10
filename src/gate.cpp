@@ -3,28 +3,31 @@
 
 Gate::Gate(GateType gateType, bool outInverted) 
 	: m_gateType(gateType),
-	  m_outInverted(outInverted)
+	  m_outInverted(gateType == GateType::NOT ? false : outInverted)
 {
+
+	if (gateType == GateType::NOT && outInverted)
+	{
+		std::cerr << "[Gate Warning]: A NOT gate cannot have an inverted output. "
+			<< "Defaulting output inversion to false.\n";
+	}
+
 	// Gate settings
 	int inPinsCount{};
-	//int outPinsCount{};	
 
 	switch (m_gateType) 
 	{
 	case NOT:
 		inPinsCount = 1;
-		//outPinsCount = 1;
 		break;
 	case AND:
 	case OR:
 	case XOR:
 		inPinsCount = 2;
-		//outPinsCount = 1;
 		break;
 	default:
 		inPinsCount = 0;
-		//outPinsCount = 0;
-		std::cout << "Gate type unspecified\n";
+		std::cerr << "Gate type unspecified\n";
 		break;
 	}
 	
