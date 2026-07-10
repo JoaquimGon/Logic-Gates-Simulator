@@ -14,9 +14,15 @@ int main()
 	int gate0 = circuit.addGate(GateType::AND); // ID: 0
 	int gate1 = circuit.addGate(GateType::AND); // ID: 1
 	int gate2 = circuit.addGate(GateType::XOR); // ID: 2
+	int gate3 = circuit.addGate(GateType::AND); // ID: 3
 
 	circuit.connectGates(gate0, gate2, 0);
 	circuit.connectGates(gate1, gate2, 1);
+
+	if (!circuit.connectGates(gate3, gate2, 1))
+	{
+		std::cerr << "Tried to connect gate " << gate3 << " to gate " << gate2 << " - Pin already occupied\n";
+	}
 
 	bool a, b, c, d;
 	a = b = c = d = false;
@@ -46,7 +52,7 @@ int main()
 			{
 				std::cout << propagationOrder[j] << ", ";
 			}
-			std::cout << "\n\D | C | B | A | f | F\n";
+			std::cout << "\nD | C | B | A | f | F\n";
 		}
 
 		circuit.propagate();

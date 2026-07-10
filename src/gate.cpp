@@ -7,7 +7,7 @@ Gate::Gate(GateType gateType, bool outInverted)
 {
 	// Gate settings
 	int inPinsCount{};
-	int outPinsCount{};	
+	//int outPinsCount{};	
 
 	switch (m_gateType) 
 	{
@@ -37,7 +37,8 @@ GateType Gate::getType() { return m_gateType; }
 std::vector<bool> Gate::getStateInPins() { return m_stateInPins; }
 void Gate::setStateInPins(int pinIndex, bool state) { m_stateInPins[pinIndex] = state; }
 bool Gate::getStateOutPin() { return m_stateOutPin; }
-std::vector<Connection> Gate::getConnections() { return m_connections; }
+std::vector<Connection> Gate::getOutConnections() { return m_outConnections; }
+std::vector<Connection> Gate::getInConnections() { return m_inConnections; }
 //
 
 
@@ -67,17 +68,25 @@ void Gate::evaluateOut()
 	}
 }
 
-void Gate::addConnection(int gateId, int pinIndex)
+void Gate::addOutConnection(int gateId, int pinIndex)
 {
 	Connection connection;
 	connection.gateId = gateId;
 	connection.pinIndex = pinIndex;
-	m_connections.push_back(connection);
+	m_outConnections.push_back(connection);
+}
+
+void Gate::addInConnection(int gateId, int pinIndex)
+{
+	Connection connection;
+	connection.gateId = gateId;
+	connection.pinIndex = pinIndex;
+	m_inConnections.push_back(connection);
 }
 
 bool Gate::hasConnection()
 {
-	if (m_connections.size() == 0)
+	if (m_outConnections.size() == 0)
 	{
 		return false;
 	}
@@ -86,5 +95,4 @@ bool Gate::hasConnection()
 		return true;
 	}
 }
-
 

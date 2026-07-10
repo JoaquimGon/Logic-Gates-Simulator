@@ -15,7 +15,7 @@ public:
 
     Gate& getGate(int gateId);
 
-    void connectGates(int srcGateId, int destGateId, int destPinIndex);
+    bool connectGates(int srcGateId, int destGateId, int destPinIndex);
 
     std::vector<int> getEvaluationOrder();
 

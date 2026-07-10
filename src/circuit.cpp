@@ -18,10 +18,21 @@ Gate& Circuit::getGate(int gateId)
     return m_gates.at(gateId);
 }
 
-
-void Circuit::connectGates(int srcGateId, int destGateId, int destPinIndex)
+// Adds connection to in and out of each gate
+bool Circuit::connectGates(int srcGateId, int destGateId, int destPinIndex)
 {
-    m_gates[srcGateId].addConnection(destGateId, destPinIndex);
+    for (const Connection& connection : m_gates[destGateId].getInConnections())
+    {
+        if (connection.pinIndex == destPinIndex)
+        {
+            return false;
+        }
+       
+    }
+    
+    m_gates[srcGateId].addOutConnection(destGateId, destPinIndex);
+    m_gates[destGateId].addInConnection(srcGateId, destPinIndex);
+    return true;
 }
 
 // Topological sort
@@ -54,7 +65,7 @@ void Circuit::dfsSort(int gateId, std::vector<bool>& visited, std::vector<bool>&
 
     scheduled[gateId] = true;
 
-    for (const auto& conn : m_gates[gateId].getConnections())
+    for (const auto& conn : m_gates[gateId].getOutConnections())
     {
         dfsSort(conn.gateId, visited, scheduled, order);
     }
@@ -71,15 +82,15 @@ void Circuit::propagate()
     std::vector<int> order = getEvaluationOrder();
     for (int id : order)
     {
-        // Update current gate
+
         m_gates[id].evaluateOut();
 
-        bool currentOutput = m_gates[id].getStateOutPin();
 
         // Update the child gates
-        std::vector<Connection> connections{ m_gates[id].getConnections() };
+        bool currentOutput = m_gates[id].getStateOutPin();
+        std::vector<Connection> connections{ m_gates[id].getOutConnections() };
 
-        for (const auto& connection : m_gates[id].getConnections())
+        for (const auto& connection : connections)
         {
             m_gates[connection.gateId].setStateInPins(connection.pinIndex, currentOutput);
         }
