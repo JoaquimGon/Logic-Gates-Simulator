@@ -46,14 +46,13 @@ int main()
 			{
 				std::cout << propagationOrder[j] << ", ";
 			}
-
+			std::cout << "\n\D | C | B | A | f | F\n";
 		}
 
 		circuit.propagate();
 
 		// Truth table to terminal
 		// F is a hardcoded answer for proof
-		std::cout << "\n\D | C | B | A | f | F\n";
 		std::cout << circuit.getGate(gate1).getStateInPins()[1] << " | ";
 		std::cout << circuit.getGate(gate1).getStateInPins()[0] << " | ";
 		std::cout << circuit.getGate(gate0).getStateInPins()[1] << " | ";
