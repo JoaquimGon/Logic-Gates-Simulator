@@ -37,12 +37,12 @@ Gate::Gate(int id, GateType gateType, bool outInverted)
 }
 
 // Getters
-GateType Gate::getType() { return m_gateType; }
+GateType Gate::getType() const { return m_gateType; }
 std::vector<bool> Gate::getStateInPins() { return m_stateInPins; }
 void Gate::setStateInPins(int pinIndex, bool state) { m_stateInPins[pinIndex] = state; }
 bool Gate::getStateOutPin() { return m_stateOutPin; }
-std::vector<Connection> Gate::getOutConnections() { return m_outConnections; }
-std::vector<Connection> Gate::getInConnections() { return m_inConnections; }
+std::vector<Connection> Gate::getOutConnections() const { return m_outConnections; }
+std::vector<Connection> Gate::getInConnections() const { return m_inConnections; }
 //
 
 
