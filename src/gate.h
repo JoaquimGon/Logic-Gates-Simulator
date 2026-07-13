@@ -18,6 +18,7 @@ struct Connection
 class Gate 
 {
 private:
+	int m_id;
 	GateType m_gateType;
 	bool m_dirty{ false };
 	bool m_outInverted{ false };
@@ -27,7 +28,7 @@ private:
 	std::vector<Connection> m_inConnections;
 
 public:
-	Gate(GateType gateType, bool outInverted);
+	Gate(int id, GateType gateType, bool outInverted);
 	GateType getType();
 	std::vector<Connection> getInConnections();
 	std::vector<Connection> getOutConnections();

@@ -1,20 +1,23 @@
 #pragma once
 #include <vector>
+#include <unordered_map>
+#include <unordered_set>
 #include "gate.h"
 
 class Circuit
 {
 private:
-    std::vector<Gate> m_gates;
+    std::unordered_map<int, Gate>m_gates;
     std::vector<int> m_evaluationOrder;
+    int m_currentId{ 0 };
     bool m_evalOrderDirty{ true };
 
-    void dfsSort(int gateId, std::vector<bool>& visited, std::vector<bool>& scheduled, std::vector<int>& order);
+    void dfsSort(int gateId, std::unordered_set<int>& visited, std::unordered_set<int>& scheduled, std::vector<int>& order);
     void evaluateOrder();
 
 public:
     int addGate(GateType type, bool outInverted = false);
-    Gate& getGate(int gateId);
+    Gate* getGate(int gateId);
     bool connectGates(int srcGateId, int destGateId, int destPinIndex);
     void propagate();
 

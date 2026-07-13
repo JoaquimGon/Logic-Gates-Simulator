@@ -1,8 +1,9 @@
 #include "gate.h"
 #include <iostream>
 
-Gate::Gate(GateType gateType, bool outInverted) 
-	: m_gateType(gateType),
+Gate::Gate(int id, GateType gateType, bool outInverted) 
+	: m_id(id),
+	  m_gateType(gateType),
 	  m_outInverted(gateType == GateType::NOT ? false : outInverted)
 {
 

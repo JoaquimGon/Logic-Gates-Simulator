@@ -2,28 +2,38 @@
 #include "circuit.h"
 #include "gate.h"
 #include <vector>
+#include <unordered_set>
 #include <stdexcept>
 #include <iostream>
-   
+
 
 int Circuit::addGate(GateType type, bool outInverted)
 {
-    m_gates.emplace_back(type, outInverted);
+    m_gates.emplace(m_currentId, Gate(m_currentId, type, outInverted));
+    m_currentId++;
     m_evalOrderDirty = true;
-
     // return ID
-    return m_gates.size() - 1;
+    return m_currentId - 1;
 }
 
-Gate& Circuit::getGate(int gateId)
+Gate* Circuit::getGate(int gateId)
 {
-    return m_gates.at(gateId);
+    auto it = m_gates.find(gateId);
+
+    if (it != m_gates.end()) {
+        return &(it->second);
+    }
+
+    return nullptr; // Not found
 }
 
 // Adds connection to in and out of each gate
 bool Circuit::connectGates(int srcGateId, int destGateId, int destPinIndex)
 {
-    for (const Connection& connection : m_gates[destGateId].getInConnections())
+    Gate* destGate = getGate(destGateId);
+    Gate* srcGate = getGate(srcGateId);
+
+    for (const Connection& connection : destGate->getInConnections())
     {
         if (connection.pinIndex == destPinIndex)
         {
@@ -32,22 +42,25 @@ bool Circuit::connectGates(int srcGateId, int destGateId, int destPinIndex)
        
     }
     
-    m_gates[srcGateId].addOutConnection(destGateId, destPinIndex);
-    m_gates[destGateId].addInConnection(srcGateId, destPinIndex);
+    srcGate->addOutConnection(destGateId, destPinIndex);
+    destGate->addInConnection(srcGateId, destPinIndex);
     return true;
 }
 
 // Topological sort
 void Circuit::evaluateOrder()
 {
-    std::vector<bool> visited(m_gates.size(), false);
-    std::vector<bool> scheduled(m_gates.size(), false);
+    // Tracks state by Unique ID instead of array index position
+    std::unordered_set<int> visited;
+    std::unordered_set<int> scheduled;
     std::vector<int> order;
 
-    for (int i = 0; i < m_gates.size(); ++i)
+    for (const auto& pair : m_gates)
     {
-        if (!visited[i]) {
-            Circuit::dfsSort(i, visited, scheduled, order);
+        int currentGateId = pair.first;
+
+        if (visited.find(currentGateId) == visited.end()) {
+            Circuit::dfsSort(currentGateId, visited, scheduled, order);
         }
     }
 
@@ -57,24 +70,26 @@ void Circuit::evaluateOrder()
 
 
 // Depth first sorting for a topological sort
-void Circuit::dfsSort(int gateId, std::vector<bool>& visited, std::vector<bool>& scheduled, std::vector<int>& order)
+void Circuit::dfsSort(int gateId, std::unordered_set<int>& visited, std::unordered_set<int>& scheduled, std::vector<int>& order)
 {
-    if (scheduled[gateId]) {
+    if (scheduled.find(gateId) != scheduled.end()) {
         throw std::runtime_error("Cyclic dependency detected! (Latches require a clock-staged evaluation).");
     }
 
-    if (visited[gateId]) return;
+    if (visited.find(gateId) != visited.end()) return;
+    scheduled.insert(gateId);
 
-    scheduled[gateId] = true;
-
-    for (const auto& conn : m_gates[gateId].getOutConnections())
+    Gate* currentGate = getGate(gateId);
+    if (currentGate != nullptr)
     {
-        dfsSort(conn.gateId, visited, scheduled, order);
+        for (const auto& conn : currentGate->getOutConnections())
+        {
+            dfsSort(conn.gateId, visited, scheduled, order);
+        }
     }
 
-    scheduled[gateId] = false;
-    visited[gateId] = true;
-
+    scheduled.erase(gateId);
+    visited.insert(gateId);
     order.push_back(gateId);
 }
 
@@ -96,16 +111,17 @@ void Circuit::propagate()
     for (int id : m_evaluationOrder)
     {
 
-        m_gates[id].evaluateOut();
+        Gate* gate = getGate(id);
+        gate->evaluateOut();
 
 
         // Update the child gates
-        bool currentOutput = m_gates[id].getStateOutPin();
-        std::vector<Connection> connections{ m_gates[id].getOutConnections() };
+        bool currentOutput = gate->getStateOutPin();
+        std::vector<Connection> connections{ gate->getOutConnections() };
 
         for (const auto& connection : connections)
         {
-            m_gates[connection.gateId].setStateInPins(connection.pinIndex, currentOutput);
+            getGate(connection.gateId)->setStateInPins(connection.pinIndex, currentOutput);
         }
 
     }

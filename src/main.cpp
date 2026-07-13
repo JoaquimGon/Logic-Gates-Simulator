@@ -38,12 +38,11 @@ int main()
 			if (i % 4 == 0) { c = !c; }
 			if (i % 8 == 0) { d = !d; }
 		}
-		circuit.getGate(gate0).setStateInPins(0, a);
-		circuit.getGate(gate0).setStateInPins(1, b);
-		circuit.getGate(gate1).setStateInPins(0, c);
-		circuit.getGate(gate1).setStateInPins(1, d);
-
-
+		circuit.getGate(gate0)->setStateInPins(0, a);
+		circuit.getGate(gate0)->setStateInPins(1, b);
+		circuit.getGate(gate1)->setStateInPins(0, c);
+		circuit.getGate(gate1)->setStateInPins(1, d);
+		
 		circuit.propagate();
 		
 		if (i == 0) {
@@ -53,11 +52,11 @@ int main()
 
 		// Truth table to terminal
 		// F is a hardcoded answer for proof
-		std::cout << circuit.getGate(gate1).getStateInPins()[1] << " | ";
-		std::cout << circuit.getGate(gate1).getStateInPins()[0] << " | ";
-		std::cout << circuit.getGate(gate0).getStateInPins()[1] << " | ";
-		std::cout << circuit.getGate(gate0).getStateInPins()[0] << " | ";
-		std::cout << circuit.getGate(gate2).getStateOutPin() << " | ";
+		std::cout << circuit.getGate(gate1)->getStateInPins()[1] << " | ";
+		std::cout << circuit.getGate(gate1)->getStateInPins()[0] << " | ";
+		std::cout << circuit.getGate(gate0)->getStateInPins()[1] << " | ";
+		std::cout << circuit.getGate(gate0)->getStateInPins()[0] << " | ";
+		std::cout << circuit.getGate(gate2)->getStateOutPin() << " | ";
 		std::cout << answer[i]<< "\n";
 
 	}
