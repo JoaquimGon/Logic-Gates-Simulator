@@ -29,14 +29,16 @@ private:
 
 public:
 	Gate(int id, GateType gateType, bool outInverted);
-	GateType getType();
-	std::vector<Connection> getInConnections();
-	std::vector<Connection> getOutConnections();
+	GateType getType() const;
+	std::vector<Connection> getInConnections() const;
+	std::vector<Connection> getOutConnections() const;
 	std::vector<bool> getStateInPins();
 	void setStateInPins(int pinIndex, bool state);
 	bool getStateOutPin();
 	void evaluateOut();
 	void addInConnection(int gateId, int pinIndex);
+	void delInConnection(int srcGateId, int srcPinIndex);
 	void addOutConnection(int gateId, int pinIndex);
+	void delOutConnection(int destGateId, int destPinIndex);
 	bool hasConnection();
 };

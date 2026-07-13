@@ -27,6 +27,33 @@ Gate* Circuit::getGate(int gateId)
     return nullptr; // Not found
 }
 
+
+void Circuit::delGate(int gateId)
+{
+    Gate* currentGate = getGate(gateId);
+    if (currentGate == nullptr) return;
+
+    // Tell parent gates to stop sending data to us
+    for (const Connection& connection : currentGate->getInConnections()) {
+        Gate* srcGate = getGate(connection.gateId);
+        if (srcGate) {
+            srcGate->delOutConnection(gateId, connection.pinIndex);
+        }
+    }
+
+    // Tell child gates that their input pin is now disconnected
+    for (const Connection& connection : currentGate->getOutConnections()) {
+        Gate* destGate = getGate(connection.gateId);
+        if (destGate) {
+            destGate->delInConnection(gateId, connection.pinIndex);
+        }
+    }
+
+    m_gates.erase(gateId);
+    m_evalOrderDirty = true;
+}
+
+
 // Adds connection to in and out of each gate
 bool Circuit::connectGates(int srcGateId, int destGateId, int destPinIndex)
 {
@@ -46,6 +73,33 @@ bool Circuit::connectGates(int srcGateId, int destGateId, int destPinIndex)
     destGate->addInConnection(srcGateId, destPinIndex);
     return true;
 }
+
+
+void Circuit::disconnectGates(int srcGateId, int destGateId, int destGatePinIndex)
+{
+    Gate* srcGate = getGate(srcGateId);
+    Gate* destGate = getGate(destGateId);
+
+    if (srcGate == nullptr || destGate == nullptr) return;
+
+    srcGate->delOutConnection(destGateId, destGatePinIndex);
+    destGate->delInConnection(srcGateId, destGatePinIndex);
+
+    m_evalOrderDirty = true;
+}
+
+
+// Change an existing connection
+void Circuit::changeConnection(
+int srcGateId,
+int oldDestGateId, int oldDestPinIndex,
+int newDestGateId, int newDestPinIndex
+)
+{
+    disconnectGates(srcGateId, oldDestGateId, oldDestPinIndex);
+    connectGates(srcGateId, newDestGateId, newDestPinIndex);
+}
+
 
 // Topological sort
 void Circuit::evaluateOrder()
@@ -117,7 +171,7 @@ void Circuit::propagate()
 
         // Update the child gates
         bool currentOutput = gate->getStateOutPin();
-        std::vector<Connection> connections{ gate->getOutConnections() };
+        const std::vector<Connection>& connections{ gate->getOutConnections() };
 
         for (const auto& connection : connections)
         {

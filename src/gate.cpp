@@ -48,6 +48,15 @@ std::vector<Connection> Gate::getInConnections() { return m_inConnections; }
 
 void Gate::evaluateOut()
 {
+	if (m_gateType != NOT && !m_stateInPins.size() >= 2)
+	{
+		std::cerr << "Gate does not have the necessary input pins.";
+	}
+	else if (m_gateType == NOT && !m_stateInPins.size() > 1)
+	{
+		std::cerr << "Gate has more input pins than it should.";
+	}
+
 	switch (m_gateType)
 	{
 	case NOT:
@@ -86,6 +95,20 @@ void Gate::addInConnection(int gateId, int pinIndex)
 	connection.gateId = gateId;
 	connection.pinIndex = pinIndex;
 	m_inConnections.push_back(connection);
+}
+
+void Gate::delOutConnection(int destGateId, int destPinIndex)
+{
+	std::erase_if(m_outConnections, [destGateId, destPinIndex](const Connection& conn) {
+		return conn.gateId == destGateId && conn.pinIndex == destPinIndex;
+		});
+}
+
+void Gate::delInConnection(int srcGateId, int srcPinIndex)
+{
+	std::erase_if(m_inConnections, [srcGateId, srcPinIndex](const Connection& conn) {
+		return conn.gateId == srcGateId && conn.pinIndex == srcPinIndex;
+		});
 }
 
 bool Gate::hasConnection()

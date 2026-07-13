@@ -18,7 +18,11 @@ private:
 public:
     int addGate(GateType type, bool outInverted = false);
     Gate* getGate(int gateId);
+    void delGate(int gateId);
     bool connectGates(int srcGateId, int destGateId, int destPinIndex);
+    void disconnectGates(int srcGateId, int destGateId, int destGatePinIndex);
+    void changeConnection(int srcGateId,
+        int oldDestGateId, int oldDestGatePinIndex, 
+        int newDestGateId, int newDestGatePinIndex);
     void propagate();
-
 };
