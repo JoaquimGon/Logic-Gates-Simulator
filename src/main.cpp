@@ -1,6 +1,4 @@
-#include "main.h"
-#include "gate.h"
-#include "circuit.h"
+#include "..\include\main.h"
 #include <vector>
 #include <iostream>
 

@@ -48,11 +48,11 @@ std::vector<Connection> Gate::getInConnections() const { return m_inConnections;
 
 void Gate::evaluateOut()
 {
-	if (m_gateType != NOT && !m_stateInPins.size() >= 2)
+	if (m_gateType != NOT && !(m_stateInPins.size() >= 2))
 	{
 		std::cerr << "Gate does not have the necessary input pins.";
 	}
-	else if (m_gateType == NOT && !m_stateInPins.size() > 1)
+	else if (m_gateType == NOT && !(m_stateInPins.size() > 1))
 	{
 		std::cerr << "Gate has more input pins than it should.";
 	}

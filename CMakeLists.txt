@@ -39,7 +39,7 @@ FetchContent_MakeAvailable(glfw)
 # GLAD - generated at https://glad.dav1d.de and dropped into external/glad/
 # expects: external/glad/include/glad/glad.h, external/glad/include/KHR/khrplatform.h,
 #          external/glad/src/glad.c
-add_library(glad STATIC "external/glad/src/glad.c")
+add_library(glad STATIC "external/glad/src/glad.c" "include/Engine/Shader.h" "src/Engine/Engine.cpp")
 target_include_directories(glad PUBLIC "external/glad/include")
 
 # ---------------------------------------------------------------------------
@@ -47,11 +47,12 @@ target_include_directories(glad PUBLIC "external/glad/include")
 # ---------------------------------------------------------------------------
 add_executable (Logic-Gates-Simulator 
     "src/main.cpp" 
-    "src/main.h"
-    "src/gate.cpp"
-    "src/gate.h" 
-    "src/circuit.cpp" 
-    "src/circuit.h")
+    "include/main.h"
+    "src/Cate.cpp"
+    "include/Gate.h" 
+    "src/Circuit.cpp" 
+    "include/Circuit.h"
+ "include/Engine/Shader.h" "src/Engine/Engine.cpp")
 
 target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad)
 
