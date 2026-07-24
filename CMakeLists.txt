@@ -66,7 +66,9 @@ add_executable (Logic-Gates-Simulator
     "src/Engine/Shader.cpp" 
     "include/Engine/Shader.h" 
     "src/Engine/Engine.cpp" 
-    "include/Engine/Engine.h" 
+    "include/Engine/Engine.h"
+    "src/Engine/ShaderManager.cpp"
+    "include/Engine/ShaderManager.h"
 )
 
 target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad glm::glm)
