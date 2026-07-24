@@ -1,6 +1,5 @@
 #include "..\include\main.h"
-#include <vector>
-#include <iostream>
+
 
 int main()
 {

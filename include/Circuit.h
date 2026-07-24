@@ -1,8 +1,11 @@
 #pragma once
+#include "gate.h"
+
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include "gate.h"
+#include <stdexcept>
+#include <iostream>
 
 class Circuit
 {

@@ -1,10 +1,4 @@
-
-#include "circuit.h"
-#include "gate.h"
-#include <vector>
-#include <unordered_set>
-#include <stdexcept>
-#include <iostream>
+#include "..\include\Circuit.h"
 
 
 int Circuit::addGate(GateType type, bool outInverted)

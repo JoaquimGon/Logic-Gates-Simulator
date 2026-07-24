@@ -1,0 +1,97 @@
+#include "..\..\include\Engine\Shader.h"
+
+
+class Shader {
+public:
+    unsigned int ID; // OpenGL program handle
+
+
+    Shader(const char* vertexPath, const char* fragmentPath) {
+        std::string vCode = readFile(vertexPath);
+        std::string fCode = readFile(fragmentPath);
+
+        unsigned int vertexShader = compile(vCode.c_str(), GL_VERTEX_SHADER);
+        unsigned int fragmentShader = compile(fCode.c_str(), GL_FRAGMENT_SHADER);
+
+        ID = glCreateProgram();
+        glAttachShader(ID, vertexShader);
+        glAttachShader(ID, fragmentShader);
+        glLinkProgram(ID);
+        checkLinkErrors(ID);
+
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
+    }
+
+
+    void use() const { glUseProgram(ID); }
+
+    // Set uniforms
+    void setBool(const std::string& name, bool value) const {
+        glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
+    }
+    void setFloat(const std::string& name, float value) const {
+        glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
+    }
+    void setMat4(const std::string& name, const glm::mat4& mat) const {
+        glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, &mat[0][0]);
+    }
+
+
+    ~Shader() { glDeleteProgram(ID); }
+
+
+private:
+    unsigned int compile(const char* src, GLenum type) 
+    {
+        unsigned int vertexShader = glCreateShader(type);
+        glShaderSource(vertexShader, 1, &src, NULL);
+        glCompileShader(vertexShader);
+
+        int success;
+        char infoLog[512];
+
+        glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+        if (!success)
+        {
+            glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+            std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+        }
+
+        return vertexShader;
+    }
+
+
+    std::string readFile(const char* path)
+    { 
+        std::ifstream file;
+        file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
+        try {
+            file.open(path);
+            std::stringstream stream;
+            stream << file.rdbuf();
+            file.close();
+            return stream.str();
+        }
+        catch (std::ifstream::failure& e) {
+            std::cerr << "ERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ: " << path << std::endl;
+            return "";
+        }
+    }
+
+
+    void checkLinkErrors(unsigned int program)
+    {
+        int success;
+        char infoLog[512];
+
+        // check for linking errors
+        glGetProgramiv(program, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(program, 512, NULL, infoLog);
+            std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+        }
+    }
+};
+
