@@ -50,7 +50,7 @@ FetchContent_MakeAvailable(glm)
 # GLAD - generated at https://glad.dav1d.de and dropped into external/glad/
 # expects: external/glad/include/glad/glad.h, external/glad/include/KHR/khrplatform.h,
 #          external/glad/src/glad.c
-add_library(glad STATIC "external/glad/src/glad.c" "include/Engine/Shader.h" "src/Engine/Engine.cpp" )
+add_library(glad STATIC "external/glad/src/glad.c")
 target_include_directories(glad PUBLIC "external/glad/include")
 
 # ---------------------------------------------------------------------------
@@ -69,6 +69,10 @@ add_executable (Logic-Gates-Simulator
     "include/Engine/Engine.h"
     "src/Engine/ShaderManager.cpp"
     "include/Engine/ShaderManager.h"
+    "src/Engine/Mesh.cpp"
+    "include/Engine/Mesh.h" 
+    "include/Engine/VertexLayout.h"
+    "src/Engine/VertexLayout.cpp"
 )
 
 target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad glm::glm)

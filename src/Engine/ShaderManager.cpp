@@ -6,6 +6,7 @@ ShaderManager& ShaderManager::instance() {
     return mgr;
 }
 
+ShaderManager::ShaderManager() {}
 
 Shader* ShaderManager::load(const std::string& name,
     const std::string& vertexPath,
