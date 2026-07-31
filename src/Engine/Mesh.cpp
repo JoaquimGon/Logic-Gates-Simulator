@@ -3,7 +3,7 @@
 
 Mesh::Mesh(const std::vector<float>& vertices,
         const std::vector<unsigned int>& indices,
-        const VertexLayout& layout,
+        const VertexLayout& vertexLayout,
         unsigned int drawMode)
     {
         defaultDrawMode = drawMode;
@@ -24,13 +24,21 @@ Mesh::Mesh(const std::vector<float>& vertices,
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
         }
         else {
-            vertexCount = vertices.size() / (layout.getStride() / sizeof(float));
+            vertexCount = vertices.size() / (vertexLayout.getStride() / sizeof(float));
         }
 
-        layout.applyToVAO();
+        vertexLayout.applyToVAO();
 
         glBindVertexArray(0);
     }
+
+
+Mesh::~Mesh()
+{
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
+}
 
 void Mesh::draw() const {
         glBindVertexArray(VAO);

@@ -80,3 +80,6 @@ target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad glm::glm)
 if(WIN32)
     target_link_libraries(Logic-Gates-Simulator PRIVATE opengl32)
 endif()
+
+# Automatically copy your shaders folder right next to the executable
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

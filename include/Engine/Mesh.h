@@ -23,17 +23,21 @@ public:
      * @brief Initializes a Mesh object with geometry data.
      * @param vertices Array of vertex coordinates.
      * @param indices Array of index data for the EBO.
-     * @param layout Vertex layout for the VAO.
+     * @param vertexLayout Vertex layout for the VAO.
      * @param drawMode Draw mode for openGL.
      */
     Mesh(const std::vector<float>& vertices,
         const std::vector<unsigned int>& indices,
-        const VertexLayout& layout,
+        const VertexLayout& vertexLayout,
         unsigned int drawMode = GL_TRIANGLES);
 
     /**
     * @brief Draws the mesh to the screen.
     */
     void draw() const;
-
+    
+    /*
+    * @brief Mesh deconstructor, deletes the VAO, EBO and VAO buffers
+    */
+    ~Mesh();
 };

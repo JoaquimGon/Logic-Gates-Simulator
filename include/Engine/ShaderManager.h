@@ -21,7 +21,7 @@ public:
 	static ShaderManager& instance();
 
 	/*
-	* @brief Loads a shader, will search if it's already loaded first
+	* @brief Loads a shader (vertex and fragment), will search if it's already loaded first
 	* @param name Name for the shader to be used
 	* @param vertexPath File path for the vertex shader
 	* @param fragmentPath File path for the fragment shader
