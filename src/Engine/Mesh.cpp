@@ -1,5 +1,6 @@
 #include "..\..\include\Engine\Mesh.h"
 
+
 Mesh::Mesh(const std::vector<float>& vertices,
         const std::vector<unsigned int>& indices,
         const VertexLayout& layout,

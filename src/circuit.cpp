@@ -69,15 +69,15 @@ bool Circuit::connectGates(int srcGateId, int destGateId, int destPinIndex)
 }
 
 
-void Circuit::disconnectGates(int srcGateId, int destGateId, int destGatePinIndex)
+void Circuit::disconnectGates(int srcGateId, int destGateId, int destPinIndex)
 {
     Gate* srcGate = getGate(srcGateId);
     Gate* destGate = getGate(destGateId);
 
     if (srcGate == nullptr || destGate == nullptr) return;
 
-    srcGate->delOutConnection(destGateId, destGatePinIndex);
-    destGate->delInConnection(srcGateId, destGatePinIndex);
+    srcGate->delOutConnection(destGateId, destPinIndex);
+    destGate->delInConnection(srcGateId, destPinIndex);
 
     m_evalOrderDirty = true;
 }
