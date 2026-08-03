@@ -7,7 +7,15 @@ void Engine::processInput()
 }
 
 
-int Engine::init(std::string windowName, int windowWidth, int windowHeight)
+Engine::Engine(std::string windowName, int windowWidth, int windowHeight)
+{
+    m_windowName = windowName;
+    m_windowWidth = windowWidth;
+    m_windowHeight = windowHeight;
+}
+
+
+int Engine::init()
 {
     // glfw: initialize and configure
     glfwInit();
@@ -16,7 +24,7 @@ int Engine::init(std::string windowName, int windowWidth, int windowHeight)
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     // glfw window creation
-    window = glfwCreateWindow(windowWidth, windowHeight, windowName.c_str(), NULL, NULL);
+    window = glfwCreateWindow(m_windowWidth, m_windowHeight, m_windowName.c_str(), NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
@@ -34,9 +42,8 @@ int Engine::init(std::string windowName, int windowWidth, int windowHeight)
     }
 
     
-    sm.load("ANDgate", "shaders/quadShader.ver", "shaders/andGate.frag");
+    sm.load("ANDgate", "shaders/vec4Shader.vert", "shaders/andGate.frag");
     
-
     // Gate Mesh creation
     std::vector<float> quadVertices = {
         -0.5f,  0.5f, 0.0, // Top-left
@@ -49,9 +56,9 @@ int Engine::init(std::string windowName, int windowWidth, int windowHeight)
         2, 3, 0   // Second triangle
     };
     VertexLayout gateLayout;
-    gateLayout.addAttribute(3);
+    gateLayout.addAttribute(3); // Vertex Position
     gateLayout.applyToVAO();
-    gateMesh = std::make_unique<Mesh>(quadVertices, quadIndices, gateLayout, GL_LINE_LOOP);
+    gateMesh = std::make_unique<Mesh>(quadVertices, quadIndices, gateLayout, GL_TRIANGLES);
 
     return 0;
 
@@ -68,12 +75,13 @@ void Engine::run()
 
         // render
         // ------
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
 
-        sm.get("ANDgate")->use();
 
+        sm.get("ANDgate")->use();
+        sm.get("ANDgate")->setVec2("iResolution", (float)m_windowWidth, (float)m_windowHeight);
         gateMesh->draw();
 
         glfwSwapBuffers(window);

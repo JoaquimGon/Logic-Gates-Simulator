@@ -57,5 +57,12 @@ public:
     * @param mat The glm::mat4 matrix to be passed to the shader
     */
     void setMat4(const std::string& name, const glm::mat4& mat) const;
+
+    /*
+    * @brief Sets a shader's vector of size 2 uniform
+    * @param name Name of the variable in the shader
+    * @param mat The glm::mat4 matrix to be passed to the shader
+    */
+    void setVec2(const std::string& name, float value1, float value2) const;
 };
 

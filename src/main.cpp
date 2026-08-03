@@ -3,7 +3,7 @@
 
 int main()
 {
-	Engine engine;
-	engine.init("Logic Gate Simulator", 800, 600);
+	Engine engine("Logic Gate Simulator", 800, 600);
+	engine.init();
 	engine.run();
 }

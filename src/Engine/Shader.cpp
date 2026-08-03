@@ -26,14 +26,21 @@ void Shader::use() const
 
 
 // Set uniforms
-void Shader::setBool(const std::string& name, bool value) const {
+void Shader::setBool(const std::string& name, bool value) const 
+{
     glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
 }
-void Shader::setFloat(const std::string& name, float value) const {
+void Shader::setFloat(const std::string& name, float value) const 
+{
     glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
 }
-void Shader::setMat4(const std::string& name, const glm::mat4& mat) const {
+void Shader::setMat4(const std::string& name, const glm::mat4& mat) const 
+{
     glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, &mat[0][0]);
+}
+void Shader::setVec2(const std::string& name, float value1, float value2) const
+{
+    glUniform2f(glGetUniformLocation(ID, name.c_str()), value1, value2);
 }
 
 
@@ -43,6 +50,7 @@ Shader::~Shader() { glDeleteProgram(ID); }
 unsigned int Shader::compile(const char* src, GLenum type)
 {
         unsigned int vertexShader = glCreateShader(type);
+        
         glShaderSource(vertexShader, 1, &src, NULL);
         glCompileShader(vertexShader);
 
@@ -54,6 +62,7 @@ unsigned int Shader::compile(const char* src, GLenum type)
         {
             glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
             std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+            std::cout << "Shader " << ID << ", code: \n" << src << "\n";
         }
 
         return vertexShader;

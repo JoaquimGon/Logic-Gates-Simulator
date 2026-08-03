@@ -81,5 +81,23 @@ if(WIN32)
     target_link_libraries(Logic-Gates-Simulator PRIVATE opengl32)
 endif()
 
-# Automatically copy your shaders folder right next to the executable
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+# Clear out the old shaders folder in the build directory, then copy the fresh one
+#add_custom_command(
+#    TARGET Logic-Gates-Simulator POST_BUILD
+#    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders
+#    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/shaders ${CMAKE_CURRENT_BINARY_DIR}/shaders
+#)
+
+# 1. Collect all shader files so CMake tracks them as dependencies
+file(GLOB_RECURSE SHADER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/shaders/*")
+
+# 2. Create a custom target that removes and re-copies the shader folder
+add_custom_target(CopyShaders ALL
+    COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/shaders" "${CMAKE_CURRENT_BINARY_DIR}/shaders"
+    SOURCES ${SHADER_FILES}
+    COMMENT "Syncing shaders to binary output folder..."
+)
+
+# 3. Force your executable to depend on the shader copy target
+add_dependencies(Logic-Gates-Simulator CopyShaders)

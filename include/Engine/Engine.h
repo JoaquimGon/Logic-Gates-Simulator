@@ -13,7 +13,10 @@ class Engine
 {
 private:
 	GLFWwindow* window;
-	
+	std::string m_windowName;
+	int m_windowWidth = 0;
+	int m_windowHeight = 0;
+
 	ShaderManager& sm = ShaderManager::instance();
 
 	// Meshes
@@ -27,7 +30,8 @@ private:
 
 	void processInput();
 public:
-	int init(std::string windowName, int windowWidth, int windowHeight);
+	Engine(std::string windowName, int windowWidth, int windowHeight);
+	int init();
 	void run();
 
 
