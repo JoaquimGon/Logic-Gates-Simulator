@@ -73,7 +73,7 @@ add_executable (Logic-Gates-Simulator
     "include/Engine/Mesh.h" 
     "include/Engine/VertexLayout.h"
     "src/Engine/VertexLayout.cpp"
-)
+ "src/Engine/Input.cpp" "include/Engine/Input.h")
 
 target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad glm::glm)
 
@@ -97,7 +97,7 @@ add_custom_target(CopyShaders ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/shaders" "${CMAKE_CURRENT_BINARY_DIR}/shaders"
     SOURCES ${SHADER_FILES}
     COMMENT "Syncing shaders to binary output folder..."
-)
+ "src/Engine/input.cpp" "include/Engine/Input.h")
 
 # 3. Force your executable to depend on the shader copy target
 add_dependencies(Logic-Gates-Simulator CopyShaders)

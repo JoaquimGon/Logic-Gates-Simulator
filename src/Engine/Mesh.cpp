@@ -49,3 +49,4 @@ void Mesh::draw() const {
             glDrawArrays(defaultDrawMode, 0, vertexCount);
         }
 }
+

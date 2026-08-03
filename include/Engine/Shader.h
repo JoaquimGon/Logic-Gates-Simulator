@@ -52,11 +52,19 @@ public:
     void setFloat(const std::string& name, float value) const;
     
     /*
+    * @brief Sets a shader's 3x3 matrix uniform
+    * @param name Name of the variable in the shader
+    * @param mat The glm::mat4 matrix to be passed to the shader
+    */
+    void setMat3(const std::string& name, const glm::mat3& mat) const;
+
+    /*
     * @brief Sets a shader's 4x4 matrix uniform
     * @param name Name of the variable in the shader
     * @param mat The glm::mat4 matrix to be passed to the shader
     */
     void setMat4(const std::string& name, const glm::mat4& mat) const;
+
 
     /*
     * @brief Sets a shader's vector of size 2 uniform
