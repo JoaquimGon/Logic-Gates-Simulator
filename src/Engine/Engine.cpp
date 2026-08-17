@@ -131,12 +131,10 @@ void Engine::run()
         gridMesh->draw();
 
         // AND gates
-        /*
         sm.get("ANDgate")->use();
         sm.get("ANDgate")->setVec2("uPanOffset", 0.0, 0.0);
         sm.get("ANDgate")->setFloat("uZoom", 1.0);
         gateMesh->draw();
-        */
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

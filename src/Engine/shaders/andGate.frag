@@ -17,7 +17,7 @@ float sdAndGate(in vec2 p)
 {
     p.x -= 0.05;
 
-    float halfWidth  = 0.2955; // 0.591 * 0.5
+    float halfWidth  = 0.591; // 0.591 * 0.5
     float halfHeight = 0.591;
 
     vec2 boxP = p - vec2(-halfWidth, 0.0);

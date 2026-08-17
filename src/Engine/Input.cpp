@@ -30,6 +30,8 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         if (action == GLFW_PRESS) {
             isDragging = true;
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
+            glm::vec2 mouseWorldCoord = getMouseWorldCoord(window, m_zoom);
+            std::cout << "Wolrd coordinate (" << mouseWorldCoord.x << ", " << mouseWorldCoord.y << ").\n";
         }
         else if (action == GLFW_RELEASE) {
             isDragging = false;
@@ -59,4 +61,30 @@ void Input::process(GLFWwindow* window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+}
+
+glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom)
+{
+    // 1. Get the current cursor position from GLFW
+    double mouseX, mouseY;
+    glfwGetCursorPos(window, &mouseX, &mouseY);
+
+    // 2. Get window dimensions
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+
+    // 3. Convert screen pixels to Normalized Device Coordinates (-1 to 1)
+    float ndcX = (2.0f * static_cast<float>(mouseX)) / width - 1.0f;
+    float ndcY = 1.0f - (2.0f * static_cast<float>(mouseY)) / height; // Invert Y because screen Y goes down
+
+    // 4. Apply the same aspect ratio correction you use in your grid shader
+    float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+    float correctedX = ndcX * aspectRatio;
+    float correctedY = ndcY;
+
+    // 5. Reverse the shader math: divide by zoom, then add panOffset
+    float worldX = (correctedX / zoom) + panOffset.x;
+    float worldY = (correctedY / zoom) + panOffset.y;
+
+    return glm::vec2(worldX, worldY);
 }

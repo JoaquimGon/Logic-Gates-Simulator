@@ -6,9 +6,10 @@
 class Input
 {
 private:
+    float m_zoom = 1.0f;
     bool isDragging = false;
-    double lastMouseX = 0.0;
-    double lastMouseY = 0.0;
+    double lastMouseX = 0.0f;
+    double lastMouseY = 0.0f;
     glm::vec2 panOffset = glm::vec2(0.0f, 0.0f); // Use '=' or '{}' for member initialization
 
 public:
@@ -18,8 +19,10 @@ public:
 
     void handleMouseButton(GLFWwindow* window, int button, int action, int mods);
     void handleCursorPos(GLFWwindow* window, double xpos, double ypos);
-
+    glm::vec2 getMouseWorldCoord(GLFWwindow* window, float zoom);
+    
     glm::vec2 getPanOffset() const { return  panOffset; }
     glm::vec2 getLastMouse() const { return glm::vec2(lastMouseX, lastMouseY); }
 
+    void setZoom(float zoom) { m_zoom = zoom; }
 };
