@@ -3,8 +3,9 @@
 #include "Shader.h"
 #include "ShaderManager.h"
 #include "VertexLayout.h"
-#include "..\Circuit.h"
+#include "..\Logic\Circuit.h"
 #include "Input.h"
+#include "GateView.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>

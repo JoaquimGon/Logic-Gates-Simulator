@@ -1,4 +1,4 @@
-#include "..\include\gate.h"
+#include "..\..\include\Logic\Gate.h"
 
 
 Gate::Gate(int id, GateType gateType, bool outInverted) 

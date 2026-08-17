@@ -53,7 +53,7 @@ int Engine::init()
     glClear(GL_COLOR_BUFFER_BIT);
 
     // ----- Shaders -----
-    sm.load("ANDgate", "shaders/vec4Shader.vert", "shaders/andGate.frag");
+    sm.load("ANDgate", "shaders/andGate.vert", "shaders/andGate.frag");
     sm.load("grid", "shaders/vec4Shader.vert", "shaders/grid.frag");
     
 
@@ -103,6 +103,11 @@ void Engine::run()
     glm::vec2 cameraPan(0.0f, 0.0f);
 
 
+    // Start the gate array
+    std::vector<GateView> gatesViews;
+    gatesViews.push_back(GateView({ 0.0f, 0.0f }, { 0.2f, 0.2f }, "ANDgate"));
+    gatesViews.push_back(GateView({ 1.0f, 0.0f }, { 0.2f, 0.2f }, "ANDgate"));
+
 
     // Main draw loop
     while (!glfwWindowShouldClose(window))
@@ -120,7 +125,8 @@ void Engine::run()
 
         int width, height;
         glfwGetWindowSize(window, &width, &height);
-
+        // Guard against division by zero if minimized
+        float aspectRatio = (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
 
         // Draw grid
         sm.get("grid")->use();
@@ -132,9 +138,19 @@ void Engine::run()
 
         // AND gates
         sm.get("ANDgate")->use();
-        sm.get("ANDgate")->setVec2("uPanOffset", 0.0, 0.0);
-        sm.get("ANDgate")->setFloat("uZoom", 1.0);
-        gateMesh->draw();
+        sm.get("ANDgate")->setVec2("uPanOffset", input.getPanOffset().x, input.getPanOffset().y);
+        sm.get("ANDgate")->setFloat("uZoom", cameraZoom);
+        sm.get("ANDgate")->setFloat("uAspectRatio", aspectRatio); // <-- was missing
+
+        for (const auto& gateView : gatesViews)
+        {
+            sm.get(gateView.getShaderName())->setVec2("uGatePosition", gateView.getPosition().x, gateView.getPosition().y);
+            sm.get(gateView.getShaderName())->setVec2("uGateSize", gateView.getSize().x, gateView.getSize().y);
+            gateMesh->draw();
+        }
+
+
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

@@ -1,4 +1,4 @@
-#include "..\include\Circuit.h"
+#include "..\..\include\Logic\Circuit.h"
 
 
 int Circuit::addGate(GateType type, bool outInverted)

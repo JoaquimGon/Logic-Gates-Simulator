@@ -1,5 +1,5 @@
 #pragma once
-#include "gate.h"
+#include "Gate.h"
 
 #include <vector>
 #include <unordered_map>
