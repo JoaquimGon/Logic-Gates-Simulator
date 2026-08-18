@@ -22,26 +22,92 @@ void Input::cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
 }
 
 // 3. Your real, non-static mouse button logic (can use 'isDragging', 'panOffset', etc.)
+/* 
 void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mods)
 {
-
+    // Left button click 
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
-        std::cout << "Mout left button clicked.\n";
         if (action == GLFW_PRESS) {
             isDragging = true;
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
-            glm::vec2 mouseWorldCoord = getMouseWorldCoord(window, m_zoom);
-            std::cout << "Wolrd coordinate (" << mouseWorldCoord.x << ", " << mouseWorldCoord.y << ").\n";
+            glm::vec2 currentWorldCoords = getMouseWorldCoord(window, m_zoom);
+            mouseGridCoords = GridSystem::worldToGrid(currentWorldCoords);
+            std::cout << "World coordinates (" << currentWorldCoords.x << ", " << currentWorldCoords.y << ").\n";
+            std::cout << "Grid coordinates (" << mouseGridCoords.x << ", " << mouseGridCoords.y << ").\n";
+
         }
         else if (action == GLFW_RELEASE) {
             isDragging = false;
         }
     }
 }
+*/
+void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mods)
+{
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (action == GLFW_PRESS) {
+            glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
+            glm::vec2 currentWorldCoords = getMouseWorldCoord(window, m_zoom);
+            mouseGridCoords = GridSystem::worldToGrid(currentWorldCoords);
+
+            // Check if the click landed on a gate before starting a canvas pan
+            m_draggedGate = nullptr;
+            if (m_gates) {
+                for (auto& gate : *m_gates) {
+                    glm::vec2 halfSize = gate.getSize() * 0.5f;
+                    glm::vec2 delta = currentWorldCoords - gate.getPosition();
+                    if (std::abs(delta.x) <= halfSize.x && std::abs(delta.y) <= halfSize.y) {
+                        m_draggedGate = &gate;
+                        break;
+                    }
+                }
+            }
+
+            if (m_draggedGate) {
+                isDraggingGate = true;
+            }
+            else {
+                isDragging = true;
+            }
+        }
+        else if (action == GLFW_RELEASE) {
+            isDragging = false;
+            isDraggingGate = false;
+            m_draggedGate = nullptr;
+        }
+    }
+}
 
 // 4. Your real, non-static cursor position logic
+/*
 void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
 {
+    if (isDragging) {
+        double deltaX = xpos - lastMouseX;
+        double deltaY = ypos - lastMouseY;
+
+        int width, height;
+        glfwGetWindowSize(window, &width, &height);
+
+        panOffset.x -= (static_cast<float>(deltaX) / height) * 2.0f;
+        panOffset.y += (static_cast<float>(deltaY) / height) * 2.0f;
+
+        lastMouseX = xpos;
+        lastMouseY = ypos;
+    }
+}
+*/
+
+void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
+{
+    if (isDraggingGate && m_draggedGate) {
+        glm::vec2 worldCoords = getMouseWorldCoord(window, m_zoom);
+        m_draggedGate->setPosition(GridSystem::snapToGrid(worldCoords));
+        lastMouseX = xpos;
+        lastMouseY = ypos;
+        return;
+    }
+
     if (isDragging) {
         double deltaX = xpos - lastMouseX;
         double deltaY = ypos - lastMouseY;
@@ -78,7 +144,7 @@ glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom)
     float ndcY = 1.0f - (2.0f * static_cast<float>(mouseY)) / height; // Invert Y because screen Y goes down
 
     // 4. Apply the same aspect ratio correction you use in your grid shader
-    float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+    float aspectRatio = (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
     float correctedX = ndcX * aspectRatio;
     float correctedY = ndcY;
 

@@ -105,9 +105,11 @@ void Engine::run()
 
     // Start the gate array
     std::vector<GateView> gatesViews;
-    gatesViews.push_back(GateView({ 0.0f, 0.0f }, { 0.2f, 0.2f }, "ANDgate"));
-    gatesViews.push_back(GateView({ 1.0f, 0.0f }, { 0.2f, 0.2f }, "ANDgate"));
+    gatesViews.push_back(GateView( GridSystem::gridToWorld(GridCoords(0, 0)), {0.2f, 0.2f}, "ANDgate"));
+    gatesViews.push_back(GateView( GridSystem::gridToWorld(GridCoords(10, 0)), { 0.2f, 0.2f }, "ANDgate"));
 
+    input.setGates(&gatesViews);
+    
 
     // Main draw loop
     while (!glfwWindowShouldClose(window))
@@ -140,7 +142,7 @@ void Engine::run()
         sm.get("ANDgate")->use();
         sm.get("ANDgate")->setVec2("uPanOffset", input.getPanOffset().x, input.getPanOffset().y);
         sm.get("ANDgate")->setFloat("uZoom", cameraZoom);
-        sm.get("ANDgate")->setFloat("uAspectRatio", aspectRatio); // <-- was missing
+        sm.get("ANDgate")->setFloat("uAspectRatio", aspectRatio);
 
         for (const auto& gateView : gatesViews)
         {

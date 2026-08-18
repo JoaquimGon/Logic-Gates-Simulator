@@ -6,6 +6,7 @@
 #include "..\Logic\Circuit.h"
 #include "Input.h"
 #include "GateView.h"
+#include "GridSystem.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
