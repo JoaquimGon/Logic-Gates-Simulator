@@ -46,6 +46,10 @@ void Shader::setVec2(const std::string& name, float value1, float value2) const
 {
     glUniform2f(glGetUniformLocation(ID, name.c_str()), value1, value2);
 }
+void Shader::setVec4(const std::string& name, float value1, float value2, float value3, float value4) const
+{
+    glUniform4f(glGetUniformLocation(ID, name.c_str()), value1, value2, value3, value4);
+}
 
 
 Shader::~Shader() { glDeleteProgram(ID); }

@@ -30,6 +30,7 @@ private:
 	std::unique_ptr<Mesh> gridMesh;
 	std::unique_ptr<Mesh> gateMesh;
 	std::unique_ptr<Mesh> lineMesh;
+	std::unique_ptr<Mesh> pointMesh;
 
 	static void resizeWindow(GLFWwindow* window, int width, int height) 
 	{ 

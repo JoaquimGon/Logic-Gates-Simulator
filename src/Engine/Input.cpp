@@ -4,7 +4,6 @@
 // 1. Static bridge for mouse buttons
 void Input::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
-    std::cout << "Mouse call back.\n";
     // Retrieve the pointer to the active Input instance stored in the window
     Input* handler = static_cast<Input*>(glfwGetWindowUserPointer(window));
     if (handler) {
@@ -48,9 +47,36 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         if (action == GLFW_PRESS) {
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
             glm::vec2 currentWorldCoords = getMouseWorldCoord(window, m_zoom);
+
+            // This represents the exact discrete cell the user clicked on
             mouseGridCoords = GridSystem::worldToGrid(currentWorldCoords);
 
-            // Check if the click landed on a gate before starting a canvas pan
+            // ==========================================
+            // 1. Check if a pin was clicked
+            // ==========================================
+            bool pinClicked = false;
+            if (m_gates) {
+                for (auto& gate : *m_gates) {
+                    for (const auto& pin : gate.m_UIPins) {
+                        // Compare exact discrete grid coordinates
+                        if (mouseGridCoords == gate.getAbsolutePinGridPos(pin)) {
+                            std::cout << "Pin " << pin.pin_index << " clicked!\n";
+                            pinClicked = true;
+                            break;
+                        }
+                    }
+                    if (pinClicked) break;
+                }
+            }
+
+            // If a pin was clicked, we return early so we don't start dragging a gate or panning the canvas
+            if (pinClicked) {
+                return;
+            }
+
+            // ==========================================
+            // 2. Check if a gate body was clicked
+            // ==========================================
             m_draggedGate = nullptr;
             if (m_gates) {
                 for (auto& gate : *m_gates) {
@@ -63,6 +89,9 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 }
             }
 
+            // ==========================================
+            // 3. Set Interaction States
+            // ==========================================
             if (m_draggedGate) {
                 isDraggingGate = true;
             }
@@ -102,7 +131,13 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
 {
     if (isDraggingGate && m_draggedGate) {
         glm::vec2 worldCoords = getMouseWorldCoord(window, m_zoom);
-        m_draggedGate->setPosition(GridSystem::snapToGrid(worldCoords));
+
+        // 1. Convert the raw mouse world position into exact grid coordinates
+        GridCoords snappedGridPos = GridSystem::worldToGrid(worldCoords);
+
+        // 2. Set the gate's grid position (which moves the body AND pins together)
+        m_draggedGate->setGridPosition(snappedGridPos);
+
         lastMouseX = xpos;
         lastMouseY = ypos;
         return;
