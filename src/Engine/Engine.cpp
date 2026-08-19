@@ -30,9 +30,10 @@ int Engine::init()
     glfwSetFramebufferSizeCallback(window, Engine::resizeWindow);
     glfwSetWindowUserPointer(window, &input);
 
-    // Map GLFW callbacks directly to your Input class
+    // Mouse callbacks
     glfwSetMouseButtonCallback(window, Input::mouseButtonCallback);
     glfwSetCursorPosCallback(window, Input::cursorPositionCallback);
+    glfwSetScrollCallback(window, Input::scrollCallback);
 
     // ==========================================
     // glad Configuration
@@ -83,7 +84,7 @@ void Engine::run()
     wires.push_back(testWire2);
 
     // ==========================================
-    // Main Game Loop
+    // Main Loop
     // ==========================================
     while (!glfwWindowShouldClose(window))
     {
@@ -97,7 +98,7 @@ void Engine::run()
 
         CameraState cam;
         cam.panOffset = input.getPanOffset();
-        cam.zoom = cameraZoom;
+        cam.zoom = input.getZoom();;
         cam.aspectRatio = aspectRatio;
         cam.windowWidth = width;
         cam.windowHeight = height;

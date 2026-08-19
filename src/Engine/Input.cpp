@@ -20,27 +20,7 @@ void Input::cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
     }
 }
 
-// 3. Your real, non-static mouse button logic (can use 'isDragging', 'panOffset', etc.)
-/* 
-void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mods)
-{
-    // Left button click 
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
-        if (action == GLFW_PRESS) {
-            isDragging = true;
-            glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
-            glm::vec2 currentWorldCoords = getMouseWorldCoord(window, m_zoom);
-            mouseGridCoords = GridSystem::worldToGrid(currentWorldCoords);
-            std::cout << "World coordinates (" << currentWorldCoords.x << ", " << currentWorldCoords.y << ").\n";
-            std::cout << "Grid coordinates (" << mouseGridCoords.x << ", " << mouseGridCoords.y << ").\n";
 
-        }
-        else if (action == GLFW_RELEASE) {
-            isDragging = false;
-        }
-    }
-}
-*/
 void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mods)
 {
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
@@ -107,25 +87,6 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     }
 }
 
-// 4. Your real, non-static cursor position logic
-/*
-void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
-{
-    if (isDragging) {
-        double deltaX = xpos - lastMouseX;
-        double deltaY = ypos - lastMouseY;
-
-        int width, height;
-        glfwGetWindowSize(window, &width, &height);
-
-        panOffset.x -= (static_cast<float>(deltaX) / height) * 2.0f;
-        panOffset.y += (static_cast<float>(deltaY) / height) * 2.0f;
-
-        lastMouseX = xpos;
-        lastMouseY = ypos;
-    }
-}
-*/
 
 void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
 {
@@ -150,19 +111,21 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
         int width, height;
         glfwGetWindowSize(window, &width, &height);
 
-        panOffset.x -= (static_cast<float>(deltaX) / height) * 2.0f;
-        panOffset.y += (static_cast<float>(deltaY) / height) * 2.0f;
+        panOffset.x -= ((static_cast<float>(deltaX) / height) * 2.0f) / m_zoom;
+        panOffset.y += ((static_cast<float>(deltaY) / height) * 2.0f) / m_zoom;
 
         lastMouseX = xpos;
         lastMouseY = ypos;
     }
 }
 
+
 void Input::process(GLFWwindow* window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 }
+
 
 glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom)
 {
@@ -188,4 +151,37 @@ glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom)
     float worldY = (correctedY / zoom) + panOffset.y;
 
     return glm::vec2(worldX, worldY);
+}
+
+
+// NEW: Static callback triggered by GLFW
+void Input::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    Input* input = static_cast<Input*>(glfwGetWindowUserPointer(window));
+    if (input) {
+        input->handleScroll(window, xoffset, yoffset);
+    }
+}
+
+// NEW: The actual logic handling the scroll
+void Input::handleScroll(GLFWwindow* window, double xoffset, double yoffset)
+{
+    // Check if either the Left or Right Control key is currently pressed
+    bool ctrlPressed = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) ||
+        (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS);
+
+    if (ctrlPressed) {
+        // yoffset is positive for scrolling up, negative for scrolling down
+        float zoomSpeed = 0.15f;
+
+        m_zoom += static_cast<float>(yoffset) * zoomSpeed;
+
+        // Clamp the zoom so the user can't zoom out into infinity or zoom into a single pixel
+        if (m_zoom < 0.2f) {
+            m_zoom = 0.2f;
+        }
+        if (m_zoom > 5.0f) {
+            m_zoom = 5.0f;
+        }
+    }
 }
