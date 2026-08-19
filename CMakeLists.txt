@@ -63,22 +63,24 @@ add_executable (Logic-Gates-Simulator
     "include/Logic/Gate.h" 
     "src/Logic/Circuit.cpp" 
     "include/Logic/Circuit.h"
-    "src/Engine/Shader.cpp" 
-    "include/Engine/Shader.h" 
+    "src/Graphics/Shader.cpp" 
+    "include/Graphics/Shader.h" 
     "src/Engine/Engine.cpp" 
     "include/Engine/Engine.h"
-    "src/Engine/ShaderManager.cpp"
-    "include/Engine/ShaderManager.h"
-    "src/Engine/Mesh.cpp"
-    "include/Engine/Mesh.h" 
-    "include/Engine/VertexLayout.h"
-    "src/Engine/VertexLayout.cpp"
+    "src/Graphics/ShaderManager.cpp"
+    "include/Graphics/ShaderManager.h"
+    "src/Graphics/Mesh.cpp"
+    "include/Graphics/Mesh.h" 
+    "include/Graphics/VertexLayout.h"
+    "src/Graphics/VertexLayout.cpp"
     "src/Engine/Input.cpp" 
     "include/Engine/Input.h" 
     "include/Engine/GateView.h" 
     "include/Engine/GridSystem.h"
     "include/Engine/Wire.h"
     "src/Engine/Wire.cpp"
+    "src/Graphics/Renderer.cpp"
+    "include/Graphics/Renderer.h"
 )
 
 target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad glm::glm)
@@ -95,12 +97,12 @@ endif()
 #)
 
 # 1. Collect all shader files so CMake tracks them as dependencies
-file(GLOB_RECURSE SHADER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/shaders/*")
+file(GLOB_RECURSE SHADER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/Graphics/shaders/*")
 
 # 2. Create a custom target that removes and re-copies the shader folder
 add_custom_target(CopyShaders ALL
     COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/shaders" "${CMAKE_CURRENT_BINARY_DIR}/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/src/Graphics/shaders" "${CMAKE_CURRENT_BINARY_DIR}/shaders"
     SOURCES ${SHADER_FILES}
     COMMENT "Syncing shaders to binary output folder..."
  )

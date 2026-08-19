@@ -12,9 +12,12 @@
 class ShaderManager {
 private:
 	std::unordered_map<std::string, std::unique_ptr<Shader>> shaders;
+
+public:
+
 	ShaderManager();
 	~ShaderManager() = default;
-public:
+
 	/*
 	* @brief Initializes one single instance of the ShaderManager if non existant, or returns existant
 	*/

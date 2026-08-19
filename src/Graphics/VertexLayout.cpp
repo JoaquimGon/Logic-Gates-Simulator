@@ -1,4 +1,4 @@
-#include "..\..\include\Engine\VertexLayout.h"
+#include "..\..\include\Graphics\VertexLayout.h"
 
 
 void VertexLayout::addAttribute(int floatCount) {
