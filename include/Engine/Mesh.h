@@ -18,6 +18,9 @@ private:
     int vertexCount = 0;
     bool usesEBO;
     unsigned int defaultDrawMode;
+
+    unsigned int instanceVBO = 0; // Holds the per-instance data
+
 public:
     /**
      * @brief Initializes a Mesh object with geometry data.
@@ -30,6 +33,11 @@ public:
         const std::vector<unsigned int>& indices,
         const VertexLayout& vertexLayout,
         unsigned int drawMode = GL_TRIANGLES);
+
+
+    void setInstanceData(const std::vector<float>& instanceData, const std::vector<int>& attributeSizes, int startingAttributeLocation);
+
+    void drawInstanced(int instanceCount) const;
 
     /**
     * @brief Draws the mesh to the screen.

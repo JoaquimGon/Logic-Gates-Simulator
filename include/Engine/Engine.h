@@ -7,6 +7,7 @@
 #include "Input.h"
 #include "GateView.h"
 #include "GridSystem.h"
+#include "Wire.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -29,8 +30,8 @@ private:
 	// Meshes
 	std::unique_ptr<Mesh> gridMesh;
 	std::unique_ptr<Mesh> gateMesh;
-	std::unique_ptr<Mesh> lineMesh;
 	std::unique_ptr<Mesh> pointMesh;
+	std::unique_ptr<Mesh> wireMesh;
 
 	static void resizeWindow(GLFWwindow* window, int width, int height) 
 	{ 

@@ -1,24 +1,25 @@
 #version 330 core
-layout (location = 0) in vec3 aPos;
 
-out vec2 localPos; // stays in unit-quad space, -0.5..0.5, for the SDF
+layout (location = 0) in vec3 aPos;         
+layout (location = 1) in vec2 aInstancePos; 
 
-uniform vec2  uGatePosition;
-uniform vec2  uGateSize;
+out vec2 localPos; // <--- BRINGING THIS BACK!
+
+uniform vec2  uGateSize; 
 uniform vec2  uPanOffset;
 uniform float uZoom;
 uniform float uAspectRatio;
 
 void main()
 {
+    // Pass the local geometry coordinates (-0.5 to 0.5) to your SDF fragment shader
     localPos = aPos.xy;
 
-    vec2 worldPos    = uGatePosition + aPos.xy * uGateSize;
+    // Instance math (same as before)
+    vec2 worldPos = aInstancePos + (aPos.xy * uGateSize);
+    
     vec2 correctedPos = (worldPos - uPanOffset) * uZoom;
+    correctedPos.x /= uAspectRatio;
 
-    vec2 ndc;
-    ndc.x = correctedPos.x / uAspectRatio;
-    ndc.y = correctedPos.y;
-
-    gl_Position = vec4(ndc, 0.0, 1.0);
+    gl_Position = vec4(correctedPos, 0.0, 1.0);
 }
