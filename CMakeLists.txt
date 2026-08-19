@@ -76,7 +76,10 @@ add_executable (Logic-Gates-Simulator
     "src/Engine/Input.cpp" 
     "include/Engine/Input.h" 
     "include/Engine/GateView.h" 
-    "include/Engine/GridSystem.h")
+    "include/Engine/GridSystem.h"
+    "include/Engine/Wire.h"
+    "src/Engine/Wire.cpp"
+)
 
 target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad glm::glm)
 

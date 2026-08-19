@@ -101,3 +101,16 @@ void Mesh::drawInstanced(int instanceCount) const
     }
     glBindVertexArray(0);
 }
+
+
+void Mesh::updateData(const std::vector<float>& vertices, int floatsPerVertex) {
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    // Use GL_DYNAMIC_DRAW since wires change shape
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_DYNAMIC_DRAW);
+
+    // Update the vertex count so glDrawArrays knows how many points to draw
+    vertexCount = vertices.size() / floatsPerVertex;
+
+    glBindVertexArray(0);
+}

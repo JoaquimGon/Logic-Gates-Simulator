@@ -39,6 +39,8 @@ public:
 
     void drawInstanced(int instanceCount) const;
 
+    void updateData(const std::vector<float>& vertices, int floatsPerVertex);
+
     /**
     * @brief Draws the mesh to the screen.
     */

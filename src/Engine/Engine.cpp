@@ -1,5 +1,6 @@
 #include "..\..\include\Engine\Engine.h"
 
+
 Engine::Engine(std::string windowName, int windowWidth, int windowHeight)
 {
     m_windowName = windowName;
@@ -15,9 +16,6 @@ int Engine::init()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    // ==========================================
-    // glfw Configuration
-    // ==========================================
     window = glfwCreateWindow(m_windowWidth, m_windowHeight, m_windowName.c_str(), NULL, NULL);
     if (window == NULL)
     {
@@ -32,9 +30,6 @@ int Engine::init()
     glfwSetMouseButtonCallback(window, Input::mouseButtonCallback);
     glfwSetCursorPosCallback(window, Input::cursorPositionCallback);
 
-    // ==========================================
-    // glad Configuration
-    // ==========================================
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
@@ -43,10 +38,7 @@ int Engine::init()
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
     glEnable(GL_PROGRAM_POINT_SIZE);
 
     // ==========================================
@@ -60,51 +52,39 @@ int Engine::init()
     // ==========================================
     // Meshes
     // ==========================================
-    // Gate Mesh creation
+    // Gate Mesh
     std::vector<float> quadVertices = {
-        -0.5f,  0.5f, 0.0, // Top-left
-        -0.5f, -0.5f, 0.0, // Bottom-left
-         0.5f, -0.5f, 0.0, // Bottom-right
-         0.5f,  0.5f, 0.0 // Top-right
+        -0.5f,  0.5f, 0.0,
+        -0.5f, -0.5f, 0.0,
+         0.5f, -0.5f, 0.0,
+         0.5f,  0.5f, 0.0
     };
-    std::vector<unsigned int> quadIndices = {
-        0, 1, 2,
-        2, 3, 0
-    };
+    std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0 };
     VertexLayout gateLayout;
     gateLayout.addAttribute(3);
     gateMesh = std::make_unique<Mesh>(quadVertices, quadIndices, gateLayout, GL_TRIANGLES);
 
     // Grid Mesh
     std::vector<float> fullScreenVertices = {
-        -1.0f,  1.0f, -1.0f,
-        -1.0f, -1.0f, -1.0f,
-         1.0f, -1.0f, -1.0f,
-         1.0f,  1.0f, -1.0f
+        -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f
     };
-    std::vector<unsigned int> fullScreenIndeces = {
-        0, 1, 2,
-        2, 3, 0
-    };
+    std::vector<unsigned int> fullScreenIndeces = { 0, 1, 2, 2, 3, 0 };
     VertexLayout gridLayout;
     gridLayout.addAttribute(3);
     gridMesh = std::make_unique<Mesh>(fullScreenVertices, fullScreenIndeces, gridLayout, GL_TRIANGLES);
 
-    // Point mesh (Pins)
+    // Pin Mesh
     std::vector<float> pointVertices = { 0.0f, 0.0f, 0.0f };
     VertexLayout pointLayout;
     pointLayout.addAttribute(3);
     pointMesh = std::make_unique<Mesh>(pointVertices, std::vector<unsigned int>{}, pointLayout, GL_POINTS);
 
-    // Line mesh (Wires)
-    std::vector<float> lineVertices = {
-        0.0f, 0.0f, 0.0f,
-        1.0f, 1.0f, 0.0f
-    };
-    VertexLayout lineLayout;
-    lineLayout.addAttribute(3);
-    // FIX: Using wireMesh and GL_LINES instead of overwriting pointMesh
-    wireMesh = std::make_unique<Mesh>(lineVertices, std::vector<unsigned int>{}, lineLayout, GL_LINES);
+    // Wire Mesh 
+    VertexLayout wireLayout;
+    wireLayout.addAttribute(3); // Location 0: Position (X, Y, Z)
+    wireLayout.addAttribute(4); // Location 1: Color (R, G, B, A)
+    wireMesh = std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_LINES);
 
     return 0;
 }
@@ -128,22 +108,33 @@ void Engine::run()
 
     input.setGates(&gatesViews);
 
+    // ==========================================
+    // Setup Test Wires
+    // ==========================================
+    std::vector<Wire> wires;
+
+    Wire testWire1;
+    testWire1.setPath({ {2, 0}, {5, 0}, {5, -3}, {8, -3} }); // A nice zig-zag
+    testWire1.setState(PinState::ON); // Green
+    wires.push_back(testWire1);
+
+    Wire testWire2;
+    testWire2.setPath({ {0, -5}, {10, -5} }); // A straight line below
+    testWire2.setState(PinState::DISCONNECTED); // Blue
+    wires.push_back(testWire2);
+
+
     while (!glfwWindowShouldClose(window))
     {
-        // ==========================================
-        //  Input & Camera
-        // ==========================================
         input.process(window);
-
-        cameraMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(cameraPan, 0.0f));
-        cameraMatrix = glm::scale(cameraMatrix, glm::vec3(cameraZoom, cameraZoom, 1.0f));
+        glClear(GL_COLOR_BUFFER_BIT); // Make sure to clear the screen!
 
         int width, height;
         glfwGetWindowSize(window, &width, &height);
         float aspectRatio = (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
 
         // ==========================================
-        // Draw Grid (Standard Draw)
+        // 1. Draw Grid
         // ==========================================
         sm.get("grid")->use();
         sm.get("grid")->setVec2("uPanOffset", input.getPanOffset().x, input.getPanOffset().y);
@@ -153,31 +144,51 @@ void Engine::run()
         gridMesh->draw();
 
         // ==========================================
-        // Draw AND Gate Bodies (Instanced Draw)
+        // 2. Draw AND Gate Bodies
         // ==========================================
         sm.get("ANDgate")->use();
         sm.get("ANDgate")->setVec2("uPanOffset", input.getPanOffset().x, input.getPanOffset().y);
         sm.get("ANDgate")->setFloat("uZoom", cameraZoom);
         sm.get("ANDgate")->setFloat("uAspectRatio", aspectRatio);
-
-        // Use uniform for size since they are all the same size right now
         sm.get("ANDgate")->setVec2("uGateSize", 0.2f, 0.2f);
 
-        // 1. Gather all gate positions
         std::vector<float> gatePositions;
         for (const auto& gateView : gatesViews) {
             gatePositions.push_back(gateView.getPosition().x);
             gatePositions.push_back(gateView.getPosition().y);
         }
 
-        // 2. Upload instance data and draw all gates instantly
         if (!gatePositions.empty()) {
-            gateMesh->setInstanceData(gatePositions, { 2 }, 1); // {2} means one attribute of vec2 at location 1
+            gateMesh->setInstanceData(gatePositions, { 2 }, 1);
             gateMesh->drawInstanced(gatesViews.size());
         }
 
         // ==========================================
-        // Draw Pin Points (Instanced Draw)
+        // 3. Draw Wires (Dynamic Batching)
+        // ==========================================
+        auto* wireShader = sm.get("wire");
+        wireShader->use();
+        wireShader->setVec2("uPanOffset", input.getPanOffset().x, input.getPanOffset().y);
+        wireShader->setFloat("uZoom", cameraZoom);
+        wireShader->setFloat("uAspectRatio", aspectRatio);
+
+        std::vector<float> allWiresData;
+
+        // Gather the geometry for every wire on the board
+        for (const auto& wire : wires) {
+            std::vector<float> singleWireData = wire.getBatchedVertexData();
+            // Append it to our master list
+            allWiresData.insert(allWiresData.end(), singleWireData.begin(), singleWireData.end());
+        }
+
+        if (!allWiresData.empty()) {
+            // 7 floats per vertex: (X, Y, Z,  R, G, B, A)
+            wireMesh->updateData(allWiresData, 7);
+            wireMesh->draw();
+        }
+
+        // ==========================================
+        // 4. Draw Pin Points
         // ==========================================
         auto* pinShader = sm.get("pin");
         pinShader->use();
@@ -186,35 +197,29 @@ void Engine::run()
         pinShader->setFloat("uAspectRatio", aspectRatio);
         pinShader->setFloat("uPointSize", 10.0f);
 
-        // 1. Gather all pin positions and colors into one interleaved array
         std::vector<float> pinInstanceData;
         int totalPins = 0;
 
         for (const auto& gateView : gatesViews) {
             for (const auto& pin : gateView.m_UIPins) {
                 glm::vec2 pinWorldPos = gateView.getAbsolutePinWorldPos(pin);
-
-                // Add Position (vec2)
                 pinInstanceData.push_back(pinWorldPos.x);
                 pinInstanceData.push_back(pinWorldPos.y);
 
-                // Add Color (vec4)
                 if (pin.state == PinState::DISCONNECTED) {
-                    pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 0.0f, 1.0f, 1.0f }); // Blue
+                    pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 0.0f, 1.0f, 1.0f });
                 }
                 else if (pin.state == PinState::ON) {
-                    pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 1.0f, 0.0f, 1.0f }); // Green
+                    pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 1.0f, 0.0f, 1.0f });
                 }
                 else {
-                    pinInstanceData.insert(pinInstanceData.end(), { 1.0f, 0.0f, 0.0f, 1.0f }); // Red
+                    pinInstanceData.insert(pinInstanceData.end(), { 1.0f, 0.0f, 0.0f, 1.0f });
                 }
                 totalPins++;
             }
         }
 
-        // 2. Upload instance data (Positions and Colors) and draw all pins instantly
         if (totalPins > 0) {
-            // {2, 4} tells the mesh we are sending a vec2 (Pos) followed by a vec4 (Color)
             pointMesh->setInstanceData(pinInstanceData, { 2, 4 }, 1);
             pointMesh->drawInstanced(totalPins);
         }
