@@ -18,11 +18,24 @@ struct WireEvent {
     int destPinIndex;
 };
 
+// ==========================================
+// NEW: Finite State Machine for Input
+// ==========================================
+enum class InteractionState {
+    IDLE,
+    PANNING,
+    DRAGGING_GATE,
+    DRAWING_WIRE
+};
+
 class Input
 {
 private:
     float m_zoom = 1.0f;
-    bool isDragging = false;
+
+    // Replacing Boolean Soup with a single State Machine
+    InteractionState m_state = InteractionState::IDLE;
+
     double lastMouseX = 0.0f;
     double lastMouseY = 0.0f;
     GridCoords mouseGridCoords = { 0, 0 };
@@ -31,13 +44,11 @@ private:
 
     std::vector<GateView>* m_gates = nullptr;
     GateView* m_draggedGate = nullptr;
-    bool isDraggingGate = false;
-    
+
     // Wire control
     std::vector<Wire>* m_wires = nullptr;
     Wire activeWire;
     std::vector<GridCoords> baseWirePath;
-    bool isDrawingWire = false;
     GridCoords wireStartPos = { 0, 0 };
     bool wireAxisLocked = false;
     bool wireAxisXFirst = true;
@@ -75,7 +86,9 @@ public:
     void setGates(std::vector<GateView>* gates) { m_gates = gates; }
     void setWires(std::vector<Wire>* wires) { m_wires = wires; }
 
-    bool isCurrentlyDrawingWire() const { return isDrawingWire; }
+    // Tie this directly to the FSM so Engine.cpp doesn't break
+    bool isCurrentlyDrawingWire() const { return m_state == InteractionState::DRAWING_WIRE; }
+
     Wire getActiveWire() const { return activeWire; }
 
     std::vector<WireEvent> consumeWireEvents() {
