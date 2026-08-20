@@ -57,8 +57,10 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             // 2. Did we click a Wire Endpoint?
             else if (hoveredWireIndex != -1 && m_wires) {
                 auto it = m_wires->begin() + hoveredWireIndex;
+                activeWire = *it;
                 baseWirePath = it->getPath();
 
+                // Notify backend to sever the full logical link if both were connected
                 if (it->hasSource() && it->hasDest()) {
                     m_wireEvents.push_back({ WireAction::DISCONNECT,
                         it->getSource().gateId, it->getSource().pinIndex,
@@ -66,18 +68,21 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 }
 
                 if (isHoveredWireStart) {
+                    // Grabbed the start of the path: flip path so the cursor is extending from the tail
                     std::reverse(baseWirePath.begin(), baseWirePath.end());
-                    activeWire = *it;
-                    // Disconnect the end we grabbed
-                    if (activeWire.hasSource() && !activeWire.hasDest()) activeWire.disconnectSource();
-                    else activeWire.disconnectDest();
+
+                    // Path is now reversed: What was front() (start) is now back() (being edited)
+                    // Check if the original start was connected to something and disconnect ONLY that end
+                    // Depending on how your path is oriented relative to Source/Dest:
+                    activeWire.disconnectSource(); // Or whichever end corresponds to path.front()
                 }
                 else {
-                    activeWire = *it;
-                    // Disconnect the end we grabbed
-                    if (activeWire.hasDest() && !activeWire.hasSource()) activeWire.disconnectDest();
-                    else activeWire.disconnectSource();
+                    // Grabbed the end of the path: only disconnect destination
+                    activeWire.disconnectDest();
                 }
+
+                // Retain the existing state from the source if it still has one
+                // (activeWire retains it->getState() unless explicitly reset)
 
                 m_wires->erase(it);
                 wireStartPos = mouseGridCoords;

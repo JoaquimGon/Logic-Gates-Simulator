@@ -173,7 +173,6 @@ void Engine::run()
         if (input.isCurrentlyDrawingWire()) {
             Wire active = input.getActiveWire();
 
-            // NEW: Give the actively drawn wire the correct color instantly!
             if (active.hasSource()) {
                 Gate* srcGate = circuit.getGate(active.getSource().gateId);
                 if (srcGate) {
