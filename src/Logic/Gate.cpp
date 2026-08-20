@@ -38,12 +38,21 @@ Gate::Gate(int id, GateType gateType, bool outInverted)
 
 // Getters
 GateType Gate::getType() const { return m_gateType; }
-std::vector<bool> Gate::getStateInPins() { return m_stateInPins; }
-void Gate::setStateInPins(int pinIndex, bool state) { m_stateInPins[pinIndex] = state; }
+
+void Gate::setStateInPins(int pinIndex, bool state) {
+	if (pinIndex >= 0 && pinIndex < m_stateInPins.size()) {
+		m_stateInPins[pinIndex] = state;
+	}
+	else {
+		std::cerr << "[Gate Error]: Attempted to set state on invalid pin index " << pinIndex << "\n";
+	}
+}
+
 bool Gate::getStateOutPin() { return m_stateOutPin; }
+std::vector<bool> Gate::getStateInPins() { return m_stateInPins; };
 std::vector<Connection> Gate::getOutConnections() const { return m_outConnections; }
 std::vector<Connection> Gate::getInConnections() const { return m_inConnections; }
-//
+
 
 
 void Gate::evaluateOut()

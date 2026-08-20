@@ -32,7 +32,7 @@ public:
     // Specific draw routines
     void drawGrid();
     void drawGates(const std::vector<GateView>& gatesViews);
-    void drawWires(const std::vector<Wire>& wires);
+    void drawWires(const std::vector<Wire>& wires, const Wire* activeWire = nullptr);
     void drawPins(const std::vector<GateView>& gatesViews);
 
 private:

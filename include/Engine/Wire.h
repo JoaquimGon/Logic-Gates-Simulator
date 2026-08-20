@@ -2,12 +2,8 @@
 
 #include "GateView.h"
 #include "GridSystem.h"
-
 #include <vector>
 #include <glm/glm.hpp>
-
-
-// (Include your headers for GridCoords, GridSystem, and PinState here)
 
 struct WireEndpoint {
     int gateId = -1;       // -1 means disconnected
@@ -22,7 +18,7 @@ public:
     Wire();
 
     // ==========================================
-    // Logic Connections
+    // Logic Connections (No State Needed Here!)
     // ==========================================
     void setSource(int gateId, int pinIndex);
     void setDest(int gateId, int pinIndex);
@@ -37,7 +33,10 @@ public:
     // State & Simulation
     // ==========================================
     void setState(PinState newState);
-    PinState getState() const;
+    PinState getState() const { return m_state; }
+
+    WireEndpoint getSource() const { return m_source; }
+    WireEndpoint getDest() const { return m_dest; }
 
     // ==========================================
     // Visual Routing
@@ -46,7 +45,6 @@ public:
     void addPathNode(GridCoords node);
     const std::vector<GridCoords>& getPath() const;
 
-    // Generates the raw [X, Y, Z, R, G, B, A] array for the Engine's dynamic batching
     std::vector<float> getBatchedVertexData() const;
 
 private:
@@ -56,6 +54,5 @@ private:
     PinState m_state;
     std::vector<GridCoords> m_path;
 
-    // Helper to grab the correct color based on the current PinState
     glm::vec4 getColorFromState() const;
 };

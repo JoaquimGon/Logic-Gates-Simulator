@@ -110,7 +110,7 @@ void Renderer::drawGates(const std::vector<GateView>& gatesViews)
     }
 }
 
-void Renderer::drawWires(const std::vector<Wire>& wires)
+void Renderer::drawWires(const std::vector<Wire>& wires, const Wire* activeWire)
 {
     auto* shader = m_sm.get("wire");
     shader->use();
@@ -120,13 +120,20 @@ void Renderer::drawWires(const std::vector<Wire>& wires)
 
     std::vector<float> allWiresData;
 
+    // 1. Batch all the permanent wires (reading by const reference, NO COPYING!)
     for (const auto& wire : wires) {
         std::vector<float> singleWireData = wire.getBatchedVertexData();
         allWiresData.insert(allWiresData.end(), singleWireData.begin(), singleWireData.end());
     }
 
+    // 2. Batch the active wire if the user is currently drawing one
+    if (activeWire != nullptr) {
+        std::vector<float> singleWireData = activeWire->getBatchedVertexData();
+        allWiresData.insert(allWiresData.end(), singleWireData.begin(), singleWireData.end());
+    }
+
     if (!allWiresData.empty()) {
-        m_wireMesh->updateData(allWiresData, 7); // 7 floats per vertex (X, Y, Z, R, G, B, A)
+        m_wireMesh->updateData(allWiresData, 7);
         m_wireMesh->draw();
     }
 }
@@ -144,21 +151,32 @@ void Renderer::drawPins(const std::vector<GateView>& gatesViews)
     int totalPins = 0;
 
     for (const auto& gateView : gatesViews) {
-        for (const auto& pin : gateView.m_UIPins) {
-            glm::vec2 pinWorldPos = gateView.getAbsolutePinWorldPos(pin);
-            pinInstanceData.push_back(pinWorldPos.x);
-            pinInstanceData.push_back(pinWorldPos.y);
+        for (size_t gateId = 0; gateId < gatesViews.size(); ++gateId) {
+            const auto& gateView = gatesViews[gateId];
 
-            if (pin.state == PinState::DISCONNECTED) {
-                pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 0.0f, 1.0f, 1.0f });
-            }
-            else if (pin.state == PinState::ON) {
-                pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 1.0f, 0.0f, 1.0f });
-            }
-            else {
-                pinInstanceData.insert(pinInstanceData.end(), { 1.0f, 0.0f, 0.0f, 1.0f });
-            }
-            totalPins++;
+            // Create a quick reusable lambda for drawing a pin
+            auto processPin = [&](const PinUI& pin) {
+                glm::vec2 pinWorldPos = gateView.getAbsolutePinWorldPos(pin);
+                pinInstanceData.push_back(pinWorldPos.x);
+                pinInstanceData.push_back(pinWorldPos.y);
+
+                // Don't forget your Yellow hover highlight logic here if this is the Renderer!
+
+                if (pin.state == PinState::DISCONNECTED) {
+                    pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 0.0f, 1.0f, 1.0f });
+                }
+                else if (pin.state == PinState::ON) {
+                    pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 1.0f, 0.0f, 1.0f });
+                }
+                else {
+                    pinInstanceData.insert(pinInstanceData.end(), { 1.0f, 0.0f, 0.0f, 1.0f });
+                }
+                totalPins++;
+                };
+
+            // Run the lambda on both arrays!
+            for (const auto& pin : gateView.m_inputs)  processPin(pin);
+            for (const auto& pin : gateView.m_outputs) processPin(pin);
         }
     }
 
