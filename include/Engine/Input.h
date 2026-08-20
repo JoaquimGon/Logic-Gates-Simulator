@@ -25,7 +25,7 @@ private:
     bool isDragging = false;
     double lastMouseX = 0.0f;
     double lastMouseY = 0.0f;
-    GridCoords mouseGridCoords = { 0,0 };
+    GridCoords mouseGridCoords = { 0, 0 };
     int currentMouseY = 0;
     glm::vec2 panOffset = glm::vec2(0.0f, 0.0f);
 
@@ -45,9 +45,10 @@ private:
 
     int hoveredGateId = -1;
     int hoveredPinIndex = -1;
-    PinType hoveredPinType; // <--- ADD THIS LINE
+    PinType hoveredPinType = PinType::INPUT;
     int hoveredWireIndex = -1;
-    bool isHoveredWireStart = false; // True if hovering the Start, False if hovering the End
+    bool isHoveredWireStart = false;
+    bool isHoveredWireEnd = false;
 
 public:
     void process(GLFWwindow* window);
@@ -59,13 +60,12 @@ public:
     void handleCursorPos(GLFWwindow* window, double xpos, double ypos);
     void handleScroll(GLFWwindow* window, double xoffset, double yoffset);
 
-    // NEW: Runs every frame to check what the mouse is over
     void updateHoverState(GLFWwindow* window);
 
     glm::vec2 getMouseWorldCoord(GLFWwindow* window, float zoom);
     glm::vec2 getPanOffset() const { return panOffset; }
-    glm::vec2 getLastMouse() const { return glm::vec2(lastMouseX, lastMouseY); }
-    GridCoords getCurrentGridCoords() const { return GridCoords{ 0, 0 }; }
+    glm::vec2 getLastMouse() const { return glm::vec2(static_cast<float>(lastMouseX), static_cast<float>(lastMouseY)); }
+    GridCoords getCurrentGridCoords() const { return mouseGridCoords; }
     float getZoom() const { return m_zoom; }
 
     void setZoom(float zoom) { m_zoom = zoom; }
@@ -81,7 +81,6 @@ public:
         return events;
     }
 
-    // Getters for the Renderer to draw visual cues later!
     int getHoveredGateId() const { return hoveredGateId; }
     int getHoveredPinIndex() const { return hoveredPinIndex; }
     int getHoveredWireIndex() const { return hoveredWireIndex; }

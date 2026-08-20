@@ -54,17 +54,14 @@ int Engine::init()
 
 void Engine::run()
 {
-    float cameraZoom{ 1.0f };
-
     Circuit circuit;
     int gate0_id = circuit.addGate(GateType::AND, false);
     int gate1_id = circuit.addGate(GateType::AND, false);
 
     std::vector<GateView> gatesViews;
     std::vector<Wire> wires;
-    // ==========================================
+
     // Setup Test Data
-    // ==========================================
     std::vector<PinUI> inPins{
         {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
         {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
@@ -80,13 +77,13 @@ void Engine::run()
     input.setGates(&gatesViews);
 
     Wire testWire1;
-    testWire1.setPath({ {3, 0}, {5, 0}, {5, -3}, {8, -3} }); // A nice zig-zag
-    testWire1.setState(PinState::ON); // Green
+    testWire1.setPath({ {3, 0}, {5, 0}, {5, -3}, {8, -3} });
+    testWire1.setState(PinState::ON);
     wires.push_back(testWire1);
 
     Wire testWire2;
-    testWire2.setPath({ {0, -5}, {10, -5} }); // A straight line below
-    testWire2.setState(PinState::DISCONNECTED); // Blue
+    testWire2.setPath({ {0, -5}, {10, -5} });
+    testWire2.setState(PinState::DISCONNECTED);
     wires.push_back(testWire2);
 
     input.setWires(&wires);
@@ -107,7 +104,6 @@ void Engine::run()
         }
         catch (const std::runtime_error& e) {
             std::cerr << "Simulation Error: " << e.what() << "\n";
-            // The circuit simply won't update its signals until the user breaks the loop
         }
 
         for (const auto& event : input.consumeWireEvents()) {
@@ -121,21 +117,18 @@ void Engine::run()
             }
         }
 
-
         // ==========================================
-        // 3. SYNC STATES (Logic -> UI)
+        // 2. SYNC STATES (Logic -> UI)
         // ==========================================
         for (auto& gateView : gatesViews) {
-            Gate* logicGate = circuit.getGate(gateView.getGateId()); // Assuming GateView stores its ID
+            Gate* logicGate = circuit.getGate(gateView.getGateId());
+            if (!logicGate) continue;
 
-            // Sync Output Pin Color
             bool outSignal = logicGate->getStateOutPin();
             gateView.getOutputPinUI().state = outSignal ? PinState::ON : PinState::OFF;
 
-            // Sync Input Pin Colors
             auto inSignals = logicGate->getStateInPins();
-            for (int i = 0; i < inSignals.size(); i++) {
-                // If it has a connection, color it ON/OFF. If not, color it DISCONNECTED.
+            for (size_t i = 0; i < inSignals.size(); i++) {
                 gateView.getInputPinUI(i).state = inSignals[i] ? PinState::ON : PinState::OFF;
             }
         }
@@ -153,19 +146,20 @@ void Engine::run()
             }
         }
 
-        // 2. Prepare Camera State
+        // ==========================================
+        // 3. Camera & Rendering
+        // ==========================================
         int width, height;
         glfwGetWindowSize(window, &width, &height);
         float aspectRatio = (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
 
         CameraState cam;
         cam.panOffset = input.getPanOffset();
-        cam.zoom = input.getZoom();;
+        cam.zoom = input.getZoom();
         cam.aspectRatio = aspectRatio;
         cam.windowWidth = width;
         cam.windowHeight = height;
 
-        // 3. Render Pipeline
         m_renderer.beginFrame(cam);
         m_renderer.drawGrid();
         m_renderer.drawGates(gatesViews);
@@ -179,7 +173,7 @@ void Engine::run()
                     bool outSignal = srcGate->getStateOutPin();
                     active.setState(outSignal ? PinState::ON : PinState::OFF);
                 }
-            }   
+            }
 
             m_renderer.drawWires(wires, &active);
         }
@@ -189,7 +183,6 @@ void Engine::run()
 
         m_renderer.drawPins(gatesViews);
 
-        // 4. Present Frame
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
