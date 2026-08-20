@@ -32,7 +32,7 @@ private:
     std::vector<GateView>* m_gates = nullptr;
     GateView* m_draggedGate = nullptr;
     bool isDraggingGate = false;
-
+    
     // Wire control
     std::vector<Wire>* m_wires = nullptr;
     Wire activeWire;
@@ -49,6 +49,9 @@ private:
     int hoveredWireIndex = -1;
     bool isHoveredWireStart = false;
     bool isHoveredWireEnd = false;
+
+    int m_selectedGateId = -1;
+    int m_selectedWireIndex = -1;
 
 public:
     void process(GLFWwindow* window);
@@ -84,4 +87,7 @@ public:
     int getHoveredGateId() const { return hoveredGateId; }
     int getHoveredPinIndex() const { return hoveredPinIndex; }
     int getHoveredWireIndex() const { return hoveredWireIndex; }
+
+    int getSelectedGateId() const { return m_selectedGateId; }
+    int getSelectedWireIndex() const { return m_selectedWireIndex; }
 };

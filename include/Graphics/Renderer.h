@@ -1,5 +1,4 @@
 #pragma once
-
 #include <vector>
 #include <memory>
 #include <glm/glm.hpp>
@@ -35,6 +34,9 @@ public:
     void drawWires(const std::vector<Wire>& wires, const Wire* activeWire = nullptr);
     void drawPins(const std::vector<GateView>& gatesViews);
 
+    void drawWireBoundingBox(const Wire& wire, float padding = 0.03f);
+    void drawGateBoundingBox(const GateView& gate, float padding = 0.3f);
+
 private:
     ShaderManager m_sm;
 
@@ -42,6 +44,9 @@ private:
     std::unique_ptr<Mesh> m_gridMesh;
     std::unique_ptr<Mesh> m_pointMesh;
     std::unique_ptr<Mesh> m_wireMesh;
+
+    // NEW: A dedicated mesh for our dynamic visual bounds
+    std::unique_ptr<Mesh> m_boundsMesh;
 
     CameraState m_currentCamera;
 };

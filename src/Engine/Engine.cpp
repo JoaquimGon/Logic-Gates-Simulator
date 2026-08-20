@@ -147,8 +147,8 @@ void Engine::run()
         }
 
         // ==========================================
-        // 3. Camera & Rendering
-        // ==========================================
+                // 3. Camera & Rendering
+                // ==========================================
         int width, height;
         glfwGetWindowSize(window, &width, &height);
         float aspectRatio = (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
@@ -163,6 +163,45 @@ void Engine::run()
         m_renderer.beginFrame(cam);
         m_renderer.drawGrid();
         m_renderer.drawGates(gatesViews);
+
+        // ==========================================
+        // NEW: Draw Bounding Boxes (Selection Cues)
+        // ==========================================
+
+        // 1. Gate Bounding Box (Displays when clicked/selected AND when dragged)
+        int selGate = input.getSelectedGateId();
+        if (selGate != -1) {
+            for (const auto& gv : gatesViews) {
+                if (gv.getGateId() == selGate) {
+                    m_renderer.drawGateBoundingBox(gv, 0.01f);
+                    break;
+                }
+            }
+        }
+
+        // 2. Wire Bounding Box (Displays when clicked/selected)
+        int selWire = input.getSelectedWireIndex();
+        if (selWire != -1 && !input.isCurrentlyDrawingWire()) {
+            if (selWire < wires.size()) {
+                const Wire& targetWire = wires[selWire];
+
+                // If it's part of a powered network, highlight the ENTIRE network!
+                if (targetWire.hasSource()) {
+                    for (const auto& w : wires) {
+                        if (w.hasSource() &&
+                            w.getSource().gateId == targetWire.getSource().gateId &&
+                            w.getSource().pinIndex == targetWire.getSource().pinIndex) {
+                            m_renderer.drawWireBoundingBox(w, 0.01f);
+                        }
+                    }
+                }
+                else {
+                    // Just a floating wire, highlight it alone
+                    m_renderer.drawWireBoundingBox(targetWire, 0.01f);
+                }
+            }
+        }
+        // ==========================================
 
         if (input.isCurrentlyDrawingWire()) {
             Wire active = input.getActiveWire();

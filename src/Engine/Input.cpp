@@ -34,10 +34,15 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
             updateHoverState(window);
 
+            // Reset selections on new click
+            m_selectedGateId = -1;
+            m_selectedWireIndex = -1;
+
             // 1. Clicked a Gate Pin
             if (hoveredGateId != -1 && hoveredPinIndex != -1) {
-                activeWire = Wire();
+                m_selectedGateId = hoveredGateId; // Select Gate
 
+                activeWire = Wire();
                 if (hoveredPinType == PinType::INPUT) {
                     activeWire.setDest(hoveredGateId, hoveredPinIndex);
                 }
@@ -77,16 +82,14 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                     }
 
                     m_wires->erase(it);
+                    m_selectedWireIndex = -1; // It's in our hand now
                 }
                 else {
-                    // ==========================================
-                    // MID-WIRE BRANCH CREATION
-                    // ==========================================
+                    // Mid-wire branch creation setup
                     Wire wireA, wireB;
                     if (it->splitAt(mouseGridCoords, wireA, wireB)) {
                         activeWire = Wire();
 
-                        // Inherit the Power (Source) or the Destination to the new branch!
                         if (it->hasSource()) {
                             activeWire.setSource(it->getSource().gateId, it->getSource().pinIndex);
                         }
@@ -97,6 +100,8 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                         m_wires->erase(it);
                         m_wires->push_back(wireA);
                         m_wires->push_back(wireB);
+
+                        m_selectedWireIndex = static_cast<int>(m_wires->size() - 1); // Select the wire
                     }
                     baseWirePath = { mouseGridCoords };
                 }
@@ -119,6 +124,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                             m_draggedGate = &gate;
                             isDraggingGate = true;
                             clickedGate = true;
+                            m_selectedGateId = gate.getGateId(); // Select Gate
                             break;
                         }
                     }
@@ -137,9 +143,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         }
         else if (action == GLFW_RELEASE) {
 
-            // ==========================================
-            // Gate Drop Connection Logic (Unchanged)
-            // ==========================================
+            // Gate Drop Connection Logic
             if (isDraggingGate && m_draggedGate && m_wires) {
                 int gateId = m_draggedGate->getGateId();
 
@@ -205,10 +209,15 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             isDraggingGate = false;
             m_draggedGate = nullptr;
 
-            // ==========================================
             // Wire Drop Connection Logic
-            // ==========================================
             if (isDrawingWire) {
+
+                // IF WE DID NOT DRAG, CANCEL DRAWING! (Allows simple clicks to just select)
+                if (mouseGridCoords == wireStartPos && activeWire.getPath().size() <= 1) {
+                    isDrawingWire = false;
+                    return;
+                }
+
                 updateHoverState(window);
 
                 // A. Dropped on a Pin
@@ -246,9 +255,6 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
 
                     if (targetWireIt->splitAt(mouseGridCoords, wireA, wireB)) {
 
-                        // ==========================================
-                        // FIX: SHARE THE LOGIC CONNECTIONS!
-                        // ==========================================
                         bool activeHasSrc = activeWire.hasSource();
                         bool targetHasSrc = targetWireIt->hasSource();
                         bool activeHasDst = activeWire.hasDest();
@@ -257,7 +263,6 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                         WireEndpoint src = activeHasSrc ? activeWire.getSource() : targetWireIt->getSource();
                         WireEndpoint dst = activeHasDst ? activeWire.getDest() : targetWireIt->getDest();
 
-                        // Apply to all 3 pieces so they act as "one single wire"
                         if (activeHasSrc || targetHasSrc) {
                             activeWire.setSource(src.gateId, src.pinIndex);
                             wireA.setSource(src.gateId, src.pinIndex);
@@ -269,7 +274,6 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                             wireB.setDest(dst.gateId, dst.pinIndex);
                         }
 
-                        // Only fire a connect event if this specific drop action COMPLETED the circuit!
                         if ((activeHasSrc && targetHasDst) || (activeHasDst && targetHasSrc)) {
                             m_wireEvents.push_back(WireEvent{
                                 WireAction::CONNECT,
@@ -286,6 +290,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
 
                 if (m_wires && activeWire.getPath().size() > 1) {
                     m_wires->push_back(activeWire);
+                    m_selectedWireIndex = static_cast<int>(m_wires->size() - 1); // Select the newly placed wire
                 }
                 isDrawingWire = false;
             }
@@ -381,7 +386,6 @@ void Input::updateHoverState(GLFWwindow* window)
     isHoveredWireStart = false;
     isHoveredWireEnd = false;
 
-    // Check Pins First
     if (m_gates) {
         for (size_t gateId = 0; gateId < m_gates->size(); ++gateId) {
             auto& gate = (*m_gates)[gateId];
@@ -406,7 +410,6 @@ void Input::updateHoverState(GLFWwindow* window)
         }
     }
 
-    // Check Wires (Endpoints & Mid-Wire Intersections)
     if (m_wires) {
         for (size_t i = 0; i < m_wires->size(); ++i) {
             const auto& wire = (*m_wires)[i];
