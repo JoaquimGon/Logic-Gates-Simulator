@@ -79,18 +79,24 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                     m_wires->erase(it);
                 }
                 else {
-                    // Mid-wire split
+                    // ==========================================
+                    // MID-WIRE BRANCH CREATION
+                    // ==========================================
                     Wire wireA, wireB;
                     if (it->splitAt(mouseGridCoords, wireA, wireB)) {
+                        activeWire = Wire();
+
+                        // Inherit the Power (Source) or the Destination to the new branch!
+                        if (it->hasSource()) {
+                            activeWire.setSource(it->getSource().gateId, it->getSource().pinIndex);
+                        }
+                        else if (it->hasDest()) {
+                            activeWire.setDest(it->getDest().gateId, it->getDest().pinIndex);
+                        }
+
                         m_wires->erase(it);
                         m_wires->push_back(wireA);
                         m_wires->push_back(wireB);
-
-                        activeWire = Wire();
-                        if (wireA.hasSource()) {
-                            activeWire.setSource(wireA.getSource().gateId, wireA.getSource().pinIndex);
-                            activeWire.setState(wireA.getState());
-                        }
                     }
                     baseWirePath = { mouseGridCoords };
                 }
@@ -132,15 +138,13 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         else if (action == GLFW_RELEASE) {
 
             // ==========================================
-            // Gate Drop Connection Logic
+            // Gate Drop Connection Logic (Unchanged)
             // ==========================================
             if (isDraggingGate && m_draggedGate && m_wires) {
                 int gateId = m_draggedGate->getGateId();
 
-                // 1. Input Pins
                 for (const auto& pin : m_draggedGate->m_inputs) {
                     GridCoords pinPos = m_draggedGate->getAbsolutePinGridPos(pin);
-
                     for (size_t i = 0; i < m_wires->size(); ++i) {
                         auto& wire = (*m_wires)[i];
                         if (wire.getPath().empty()) continue;
@@ -148,11 +152,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                         if (!wire.hasDest() && (wire.getPath().front() == pinPos || wire.getPath().back() == pinPos)) {
                             wire.setDest(gateId, static_cast<int>(pin.pin_index));
                             if (wire.hasSource()) {
-                                m_wireEvents.push_back(WireEvent{
-                                    WireAction::CONNECT,
-                                    wire.getSource().gateId, wire.getSource().pinIndex,
-                                    wire.getDest().gateId, wire.getDest().pinIndex
-                                    });
+                                m_wireEvents.push_back(WireEvent{ WireAction::CONNECT, wire.getSource().gateId, wire.getSource().pinIndex, wire.getDest().gateId, wire.getDest().pinIndex });
                             }
                             break;
                         }
@@ -161,11 +161,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                             if (wire.splitAt(pinPos, wireA, wireB)) {
                                 wireA.setDest(gateId, static_cast<int>(pin.pin_index));
                                 if (wireA.hasSource()) {
-                                    m_wireEvents.push_back(WireEvent{
-                                        WireAction::CONNECT,
-                                        wireA.getSource().gateId, wireA.getSource().pinIndex,
-                                        gateId, static_cast<int>(pin.pin_index)
-                                        });
+                                    m_wireEvents.push_back(WireEvent{ WireAction::CONNECT, wireA.getSource().gateId, wireA.getSource().pinIndex, gateId, static_cast<int>(pin.pin_index) });
                                 }
                                 m_wires->erase(m_wires->begin() + i);
                                 m_wires->push_back(wireA);
@@ -176,10 +172,8 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                     }
                 }
 
-                // 2. Output Pins
                 for (const auto& pin : m_draggedGate->m_outputs) {
                     GridCoords pinPos = m_draggedGate->getAbsolutePinGridPos(pin);
-
                     for (size_t i = 0; i < m_wires->size(); ++i) {
                         auto& wire = (*m_wires)[i];
                         if (wire.getPath().empty()) continue;
@@ -187,11 +181,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                         if (!wire.hasSource() && (wire.getPath().front() == pinPos || wire.getPath().back() == pinPos)) {
                             wire.setSource(gateId, static_cast<int>(pin.pin_index));
                             if (wire.hasDest()) {
-                                m_wireEvents.push_back(WireEvent{
-                                    WireAction::CONNECT,
-                                    wire.getSource().gateId, wire.getSource().pinIndex,
-                                    wire.getDest().gateId, wire.getDest().pinIndex
-                                    });
+                                m_wireEvents.push_back(WireEvent{ WireAction::CONNECT, wire.getSource().gateId, wire.getSource().pinIndex, wire.getDest().gateId, wire.getDest().pinIndex });
                             }
                             break;
                         }
@@ -200,11 +190,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                             if (wire.splitAt(pinPos, wireA, wireB)) {
                                 wireB.setSource(gateId, static_cast<int>(pin.pin_index));
                                 if (wireB.hasDest()) {
-                                    m_wireEvents.push_back(WireEvent{
-                                        WireAction::CONNECT,
-                                        gateId, static_cast<int>(pin.pin_index),
-                                        wireB.getDest().gateId, wireB.getDest().pinIndex
-                                        });
+                                    m_wireEvents.push_back(WireEvent{ WireAction::CONNECT, gateId, static_cast<int>(pin.pin_index), wireB.getDest().gateId, wireB.getDest().pinIndex });
                                 }
                                 m_wires->erase(m_wires->begin() + i);
                                 m_wires->push_back(wireA);
@@ -225,7 +211,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             if (isDrawingWire) {
                 updateHoverState(window);
 
-                // Dropped on a Pin
+                // A. Dropped on a Pin
                 if (hoveredGateId != -1 && hoveredPinIndex != -1) {
                     bool isSamePin = (hoveredPinType == PinType::INPUT && activeWire.hasDest() &&
                         activeWire.getDest().gateId == hoveredGateId && activeWire.getDest().pinIndex == hoveredPinIndex) ||
@@ -253,25 +239,42 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                         }
                     }
                 }
-                // Dropped on an Existing Wire (Intersection)
+                // B. Dropped on an Existing Wire (Intersection)
                 else if (hoveredWireIndex != -1 && m_wires) {
                     auto targetWireIt = m_wires->begin() + hoveredWireIndex;
                     Wire wireA, wireB;
 
                     if (targetWireIt->splitAt(mouseGridCoords, wireA, wireB)) {
-                        if (activeWire.hasSource() && wireB.hasDest()) {
-                            m_wireEvents.push_back(WireEvent{
-                                WireAction::CONNECT,
-                                activeWire.getSource().gateId, activeWire.getSource().pinIndex,
-                                wireB.getDest().gateId, wireB.getDest().pinIndex
-                                });
+
+                        // ==========================================
+                        // FIX: SHARE THE LOGIC CONNECTIONS!
+                        // ==========================================
+                        bool activeHasSrc = activeWire.hasSource();
+                        bool targetHasSrc = targetWireIt->hasSource();
+                        bool activeHasDst = activeWire.hasDest();
+                        bool targetHasDst = targetWireIt->hasDest();
+
+                        WireEndpoint src = activeHasSrc ? activeWire.getSource() : targetWireIt->getSource();
+                        WireEndpoint dst = activeHasDst ? activeWire.getDest() : targetWireIt->getDest();
+
+                        // Apply to all 3 pieces so they act as "one single wire"
+                        if (activeHasSrc || targetHasSrc) {
+                            activeWire.setSource(src.gateId, src.pinIndex);
+                            wireA.setSource(src.gateId, src.pinIndex);
+                            wireB.setSource(src.gateId, src.pinIndex);
                         }
-                        else if (!activeWire.hasSource() && wireA.hasSource() && activeWire.hasDest()) {
-                            activeWire.setSource(wireA.getSource().gateId, wireA.getSource().pinIndex);
+                        if (activeHasDst || targetHasDst) {
+                            activeWire.setDest(dst.gateId, dst.pinIndex);
+                            wireA.setDest(dst.gateId, dst.pinIndex);
+                            wireB.setDest(dst.gateId, dst.pinIndex);
+                        }
+
+                        // Only fire a connect event if this specific drop action COMPLETED the circuit!
+                        if ((activeHasSrc && targetHasDst) || (activeHasDst && targetHasSrc)) {
                             m_wireEvents.push_back(WireEvent{
                                 WireAction::CONNECT,
-                                wireA.getSource().gateId, wireA.getSource().pinIndex,
-                                activeWire.getDest().gateId, activeWire.getDest().pinIndex
+                                src.gateId, src.pinIndex,
+                                dst.gateId, dst.pinIndex
                                 });
                         }
 
