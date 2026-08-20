@@ -65,6 +65,9 @@ bool Circuit::connectGates(int srcGateId, int destGateId, int destPinIndex)
     
     srcGate->addOutConnection(destGateId, destPinIndex);
     destGate->addInConnection(srcGateId, destPinIndex);
+
+    m_evalOrderDirty = true;
+
     return true;
 }
 

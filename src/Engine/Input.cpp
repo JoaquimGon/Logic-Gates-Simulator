@@ -23,20 +23,29 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             isDragging = true;
         }
         else if (action == GLFW_RELEASE) {
-            isDragging = false; // Fix: This should just be isDragging = false; 
+            isDragging = false;
         }
     }
 
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
         if (action == GLFW_PRESS) {
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
-            // Ensure hover state is perfectly accurate at the exact moment of clicking
             updateHoverState(window);
 
             // 1. Did we click a Pin?
             if (hoveredGateId != -1 && hoveredPinIndex != -1) {
                 activeWire = Wire();
-                activeWire.setSource(hoveredGateId, hoveredPinIndex);
+
+                // ==========================================
+                // FIX: Respect Pin Types! Inputs are Destinations, Outputs are Sources.
+                // ==========================================
+                if (hoveredPinType == PinType::INPUT) {
+                    activeWire.setDest(hoveredGateId, hoveredPinIndex);
+                }
+                else {
+                    activeWire.setSource(hoveredGateId, hoveredPinIndex);
+                }
+
                 activeWire.setState(PinState::DISCONNECTED);
 
                 baseWirePath = { mouseGridCoords };
@@ -50,7 +59,6 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 auto it = m_wires->begin() + hoveredWireIndex;
                 baseWirePath = it->getPath();
 
-                // If this wire was fully connected to two things, we are breaking the connection!
                 if (it->hasSource() && it->hasDest()) {
                     m_wireEvents.push_back({ WireAction::DISCONNECT,
                         it->getSource().gateId, it->getSource().pinIndex,
@@ -60,14 +68,18 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 if (isHoveredWireStart) {
                     std::reverse(baseWirePath.begin(), baseWirePath.end());
                     activeWire = *it;
-                    activeWire.disconnectSource(); // Ripped it out of its source!
+                    // Disconnect the end we grabbed
+                    if (activeWire.hasSource() && !activeWire.hasDest()) activeWire.disconnectSource();
+                    else activeWire.disconnectDest();
                 }
                 else {
                     activeWire = *it;
-                    activeWire.disconnectDest(); // Ripped it out of its destination!
+                    // Disconnect the end we grabbed
+                    if (activeWire.hasDest() && !activeWire.hasSource()) activeWire.disconnectDest();
+                    else activeWire.disconnectSource();
                 }
 
-                m_wires->erase(it); // Remove from master list while drawing
+                m_wires->erase(it);
                 wireStartPos = mouseGridCoords;
                 isDrawingWire = true;
                 wireAxisLocked = false;
@@ -91,7 +103,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                     }
                 }
 
-                // 4. Clicked Empty Space (Start floating wire)
+                // 4. Clicked Empty Space
                 if (!clickedGate) {
                     activeWire = Wire();
                     baseWirePath = { mouseGridCoords };
@@ -103,36 +115,94 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             }
         }
         else if (action == GLFW_RELEASE) {
+
+            // ==========================================
+            // Gate Drop Connection Logic
+            // ==========================================
+            if (isDraggingGate && m_draggedGate && m_wires) {
+                int gateId = m_draggedGate->getGateId();
+
+                // 1. Check all INPUT pins (These look for wires that have a Source but missing a Dest)
+                for (const auto& pin : m_draggedGate->m_inputs) {
+                    GridCoords pinPos = m_draggedGate->getAbsolutePinGridPos(pin);
+
+                    for (auto& wire : *m_wires) {
+                        if (wire.getPath().empty()) continue;
+
+                        if (!wire.hasDest() && (wire.getPath().front() == pinPos || wire.getPath().back() == pinPos)) {
+                            wire.setDest(gateId, pin.pin_index);
+
+                            if (wire.hasSource()) {
+                                m_wireEvents.push_back({ WireAction::CONNECT,
+                                    wire.getSource().gateId, wire.getSource().pinIndex,
+                                    wire.getDest().gateId, wire.getDest().pinIndex });
+                            }
+                        }
+                    }
+                }
+
+                // 2. Check all OUTPUT pins (These look for wires that have a Dest but missing a Source)
+                for (const auto& pin : m_draggedGate->m_outputs) {
+                    GridCoords pinPos = m_draggedGate->getAbsolutePinGridPos(pin);
+
+                    for (auto& wire : *m_wires) {
+                        if (wire.getPath().empty()) continue;
+
+                        if (!wire.hasSource() && (wire.getPath().front() == pinPos || wire.getPath().back() == pinPos)) {
+                            wire.setSource(gateId, pin.pin_index);
+
+                            if (wire.hasDest()) {
+                                m_wireEvents.push_back({ WireAction::CONNECT,
+                                    wire.getSource().gateId, wire.getSource().pinIndex,
+                                    wire.getDest().gateId, wire.getDest().pinIndex });
+                            }
+                        }
+                    }
+                }
+            }
+
             isDraggingGate = false;
             m_draggedGate = nullptr;
 
+            // ==========================================
+            // Wire Drop Connection Logic
+            // ==========================================
             if (isDrawingWire) {
                 updateHoverState(window);
 
                 if (hoveredGateId != -1 && hoveredPinIndex != -1) {
 
-                    // FIX: Check if the destination is identical to the source!
-                    bool isSamePin = (activeWire.hasSource() &&
-                        activeWire.getSource().gateId == hoveredGateId &&
-                        activeWire.getSource().pinIndex == hoveredPinIndex);
+                    bool isSamePin = false;
+                    if (hoveredPinType == PinType::INPUT && activeWire.hasDest() && activeWire.getDest().gateId == hoveredGateId && activeWire.getDest().pinIndex == hoveredPinIndex) isSamePin = true;
+                    if (hoveredPinType == PinType::OUTPUT && activeWire.hasSource() && activeWire.getSource().gateId == hoveredGateId && activeWire.getSource().pinIndex == hoveredPinIndex) isSamePin = true;
 
                     if (isSamePin) {
-                        activeWire.disconnectDest(); // Cancel the connection
+                        if (hoveredPinType == PinType::INPUT) activeWire.disconnectDest();
+                        else activeWire.disconnectSource();
                     }
                     else {
-                        activeWire.setDest(hoveredGateId, hoveredPinIndex); // Visual connect!
+                        // Prevent Input-to-Input and Output-to-Output connections!
+                        if (hoveredPinType == PinType::INPUT && activeWire.hasDest()) {
+                            activeWire.disconnectDest();
+                        }
+                        else if (hoveredPinType == PinType::OUTPUT && activeWire.hasSource()) {
+                            activeWire.disconnectSource();
+                        }
+                        else {
+                            // Valid Connection!
+                            if (hoveredPinType == PinType::INPUT) activeWire.setDest(hoveredGateId, hoveredPinIndex);
+                            else activeWire.setSource(hoveredGateId, hoveredPinIndex);
 
-                        if (activeWire.hasSource()) {
-                            m_wireEvents.push_back({ WireAction::CONNECT,
-                                activeWire.getSource().gateId, activeWire.getSource().pinIndex,
-                                activeWire.getDest().gateId, activeWire.getDest().pinIndex });
+                            if (activeWire.hasSource() && activeWire.hasDest()) {
+                                m_wireEvents.push_back({ WireAction::CONNECT,
+                                    activeWire.getSource().gateId, activeWire.getSource().pinIndex,
+                                    activeWire.getDest().gateId, activeWire.getDest().pinIndex });
+                            }
                         }
                     }
                 }
-                else {
-                    activeWire.disconnectDest();
-                }
 
+                // If the wire actually has length, save it
                 if (m_wires && activeWire.getPath().size() > 1) {
                     m_wires->push_back(activeWire);
                 }
@@ -147,14 +217,12 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
     glm::vec2 worldCoords = getMouseWorldCoord(window, m_zoom);
     GridCoords snappedGridPos = GridSystem::worldToGrid(worldCoords);
 
-    // 1. Handle Gate Dragging
     if (isDraggingGate && m_draggedGate) {
         m_draggedGate->setGridPosition(snappedGridPos);
         lastMouseX = xpos; lastMouseY = ypos;
         return;
     }
 
-    // 2. Handle Wire Drawing (The L-Shape Logic)
     if (isDrawingWire) {
         if (snappedGridPos != wireStartPos) {
             int dx = snappedGridPos.x - wireStartPos.x;
@@ -172,13 +240,11 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
             }
         }
         else {
-            wireAxisLocked = false; // Reset behavior if returning to origin
+            wireAxisLocked = false;
         }
 
-        // Start with the established wire history
         std::vector<GridCoords> previewPath = baseWirePath;
 
-        // Append the new L-Shape preview
         if (snappedGridPos != wireStartPos) {
             if (wireStartPos.x != snappedGridPos.x && wireStartPos.y != snappedGridPos.y) {
                 if (wireAxisXFirst) {
@@ -194,7 +260,6 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
         activeWire.setPath(previewPath);
     }
 
-    // 3. Handle Camera Panning
     if (isDragging) {
         double deltaX = xpos - lastMouseX;
         double deltaY = ypos - lastMouseY;
@@ -230,24 +295,20 @@ void Input::handleScroll(GLFWwindow* window, double xoffset, double yoffset) {
 
 void Input::updateHoverState(GLFWwindow* window)
 {
-    // Check hitboxes even while drawing wire!
     if (isDraggingGate || isDragging) return;
 
     glm::vec2 currentWorldCoords = getMouseWorldCoord(window, m_zoom);
     mouseGridCoords = GridSystem::worldToGrid(currentWorldCoords);
 
-    // Reset states
     hoveredGateId = -1;
     hoveredPinIndex = -1;
     hoveredWireIndex = -1;
     isHoveredWireStart = false;
 
-    // 1. Check if hovering a Pin (Now checking BOTH Inputs and Outputs!)
     if (m_gates) {
         for (size_t gateId = 0; gateId < m_gates->size(); ++gateId) {
             auto& gate = (*m_gates)[gateId];
 
-            // Check Input Pins
             for (const auto& pin : gate.m_inputs) {
                 if (mouseGridCoords == gate.getAbsolutePinGridPos(pin)) {
                     hoveredGateId = static_cast<int>(gateId);
@@ -257,7 +318,6 @@ void Input::updateHoverState(GLFWwindow* window)
                 }
             }
 
-            // Check Output Pins
             for (const auto& pin : gate.m_outputs) {
                 if (mouseGridCoords == gate.getAbsolutePinGridPos(pin)) {
                     hoveredGateId = static_cast<int>(gateId);
@@ -269,7 +329,6 @@ void Input::updateHoverState(GLFWwindow* window)
         }
     }
 
-    // 2. Check if hovering a Wire Endpoint
     if (m_wires) {
         for (size_t i = 0; i < m_wires->size(); ++i) {
             const auto& path = (*m_wires)[i].getPath();

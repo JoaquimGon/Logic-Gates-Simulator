@@ -80,7 +80,7 @@ void Engine::run()
     input.setGates(&gatesViews);
 
     Wire testWire1;
-    testWire1.setPath({ {2, 0}, {5, 0}, {5, -3}, {8, -3} }); // A nice zig-zag
+    testWire1.setPath({ {3, 0}, {5, 0}, {5, -3}, {8, -3} }); // A nice zig-zag
     testWire1.setState(PinState::ON); // Green
     wires.push_back(testWire1);
 
@@ -180,7 +180,7 @@ void Engine::run()
                     bool outSignal = srcGate->getStateOutPin();
                     active.setState(outSignal ? PinState::ON : PinState::OFF);
                 }
-            }
+            }   
 
             m_renderer.drawWires(wires, &active);
         }
