@@ -92,7 +92,7 @@ void Renderer::drawGrid()
     m_gridMesh->draw();
 }
 
-void Renderer::drawGates(const std::vector<GateView>& gatesViews)
+void Renderer::drawGates(const std::unordered_map<int, GateView>& gateViews)
 {
     auto* shader = m_sm.get("ANDgate");
     shader->use();
@@ -102,16 +102,16 @@ void Renderer::drawGates(const std::vector<GateView>& gatesViews)
     shader->setVec2("uGateSize", 0.2f, 0.2f);
 
     std::vector<float> gatePositions;
-    gatePositions.reserve(gatesViews.size() * 2);
+    gatePositions.reserve(gateViews.size() * 2);
 
-    for (const auto& gateView : gatesViews) {
+    for (const auto& [id, gateView] : gateViews) {
         gatePositions.push_back(gateView.getPosition().x);
         gatePositions.push_back(gateView.getPosition().y);
     }
 
     if (!gatePositions.empty()) {
         m_gateMesh->setInstanceData(gatePositions, { 2 }, 1);
-        m_gateMesh->drawInstanced(static_cast<unsigned int>(gatesViews.size()));
+        m_gateMesh->drawInstanced(static_cast<unsigned int>(gateViews.size()));
     }
 }
 
@@ -141,7 +141,7 @@ void Renderer::drawWires(const std::vector<Wire>& wires, const Wire* activeWire)
     }
 }
 
-void Renderer::drawPins(const std::vector<GateView>& gatesViews)
+void Renderer::drawPins(const std::unordered_map<int, GateView>& gateViews)
 {
     auto* shader = m_sm.get("pin");
     shader->use();
@@ -153,9 +153,11 @@ void Renderer::drawPins(const std::vector<GateView>& gatesViews)
     std::vector<float> pinInstanceData;
     int totalPins = 0;
 
+
+
     // FIX: Removed the redundant double-loop here!
-    for (size_t gateId = 0; gateId < gatesViews.size(); ++gateId) {
-        const auto& gateView = gatesViews[gateId];
+    for (size_t gateId = 0; gateId < gateViews.size(); ++gateId) {
+        const auto& gateView = gateViews.at(gateId);
 
         auto processPin = [&](const PinUI& pin) {
             glm::vec2 pinWorldPos = gateView.getAbsolutePinWorldPos(pin);
@@ -283,5 +285,44 @@ void Renderer::drawGateBoundingBox(const GateView& gate, float padding)
     };
 
     m_boundsMesh->updateData(boxData, 7); // 3 Position + 4 Color = 7 floats per vertex
+    m_boundsMesh->draw();
+}
+
+void Renderer::drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding)
+{
+    auto* shader = m_sm.get("wire");
+    shader->use();
+    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
+    shader->setFloat("uZoom", m_currentCamera.zoom);
+    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
+
+    glm::vec2 p1 = GridSystem::gridToWorld(start);
+    glm::vec2 p2 = GridSystem::gridToWorld(end);
+
+    float minX = std::min(p1.x, p2.x) - padding;
+    float maxX = std::max(p1.x, p2.x) + padding;
+    float minY = std::min(p1.y, p2.y) - padding;
+    float maxY = std::max(p1.y, p2.y) + padding;
+
+    float r = 255.0f / 255.0f;
+    float g = 159.0f / 255.0f;
+    float b = 28.0f / 255.0f;
+    float a = 1.0f;
+
+    std::vector<float> boxData = {
+        minX, maxY, 0.0f, r, g, b, a,
+        maxX, maxY, 0.0f, r, g, b, a,
+
+        maxX, maxY, 0.0f, r, g, b, a,
+        maxX, minY, 0.0f, r, g, b, a,
+
+        maxX, minY, 0.0f, r, g, b, a,
+        minX, minY, 0.0f, r, g, b, a,
+
+        minX, minY, 0.0f, r, g, b, a,
+        minX, maxY, 0.0f, r, g, b, a
+    };
+
+    m_boundsMesh->updateData(boxData, 7);
     m_boundsMesh->draw();
 }

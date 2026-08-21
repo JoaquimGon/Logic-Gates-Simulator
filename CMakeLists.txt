@@ -81,6 +81,8 @@ add_executable (Logic-Gates-Simulator
     "src/Engine/Wire.cpp"
     "src/Graphics/Renderer.cpp"
     "include/Graphics/Renderer.h"
+    "src/Engine/Scene.cpp"
+    "include/Engine/Scene.h"
 )
 
 target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad glm::glm)

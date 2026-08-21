@@ -17,13 +17,37 @@ void Input::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
     if (input) input->handleScroll(window, xoffset, yoffset);
 }
 
+void Input::cancelCurrentAction() {
+    if (m_state == InteractionState::DRAWING_WIRE) {
+        if (m_scene && !isMidWireBranchPending &&
+            (activeWire.hasSource() || activeWire.hasDest() || activeWire.getPath().size() > 1)) {
+            m_scene->commitWire(activeWire);
+        }
+        activeWire = Wire();
+        baseWirePath.clear();
+        isMidWireBranchPending = false;
+    }
+
+    m_draggedGate = nullptr;
+    m_selectedGateId = -1;
+    m_selectedWireIndex = -1;
+    m_hasSelectedSegment = false;
+    m_state = InteractionState::IDLE;
+}
+
 void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mods)
 {
-    // ==========================================
-    // RIGHT CLICK (Panning FSM)
-    // ==========================================
     if (button == GLFW_MOUSE_BUTTON_RIGHT) {
         if (action == GLFW_PRESS) {
+            if (m_state == InteractionState::DRAWING_WIRE || m_state == InteractionState::DRAGGING_GATE) {
+                cancelCurrentAction();
+                return;
+            }
+            m_selectedGateId = -1;
+            m_selectedWireIndex = -1;
+            m_hasSelectedSegment = false;
+            isMidWireBranchPending = false;
+
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
             m_state = InteractionState::PANNING;
         }
@@ -32,21 +56,18 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         }
     }
 
-    // ==========================================
-    // LEFT CLICK (Interaction FSM)
-    // ==========================================
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT && m_scene) {
         if (action == GLFW_PRESS) {
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
             updateHoverState(window);
 
-            bool clickedEmptySpace = true;
+            m_selectedGateId = -1;
+            m_selectedWireIndex = -1;
+            m_hasSelectedSegment = false;
+            isMidWireBranchPending = false;
 
-            // 1. Clicked a Gate Pin
             if (hoveredGateId != -1 && hoveredPinIndex != -1) {
-                clickedEmptySpace = false;
                 m_selectedGateId = hoveredGateId;
-                m_selectedWireIndex = -1;
 
                 activeWire = Wire();
                 if (hoveredPinType == PinType::INPUT) activeWire.setDest(hoveredGateId, hoveredPinIndex);
@@ -57,46 +78,27 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 wireStartPos = mouseGridCoords;
                 wireAxisLocked = false;
                 wireAxisXFirst = true;
-
                 m_state = InteractionState::DRAWING_WIRE;
             }
-            // 2. Clicked an Existing Wire
-            else if (hoveredWireIndex != -1 && m_wires) {
-                clickedEmptySpace = false;
-                m_selectedGateId = -1;
-                m_selectedWireIndex = hoveredWireIndex; // Mark selected IMMEDIATELY
+            else if (hoveredWireIndex != -1 && (isHoveredWireStart || isHoveredWireEnd)) {
+                m_selectedWireIndex = hoveredWireIndex;
 
-                auto it = m_wires->begin() + hoveredWireIndex;
+                Wire picked = m_scene->extractWire(static_cast<size_t>(hoveredWireIndex));
+                m_hasSelectedSegment = picked.getSegmentAt(mouseGridCoords, m_selectedSegmentStart, m_selectedSegmentEnd);
 
-                if (isHoveredWireStart || isHoveredWireEnd) {
-                    activeWire = *it;
-                    baseWirePath = it->getPath();
+                activeWire = picked;
+                baseWirePath = picked.getPath();
 
-                    if (it->hasSource() && it->hasDest()) {
-                        m_wireEvents.push_back(WireEvent{ WireAction::DISCONNECT, it->getSource().gateId, it->getSource().pinIndex, it->getDest().gateId, it->getDest().pinIndex });
-                    }
+                if (picked.hasSource() && picked.hasDest()) {
+                    m_scene->disconnectPins(picked.getSource().gateId, picked.getDest().gateId, picked.getDest().pinIndex);
+                }
 
-                    if (isHoveredWireStart) {
-                        std::reverse(baseWirePath.begin(), baseWirePath.end());
-                        activeWire.disconnectSource();
-                    }
-                    else {
-                        activeWire.disconnectDest();
-                    }
-                    m_wires->erase(it);
+                if (isHoveredWireStart) {
+                    std::reverse(baseWirePath.begin(), baseWirePath.end());
+                    activeWire.disconnectSource();
                 }
                 else {
-                    Wire wireA, wireB;
-                    if (it->splitAt(mouseGridCoords, wireA, wireB)) {
-                        activeWire = Wire();
-                        if (it->hasSource()) activeWire.setSource(it->getSource().gateId, it->getSource().pinIndex);
-                        else if (it->hasDest()) activeWire.setDest(it->getDest().gateId, it->getDest().pinIndex);
-
-                        m_wires->erase(it);
-                        m_wires->push_back(wireA);
-                        m_wires->push_back(wireB);
-                    }
-                    baseWirePath = { mouseGridCoords };
+                    activeWire.disconnectDest();
                 }
 
                 wireStartPos = mouseGridCoords;
@@ -105,121 +107,49 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 hoveredWireIndex = -1;
                 m_state = InteractionState::DRAWING_WIRE;
             }
-            // 3. Clicked a Gate Body
-            else {
-                glm::vec2 currentWorldCoords = getMouseWorldCoord(window, m_zoom);
-                if (m_gates) {
-                    for (auto& gate : *m_gates) {
-                        glm::vec2 halfSize = gate.getSize() * 0.5f;
-                        glm::vec2 delta = currentWorldCoords - gate.getPosition();
-                        if (std::abs(delta.x) <= halfSize.x && std::abs(delta.y) <= halfSize.y) {
-                            clickedEmptySpace = false;
-                            m_draggedGate = &gate;
-                            m_selectedGateId = gate.getGateId();
-                            m_selectedWireIndex = -1;
+            else if (hoveredWireIndex != -1) {
+                m_selectedWireIndex = hoveredWireIndex;
+                m_hasSelectedSegment = m_scene->wireAt(static_cast<size_t>(hoveredWireIndex))
+                    .getSegmentAt(mouseGridCoords, m_selectedSegmentStart, m_selectedSegmentEnd);
 
-                            m_state = InteractionState::DRAGGING_GATE;
-                            break;
-                        }
-                    }
-                }
+                wireStartPos = mouseGridCoords;
+                isMidWireBranchPending = true;
+                wireAxisLocked = false;
+                wireAxisXFirst = true;
             }
-
-            // 4. Clicked Empty Space
-            if (clickedEmptySpace) {
-                m_selectedGateId = -1;
-                m_selectedWireIndex = -1;
+            else if (hoveredGateId != -1) {
+                m_selectedGateId = hoveredGateId;
+                m_draggedGate = m_scene->getGateView(hoveredGateId);
+                m_state = InteractionState::DRAGGING_GATE;
+            }
+            else {
                 activeWire = Wire();
                 baseWirePath = { mouseGridCoords };
                 wireStartPos = mouseGridCoords;
                 wireAxisLocked = false;
                 wireAxisXFirst = true;
-
                 m_state = InteractionState::DRAWING_WIRE;
             }
         }
         else if (action == GLFW_RELEASE) {
+            if (isMidWireBranchPending) {
+                isMidWireBranchPending = false;
+                m_state = InteractionState::IDLE;
+                return;
+            }
 
-            // ==========================================
-            // RELEASE: DRAGGING GATE
-            // ==========================================
-            if (m_state == InteractionState::DRAGGING_GATE && m_draggedGate && m_wires) {
-                int gateId = m_draggedGate->getGateId();
-
-                for (const auto& pin : m_draggedGate->m_inputs) {
-                    GridCoords pinPos = m_draggedGate->getAbsolutePinGridPos(pin);
-                    for (size_t i = 0; i < m_wires->size(); ++i) {
-                        auto& wire = (*m_wires)[i];
-                        if (wire.getPath().empty()) continue;
-
-                        if (!wire.hasDest() && (wire.getPath().front() == pinPos || wire.getPath().back() == pinPos)) {
-                            wire.setDest(gateId, static_cast<int>(pin.pin_index));
-                            if (wire.hasSource()) {
-                                m_wireEvents.push_back(WireEvent{ WireAction::CONNECT, wire.getSource().gateId, wire.getSource().pinIndex, wire.getDest().gateId, wire.getDest().pinIndex });
-                            }
-                            break;
-                        }
-                        else if (wire.containsPoint(pinPos)) {
-                            Wire wireA, wireB;
-                            if (wire.splitAt(pinPos, wireA, wireB)) {
-                                wireA.setDest(gateId, static_cast<int>(pin.pin_index));
-                                if (wireA.hasSource()) {
-                                    m_wireEvents.push_back(WireEvent{ WireAction::CONNECT, wireA.getSource().gateId, wireA.getSource().pinIndex, gateId, static_cast<int>(pin.pin_index) });
-                                }
-                                m_wires->erase(m_wires->begin() + i);
-                                m_wires->push_back(wireA);
-                                m_wires->push_back(wireB);
-                            }
-                            break;
-                        }
-                    }
-                }
-
-                for (const auto& pin : m_draggedGate->m_outputs) {
-                    GridCoords pinPos = m_draggedGate->getAbsolutePinGridPos(pin);
-                    for (size_t i = 0; i < m_wires->size(); ++i) {
-                        auto& wire = (*m_wires)[i];
-                        if (wire.getPath().empty()) continue;
-
-                        if (!wire.hasSource() && (wire.getPath().front() == pinPos || wire.getPath().back() == pinPos)) {
-                            wire.setSource(gateId, static_cast<int>(pin.pin_index));
-                            if (wire.hasDest()) {
-                                m_wireEvents.push_back(WireEvent{ WireAction::CONNECT, wire.getSource().gateId, wire.getSource().pinIndex, wire.getDest().gateId, wire.getDest().pinIndex });
-                            }
-                            break;
-                        }
-                        else if (wire.containsPoint(pinPos)) {
-                            Wire wireA, wireB;
-                            if (wire.splitAt(pinPos, wireA, wireB)) {
-                                wireB.setSource(gateId, static_cast<int>(pin.pin_index));
-                                if (wireB.hasDest()) {
-                                    m_wireEvents.push_back(WireEvent{ WireAction::CONNECT, gateId, static_cast<int>(pin.pin_index), wireB.getDest().gateId, wireB.getDest().pinIndex });
-                                }
-                                m_wires->erase(m_wires->begin() + i);
-                                m_wires->push_back(wireA);
-                                m_wires->push_back(wireB);
-                            }
-                            break;
-                        }
-                    }
-                }
+            if (m_state == InteractionState::DRAGGING_GATE && m_draggedGate) {
+                m_scene->reconnectWiresToGate(m_draggedGate->getGateId());
                 m_draggedGate = nullptr;
                 m_state = InteractionState::IDLE;
             }
-
-            // ==========================================
-            // RELEASE: DRAWING WIRE
-            // ==========================================
             else if (m_state == InteractionState::DRAWING_WIRE) {
-
-                // IF NO DRAG OCCURRED: Restore the wire safely and keep it selected
                 if (mouseGridCoords == wireStartPos && activeWire.getPath().size() <= 1) {
-                    if (m_wires && (activeWire.hasSource() || activeWire.hasDest() || activeWire.getPath().size() > 0)) {
-                        m_wires->push_back(activeWire);
-                        m_selectedWireIndex = static_cast<int>(m_wires->size() - 1);
+                    if (activeWire.hasSource() || activeWire.hasDest() || activeWire.getPath().size() > 0) {
+                        m_selectedWireIndex = static_cast<int>(m_scene->commitWire(activeWire));
                     }
                     m_state = InteractionState::IDLE;
-                    return; // Skip connection logic!
+                    return;
                 }
 
                 updateHoverState(window);
@@ -239,22 +169,20 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                         else if (hoveredPinType == PinType::OUTPUT && !activeWire.hasSource()) activeWire.setSource(hoveredGateId, hoveredPinIndex);
 
                         if (activeWire.hasSource() && activeWire.hasDest()) {
-                            m_wireEvents.push_back(WireEvent{ WireAction::CONNECT, activeWire.getSource().gateId, activeWire.getSource().pinIndex, activeWire.getDest().gateId, activeWire.getDest().pinIndex });
+                            m_scene->connectPins(activeWire.getSource().gateId, activeWire.getDest().gateId, activeWire.getDest().pinIndex);
                         }
                     }
                 }
-                else if (hoveredWireIndex != -1 && m_wires) {
-                    auto targetWireIt = m_wires->begin() + hoveredWireIndex;
+                else if (hoveredWireIndex != -1) {
                     Wire wireA, wireB;
-
-                    if (targetWireIt->splitAt(mouseGridCoords, wireA, wireB)) {
+                    if (m_scene->splitWireAt(static_cast<size_t>(hoveredWireIndex), mouseGridCoords, wireA, wireB)) {
                         bool activeHasSrc = activeWire.hasSource();
-                        bool targetHasSrc = targetWireIt->hasSource();
                         bool activeHasDst = activeWire.hasDest();
-                        bool targetHasDst = targetWireIt->hasDest();
+                        bool targetHasSrc = wireA.hasSource() || wireB.hasSource();
+                        bool targetHasDst = wireA.hasDest() || wireB.hasDest();
 
-                        WireEndpoint src = activeHasSrc ? activeWire.getSource() : targetWireIt->getSource();
-                        WireEndpoint dst = activeHasDst ? activeWire.getDest() : targetWireIt->getDest();
+                        WireEndpoint src = activeHasSrc ? activeWire.getSource() : (wireA.hasSource() ? wireA.getSource() : wireB.getSource());
+                        WireEndpoint dst = activeHasDst ? activeWire.getDest() : (wireA.hasDest() ? wireA.getDest() : wireB.getDest());
 
                         if (activeHasSrc || targetHasSrc) {
                             activeWire.setSource(src.gateId, src.pinIndex);
@@ -268,20 +196,20 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                         }
 
                         if ((activeHasSrc && targetHasDst) || (activeHasDst && targetHasSrc)) {
-                            m_wireEvents.push_back(WireEvent{ WireAction::CONNECT, src.gateId, src.pinIndex, dst.gateId, dst.pinIndex });
+                            m_scene->connectPins(src.gateId, dst.gateId, dst.pinIndex);
                         }
 
-                        m_wires->erase(targetWireIt);
-                        m_wires->push_back(wireA);
-                        m_wires->push_back(wireB);
+                        m_scene->addWires(wireA, wireB);
                     }
                 }
 
-                if (m_wires && activeWire.getPath().size() > 1) {
-                    m_wires->push_back(activeWire);
-                    m_selectedWireIndex = static_cast<int>(m_wires->size() - 1);
+                if (activeWire.getPath().size() > 1) {
+                    activeWire.simplifyPath();
+                    m_scene->commitWire(activeWire);
                 }
 
+                m_selectedWireIndex = -1;
+                m_hasSelectedSegment = false;
                 m_state = InteractionState::IDLE;
             }
         }
@@ -293,9 +221,29 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
     glm::vec2 worldCoords = getMouseWorldCoord(window, m_zoom);
     GridCoords snappedGridPos = GridSystem::worldToGrid(worldCoords);
 
-    // ==========================================
-    // FSM CURSOR UPDATES
-    // ==========================================
+    if (isMidWireBranchPending && snappedGridPos != wireStartPos && m_scene) {
+        if (m_selectedWireIndex >= 0 && static_cast<size_t>(m_selectedWireIndex) < m_scene->wireCount()) {
+            Wire& target = m_scene->wireAt(static_cast<size_t>(m_selectedWireIndex));
+            bool hadSrc = target.hasSource();
+            bool hadDst = target.hasDest();
+            WireEndpoint src = target.getSource();
+            WireEndpoint dst = target.getDest();
+
+            Wire wireA, wireB;
+            if (m_scene->splitWireAt(static_cast<size_t>(m_selectedWireIndex), wireStartPos, wireA, wireB)) {
+                activeWire = Wire();
+                if (hadSrc) activeWire.setSource(src.gateId, src.pinIndex);
+                else if (hadDst) activeWire.setDest(dst.gateId, dst.pinIndex);
+
+                m_scene->addWires(wireA, wireB);
+            }
+            baseWirePath = { wireStartPos };
+            m_state = InteractionState::DRAWING_WIRE;
+            m_hasSelectedSegment = false;
+        }
+        isMidWireBranchPending = false;
+    }
+
     if (m_state == InteractionState::DRAGGING_GATE && m_draggedGate) {
         m_draggedGate->setGridPosition(snappedGridPos);
         lastMouseX = xpos; lastMouseY = ypos;
@@ -306,7 +254,6 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
         if (snappedGridPos != wireStartPos) {
             int dx = snappedGridPos.x - wireStartPos.x;
             int dy = snappedGridPos.y - wireStartPos.y;
-
             if (!wireAxisLocked) {
                 wireAxisXFirst = (std::abs(dx) >= std::abs(dy));
                 wireAxisLocked = true;
@@ -317,7 +264,6 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
         }
 
         std::vector<GridCoords> previewPath = baseWirePath;
-
         if (snappedGridPos != wireStartPos) {
             if (wireStartPos.x != snappedGridPos.x && wireStartPos.y != snappedGridPos.y) {
                 if (wireAxisXFirst) previewPath.push_back({ snappedGridPos.x, wireStartPos.y });
@@ -343,16 +289,13 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
 }
 
 void Input::process(GLFWwindow* window) {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) cancelCurrentAction();
     updateHoverState(window);
 }
 
 void Input::handleScroll(GLFWwindow* window, double xoffset, double yoffset) {
     bool ctrlPressed = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) ||
         (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS);
-
     if (ctrlPressed) {
         float zoomSpeed = 0.15f;
         m_zoom += static_cast<float>(yoffset) * zoomSpeed;
@@ -363,8 +306,8 @@ void Input::handleScroll(GLFWwindow* window, double xoffset, double yoffset) {
 
 void Input::updateHoverState(GLFWwindow* window)
 {
-    // Don't shift focus if we are busy handling an FSM state
     if (m_state == InteractionState::DRAGGING_GATE || m_state == InteractionState::PANNING) return;
+    if (!m_scene) return;
 
     glm::vec2 currentWorldCoords = getMouseWorldCoord(window, m_zoom);
     mouseGridCoords = GridSystem::worldToGrid(currentWorldCoords);
@@ -375,51 +318,28 @@ void Input::updateHoverState(GLFWwindow* window)
     isHoveredWireStart = false;
     isHoveredWireEnd = false;
 
-    if (m_gates) {
-        for (size_t gateId = 0; gateId < m_gates->size(); ++gateId) {
-            auto& gate = (*m_gates)[gateId];
-
-            for (const auto& pin : gate.m_inputs) {
-                if (mouseGridCoords == gate.getAbsolutePinGridPos(pin)) {
-                    hoveredGateId = static_cast<int>(gateId);
-                    hoveredPinIndex = static_cast<int>(pin.pin_index);
-                    hoveredPinType = PinType::INPUT;
-                    return;
-                }
-            }
-
-            for (const auto& pin : gate.m_outputs) {
-                if (mouseGridCoords == gate.getAbsolutePinGridPos(pin)) {
-                    hoveredGateId = static_cast<int>(gateId);
-                    hoveredPinIndex = static_cast<int>(pin.pin_index);
-                    hoveredPinType = PinType::OUTPUT;
-                    return;
-                }
-            }
-        }
-    }
-
-    if (m_wires) {
-        for (size_t i = 0; i < m_wires->size(); ++i) {
-            const auto& wire = (*m_wires)[i];
-            const auto& path = wire.getPath();
-            if (path.empty()) continue;
-
-            if (mouseGridCoords == path.back()) {
-                hoveredWireIndex = static_cast<int>(i);
-                isHoveredWireEnd = true;
-                return;
-            }
-            else if (mouseGridCoords == path.front()) {
-                hoveredWireIndex = static_cast<int>(i);
-                isHoveredWireStart = true;
-                return;
-            }
-            else if (wire.containsPoint(mouseGridCoords)) {
-                hoveredWireIndex = static_cast<int>(i);
-                return;
-            }
-        }
+    HitResult hit = m_scene->hitTest(currentWorldCoords, mouseGridCoords);
+    switch (hit.type) {
+    case HitType::GATE_PIN:
+        hoveredGateId = hit.gateId;
+        hoveredPinIndex = hit.pinIndex;
+        hoveredPinType = hit.pinType;
+        break;
+    case HitType::WIRE_END:
+        hoveredWireIndex = hit.wireIndex;
+        isHoveredWireEnd = true;
+        break;
+    case HitType::WIRE_START:
+        hoveredWireIndex = hit.wireIndex;
+        isHoveredWireStart = true;
+        break;
+    case HitType::WIRE_BODY:
+        hoveredWireIndex = hit.wireIndex;
+        break;
+    case HitType::GATE_BODY:
+        hoveredGateId = hit.gateId;
+        break;
+    default: break;
     }
 }
 

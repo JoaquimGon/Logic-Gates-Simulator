@@ -63,6 +63,10 @@ public:
      */
     bool splitAt(const GridCoords& splitPoint, Wire& outWireA, Wire& outWireB) const;
 
+    // In Wire.h public section:
+    void simplifyPath();
+    bool getSegmentAt(const GridCoords& point, GridCoords& outStart, GridCoords& outEnd) const;
+    
     std::vector<float> getBatchedVertexData() const;
 
 private:

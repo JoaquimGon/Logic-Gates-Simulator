@@ -2,11 +2,15 @@
 #include "GridSystem.h"
 #include "GateView.h"
 #include "Wire.h"
+#include "Scene.h"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <iostream>
 #include <vector>
+
+
 
 enum class WireAction { CONNECT, DISCONNECT };
 
@@ -18,9 +22,6 @@ struct WireEvent {
     int destPinIndex;
 };
 
-// ==========================================
-// NEW: Finite State Machine for Input
-// ==========================================
 enum class InteractionState {
     IDLE,
     PANNING,
@@ -31,28 +32,27 @@ enum class InteractionState {
 class Input
 {
 private:
-    float m_zoom = 1.0f;
 
-    // Replacing Boolean Soup with a single State Machine
+    Scene* m_scene = nullptr;
+
+
+    float m_zoom = 1.0f;
     InteractionState m_state = InteractionState::IDLE;
 
     double lastMouseX = 0.0f;
     double lastMouseY = 0.0f;
     GridCoords mouseGridCoords = { 0, 0 };
-    int currentMouseY = 0;
     glm::vec2 panOffset = glm::vec2(0.0f, 0.0f);
 
-    std::vector<GateView>* m_gates = nullptr;
     GateView* m_draggedGate = nullptr;
-
+     
     // Wire control
-    std::vector<Wire>* m_wires = nullptr;
     Wire activeWire;
     std::vector<GridCoords> baseWirePath;
     GridCoords wireStartPos = { 0, 0 };
     bool wireAxisLocked = false;
     bool wireAxisXFirst = true;
-    std::vector<WireEvent> m_wireEvents;
+    bool isMidWireBranchPending = false; // Deferred split tracking
 
     int hoveredGateId = -1;
     int hoveredPinIndex = -1;
@@ -63,6 +63,10 @@ private:
 
     int m_selectedGateId = -1;
     int m_selectedWireIndex = -1;
+
+    GridCoords m_selectedSegmentStart = { 0, 0 };
+    GridCoords m_selectedSegmentEnd = { 0, 0 };
+    bool m_hasSelectedSegment = false;
 
 public:
     void process(GLFWwindow* window);
@@ -75,6 +79,7 @@ public:
     void handleScroll(GLFWwindow* window, double xoffset, double yoffset);
 
     void updateHoverState(GLFWwindow* window);
+    void cancelCurrentAction();
 
     glm::vec2 getMouseWorldCoord(GLFWwindow* window, float zoom);
     glm::vec2 getPanOffset() const { return panOffset; }
@@ -83,19 +88,11 @@ public:
     float getZoom() const { return m_zoom; }
 
     void setZoom(float zoom) { m_zoom = zoom; }
-    void setGates(std::vector<GateView>* gates) { m_gates = gates; }
-    void setWires(std::vector<Wire>* wires) { m_wires = wires; }
 
-    // Tie this directly to the FSM so Engine.cpp doesn't break
     bool isCurrentlyDrawingWire() const { return m_state == InteractionState::DRAWING_WIRE; }
-
     Wire getActiveWire() const { return activeWire; }
 
-    std::vector<WireEvent> consumeWireEvents() {
-        std::vector<WireEvent> events = m_wireEvents;
-        m_wireEvents.clear();
-        return events;
-    }
+    void setScene(Scene* scene) { m_scene = scene; }
 
     int getHoveredGateId() const { return hoveredGateId; }
     int getHoveredPinIndex() const { return hoveredPinIndex; }
@@ -103,4 +100,8 @@ public:
 
     int getSelectedGateId() const { return m_selectedGateId; }
     int getSelectedWireIndex() const { return m_selectedWireIndex; }
+
+    bool hasSelectedSegment() const { return m_hasSelectedSegment; }
+    GridCoords getSelectedSegmentStart() const { return m_selectedSegmentStart; }
+    GridCoords getSelectedSegmentEnd() const { return m_selectedSegmentEnd; }
 };

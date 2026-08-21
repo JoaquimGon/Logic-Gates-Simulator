@@ -118,6 +118,45 @@ glm::vec4 Wire::getColorFromState() const {
     return glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);     // Blue 
 }
 
+
+// Merges consecutive collinear horizontal or vertical segments
+void Wire::simplifyPath() {
+    if (m_path.size() < 3) return;
+
+    std::vector<GridCoords> simplified;
+    simplified.push_back(m_path[0]);
+
+    for (size_t i = 1; i < m_path.size() - 1; ++i) {
+        const auto& prev = simplified.back();
+        const auto& curr = m_path[i];
+        const auto& next = m_path[i + 1];
+
+        bool isCollinearH = (prev.y == curr.y && curr.y == next.y);
+        bool isCollinearV = (prev.x == curr.x && curr.x == next.x);
+
+        if (!isCollinearH && !isCollinearV) {
+            simplified.push_back(curr);
+        }
+    }
+    simplified.push_back(m_path.back());
+    m_path = std::move(simplified);
+}
+
+// Finds the single segment [outStart, outEnd] containing the point
+bool Wire::getSegmentAt(const GridCoords& point, GridCoords& outStart, GridCoords& outEnd) const {
+    if (m_path.size() < 2) return false;
+
+    for (size_t i = 0; i < m_path.size() - 1; ++i) {
+        if (isPointOnSegment(point, m_path[i], m_path[i + 1])) {
+            outStart = m_path[i];
+            outEnd = m_path[i + 1];
+            return true;
+        }
+    }
+    return false;
+}
+
+
 std::vector<float> Wire::getBatchedVertexData() const {
     std::vector<float> data;
 
@@ -138,3 +177,4 @@ std::vector<float> Wire::getBatchedVertexData() const {
 
     return data;
 }
+

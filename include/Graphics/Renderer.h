@@ -2,6 +2,7 @@
 #include <vector>
 #include <memory>
 #include <glm/glm.hpp>
+#include <unordered_map>
 
 #include "ShaderManager.h"
 #include "Mesh.h"
@@ -30,11 +31,12 @@ public:
 
     // Specific draw routines
     void drawGrid();
-    void drawGates(const std::vector<GateView>& gatesViews);
+    void drawGates(const std::unordered_map<int, GateView>& gateViews);
+    void drawPins(const std::unordered_map<int, GateView>& gateViews);
     void drawWires(const std::vector<Wire>& wires, const Wire* activeWire = nullptr);
-    void drawPins(const std::vector<GateView>& gatesViews);
 
     void drawWireBoundingBox(const Wire& wire, float padding = 0.03f);
+    void drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding = 0.03f);
     void drawGateBoundingBox(const GateView& gate, float padding = 0.3f);
 
 private:
