@@ -152,9 +152,9 @@ void Circuit::propagate()
         evaluateOrder();
         m_evalOrderDirty = false;
         std::cout << "Order evaluated: ";
-        for (int i = 0; i < m_evaluationOrder.size()-1; i++)
+        for (size_t i = 0; i < m_evaluationOrder.size(); i++)
         {
-            std::cout << "" << m_evaluationOrder[i] << "  ";
+            std::cout << m_evaluationOrder[i] << "  ";
         }
         std::cout << "\n";
     }
@@ -172,7 +172,10 @@ void Circuit::propagate()
 
         for (const auto& connection : connections)
         {
-            getGate(connection.gateId)->setStateInPins(connection.pinIndex, currentOutput);
+            Gate* childGate = getGate(connection.gateId);
+            if (childGate) {
+                childGate->setStateInPins(connection.pinIndex, currentOutput);
+            }
         }
 
     }

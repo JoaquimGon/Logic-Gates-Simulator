@@ -153,11 +153,8 @@ void Renderer::drawPins(const std::unordered_map<int, GateView>& gateViews)
     std::vector<float> pinInstanceData;
     int totalPins = 0;
 
-
-
-    // FIX: Removed the redundant double-loop here!
-    for (size_t gateId = 0; gateId < gateViews.size(); ++gateId) {
-        const auto& gateView = gateViews.at(gateId);
+    // FIX: Iterate safely over the map pairs instead of guessing IDs from 0 to Size
+    for (const auto& [id, gateView] : gateViews) {
 
         auto processPin = [&](const PinUI& pin) {
             glm::vec2 pinWorldPos = gateView.getAbsolutePinWorldPos(pin);

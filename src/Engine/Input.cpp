@@ -21,6 +21,12 @@ void Input::cancelCurrentAction() {
     if (m_state == InteractionState::DRAWING_WIRE) {
         if (m_scene && !isMidWireBranchPending &&
             (activeWire.hasSource() || activeWire.hasDest() || activeWire.getPath().size() > 1)) {
+
+            // FIX: If we picked up a fully connected wire and hit ESC, restore the logic!
+            if (activeWire.hasSource() && activeWire.hasDest()) {
+                m_scene->connectPins(activeWire.getSource().gateId, activeWire.getDest().gateId, activeWire.getDest().pinIndex);
+            }
+
             m_scene->commitWire(activeWire);
         }
         activeWire = Wire();
@@ -34,7 +40,6 @@ void Input::cancelCurrentAction() {
     m_hasSelectedSegment = false;
     m_state = InteractionState::IDLE;
 }
-
 void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mods)
 {
     if (button == GLFW_MOUSE_BUTTON_RIGHT) {
@@ -290,6 +295,67 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
 
 void Input::process(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) cancelCurrentAction();
+
+    // ==========================================
+    // 1. SPAWN GATES (Key '1')
+    // ==========================================
+    static bool key1WasPressed = false;
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
+        if (!key1WasPressed && m_scene && m_state == InteractionState::IDLE) {
+
+            // Standard AND gate pins (Default disconnected state)
+            std::vector<PinUI> inPins{
+                {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
+                {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
+            };
+            std::vector<PinUI> outPins{
+                {PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}
+            };
+
+            // Get current mouse location, snap it, and spawn!
+            glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
+            GridCoords gridPos = GridSystem::worldToGrid(worldPos);
+
+            m_scene->addGate(GateType::AND, gridPos, { 0.2f, 0.2f }, "ANDgate", inPins, outPins, false);
+        }
+        key1WasPressed = true;
+    }
+    else {
+        key1WasPressed = false;
+    }
+
+    // ==========================================
+    // 2. DELETE SELECTED (Delete or Backspace)
+    // ==========================================
+    static bool delWasPressed = false;
+    if (glfwGetKey(window, GLFW_KEY_DELETE) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_BACKSPACE) == GLFW_PRESS) {
+        if (!delWasPressed && m_scene && m_state == InteractionState::IDLE) {
+
+            // A. Delete Selected Gate
+            if (m_selectedGateId != -1) {
+                m_scene->removeGate(m_selectedGateId); // Scene handles cleaning up dangling wires!
+                m_selectedGateId = -1;
+            }
+            // B. Delete Selected Wire
+            else if (m_selectedWireIndex != -1 && m_selectedWireIndex < m_scene->wireCount()) {
+                Wire& w = m_scene->wireAt(m_selectedWireIndex);
+
+                // If the wire was successfully bridging a logic gap, sever the logic!
+                if (w.hasSource() && w.hasDest()) {
+                    m_scene->disconnectPins(w.getSource().gateId, w.getDest().gateId, w.getDest().pinIndex);
+                }
+
+                m_scene->removeWire(m_selectedWireIndex);
+                m_selectedWireIndex = -1;
+                m_hasSelectedSegment = false;
+            }
+        }
+        delWasPressed = true;
+    }
+    else {
+        delWasPressed = false;
+    }
+
     updateHoverState(window);
 }
 

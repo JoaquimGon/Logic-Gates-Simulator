@@ -83,9 +83,6 @@ void Engine::run()
     {
         input.process(window);
 
-        scene.getLogicGate(gate0_id)->setStateInPins(0, true);
-        scene.getLogicGate(gate0_id)->setStateInPins(1, true);
-
         try { scene.propagate(); }
         catch (const std::runtime_error& e) { std::cerr << "Simulation Error: " << e.what() << "\n"; }
 
