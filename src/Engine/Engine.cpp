@@ -101,14 +101,15 @@ void Engine::run()
 
         m_renderer.beginFrame(cam);
         m_renderer.drawGrid();
-        m_renderer.drawGates(scene.getGateViewMap());
+        m_renderer.drawComponents(scene.getComponentViewMap());   // was drawGates
 
-        int selGate = input.getSelectedGateId();
+        int selGate = input.getSelectedComponentId();
         if (selGate != -1) {
-            if (GateView* gv = scene.getGateView(selGate)) {
-                m_renderer.drawGateBoundingBox(*gv, 0.01f);
+            if (ComponentView* gv = scene.getComponentView(selGate)) {
+                m_renderer.drawComponentBoundingBox(*gv, 0.01f);   // was drawGateBoundingBox
             }
         }
+
 
         if (!input.isCurrentlyDrawingWire() && input.hasSelectedSegment()) {
             m_renderer.drawWireSegmentBoundingBox(input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 0.01f);
@@ -117,8 +118,8 @@ void Engine::run()
         if (input.isCurrentlyDrawingWire()) {
             Wire active = input.getActiveWire();
             if (active.hasSource()) {
-                if (Gate* srcGate = scene.getLogicGate(active.getSource().gateId))
-                    active.setState(srcGate->getStateOutPin() ? PinState::ON : PinState::OFF);
+                if (Component* srcComp = scene.getLogicComponent(active.getSource().componentId))  // was getLogicGate(...gateId)
+                    active.setState(srcComp->getStateOutPin(active.getSource().pinIndex) ? PinState::ON : PinState::OFF);
             }
             m_renderer.drawWires(scene.getWires(), &active);
         }
@@ -126,7 +127,7 @@ void Engine::run()
             m_renderer.drawWires(scene.getWires(), nullptr);
         }
 
-        m_renderer.drawPins(scene.getGateViewMap());
+        m_renderer.drawPins(scene.getComponentViewMap());
 
         glfwSwapBuffers(window);
         glfwPollEvents();

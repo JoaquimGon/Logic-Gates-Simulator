@@ -6,11 +6,11 @@
 #include <glm/glm.hpp>
 
 struct WireEndpoint {
-    int gateId = -1;       // -1 means disconnected
+    int componentId = -1;  // -1 means disconnected. The id of whatever component owns this pin.
     int pinIndex = -1;
 
-    bool isConnected() const { return gateId != -1; }
-    void disconnect() { gateId = -1; pinIndex = -1; }
+    bool isConnected() const { return componentId != -1; }
+    void disconnect() { componentId = -1; pinIndex = -1; }
 };
 
 class Wire {
@@ -20,8 +20,8 @@ public:
     // ==========================================
     // Logic Connections
     // ==========================================
-    void setSource(int gateId, int pinIndex);
-    void setDest(int gateId, int pinIndex);
+    void setSource(int componentId, int pinIndex);
+    void setDest(int componentId, int pinIndex);
 
     void disconnectSource();
     void disconnectDest();
@@ -47,26 +47,17 @@ public:
 
     /**
      * Checks if a given coordinate lies anywhere on any segment of this wire.
-     * @param point The grid coordinate to test.
-     * @param segmentIndex Optional out-param receiving which segment index (i to i+1) contains the point.
-     * @return True if the point lies along the wire's segments.
      */
     bool containsPoint(const GridCoords& point, size_t* segmentIndex = nullptr) const;
 
     /**
      * Splits this wire into two separate wires at a given grid coordinate along its path.
-     * Keeps the original source on wire1 and sets the original dest on wire2.
-     * @param splitPoint The point along the wire where the split occurs.
-     * @param outWireA Returns the first half (from source to split point).
-     * @param outWireB Returns the second half (from split point to dest).
-     * @return True if the split succeeded.
      */
     bool splitAt(const GridCoords& splitPoint, Wire& outWireA, Wire& outWireB) const;
 
-    // In Wire.h public section:
     void simplifyPath();
     bool getSegmentAt(const GridCoords& point, GridCoords& outStart, GridCoords& outEnd) const;
-    
+
     std::vector<float> getBatchedVertexData() const;
 
 private:

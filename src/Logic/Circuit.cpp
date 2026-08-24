@@ -1,117 +1,87 @@
 #include "..\..\include\Logic\Circuit.h"
 
-
 int Circuit::addGate(GateType type, bool outInverted)
 {
-    m_gates.emplace(m_currentId, Gate(m_currentId, type, outInverted));
-    m_currentId++;
+    int id = m_currentId++;
+    m_components.emplace(id, std::make_unique<Gate>(id, type, outInverted));
     m_evalOrderDirty = true;
-    // return ID
-    return m_currentId - 1;
+    return id;
 }
 
-Gate* Circuit::getGate(int gateId)
+int Circuit::addInputPin(bool initialState)
 {
-    auto it = m_gates.find(gateId);
-
-    if (it != m_gates.end()) {
-        return &(it->second);
-    }
-
-    return nullptr; // Not found
+    int id = m_currentId++;
+    m_components.emplace(id, std::make_unique<InputPin>(id, initialState));
+    m_evalOrderDirty = true;
+    return id;
 }
 
-
-void Circuit::delGate(int gateId)
+Component* Circuit::getComponent(int id)
 {
-    Gate* currentGate = getGate(gateId);
-    if (currentGate == nullptr) return;
+    auto it = m_components.find(id);
+    return it != m_components.end() ? it->second.get() : nullptr;
+}
 
-    // Tell parent gates to stop sending data to us
-    for (const Connection& connection : currentGate->getInConnections()) {
-        Gate* srcGate = getGate(connection.gateId);
-        if (srcGate) {
-            srcGate->delOutConnection(gateId, connection.pinIndex);
-        }
-    }
+void Circuit::delComponent(int id)
+{
+    Component* comp = getComponent(id);
+    if (!comp) return;
 
-    // Tell child gates that their input pin is now disconnected
-    for (const Connection& connection : currentGate->getOutConnections()) {
-        Gate* destGate = getGate(connection.gateId);
-        if (destGate) {
-            destGate->delInConnection(gateId, connection.pinIndex);
-        }
-    }
+    for (const auto& c : comp->getInConnections())
+        if (Component* src = getComponent(c.gateId)) src->delOutConnection(id, c.pinIndex);
 
-    m_gates.erase(gateId);
+    for (const auto& c : comp->getOutConnections())
+        if (Component* dest = getComponent(c.gateId)) dest->delInConnection(id, c.pinIndex);
+
+    m_components.erase(id);
     m_evalOrderDirty = true;
 }
 
-
-// Adds connection to in and out of each gate
-bool Circuit::connectGates(int srcGateId, int destGateId, int destPinIndex)
+bool Circuit::connectComponents(int srcComponentId, int destComponentId, int destPinIndex)
 {
-    Gate* destGate = getGate(destGateId);
-    Gate* srcGate = getGate(srcGateId);
+    Component* src = getComponent(srcComponentId);
+    Component* dest = getComponent(destComponentId);
+    if (!src || !dest) return false;
 
-    for (const Connection& connection : destGate->getInConnections())
-    {
-        if (connection.pinIndex == destPinIndex)
-        {
-            return false;
-        }
-       
-    }
-    
-    srcGate->addOutConnection(destGateId, destPinIndex);
-    destGate->addInConnection(srcGateId, destPinIndex);
+    for (const auto& c : dest->getInConnections())
+        if (c.pinIndex == destPinIndex) return false;
 
+    src->addOutConnection(destComponentId, destPinIndex);
+    dest->addInConnection(srcComponentId, destPinIndex);
     m_evalOrderDirty = true;
-
     return true;
 }
 
-
-void Circuit::disconnectGates(int srcGateId, int destGateId, int destPinIndex)
+void Circuit::disconnectComponents(int srcComponentId, int destComponentId, int destPinIndex)
 {
-    Gate* srcGate = getGate(srcGateId);
-    Gate* destGate = getGate(destGateId);
+    Component* src = getComponent(srcComponentId);
+    Component* dest = getComponent(destComponentId);
+    if (!src || !dest) return;
 
-    if (srcGate == nullptr || destGate == nullptr) return;
-
-    srcGate->delOutConnection(destGateId, destPinIndex);
-    destGate->delInConnection(srcGateId, destPinIndex);
-
+    src->delOutConnection(destComponentId, destPinIndex);
+    dest->delInConnection(srcComponentId, destPinIndex);
     m_evalOrderDirty = true;
 }
 
-
-// Change an existing connection
 void Circuit::changeConnection(
-int srcGateId,
-int oldDestGateId, int oldDestPinIndex,
-int newDestGateId, int newDestPinIndex
-)
+    int srcComponentId,
+    int oldDestComponentId, int oldDestPinIndex,
+    int newDestComponentId, int newDestPinIndex)
 {
-    disconnectGates(srcGateId, oldDestGateId, oldDestPinIndex);
-    connectGates(srcGateId, newDestGateId, newDestPinIndex);
+    disconnectComponents(srcComponentId, oldDestComponentId, oldDestPinIndex);
+    connectComponents(srcComponentId, newDestComponentId, newDestPinIndex);
 }
 
-
-// Topological sort
 void Circuit::evaluateOrder()
 {
-    // Tracks state by Unique ID instead of array index position
     std::unordered_set<int> visited;
     std::unordered_set<int> scheduled;
     std::vector<int> order;
 
-    for (const auto& pair : m_gates)
-    {
-        int currentGateId = pair.first;
-
-        if (visited.find(currentGateId) == visited.end()) {
-            Circuit::dfsSort(currentGateId, visited, scheduled, order);
+    for (const auto& pair : m_components) {
+        int currentId = pair.first;
+        if (visited.find(currentId) == visited.end()) {
+            dfsSort(currentId, visited, scheduled, order);
         }
     }
 
@@ -119,64 +89,42 @@ void Circuit::evaluateOrder()
     std::reverse(m_evaluationOrder.begin(), m_evaluationOrder.end());
 }
 
-
-// Depth first sorting for a topological sort
-void Circuit::dfsSort(int gateId, std::unordered_set<int>& visited, std::unordered_set<int>& scheduled, std::vector<int>& order)
+void Circuit::dfsSort(int componentId, std::unordered_set<int>& visited, std::unordered_set<int>& scheduled, std::vector<int>& order)
 {
-    if (scheduled.find(gateId) != scheduled.end()) {
+    if (scheduled.find(componentId) != scheduled.end()) {
         throw std::runtime_error("Cyclic dependency detected! (Latches require a clock-staged evaluation).");
     }
+    if (visited.find(componentId) != visited.end()) return;
 
-    if (visited.find(gateId) != visited.end()) return;
-    scheduled.insert(gateId);
+    scheduled.insert(componentId);
 
-    Gate* currentGate = getGate(gateId);
-    if (currentGate != nullptr)
-    {
-        for (const auto& conn : currentGate->getOutConnections())
-        {
+    if (Component* comp = getComponent(componentId)) {   // <-- was getGate(gateId), which didn't exist
+        for (const auto& conn : comp->getOutConnections()) {
             dfsSort(conn.gateId, visited, scheduled, order);
         }
     }
 
-    scheduled.erase(gateId);
-    visited.insert(gateId);
-    order.push_back(gateId);
+    scheduled.erase(componentId);
+    visited.insert(componentId);
+    order.push_back(componentId);
 }
 
-// Propagation, by iterating the sorted list
 void Circuit::propagate()
 {
-    if (m_evalOrderDirty)
-    {
+    if (m_evalOrderDirty) {
         evaluateOrder();
         m_evalOrderDirty = false;
-        std::cout << "Order evaluated: ";
-        for (size_t i = 0; i < m_evaluationOrder.size(); i++)
-        {
-            std::cout << m_evaluationOrder[i] << "  ";
-        }
-        std::cout << "\n";
     }
 
-    for (int id : m_evaluationOrder)
-    {
+    for (int id : m_evaluationOrder) {
+        Component* comp = getComponent(id);
+        if (!comp) continue;
 
-        Gate* gate = getGate(id);
-        gate->evaluateOut();
+        comp->evaluate();
+        bool out = comp->getStateOutPin();
 
-
-        // Update the child gates
-        bool currentOutput = gate->getStateOutPin();
-        const std::vector<Connection>& connections{ gate->getOutConnections() };
-
-        for (const auto& connection : connections)
-        {
-            Gate* childGate = getGate(connection.gateId);
-            if (childGate) {
-                childGate->setStateInPins(connection.pinIndex, currentOutput);
-            }
-        }
-
+        for (const auto& connection : comp->getOutConnections())
+            if (Component* child = getComponent(connection.gateId))
+                child->setStateInPin(connection.pinIndex, out);
     }
 }

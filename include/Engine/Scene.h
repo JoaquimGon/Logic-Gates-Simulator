@@ -5,28 +5,33 @@
 #include "GateView.h"
 #include "Wire.h"
 #include "GridSystem.h"
+#include "InputPinView.h"
 #include "../Logic/Circuit.h"
 
-enum class HitType { NONE, GATE_PIN, GATE_BODY, WIRE_START, WIRE_END, WIRE_BODY };
+enum class HitType { NONE, COMPONENT_PIN, COMPONENT_BODY, WIRE_START, WIRE_END, WIRE_BODY };
 
 struct HitResult {
     HitType type = HitType::NONE;
-    int     gateId = -1;   // valid for GATE_PIN, GATE_BODY
-    int     pinIndex = -1; // valid for GATE_PIN
-    PinType pinType = PinType::INPUT; // valid for GATE_PIN
-    int     wireIndex = -1; // valid for WIRE_*
+    int componentId = -1;              // valid for COMPONENT_PIN, COMPONENT_BODY
+    int pinIndex = -1;                 // valid for COMPONENT_PIN
+    PinType pinType = PinType::INPUT;  // valid for COMPONENT_PIN
+    int wireIndex = -1;                // valid for WIRE_*
 };
 
 class Scene
 {
 public:
-    // ----- Gates -----
+    // ----- Gates (the only concrete component type today) -----
     int addGate(GateType type, GridCoords gridPos, glm::vec2 size, const std::string& shaderName,
         std::vector<PinUI> inputs, std::vector<PinUI> outputs, bool outInverted = false);
-    void removeGate(int gateId);
-    GateView* getGateView(int gateId);
-    Gate* getLogicGate(int gateId);
-    const std::unordered_map<int, GateView>& getGateViewMap() const { return m_gateViews; }
+
+    int addInputPin(GridCoords gridPos, glm::vec2 size, const std::string& shaderName, bool initialState = false);
+
+
+    void removeComponent(int componentId);
+    ComponentView* getComponentView(int componentId);
+    Component* getLogicComponent(int componentId);
+    const std::unordered_map<int, std::unique_ptr<ComponentView>>& getComponentViewMap() const { return m_componentViews; }
 
     // ----- Wires (Input never touches this vector directly) -----
     size_t wireCount() const { return m_wires.size(); }
@@ -39,23 +44,22 @@ public:
     void   addWires(Wire a, Wire b);
     void   removeWire(size_t index);
 
-    // Reattaches any dangling wire endpoints at this gate's pins after a drag, splitting
-    // through wires if needed, and reconnects the logic layer automatically.
-    void reconnectWiresToGate(int gateId);
+    // Reattaches any dangling wire endpoints at this component's pins after a drag.
+    void reconnectWiresToComponent(int componentId);
 
     // ----- Logic connections -----
-    bool connectPins(int srcGateId, int destGateId, int destPinIndex);
-    void disconnectPins(int srcGateId, int destGateId, int destPinIndex);
+    bool connectPins(int srcComponentId, int destComponentId, int destPinIndex);
+    void disconnectPins(int srcComponentId, int destComponentId, int destPinIndex);
 
-    // ----- Hit-testing (the ONLY place that knows how to test pins/wires/gate bodies) -----
+    // ----- Hit-testing -----
     HitResult hitTest(glm::vec2 worldPos, GridCoords gridPos) const;
 
     // ----- Simulation -----
     void propagate();
-    void syncVisuals(); // pushes Gate logic states into GateView / Wire visuals
-
+    void syncVisuals();
+    bool handleClick(int componentId);
 private:
     Circuit m_circuit;
-    std::unordered_map<int, GateView> m_gateViews;
+    std::unordered_map<int, std::unique_ptr<ComponentView>> m_componentViews;
     std::vector<Wire> m_wires;
 };

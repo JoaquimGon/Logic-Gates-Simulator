@@ -5,31 +5,37 @@ int Scene::addGate(GateType type, GridCoords gridPos, glm::vec2 size, const std:
     std::vector<PinUI> inputs, std::vector<PinUI> outputs, bool outInverted)
 {
     int id = m_circuit.addGate(type, outInverted);
-    m_gateViews.emplace(id, GateView(gridPos, id, size, shaderName, std::move(inputs), std::move(outputs)));
+    m_componentViews.emplace(id, std::make_unique<GateView>(gridPos, id, size, shaderName, std::move(inputs), std::move(outputs)));
     return id;
 }
 
-void Scene::removeGate(int gateId)
+int Scene::addInputPin(GridCoords gridPos, glm::vec2 size, const std::string& shaderName, bool initialState)
 {
-    m_circuit.delGate(gateId);
-    m_gateViews.erase(gateId);
+    int id = m_circuit.addInputPin(initialState);
+    m_componentViews.emplace(id, std::make_unique<InputPinView>(gridPos, id, size, shaderName));
+    return id;
+}
 
-    // Don't leave wires pointing at a gate id that no longer exists
+void Scene::removeComponent(int componentId)
+{
+    m_circuit.delComponent(componentId);
+    m_componentViews.erase(componentId);
+
     for (auto& wire : m_wires) {
-        if (wire.hasSource() && wire.getSource().gateId == gateId) wire.disconnectSource();
-        if (wire.hasDest() && wire.getDest().gateId == gateId) wire.disconnectDest();
+        if (wire.hasSource() && wire.getSource().componentId == componentId) wire.disconnectSource();
+        if (wire.hasDest() && wire.getDest().componentId == componentId) wire.disconnectDest();
     }
 }
 
-GateView* Scene::getGateView(int gateId)
+ComponentView* Scene::getComponentView(int componentId)
 {
-    auto it = m_gateViews.find(gateId);
-    return it != m_gateViews.end() ? &it->second : nullptr;
+    auto it = m_componentViews.find(componentId);
+    return it != m_componentViews.end() ? it->second.get() : nullptr;
 }
 
-Gate* Scene::getLogicGate(int gateId)
+Component* Scene::getLogicComponent(int componentId)
 {
-    return m_circuit.getGate(gateId);
+    return m_circuit.getComponent(componentId);
 }
 
 size_t Scene::commitWire(Wire wire)
@@ -64,24 +70,24 @@ void Scene::removeWire(size_t index)
     if (index < m_wires.size()) m_wires.erase(m_wires.begin() + index);
 }
 
-bool Scene::connectPins(int srcGateId, int destGateId, int destPinIndex)
+bool Scene::connectPins(int srcComponentId, int destComponentId, int destPinIndex)
 {
-    return m_circuit.connectGates(srcGateId, destGateId, destPinIndex);
+    return m_circuit.connectComponents(srcComponentId, destComponentId, destPinIndex);
 }
 
-void Scene::disconnectPins(int srcGateId, int destGateId, int destPinIndex)
+void Scene::disconnectPins(int srcComponentId, int destComponentId, int destPinIndex)
 {
-    m_circuit.disconnectGates(srcGateId, destGateId, destPinIndex);
+    m_circuit.disconnectComponents(srcComponentId, destComponentId, destPinIndex);
 }
 
-void Scene::reconnectWiresToGate(int gateId)
+void Scene::reconnectWiresToComponent(int componentId)
 {
-    GateView* gate = getGateView(gateId);
-    if (!gate) return;
+    ComponentView* component = getComponentView(componentId);
+    if (!component) return;
 
     // Input pins: look for a wire needing a destination
-    for (const auto& pin : gate->m_inputs) {
-        GridCoords pinPos = gate->getAbsolutePinGridPos(pin);
+    for (const auto& pin : component->getInputPins()) {
+        GridCoords pinPos = component->getAbsolutePinGridPos(pin);
         bool handled = false;
 
         for (size_t i = 0; i < m_wires.size() && !handled; ++i) {
@@ -89,15 +95,15 @@ void Scene::reconnectWiresToGate(int gateId)
             if (wire.getPath().empty()) continue;
 
             if (!wire.hasDest() && (wire.getPath().front() == pinPos || wire.getPath().back() == pinPos)) {
-                wire.setDest(gateId, static_cast<int>(pin.pin_index));
-                if (wire.hasSource()) connectPins(wire.getSource().gateId, gateId, static_cast<int>(pin.pin_index));
+                wire.setDest(componentId, static_cast<int>(pin.pin_index));
+                if (wire.hasSource()) connectPins(wire.getSource().componentId, componentId, static_cast<int>(pin.pin_index));
                 handled = true;
             }
             else if (wire.containsPoint(pinPos)) {
                 Wire wireA, wireB;
                 if (splitWireAt(i, pinPos, wireA, wireB)) {
-                    wireA.setDest(gateId, static_cast<int>(pin.pin_index));
-                    if (wireA.hasSource()) connectPins(wireA.getSource().gateId, gateId, static_cast<int>(pin.pin_index));
+                    wireA.setDest(componentId, static_cast<int>(pin.pin_index));
+                    if (wireA.hasSource()) connectPins(wireA.getSource().componentId, componentId, static_cast<int>(pin.pin_index));
                     addWires(wireA, wireB);
                 }
                 handled = true;
@@ -106,8 +112,8 @@ void Scene::reconnectWiresToGate(int gateId)
     }
 
     // Output pin(s): look for a wire needing a source
-    for (const auto& pin : gate->m_outputs) {
-        GridCoords pinPos = gate->getAbsolutePinGridPos(pin);
+    for (const auto& pin : component->getOutputPins()) {
+        GridCoords pinPos = component->getAbsolutePinGridPos(pin);
         bool handled = false;
 
         for (size_t i = 0; i < m_wires.size() && !handled; ++i) {
@@ -115,15 +121,15 @@ void Scene::reconnectWiresToGate(int gateId)
             if (wire.getPath().empty()) continue;
 
             if (!wire.hasSource() && (wire.getPath().front() == pinPos || wire.getPath().back() == pinPos)) {
-                wire.setSource(gateId, static_cast<int>(pin.pin_index));
-                if (wire.hasDest()) connectPins(gateId, wire.getDest().gateId, wire.getDest().pinIndex);
+                wire.setSource(componentId, static_cast<int>(pin.pin_index));
+                if (wire.hasDest()) connectPins(componentId, wire.getDest().componentId, wire.getDest().pinIndex);
                 handled = true;
             }
             else if (wire.containsPoint(pinPos)) {
                 Wire wireA, wireB;
                 if (splitWireAt(i, pinPos, wireA, wireB)) {
-                    wireB.setSource(gateId, static_cast<int>(pin.pin_index));
-                    if (wireB.hasDest()) connectPins(gateId, wireB.getDest().gateId, wireB.getDest().pinIndex);
+                    wireB.setSource(componentId, static_cast<int>(pin.pin_index));
+                    if (wireB.hasDest()) connectPins(componentId, wireB.getDest().componentId, wireB.getDest().pinIndex);
                     addWires(wireA, wireB);
                 }
                 handled = true;
@@ -135,14 +141,14 @@ void Scene::reconnectWiresToGate(int gateId)
 HitResult Scene::hitTest(glm::vec2 worldPos, GridCoords gridPos) const
 {
     // 1. Pins — smallest, most specific targets, checked first
-    for (const auto& [id, gate] : m_gateViews) {
-        for (const auto& pin : gate.m_inputs)
-            if (gridPos == gate.getAbsolutePinGridPos(pin))
-                return { HitType::GATE_PIN, id, static_cast<int>(pin.pin_index), PinType::INPUT, -1 };
+    for (const auto& [id, component] : m_componentViews) {
+        for (const auto& pin : component->getInputPins())
+            if (gridPos == component->getAbsolutePinGridPos(pin))
+                return { HitType::COMPONENT_PIN, id, static_cast<int>(pin.pin_index), PinType::INPUT, -1 };
 
-        for (const auto& pin : gate.m_outputs)
-            if (gridPos == gate.getAbsolutePinGridPos(pin))
-                return { HitType::GATE_PIN, id, static_cast<int>(pin.pin_index), PinType::OUTPUT, -1 };
+        for (const auto& pin : component->getOutputPins())
+            if (gridPos == component->getAbsolutePinGridPos(pin))
+                return { HitType::COMPONENT_PIN, id, static_cast<int>(pin.pin_index), PinType::OUTPUT, -1 };
     }
 
     // 2. Wire endpoints / bodies
@@ -155,12 +161,12 @@ HitResult Scene::hitTest(glm::vec2 worldPos, GridCoords gridPos) const
         if (m_wires[i].containsPoint(gridPos)) return { HitType::WIRE_BODY, -1, -1, PinType::INPUT, static_cast<int>(i) };
     }
 
-    // 3. Gate bodies — world-space AABB, since footprints don't align perfectly to the grid
-    for (const auto& [id, gate] : m_gateViews) {
-        glm::vec2 halfSize = gate.getSize() * 0.5f;
-        glm::vec2 delta = worldPos - gate.getPosition();
+    // 3. Component bodies — world-space AABB
+    for (const auto& [id, component] : m_componentViews) {
+        glm::vec2 halfSize = component->getSize() * 0.5f;
+        glm::vec2 delta = worldPos - component->getPosition();
         if (std::abs(delta.x) <= halfSize.x && std::abs(delta.y) <= halfSize.y)
-            return { HitType::GATE_BODY, id, -1, PinType::INPUT, -1 };
+            return { HitType::COMPONENT_BODY, id, -1, PinType::INPUT, -1 };
     }
 
     return {};
@@ -173,24 +179,38 @@ void Scene::propagate()
 
 void Scene::syncVisuals()
 {
-    for (auto& [id, gateView] : m_gateViews) {
-        Gate* logicGate = m_circuit.getGate(id);
-        if (!logicGate) continue;
+    for (auto& [id, view] : m_componentViews) {
+        Component* comp = m_circuit.getComponent(id);
+        if (!comp) continue;
 
-        gateView.getOutputPinUI().state = logicGate->getStateOutPin() ? PinState::ON : PinState::OFF;
+        auto& outputs = view->getOutputPins();
+        for (size_t i = 0; i < outputs.size(); ++i)
+            outputs[i].state = comp->getStateOutPin(static_cast<int>(i)) ? PinState::ON : PinState::OFF;
 
-        auto inSignals = logicGate->getStateInPins();
-        for (size_t i = 0; i < inSignals.size(); ++i)
-            gateView.getInputPinUI(i).state = inSignals[i] ? PinState::ON : PinState::OFF;
+        auto inSignals = comp->getStateInPins();
+        auto& inputs = view->getInputPins();
+        for (size_t i = 0; i < inSignals.size() && i < inputs.size(); ++i)
+            inputs[i].state = inSignals[i] ? PinState::ON : PinState::OFF;
     }
 
     for (auto& wire : m_wires) {
         if (wire.hasSource()) {
-            if (Gate* srcGate = m_circuit.getGate(wire.getSource().gateId))
-                wire.setState(srcGate->getStateOutPin() ? PinState::ON : PinState::OFF);
+            if (Component* src = m_circuit.getComponent(wire.getSource().componentId))
+                wire.setState(src->getStateOutPin(wire.getSource().pinIndex) ? PinState::ON : PinState::OFF);
         }
         else {
             wire.setState(PinState::DISCONNECTED);
         }
     }
+}
+
+bool Scene::handleClick(int componentId)
+{
+    ComponentView* view = getComponentView(componentId);
+    if (view) {
+        // This dynamically routes to either GateView (returns false) 
+        // or InputPinView (toggles state and returns true)
+        return view->onClick(m_circuit);
+    }
+    return false;
 }

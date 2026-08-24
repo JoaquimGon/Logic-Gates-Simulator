@@ -6,13 +6,13 @@ Wire::Wire()
 {
 }
 
-void Wire::setSource(int gateId, int pinIndex) {
-    m_source.gateId = gateId;
+void Wire::setSource(int componentId, int pinIndex) {
+    m_source.componentId = componentId;
     m_source.pinIndex = pinIndex;
 }
 
-void Wire::setDest(int gateId, int pinIndex) {
-    m_dest.gateId = gateId;
+void Wire::setDest(int componentId, int pinIndex) {
+    m_dest.componentId = componentId;
     m_dest.pinIndex = pinIndex;
 }
 
@@ -45,11 +45,9 @@ const std::vector<GridCoords>& Wire::getPath() const {
 }
 
 bool Wire::isPointOnSegment(const GridCoords& p, const GridCoords& a, const GridCoords& b) {
-    // Check collinearity using cross-product for 2D grid points
     int crossProduct = (p.y - a.y) * (b.x - a.x) - (p.x - a.x) * (b.y - a.y);
     if (crossProduct != 0) return false;
 
-    // Check bounding box bounds
     int minX = std::min(a.x, b.x);
     int maxX = std::max(a.x, b.x);
     int minY = std::min(a.y, b.y);
@@ -76,7 +74,6 @@ bool Wire::splitAt(const GridCoords& splitPoint, Wire& outWireA, Wire& outWireB)
         return false;
     }
 
-    // Build first segment path (up to split point)
     std::vector<GridCoords> pathA;
     for (size_t i = 0; i <= segmentIdx; ++i) {
         pathA.push_back(m_path[i]);
@@ -85,41 +82,32 @@ bool Wire::splitAt(const GridCoords& splitPoint, Wire& outWireA, Wire& outWireB)
         pathA.push_back(splitPoint);
     }
 
-    // Build second segment path (from split point onward)
     std::vector<GridCoords> pathB;
     pathB.push_back(splitPoint);
     for (size_t i = segmentIdx + 1; i < m_path.size(); ++i) {
         pathB.push_back(m_path[i]);
     }
 
-    // First half (from source up to intersection)
     outWireA = Wire();
     outWireA.setPath(pathA);
     outWireA.setState(m_state);
-    if (hasSource()) outWireA.setSource(m_source.gateId, m_source.pinIndex);
+    if (hasSource()) outWireA.setSource(m_source.componentId, m_source.pinIndex);
 
-    // Second half (from intersection forward to destination)
     outWireB = Wire();
     outWireB.setPath(pathB);
     outWireB.setState(m_state);
-    if (hasSource()) outWireB.setSource(m_source.gateId, m_source.pinIndex); // <-- FIX: Inherit source so it stays powered!
-    if (hasDest()) outWireB.setDest(m_dest.gateId, m_dest.pinIndex);
+    if (hasSource()) outWireB.setSource(m_source.componentId, m_source.pinIndex); // inherits source so it stays powered
+    if (hasDest()) outWireB.setDest(m_dest.componentId, m_dest.pinIndex);
 
     return true;
 }
 
 glm::vec4 Wire::getColorFromState() const {
-    if (m_state == PinState::ON) {
-        return glm::vec4(0.0f, 1.0f, 0.0f, 1.0f); // Green
-    }
-    else if (m_state == PinState::OFF) {
-        return glm::vec4(1.0f, 0.0f, 0.0f, 1.0f); // Red
-    }
-    return glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);     // Blue 
+    if (m_state == PinState::ON) return glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+    if (m_state == PinState::OFF) return glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    return glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
 }
 
-
-// Merges consecutive collinear horizontal or vertical segments
 void Wire::simplifyPath() {
     if (m_path.size() < 3) return;
 
@@ -142,7 +130,6 @@ void Wire::simplifyPath() {
     m_path = std::move(simplified);
 }
 
-// Finds the single segment [outStart, outEnd] containing the point
 bool Wire::getSegmentAt(const GridCoords& point, GridCoords& outStart, GridCoords& outEnd) const {
     if (m_path.size() < 2) return false;
 
@@ -156,10 +143,8 @@ bool Wire::getSegmentAt(const GridCoords& point, GridCoords& outStart, GridCoord
     return false;
 }
 
-
 std::vector<float> Wire::getBatchedVertexData() const {
     std::vector<float> data;
-
     if (m_path.size() < 2) return data;
 
     glm::vec4 color = getColorFromState();
@@ -177,4 +162,3 @@ std::vector<float> Wire::getBatchedVertexData() const {
 
     return data;
 }
-

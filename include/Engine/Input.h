@@ -44,7 +44,7 @@ private:
     GridCoords mouseGridCoords = { 0, 0 };
     glm::vec2 panOffset = glm::vec2(0.0f, 0.0f);
 
-    GateView* m_draggedGate = nullptr;
+    ComponentView* m_draggedComponent = nullptr;
      
     // Wire control
     Wire activeWire;
@@ -54,7 +54,7 @@ private:
     bool wireAxisXFirst = true;
     bool isMidWireBranchPending = false; // Deferred split tracking
 
-    int hoveredGateId = -1;
+    int hoveredComponentId = -1;
     int hoveredPinIndex = -1;
     PinType hoveredPinType = PinType::INPUT;
     int hoveredWireIndex = -1;
@@ -67,7 +67,7 @@ private:
     GridCoords m_selectedSegmentStart = { 0, 0 };
     GridCoords m_selectedSegmentEnd = { 0, 0 };
     bool m_hasSelectedSegment = false;
-
+    int m_selectedComponentId;
 public:
     void process(GLFWwindow* window);
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
@@ -94,11 +94,11 @@ public:
 
     void setScene(Scene* scene) { m_scene = scene; }
 
-    int getHoveredGateId() const { return hoveredGateId; }
+    int getHoveredComponentId() const { return hoveredComponentId; }
     int getHoveredPinIndex() const { return hoveredPinIndex; }
     int getHoveredWireIndex() const { return hoveredWireIndex; }
 
-    int getSelectedGateId() const { return m_selectedGateId; }
+    int getSelectedComponentId() const { return m_selectedComponentId; }
     int getSelectedWireIndex() const { return m_selectedWireIndex; }
 
     bool hasSelectedSegment() const { return m_hasSelectedSegment; }

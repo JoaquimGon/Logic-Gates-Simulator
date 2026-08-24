@@ -83,6 +83,9 @@ add_executable (Logic-Gates-Simulator
     "include/Graphics/Renderer.h"
     "src/Engine/Scene.cpp"
     "include/Engine/Scene.h"
+    "include/Engine/ComponentView.h"
+    "include/Engine/InputPinView.h"
+    "include/Logic/InputPin.h"
 )
 
 target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad glm::glm)
