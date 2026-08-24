@@ -1,5 +1,5 @@
 #pragma once
-#include "GridSystem.h"
+#include "..\Views\GridSystem.h"
 #include <cstdint>
 
 enum PinState { DISCONNECTED, OFF, ON };

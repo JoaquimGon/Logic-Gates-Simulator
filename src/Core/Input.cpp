@@ -1,4 +1,4 @@
-#include "..\..\include\Engine\Input.h"
+#include "Input.h"
 #include <algorithm>
 #include <cmath>
 

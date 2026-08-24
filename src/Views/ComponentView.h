@@ -1,5 +1,5 @@
 #pragma once
-#include "PinTypes.h"
+#include "..\Logic\PinTypes.h"
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>

@@ -2,12 +2,12 @@
 
 #include "..\Logic\Circuit.h"
 #include "Input.h"
-#include "GridSystem.h"
-#include "Wire.h"
-#include "..\Graphics\Renderer.h" // Include your new Renderer
-#include "ComponentView.h"
-#include "GateView.h"
-#include "InputPinView.h"
+#include "..\Logic\Wire.h"
+#include "..\Views\GridSystem.h"
+#include "..\Graphics\Renderer.h"
+#include "..\Views\ComponentView.h"
+#include "..\Views\GateView.h"
+#include "..\Views\InputPinView.h"
 #include "Scene.h"
 
 #include <glad/glad.h>

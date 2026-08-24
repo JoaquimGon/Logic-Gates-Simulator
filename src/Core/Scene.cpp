@@ -1,4 +1,4 @@
-#include "..\..\include\Engine\Scene.h"
+#include "Scene.h"
 #include <cmath>
 
 int Scene::addGate(GateType type, GridCoords gridPos, glm::vec2 size, const std::string& shaderName,

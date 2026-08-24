@@ -2,10 +2,10 @@
 #include <vector>
 #include <unordered_map>
 #include <glm/glm.hpp>
-#include "GateView.h"
-#include "Wire.h"
-#include "GridSystem.h"
-#include "InputPinView.h"
+#include "..\Views\GateView.h"
+#include "..\Logic\Wire.h"
+#include "..\Views\GridSystem.h"
+#include "..\Views\InputPinView.h"
 #include "../Logic/Circuit.h"
 
 enum class HitType { NONE, COMPONENT_PIN, COMPONENT_BODY, WIRE_START, WIRE_END, WIRE_BODY };

@@ -1,4 +1,4 @@
-#include "..\..\include\Engine\Engine.h"
+#include "Engine.h"
 #include <iostream>
 
 Engine::Engine(std::string windowName, int windowWidth, int windowHeight)

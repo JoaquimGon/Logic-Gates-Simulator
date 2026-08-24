@@ -1,5 +1,5 @@
 # Minimum required version of CMake
-cmake_minimum_required (VERSION 3.14) # bumped up from 3.10 — FetchContent_MakeAvailable needs 3.14
+cmake_minimum_required (VERSION 3.14) 
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -9,10 +9,10 @@ endif()
 
 project ("Logic-Gates-Simulator")
 
-#  SET GLOBAL C++ STANDARD HERE (Cleaner and universally supported since CMake 3.1)
+#  SET GLOBAL C++ STANDARD HERE
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON) # Forces the compiler to fail if it doesn't support C++20
-set(CMAKE_CXX_EXTENSIONS OFF)      # Disables compiler-specific extensions for pure standard C++
+set(CMAKE_CXX_STANDARD_REQUIRED ON) 
+set(CMAKE_CXX_EXTENSIONS OFF)      
 
 if(MSVC)
         add_compile_options(/permissive-)
@@ -24,7 +24,7 @@ endif()
 # ---------------------------------------------------------------------------
 include(FetchContent)
 
-# GLFW - pulled straight from GitHub, built as part of your project
+# GLFW
 FetchContent_Declare(
     glfw
     GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -38,7 +38,7 @@ set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(glfw)
 
-# GLM - header-only mathematics library
+# GLM
 FetchContent_Declare(
     glm
     GIT_REPOSITORY https://github.com/g-truc/glm.git
@@ -47,9 +47,7 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(glm)
 
-# GLAD - generated at https://glad.dav1d.de and dropped into external/glad/
-# expects: external/glad/include/glad/glad.h, external/glad/include/KHR/khrplatform.h,
-#          external/glad/src/glad.c
+# GLAD
 add_library(glad STATIC "external/glad/src/glad.c")
 target_include_directories(glad PUBLIC "external/glad/include")
 
@@ -57,36 +55,47 @@ target_include_directories(glad PUBLIC "external/glad/include")
 # Main executable
 # ---------------------------------------------------------------------------
 add_executable (Logic-Gates-Simulator 
-    "src/main.cpp" 
-    "include/main.h"
+    # Core
+    "src/Core/main.cpp" 
+    "src/Core/Engine.cpp" 
+    "src/Core/Engine.h"
+    "src/Core/Input.cpp" 
+    "src/Core/Input.h" 
+    "src/Core/Scene.cpp"
+    "src/Core/Scene.h"
+    
+    # Logic
     "src/Logic/Gate.cpp"
-    "include/Logic/Gate.h" 
+    "src/Logic/Gate.h" 
     "src/Logic/Circuit.cpp" 
-    "include/Logic/Circuit.h"
+    "src/Logic/Circuit.h"
+    "src/Logic/Wire.cpp"
+    "src/Logic/Wire.h"
+    "src/Logic/InputPin.h"
+    "src/Logic/PinTypes.h"
+    "src/Logic/Component.h"
+    
+    # Graphics
     "src/Graphics/Shader.cpp" 
-    "include/Graphics/Shader.h" 
-    "src/Engine/Engine.cpp" 
-    "include/Engine/Engine.h"
+    "src/Graphics/Shader.h" 
     "src/Graphics/ShaderManager.cpp"
-    "include/Graphics/ShaderManager.h"
+    "src/Graphics/ShaderManager.h"
     "src/Graphics/Mesh.cpp"
-    "include/Graphics/Mesh.h" 
-    "include/Graphics/VertexLayout.h"
+    "src/Graphics/Mesh.h" 
     "src/Graphics/VertexLayout.cpp"
-    "src/Engine/Input.cpp" 
-    "include/Engine/Input.h" 
-    "include/Engine/GateView.h" 
-    "include/Engine/GridSystem.h"
-    "include/Engine/Wire.h"
-    "src/Engine/Wire.cpp"
+    "src/Graphics/VertexLayout.h"
     "src/Graphics/Renderer.cpp"
-    "include/Graphics/Renderer.h"
-    "src/Engine/Scene.cpp"
-    "include/Engine/Scene.h"
-    "include/Engine/ComponentView.h"
-    "include/Engine/InputPinView.h"
-    "include/Logic/InputPin.h"
+    "src/Graphics/Renderer.h"
+    
+    # Views
+    "src/Views/GateView.h" 
+    "src/Views/GridSystem.h"
+    "src/Views/ComponentView.h"
+    "src/Views/InputPinView.h"
 )
+
+# Tell CMake where to look for your headers now that they are in src/
+target_include_directories(Logic-Gates-Simulator PRIVATE src)
 
 target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad glm::glm)
 
@@ -94,23 +103,19 @@ if(WIN32)
     target_link_libraries(Logic-Gates-Simulator PRIVATE opengl32)
 endif()
 
-# Clear out the old shaders folder in the build directory, then copy the fresh one
-#add_custom_command(
-#    TARGET Logic-Gates-Simulator POST_BUILD
-#    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders
-#    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/shaders ${CMAKE_CURRENT_BINARY_DIR}/shaders
-#)
-
+# ---------------------------------------------------------------------------
+# Asset Management
+# ---------------------------------------------------------------------------
 # 1. Collect all shader files so CMake tracks them as dependencies
-file(GLOB_RECURSE SHADER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/Graphics/shaders/*")
+file(GLOB_RECURSE SHADER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/*")
 
 # 2. Create a custom target that removes and re-copies the shader folder
 add_custom_target(CopyShaders ALL
     COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/src/Graphics/shaders" "${CMAKE_CURRENT_BINARY_DIR}/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders" "${CMAKE_CURRENT_BINARY_DIR}/shaders"
     SOURCES ${SHADER_FILES}
     COMMENT "Syncing shaders to binary output folder..."
- )
+)
 
 # 3. Force your executable to depend on the shader copy target
 add_dependencies(Logic-Gates-Simulator CopyShaders)

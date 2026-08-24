@@ -1,4 +1,4 @@
-#include "..\..\include\Graphics\ShaderManager.h"
+#include "ShaderManager.h"
 
 
 ShaderManager& ShaderManager::instance() {

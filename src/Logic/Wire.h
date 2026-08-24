@@ -1,7 +1,7 @@
 #pragma once
 
-#include "GateView.h"
-#include "GridSystem.h"
+#include "..\Views\GateView.h"
+#include "..\Views\GridSystem.h"
 #include <vector>
 #include <glm/glm.hpp>
 

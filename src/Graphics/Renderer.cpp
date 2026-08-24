@@ -1,4 +1,4 @@
-#include "..\..\include\Graphics\Renderer.h"
+#include "Renderer.h"
 #include <glad/glad.h>
 
 Renderer::Renderer()
@@ -23,7 +23,7 @@ void Renderer::init()
     // Shaders
     // ==========================================
     m_sm.load("ANDgate", "shaders/andGate.vert", "shaders/andGate.frag");
-    m_sm.load("grid", "shaders/vec4Shader.vert", "shaders/grid.frag");
+    m_sm.load("grid", "shaders/vec3Shader.vert", "shaders/grid.frag");
     m_sm.load("pin", "shaders/pins/pins.vert", "shaders/pins/pins.frag");
     m_sm.load("wire", "shaders/wires/wires.vert", "shaders/wires/wires.frag");
 

@@ -7,8 +7,9 @@
 
 #include "ShaderManager.h"
 #include "Mesh.h"
-#include "..\Engine\ComponentView.h"
-#include "..\Engine\Wire.h"
+#include "..\Views\ComponentView.h"
+#include "..\Logic\Wire.h"
+
 
 // A clean way to pass all frame-specific camera and window data
 struct CameraState {

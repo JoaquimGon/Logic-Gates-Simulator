@@ -1,4 +1,4 @@
-#include "..\..\include\Engine\Wire.h"
+#include "Wire.h"
 #include <algorithm>
 
 Wire::Wire()

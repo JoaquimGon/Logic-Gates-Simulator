@@ -1,7 +1,7 @@
 #pragma once
-#include "GridSystem.h"
-#include "GateView.h"
-#include "Wire.h"
+#include "..\Views\GridSystem.h"
+#include "..\Views\GateView.h"
+#include "..\Logic\Wire.h"
 #include "Scene.h"
 
 #include <glad/glad.h>
