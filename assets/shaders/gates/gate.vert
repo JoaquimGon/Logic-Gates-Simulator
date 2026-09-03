@@ -3,7 +3,7 @@
 layout (location = 0) in vec3 aPos;         
 layout (location = 1) in vec2 aInstancePos; 
 
-out vec2 localPos; // <--- BRINGING THIS BACK!
+out vec2 localPos;
 
 uniform vec2  uGateSize; 
 uniform vec2  uPanOffset;

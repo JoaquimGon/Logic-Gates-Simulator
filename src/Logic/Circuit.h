@@ -35,7 +35,7 @@ private:
     void evaluateOrder();
 
 public:
-    int addGate(GateType type, bool outInverted = false);
+    int addGate(GateType type);
     int addInputPin(bool initialState = false);
 
     Component* getComponent(int id);

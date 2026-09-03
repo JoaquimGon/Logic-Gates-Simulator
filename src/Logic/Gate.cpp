@@ -1,19 +1,15 @@
 #include "Gate.h"
 #include <iostream>
 
-Gate::Gate(int id, GateType gateType, bool outInverted)
+Gate::Gate(int id, GateType gateType)
     : Component(id),
-    m_gateType(gateType),
-    m_outInverted(gateType == GateType::NOT ? false : outInverted)
+    m_gateType(gateType)
 {
-    if (gateType == GateType::NOT && outInverted) {
-        std::cerr << "[Gate Warning]: A NOT gate cannot have an inverted output. Defaulting to false.\n";
-    }
 
     int inPinsCount = 0;
     switch (m_gateType) {
     case NOT: inPinsCount = 1; break;
-    case AND: case OR: case XOR: inPinsCount = 2; break;
+    case AND: case OR: case XOR: case NAND: case NOR: case NXOR:  inPinsCount = 2; break;
     default: std::cerr << "Gate type unspecified\n"; break;
     }
     m_stateInPins.resize(inPinsCount, false);
@@ -30,11 +26,13 @@ void Gate::setStateInPin(int pinIndex, bool state)
 void Gate::evaluate()
 {
     switch (m_gateType) {
-    case NOT: m_stateOutPin = !m_stateInPins[0]; break;
-    case AND: m_stateOutPin = m_stateInPins[0] && m_stateInPins[1]; break;
-    case OR:  m_stateOutPin = m_stateInPins[0] || m_stateInPins[1]; break;
-    case XOR: m_stateOutPin = m_stateInPins[0] ^ m_stateInPins[1]; break;
-    default:  m_stateOutPin = false; break;
+    case NOT:  m_stateOutPin = !m_stateInPins[0]; break;
+    case AND:  m_stateOutPin = m_stateInPins[0] && m_stateInPins[1]; break;
+    case NAND: m_stateOutPin = !(m_stateInPins[0] && m_stateInPins[1]); break;
+    case OR:   m_stateOutPin = m_stateInPins[0] || m_stateInPins[1]; break;
+    case NOR:  m_stateOutPin = !(m_stateInPins[0] || m_stateInPins[1]); break;
+    case XOR:  m_stateOutPin = m_stateInPins[0] ^ m_stateInPins[1]; break;
+    case NXOR: m_stateOutPin = !(m_stateInPins[0] ^ m_stateInPins[1]); break;
+    default:   m_stateOutPin = false; break;
     }
-    if (m_outInverted) m_stateOutPin = !m_stateOutPin;
 }

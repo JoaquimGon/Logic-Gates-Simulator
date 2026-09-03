@@ -2,12 +2,12 @@
 #include "Component.h"
 #include <vector>
 
-enum GateType { NOT, AND, OR, XOR };
+enum GateType { NOT, AND, NAND, OR, NOR, XOR, NXOR };
 
 class Gate : public Component
 {
 public:
-    Gate(int id, GateType gateType, bool outInverted);
+    Gate(int id, GateType gateType);
 
     void evaluate() override;
     bool getStateOutPin(int outIndex = 0) const override { return m_stateOutPin; }

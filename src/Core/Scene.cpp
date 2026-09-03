@@ -2,9 +2,9 @@
 #include <cmath>
 
 int Scene::addGate(GateType type, GridCoords gridPos, glm::vec2 size, const std::string& shaderName,
-    std::vector<PinUI> inputs, std::vector<PinUI> outputs, bool outInverted)
+    std::vector<PinUI> inputs, std::vector<PinUI> outputs)
 {
-    int id = m_circuit.addGate(type, outInverted);
+    int id = m_circuit.addGate(type);
     m_componentViews.emplace(id, std::make_unique<GateView>(gridPos, id, size, shaderName, std::move(inputs), std::move(outputs)));
     return id;
 }

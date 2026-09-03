@@ -66,6 +66,8 @@ void Engine::run()
 
     int gate0_id = scene.addGate(GateType::AND, { 0, 0 }, { 0.2f, 0.2f }, "ANDgate", inPins, outPins);
     int gate1_id = scene.addGate(GateType::AND, { 10, 0 }, { 0.2f, 0.2f }, "ANDgate", inPins, outPins);
+    int gate2_id = scene.addGate(GateType::OR, { 0, 10 }, { 0.2f, 0.2f }, "ORgate", inPins, outPins);
+    int gate3_id = scene.addGate(GateType::XOR, { 10, 10 }, { 0.2f, 0.2f }, "XORgate", inPins, outPins);
 
     input.setScene(&scene);
 

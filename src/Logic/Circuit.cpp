@@ -1,9 +1,9 @@
 #include "Circuit.h"
 
-int Circuit::addGate(GateType type, bool outInverted)
+int Circuit::addGate(GateType type)
 {
     int id = m_currentId++;
-    m_components.emplace(id, std::make_unique<Gate>(id, type, outInverted));
+    m_components.emplace(id, std::make_unique<Gate>(id, type));
     m_evalOrderDirty = true;
     return id;
 }

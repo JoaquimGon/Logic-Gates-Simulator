@@ -22,10 +22,26 @@ void Renderer::init()
     // ==========================================
     // Shaders
     // ==========================================
-    m_sm.load("ANDgate", "shaders/andGate.vert", "shaders/andGate.frag");
+    // 
+    // .load will attempt to use the shaders in the build folder, which is corrected by
+    // cmake rebuilding them in said folder by copying the "assets/shaders" folder
+    // Always start path with the "shaders" folder cmake will do the rest
+
+    // Gates
+    m_sm.load("ANDgate", "shaders/gates/gate.vert", "shaders/gates/andGate.frag");
+    m_sm.load("ORgate", "shaders/gates/gate.vert", "shaders/gates/orGate.frag");
+    m_sm.load("XORgate", "shaders/gates/gate.vert", "shaders/gates/xorGate.frag");
+    m_sm.load("NOTgate", "shaders/gates/gate.vert", "shaders/gates/notGate.frag");
+
+    // Grid
     m_sm.load("grid", "shaders/vec3Shader.vert", "shaders/grid.frag");
+
+    // Pins
     m_sm.load("pin", "shaders/pins/pins.vert", "shaders/pins/pins.frag");
+
+    // Wires
     m_sm.load("wire", "shaders/wires/wires.vert", "shaders/wires/wires.frag");
+
 
     // ==========================================
     // Meshes

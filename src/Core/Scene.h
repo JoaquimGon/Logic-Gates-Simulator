@@ -23,7 +23,7 @@ class Scene
 public:
     // ----- Gates (the only concrete component type today) -----
     int addGate(GateType type, GridCoords gridPos, glm::vec2 size, const std::string& shaderName,
-        std::vector<PinUI> inputs, std::vector<PinUI> outputs, bool outInverted = false);
+        std::vector<PinUI> inputs, std::vector<PinUI> outputs);
 
     int addInputPin(GridCoords gridPos, glm::vec2 size, const std::string& shaderName, bool initialState = false);
 

@@ -300,16 +300,49 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
 void Input::process(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) cancelCurrentAction();
 
-    // ==========================================
-    // 1. SPAWN GATES (Key '1')
-    // ==========================================
     static bool key1WasPressed = false;
     static bool key2WasPressed = false;
-    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
-        if (!key1WasPressed && m_scene && m_state == InteractionState::IDLE) {
+    static bool key3WasPressed = false;
+    static bool key4WasPressed = false;
+    static bool key5WasPressed = false;
+    static bool key6WasPressed = false;
+    static bool key7WasPressed = false;
+    static bool key8WasPressed = false;
+
+    // Helper lambda to cleanly spawn any 2-input gate without duplicating code
+    auto trySpawnGate = [&](GateType type, const std::string& shaderName) {
+        if (m_scene && m_state == InteractionState::IDLE) {
             std::vector<PinUI> inPins{
                 {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
                 {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
+            };
+            std::vector<PinUI> outPins{
+                {PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}
+            };
+            glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
+            GridCoords gridPos = GridSystem::worldToGrid(worldPos);
+            m_scene->addGate(type, gridPos, { 0.2f, 0.2f }, shaderName, inPins, outPins);
+        }
+        };
+
+    // 1. SPAWN INPUT PIN (Key '1')
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
+        if (!key1WasPressed && m_scene && m_state == InteractionState::IDLE) {
+            glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
+            GridCoords gridPos = GridSystem::worldToGrid(worldPos);
+            m_scene->addInputPin(gridPos, { 0.15f, 0.15f }, "inputPin", false);
+        }
+        key1WasPressed = true;
+    }
+    else key1WasPressed = false;
+
+    // 2. SPAWN NOT GATE (Key '2')
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+        if (!key2WasPressed && m_scene && m_state == InteractionState::IDLE) {
+
+            // Notice: Only ONE input pin, vertically centered at Y = 0
+            std::vector<PinUI> inPins{
+                {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 0}}
             };
             std::vector<PinUI> outPins{
                 {PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}
@@ -318,31 +351,56 @@ void Input::process(GLFWwindow* window) {
             glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
             GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-            m_scene->addGate(GateType::AND, gridPos, { 0.2f, 0.2f }, "ANDgate", inPins, outPins, false);
-        }
-        key1WasPressed = true;
-    }
-    else {
-        key1WasPressed = false;
-    }
-    // ==========================================
-    // 2. SPAWN INPUT PIN (Key '2')
-    // ==========================================
-    
-    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
-        if (!key2WasPressed && m_scene && m_state == InteractionState::IDLE) {
-            glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
-            GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-            m_scene->addInputPin(gridPos, { 0.15f, 0.15f }, "inputPin", false);
+            m_scene->addGate(GateType::NOT, gridPos, { 0.2f, 0.2f }, "NOTgate", inPins, outPins);
         }
         key2WasPressed = true;
     }
-    else {
-        key2WasPressed = false;
+    else key2WasPressed = false;
+
+    // 3. SPAWN AND GATE (Key '3')
+    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+        if (!key3WasPressed) trySpawnGate(GateType::AND, "ANDgate");
+        key3WasPressed = true;
     }
+    else key3WasPressed = false;
+
+    // 4. SPAWN NAND GATE (Key '4')
+    if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
+        if (!key4WasPressed) trySpawnGate(GateType::NAND, "ANDgate"); // Reuses AND shader for now
+        key4WasPressed = true;
+    }
+    else key4WasPressed = false;
+
+    // 5. SPAWN OR GATE (Key '5')
+    if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) {
+        if (!key5WasPressed) trySpawnGate(GateType::OR, "ORgate");
+        key5WasPressed = true;
+    }
+    else key5WasPressed = false;
+
+    // 6. SPAWN NOR GATE (Key '6')
+    if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS) {
+        if (!key6WasPressed) trySpawnGate(GateType::NOR, "ORgate"); // Reuses OR shader for now
+        key6WasPressed = true;
+    }
+    else key6WasPressed = false;
+
+    // 7. SPAWN XOR GATE (Key '7')
+    if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS) {
+        if (!key7WasPressed) trySpawnGate(GateType::XOR, "XORgate");
+        key7WasPressed = true;
+    }
+    else key7WasPressed = false;
+
+    // 8. SPAWN NXOR GATE (Key '8')
+    if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS) {
+        if (!key8WasPressed) trySpawnGate(GateType::NXOR, "XORgate"); // Reuses XOR shader for now
+        key8WasPressed = true;
+    }
+    else key8WasPressed = false;
 
     // ==========================================
-    // 2. DELETE SELECTED (Delete or Backspace)
+    // DELETE SELECTED (Delete or Backspace)
     // ==========================================
     static bool delWasPressed = false;
     if (glfwGetKey(window, GLFW_KEY_DELETE) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_BACKSPACE) == GLFW_PRESS) {
