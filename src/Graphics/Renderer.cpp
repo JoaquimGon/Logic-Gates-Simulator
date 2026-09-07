@@ -134,7 +134,7 @@ void Renderer::drawWires(const std::vector<Wire>& wires, const Wire* activeWire)
     }
 }
 
-void Renderer::drawWireBoundingBox(const Wire& wire, float padding)
+void Renderer::drawWireBoundingBox(const Wire& wire, float padding, float alpha)
 {
     if (wire.getPath().empty()) return;
 
@@ -163,10 +163,7 @@ void Renderer::drawWireBoundingBox(const Wire& wire, float padding)
     maxY += padding;
 
     // Convert (255, 159, 28) to Normalized RGB
-    float r = 255.0f / 255.0f;
-    float g = 159.0f / 255.0f;
-    float b = 28.0f / 255.0f;
-    float a = 1.0f;
+    float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = alpha;
 
     std::vector<float> boxData = {
         minX, maxY, 0.0f, r, g, b, a,
@@ -186,7 +183,7 @@ void Renderer::drawWireBoundingBox(const Wire& wire, float padding)
     m_boundsMesh->draw();
 }
 
-void Renderer::drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding)
+void Renderer::drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding, float alpha)
 {
     auto* shader = m_sm.get("wire");
     shader->use();
@@ -205,7 +202,7 @@ void Renderer::drawWireSegmentBoundingBox(const GridCoords& start, const GridCoo
     float r = 255.0f / 255.0f;
     float g = 159.0f / 255.0f;
     float b = 28.0f / 255.0f;
-    float a = 1.0f;
+    float a = alpha;
 
     std::vector<float> boxData = {
         minX, maxY, 0.0f, r, g, b, a,
@@ -292,7 +289,7 @@ void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentV
     }
 }
 
-void Renderer::drawComponentBoundingBox(const ComponentView& component, float padding)
+void Renderer::drawComponentBoundingBox(const ComponentView& component, float padding, float alpha)
 {
     auto* shader = m_sm.get("wire"); // reused: a bounding box is just 4 colored lines
     shader->use();
@@ -311,7 +308,7 @@ void Renderer::drawComponentBoundingBox(const ComponentView& component, float pa
     glm::vec2 bottomLeft(-halfW + pos.x, -halfH + pos.y);
     glm::vec2 bottomRight(halfW + pos.x, -halfH + pos.y);
 
-    float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = 1.0f;
+    float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = alpha;
 
     std::vector<float> boxData = {
         topLeft.x, topLeft.y, 0.0f, r, g, b, a,

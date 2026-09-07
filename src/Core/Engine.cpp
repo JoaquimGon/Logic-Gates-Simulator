@@ -105,23 +105,38 @@ void Engine::run()
         m_renderer.drawGrid();
         m_renderer.drawComponents(scene.getComponentViewMap());   // was drawGates
 
-        // Highlight Component (Hovered or Selected)
-        int compToHighlight = input.getSelectedComponentId() != -1 ? input.getSelectedComponentId() : input.getHoveredComponentId();
-        if (compToHighlight != -1) {
-            if (ComponentView* cv = scene.getComponentView(compToHighlight)) {
-                m_renderer.drawComponentBoundingBox(*cv, 0.01f);
+
+        // ==========================================
+        // Highlight Component
+        // ==========================================
+        if (input.getSelectedComponentId() != -1) {
+            // Selected: 100% Opacity
+            if (ComponentView* cv = scene.getComponentView(input.getSelectedComponentId())) {
+                m_renderer.drawComponentBoundingBox(*cv, 0.01f, 1.0f);
+            }
+        }
+        else if (input.getHoveredComponentId() != -1) {
+            // Hovered: 40% Opacity
+            if (ComponentView* cv = scene.getComponentView(input.getHoveredComponentId())) {
+                m_renderer.drawComponentBoundingBox(*cv, 0.01f, 0.4f);
             }
         }
 
-        // Highlight Wire Segment (Hovered or Selected)
+        // ==========================================
+        // Highlight Wire Segment
+        // ==========================================
         if (!input.isCurrentlyDrawingWire()) {
             if (input.hasSelectedSegment()) {
-                m_renderer.drawWireSegmentBoundingBox(input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 0.01f);
+                // Selected: 100% Opacity
+                m_renderer.drawWireSegmentBoundingBox(input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 0.01f, 1.0f);
             }
             else if (input.hasHoveredSegment()) {
-                m_renderer.drawWireSegmentBoundingBox(input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.01f);
+                // Hovered: 40% Opacity
+                m_renderer.drawWireSegmentBoundingBox(input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.01f, 0.4f);
             }
         }
+
+        // (Make sure to delete the redundant !input.isCurrentlyDrawingWire() && input.hasSelectedSegment() block that was below this!)
 
 
         if (!input.isCurrentlyDrawingWire() && input.hasSelectedSegment()) {

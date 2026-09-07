@@ -37,9 +37,10 @@ public:
 
     void drawWires(const std::vector<Wire>& wires, const Wire* activeWire = nullptr);
 
-    void drawWireBoundingBox(const Wire& wire, float padding = 0.03f);
-    void drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding = 0.03f);
-    void drawComponentBoundingBox(const ComponentView& component, float padding = 0.3f);
+    // Change these three lines in Renderer.h:
+    void drawWireBoundingBox(const Wire& wire, float padding = 0.03f, float alpha = 1.0f);
+    void drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding = 0.03f, float alpha = 1.0f);
+    void drawComponentBoundingBox(const ComponentView& component, float padding = 0.3f, float alpha = 1.0f);
 
 private:
     ShaderManager m_sm;
