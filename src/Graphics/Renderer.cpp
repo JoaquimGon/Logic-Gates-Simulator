@@ -341,7 +341,7 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
     shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
-    shader->setFloat("uPointSize", 6.0f); // Slightly smaller than standard pins (10.0f)
+    shader->setFloat("uPointSize", 8.0f); // Slightly smaller than standard pins (10.0f)
 
     glm::vec2 worldPos = GridSystem::gridToWorld(gridPos);
 
@@ -354,4 +354,34 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
     std::vector<float> data = { worldPos.x, worldPos.y, r, g, b, opacity };
     m_pointMesh->setInstanceData(data, { 2, 4 }, 1);
     m_pointMesh->drawInstanced(1);
+}
+
+
+void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
+{
+    if (intersectionData.empty()) return;
+
+    auto* shader = m_sm.get("pin");
+    shader->use();
+    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
+    shader->setFloat("uZoom", m_currentCamera.zoom);
+    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
+    shader->setFloat("uPointSize", 9.0f); // 0.9 ratio relative to standard 10.0f pins
+
+    std::vector<float> instancedData;
+    instancedData.reserve(intersectionData.size() * 6); // 2 pos + 4 color
+
+    for (const auto& data : intersectionData) {
+        glm::vec2 worldPos = GridSystem::gridToWorld({ static_cast<int>(data.x), static_cast<int>(data.y) });
+        instancedData.push_back(worldPos.x);
+        instancedData.push_back(worldPos.y);
+
+        // Map the state back to colors (0=DISCONNECTED(Blue), 1=ON(Green), 2=OFF(Red))
+        if (data.z == 0.0f)      instancedData.insert(instancedData.end(), { 0.0f, 0.0f, 1.0f, 1.0f });
+        else if (data.z == 1.0f) instancedData.insert(instancedData.end(), { 0.0f, 1.0f, 0.0f, 1.0f });
+        else                     instancedData.insert(instancedData.end(), { 1.0f, 0.0f, 0.0f, 1.0f });
+    }
+
+    m_pointMesh->setInstanceData(instancedData, { 2, 4 }, 1);
+    m_pointMesh->drawInstanced(static_cast<int>(intersectionData.size()));
 }

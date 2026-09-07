@@ -196,13 +196,43 @@ void Scene::syncVisuals()
             inputs[i].state = inSignals[i] ? PinState::ON : PinState::OFF;
     }
 
+    // Reset all wires and evaluate explicit sources first
     for (auto& wire : m_wires) {
         if (wire.hasSource()) {
             if (Component* src = m_circuit.getComponent(wire.getSource().componentId))
                 wire.setState(src->getStateOutPin(wire.getSource().pinIndex) ? PinState::ON : PinState::OFF);
+            else
+                wire.setState(PinState::DISCONNECTED);
         }
         else {
             wire.setState(PinState::DISCONNECTED);
+        }
+    }
+
+    // NEW: Flood-fill state to physically touching networks!
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (size_t i = 0; i < m_wires.size(); ++i) {
+            if (m_wires[i].getState() == PinState::DISCONNECTED) continue;
+
+            for (size_t j = 0; j < m_wires.size(); ++j) {
+                if (i == j || m_wires[j].getState() == m_wires[i].getState()) continue;
+
+                // Check if paths intersect physically
+                bool touches = false;
+                for (const auto& p1 : m_wires[i].getPath()) {
+                    for (const auto& p2 : m_wires[j].getPath()) {
+                        if (p1 == p2) { touches = true; break; }
+                    }
+                    if (touches) break;
+                }
+
+                if (touches && m_wires[j].getState() == PinState::DISCONNECTED) {
+                    m_wires[j].setState(m_wires[i].getState());
+                    changed = true;
+                }
+            }
         }
     }
 }
@@ -216,4 +246,47 @@ bool Scene::handleClick(int componentId)
         return view->onClick(m_circuit);
     }
     return false;
+}
+
+std::vector<glm::vec3> Scene::getWireIntersections() const
+{
+    std::vector<glm::vec3> intersections;
+
+    struct PointData {
+        int count = 0;
+        float stateVal = 0.0f;
+    };
+
+    std::map<std::pair<int, int>, PointData> endpointMap;
+
+    for (const auto& wire : m_wires) {
+        const auto& path = wire.getPath();
+        if (path.empty()) continue;
+
+        // Map state to colors (0=DISCONNECTED, 1=ON, 2=OFF)
+        float stateVal = 0.0f;
+        if (wire.getState() == PinState::ON) stateVal = 1.0f;
+        else if (wire.getState() == PinState::OFF) stateVal = 2.0f;
+
+        // Register the START point of the wire
+        auto startCoord = std::make_pair(path.front().x, path.front().y);
+        endpointMap[startCoord].count++;
+        endpointMap[startCoord].stateVal = stateVal;
+
+        // Register the END point of the wire
+        if (path.size() > 1) {
+            auto endCoord = std::make_pair(path.back().x, path.back().y);
+            endpointMap[endCoord].count++;
+            endpointMap[endCoord].stateVal = stateVal;
+        }
+    }
+
+    // A schematic intersection dot only appears if 3 or more wires connect at the same point!
+    for (const auto& [coord, data] : endpointMap) {
+        if (data.count >= 3) {
+            intersections.push_back({ static_cast<float>(coord.first), static_cast<float>(coord.second), data.stateVal });
+        }
+    }
+
+    return intersections;
 }

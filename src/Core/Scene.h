@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <map>
 #include <unordered_map>
 #include <glm/glm.hpp>
 #include "..\Views\GateView.h"
@@ -43,6 +44,7 @@ public:
     bool   splitWireAt(size_t index, GridCoords point, Wire& outA, Wire& outB);
     void   addWires(Wire a, Wire b);
     void   removeWire(size_t index);
+    std::vector<glm::vec3> getWireIntersections() const;
 
     // Reattaches any dangling wire endpoints at this component's pins after a drag.
     void reconnectWiresToComponent(int componentId);
@@ -62,4 +64,5 @@ private:
     Circuit m_circuit;
     std::unordered_map<int, std::unique_ptr<ComponentView>> m_componentViews;
     std::vector<Wire> m_wires;
+
 };

@@ -42,6 +42,7 @@ public:
     void drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding = 0.03f, float alpha = 1.0f);
     void drawComponentBoundingBox(const ComponentView& component, float padding = 0.3f, float alpha = 1.0f);
     void drawGridPointHighlight(GridCoords gridPos, float opacity);
+    void drawIntersections(const std::vector<glm::vec3>& intersectionData);
 private:
     ShaderManager m_sm;
 

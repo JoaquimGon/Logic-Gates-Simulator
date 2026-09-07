@@ -155,6 +155,8 @@ void Engine::run()
             m_renderer.drawWires(scene.getWires(), nullptr);
         }
 
+        m_renderer.drawIntersections(scene.getWireIntersections());
+
         // Point highligh (for wire creation and mouse position)
         bool overEmptyOrWire = (input.getHoveredComponentId() == -1 && input.getHoveredPinComponentId() == -1);
         if (input.isCurrentlyDrawingWire()) {

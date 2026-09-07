@@ -181,32 +181,64 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                     }
                 }
                 else if (hoveredWireIndex != -1) {
-                    Wire wireA, wireB;
-                    if (m_scene->splitWireAt(static_cast<size_t>(hoveredWireIndex), mouseGridCoords, wireA, wireB)) {
+                    Wire& targetWire = m_scene->wireAt(static_cast<size_t>(hoveredWireIndex));
+
+                    // Did we drop exactly on an endpoint?
+                    bool hitEndpoint = (!targetWire.getPath().empty()) &&
+                        (mouseGridCoords == targetWire.getPath().front() || mouseGridCoords == targetWire.getPath().back());
+
+                    if (hitEndpoint) {
+                        // MERGE LOGIC (Do not split the target wire!)
                         bool activeHasSrc = activeWire.hasSource();
                         bool activeHasDst = activeWire.hasDest();
-                        bool targetHasSrc = wireA.hasSource() || wireB.hasSource();
-                        bool targetHasDst = wireA.hasDest() || wireB.hasDest();
+                        bool targetHasSrc = targetWire.hasSource();
+                        bool targetHasDst = targetWire.hasDest();
 
-                        WireEndpoint src = activeHasSrc ? activeWire.getSource() : (wireA.hasSource() ? wireA.getSource() : wireB.getSource());
-                        WireEndpoint dst = activeHasDst ? activeWire.getDest() : (wireA.hasDest() ? wireA.getDest() : wireB.getDest());
+                        WireEndpoint src = activeHasSrc ? activeWire.getSource() : targetWire.getSource();
+                        WireEndpoint dst = activeHasDst ? activeWire.getDest() : targetWire.getDest();
 
                         if (activeHasSrc || targetHasSrc) {
                             activeWire.setSource(src.componentId, src.pinIndex);
-                            wireA.setSource(src.componentId, src.pinIndex);
-                            wireB.setSource(src.componentId, src.pinIndex);
+                            targetWire.setSource(src.componentId, src.pinIndex);
                         }
                         if (activeHasDst || targetHasDst) {
                             activeWire.setDest(dst.componentId, dst.pinIndex);
-                            wireA.setDest(dst.componentId, dst.pinIndex);
-                            wireB.setDest(dst.componentId, dst.pinIndex);
+                            targetWire.setDest(dst.componentId, dst.pinIndex);
                         }
 
                         if ((activeHasSrc && targetHasDst) || (activeHasDst && targetHasSrc)) {
                             m_scene->connectPins(src.componentId, dst.componentId, dst.pinIndex);
                         }
+                    }
+                    else {
+                        // SPLIT LOGIC (We dropped on the middle of a wire)
+                        Wire wireA, wireB;
+                        if (m_scene->splitWireAt(static_cast<size_t>(hoveredWireIndex), mouseGridCoords, wireA, wireB)) {
+                            bool activeHasSrc = activeWire.hasSource();
+                            bool activeHasDst = activeWire.hasDest();
+                            bool targetHasSrc = wireA.hasSource() || wireB.hasSource();
+                            bool targetHasDst = wireA.hasDest() || wireB.hasDest();
 
-                        m_scene->addWires(wireA, wireB);
+                            WireEndpoint src = activeHasSrc ? activeWire.getSource() : (wireA.hasSource() ? wireA.getSource() : wireB.getSource());
+                            WireEndpoint dst = activeHasDst ? activeWire.getDest() : (wireA.hasDest() ? wireA.getDest() : wireB.getDest());
+
+                            if (activeHasSrc || targetHasSrc) {
+                                activeWire.setSource(src.componentId, src.pinIndex);
+                                wireA.setSource(src.componentId, src.pinIndex);
+                                wireB.setSource(src.componentId, src.pinIndex);
+                            }
+                            if (activeHasDst || targetHasDst) {
+                                activeWire.setDest(dst.componentId, dst.pinIndex);
+                                wireA.setDest(dst.componentId, dst.pinIndex);
+                                wireB.setDest(dst.componentId, dst.pinIndex);
+                            }
+
+                            if ((activeHasSrc && targetHasDst) || (activeHasDst && targetHasSrc)) {
+                                m_scene->connectPins(src.componentId, dst.componentId, dst.pinIndex);
+                            }
+
+                            m_scene->addWires(wireA, wireB);
+                        }
                     }
                 }
 
