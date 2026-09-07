@@ -400,27 +400,94 @@ void Input::process(GLFWwindow* window) {
     else key8WasPressed = false;
 
     // ==========================================
-    // DELETE SELECTED (Delete or Backspace)
+    // DELETE SELECTED OR HOVERED (Delete or Backspace)
     // ==========================================
     static bool delWasPressed = false;
     if (glfwGetKey(window, GLFW_KEY_DELETE) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_BACKSPACE) == GLFW_PRESS) {
         if (!delWasPressed && m_scene && m_state == InteractionState::IDLE) {
 
-            if (m_selectedComponentId != -1) {
-                m_scene->removeComponent(m_selectedComponentId);
-                m_selectedComponentId = -1;
-            }
-            else if (m_selectedWireIndex != -1 && static_cast<size_t>(m_selectedWireIndex) < m_scene->wireCount()) {
-                Wire& w = m_scene->wireAt(static_cast<size_t>(m_selectedWireIndex));
+            // Prioritize explicitly selected items, otherwise delete whatever the mouse is hovering over!
+            int compToDelete = m_selectedComponentId != -1 ? m_selectedComponentId : hoveredComponentId;
+            int wireToDelete = m_selectedWireIndex != -1 ? m_selectedWireIndex : hoveredWireIndex;
 
+            if (compToDelete != -1) {
+                m_scene->removeComponent(compToDelete);
+                if (m_selectedComponentId == compToDelete) m_selectedComponentId = -1;
+            }
+            else if (wireToDelete != -1 && static_cast<size_t>(wireToDelete) < m_scene->wireCount()) {
+                Wire& w = m_scene->wireAt(static_cast<size_t>(wireToDelete));
+
+                // 1. Sever the logic connection! If you break a wire, the circuit connection dies.
                 if (w.hasSource() && w.hasDest()) {
                     m_scene->disconnectPins(w.getSource().componentId, w.getDest().componentId, w.getDest().pinIndex);
                 }
 
-                m_scene->removeWire(static_cast<size_t>(m_selectedWireIndex));
-                m_selectedWireIndex = -1;
-                m_hasSelectedSegment = false;
+                // 2. Identify exactly which segment to cut
+                GridCoords segStart, segEnd;
+                bool hasSeg = false;
+
+                if (m_selectedWireIndex != -1 && m_hasSelectedSegment) {
+                    segStart = m_selectedSegmentStart; segEnd = m_selectedSegmentEnd;
+                    hasSeg = true;
+                }
+                else if (m_hoveredSegmentValid) {
+                    segStart = m_hoveredSegmentStart; segEnd = m_hoveredSegmentEnd;
+                    hasSeg = true;
+                }
+
+                if (hasSeg) {
+                    const auto& path = w.getPath();
+                    int cutIdx = -1;
+
+                    // Find where this segment exists in the wire's path array
+                    for (size_t i = 0; i < path.size() - 1; ++i) {
+                        if ((path[i] == segStart && path[i + 1] == segEnd) || (path[i] == segEnd && path[i + 1] == segStart)) {
+                            cutIdx = static_cast<int>(i);
+                            break;
+                        }
+                    }
+
+                    if (cutIdx != -1) {
+                        // Split the coordinates into two new paths
+                        std::vector<GridCoords> pathA(path.begin(), path.begin() + cutIdx + 1);
+                        std::vector<GridCoords> pathB(path.begin() + cutIdx + 1, path.end());
+
+                        WireEndpoint src = w.getSource();
+                        WireEndpoint dst = w.getDest();
+
+                        // Destroy the original wire
+                        m_scene->removeWire(static_cast<size_t>(wireToDelete));
+
+                        // Spawn Wire A (Retains the Source pin). A wire needs at least 2 points to exist.
+                        if (pathA.size() >= 2) {
+                            Wire wa; wa.setPath(pathA);
+                            if (src.isConnected()) wa.setSource(src.componentId, src.pinIndex);
+                            m_scene->commitWire(wa);
+                        }
+
+                        // Spawn Wire B (Retains the Dest pin).
+                        if (pathB.size() >= 2) {
+                            Wire wb; wb.setPath(pathB);
+                            if (dst.isConnected()) wb.setDest(dst.componentId, dst.pinIndex);
+                            m_scene->commitWire(wb);
+                        }
+                    }
+                    else {
+                        m_scene->removeWire(static_cast<size_t>(wireToDelete)); // Fallback
+                    }
+                }
+                else {
+                    m_scene->removeWire(static_cast<size_t>(wireToDelete)); // Fallback
+                }
+
+                // Clear states
+                if (m_selectedWireIndex == wireToDelete) {
+                    m_selectedWireIndex = -1;
+                    m_hasSelectedSegment = false;
+                }
             }
+
+            updateHoverState(window); // Force refresh since the object under the mouse just vanished
         }
         delWasPressed = true;
     }
@@ -455,6 +522,7 @@ void Input::updateHoverState(GLFWwindow* window)
     hoveredWireIndex = -1;
     isHoveredWireStart = false;
     isHoveredWireEnd = false;
+    m_hoveredSegmentValid = false; // Reset it every frame
 
     HitResult hit = m_scene->hitTest(currentWorldCoords, mouseGridCoords);
     switch (hit.type) {
@@ -479,6 +547,11 @@ void Input::updateHoverState(GLFWwindow* window)
         break;
     default: break;
     }
+
+    if (hoveredWireIndex != -1 && m_scene) {
+        m_hoveredSegmentValid = m_scene->wireAt(static_cast<size_t>(hoveredWireIndex)).getSegmentAt(mouseGridCoords, m_hoveredSegmentStart, m_hoveredSegmentEnd);
+    }
+
 }
 
 glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom) {

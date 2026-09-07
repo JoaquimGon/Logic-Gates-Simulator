@@ -30,8 +30,14 @@ void Circuit::delComponent(int id)
     for (const auto& c : comp->getInConnections())
         if (Component* src = getComponent(c.gateId)) src->delOutConnection(id, c.pinIndex);
 
-    for (const auto& c : comp->getOutConnections())
-        if (Component* dest = getComponent(c.gateId)) dest->delInConnection(id, c.pinIndex);
+    for (const auto& c : comp->getOutConnections()) {
+        if (Component* dest = getComponent(c.gateId)) {
+            dest->delInConnection(id, c.pinIndex);
+
+            // NEW: Pull the input low on the destination component since its power source was just deleted!
+            dest->setStateInPin(c.pinIndex, false);
+        }
+    }
 
     m_components.erase(id);
     m_evalOrderDirty = true;
@@ -60,6 +66,11 @@ void Circuit::disconnectComponents(int srcComponentId, int destComponentId, int 
 
     src->delOutConnection(destComponentId, destPinIndex);
     dest->delInConnection(srcComponentId, destPinIndex);
+
+    // TEST
+    dest->setStateInPin(destPinIndex, false);
+
+
     m_evalOrderDirty = true;
 }
 

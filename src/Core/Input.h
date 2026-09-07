@@ -64,6 +64,10 @@ private:
     int m_selectedGateId = -1;
     int m_selectedWireIndex = -1;
 
+    bool m_hoveredSegmentValid = false;
+    GridCoords m_hoveredSegmentStart = { 0, 0 };
+    GridCoords m_hoveredSegmentEnd = { 0, 0 };
+
     GridCoords m_selectedSegmentStart = { 0, 0 };
     GridCoords m_selectedSegmentEnd = { 0, 0 };
     bool m_hasSelectedSegment = false;
@@ -104,4 +108,8 @@ public:
     bool hasSelectedSegment() const { return m_hasSelectedSegment; }
     GridCoords getSelectedSegmentStart() const { return m_selectedSegmentStart; }
     GridCoords getSelectedSegmentEnd() const { return m_selectedSegmentEnd; }
+
+    bool hasHoveredSegment() const { return m_hoveredSegmentValid; }
+    GridCoords getHoveredSegmentStart() const { return m_hoveredSegmentStart; }
+    GridCoords getHoveredSegmentEnd() const { return m_hoveredSegmentEnd; }
 };

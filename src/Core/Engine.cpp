@@ -105,10 +105,21 @@ void Engine::run()
         m_renderer.drawGrid();
         m_renderer.drawComponents(scene.getComponentViewMap());   // was drawGates
 
-        int selGate = input.getSelectedComponentId();
-        if (selGate != -1) {
-            if (ComponentView* gv = scene.getComponentView(selGate)) {
-                m_renderer.drawComponentBoundingBox(*gv, 0.01f);   // was drawGateBoundingBox
+        // Highlight Component (Hovered or Selected)
+        int compToHighlight = input.getSelectedComponentId() != -1 ? input.getSelectedComponentId() : input.getHoveredComponentId();
+        if (compToHighlight != -1) {
+            if (ComponentView* cv = scene.getComponentView(compToHighlight)) {
+                m_renderer.drawComponentBoundingBox(*cv, 0.01f);
+            }
+        }
+
+        // Highlight Wire Segment (Hovered or Selected)
+        if (!input.isCurrentlyDrawingWire()) {
+            if (input.hasSelectedSegment()) {
+                m_renderer.drawWireSegmentBoundingBox(input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 0.01f);
+            }
+            else if (input.hasHoveredSegment()) {
+                m_renderer.drawWireSegmentBoundingBox(input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.01f);
             }
         }
 
