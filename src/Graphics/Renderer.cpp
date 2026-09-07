@@ -255,7 +255,7 @@ void Renderer::drawComponents(const std::unordered_map<int, std::unique_ptr<Comp
     }
 }
 
-void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews)
+void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews, int hoveredCompId, int hoveredPinIdx, PinType hoveredPinType)
 {
     auto* shader = m_sm.get("pin");
     shader->use();
@@ -273,9 +273,15 @@ void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentV
             pinInstanceData.push_back(pinWorldPos.x);
             pinInstanceData.push_back(pinWorldPos.y);
 
-            if (pin.state == PinState::DISCONNECTED)  pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 0.0f, 1.0f, 1.0f });
-            else if (pin.state == PinState::ON)        pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 1.0f, 0.0f, 1.0f });
-            else                                        pinInstanceData.insert(pinInstanceData.end(), { 1.0f, 0.0f, 0.0f, 1.0f });
+            if (id == hoveredCompId && pin.pin_index == hoveredPinIdx && pin.type == hoveredPinType) {
+                float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = 1;
+                pinInstanceData.insert(pinInstanceData.end(), { r, g, b, a }); // Same colour as the bounding box
+            }
+            else {
+                if (pin.state == PinState::DISCONNECTED)  pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 0.0f, 1.0f, 1.0f });
+                else if (pin.state == PinState::ON)        pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 1.0f, 0.0f, 1.0f });
+                else                                        pinInstanceData.insert(pinInstanceData.end(), { 1.0f, 0.0f, 0.0f, 1.0f });
+            }
             totalPins++;
             };
 

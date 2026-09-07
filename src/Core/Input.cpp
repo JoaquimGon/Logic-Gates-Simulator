@@ -70,12 +70,12 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             m_hasSelectedSegment = false;
             isMidWireBranchPending = false;
 
-            if (hoveredComponentId != -1 && hoveredPinIndex != -1) {
+            if (hoveredPinComponentId != -1 && hoveredPinIndex != -1) {
                 m_selectedComponentId = hoveredComponentId;
 
                 activeWire = Wire();
-                if (hoveredPinType == PinType::INPUT) activeWire.setDest(hoveredComponentId, hoveredPinIndex);
-                else activeWire.setSource(hoveredComponentId, hoveredPinIndex);
+                if (hoveredPinType == PinType::INPUT) activeWire.setDest(hoveredPinComponentId, hoveredPinIndex);
+                else activeWire.setSource(hoveredPinComponentId, hoveredPinIndex);
 
                 activeWire.setState(PinState::DISCONNECTED);
                 baseWirePath = { mouseGridCoords };
@@ -128,8 +128,6 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                     m_draggedComponent = m_scene->getComponentView(hoveredComponentId);
                     m_state = InteractionState::DRAGGING_GATE;
                 }
-                // else: the component handled the click itself (e.g. InputPinView toggled) —
-                // stay IDLE, don't start a drag.
             }
             else {
                 activeWire = Wire();
@@ -163,19 +161,19 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
 
                 updateHoverState(window);
 
-                if (hoveredComponentId != -1 && hoveredPinIndex != -1) {
+                if (hoveredPinComponentId != -1 && hoveredPinIndex != -1) {
                     bool isSamePin = (hoveredPinType == PinType::INPUT && activeWire.hasDest() &&
-                        activeWire.getDest().componentId == hoveredComponentId && activeWire.getDest().pinIndex == hoveredPinIndex) ||
+                        activeWire.getDest().componentId == hoveredPinComponentId && activeWire.getDest().pinIndex == hoveredPinIndex) ||
                         (hoveredPinType == PinType::OUTPUT && activeWire.hasSource() &&
-                            activeWire.getSource().componentId == hoveredComponentId && activeWire.getSource().pinIndex == hoveredPinIndex);
+                            activeWire.getSource().componentId == hoveredPinComponentId && activeWire.getSource().pinIndex == hoveredPinIndex);
 
                     if (isSamePin) {
                         if (hoveredPinType == PinType::INPUT) activeWire.disconnectDest();
                         else activeWire.disconnectSource();
                     }
                     else {
-                        if (hoveredPinType == PinType::INPUT && !activeWire.hasDest()) activeWire.setDest(hoveredComponentId, hoveredPinIndex);
-                        else if (hoveredPinType == PinType::OUTPUT && !activeWire.hasSource()) activeWire.setSource(hoveredComponentId, hoveredPinIndex);
+                        if (hoveredPinType == PinType::INPUT && !activeWire.hasDest()) activeWire.setDest(hoveredPinComponentId, hoveredPinIndex);
+                        else if (hoveredPinType == PinType::OUTPUT && !activeWire.hasSource()) activeWire.setSource(hoveredPinComponentId, hoveredPinIndex);
 
                         if (activeWire.hasSource() && activeWire.hasDest()) {
                             m_scene->connectPins(activeWire.getSource().componentId, activeWire.getDest().componentId, activeWire.getDest().pinIndex);
@@ -519,6 +517,7 @@ void Input::updateHoverState(GLFWwindow* window)
 
     hoveredComponentId = -1;
     hoveredPinIndex = -1;
+    hoveredPinComponentId = -1;
     hoveredWireIndex = -1;
     isHoveredWireStart = false;
     isHoveredWireEnd = false;
@@ -527,7 +526,7 @@ void Input::updateHoverState(GLFWwindow* window)
     HitResult hit = m_scene->hitTest(currentWorldCoords, mouseGridCoords);
     switch (hit.type) {
     case HitType::COMPONENT_PIN:
-        hoveredComponentId = hit.componentId;
+        hoveredPinComponentId = hit.componentId;
         hoveredPinIndex = hit.pinIndex;
         hoveredPinType = hit.pinType;
         break;

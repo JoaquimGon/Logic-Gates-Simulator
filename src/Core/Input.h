@@ -55,6 +55,7 @@ private:
     bool isMidWireBranchPending = false; // Deferred split tracking
 
     int hoveredComponentId = -1;
+    int hoveredPinComponentId = -1;
     int hoveredPinIndex = -1;
     PinType hoveredPinType = PinType::INPUT;
     int hoveredWireIndex = -1;
@@ -101,6 +102,10 @@ public:
     int getHoveredComponentId() const { return hoveredComponentId; }
     int getHoveredPinIndex() const { return hoveredPinIndex; }
     int getHoveredWireIndex() const { return hoveredWireIndex; }
+
+    int getHoveredPinComponentId() const { return hoveredPinComponentId; }
+    PinType getHoveredPinType() const { return hoveredPinType; }
+
 
     int getSelectedComponentId() const { return m_selectedComponentId; }
     int getSelectedWireIndex() const { return m_selectedWireIndex; }

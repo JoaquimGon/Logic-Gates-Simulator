@@ -33,7 +33,7 @@ public:
     // Data-driven: iterates whatever ComponentViews exist, grouping by shader
     // so same-shader components can still be instance-drawn together.
     void drawComponents(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews);
-    void drawPins(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews);
+    void drawPins(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews, int hoveredCompId = -1, int hoveredPinIdx = -1, PinType hoveredPinType = PinType::INPUT);
 
     void drawWires(const std::vector<Wire>& wires, const Wire* activeWire = nullptr);
 

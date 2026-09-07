@@ -155,7 +155,10 @@ void Engine::run()
             m_renderer.drawWires(scene.getWires(), nullptr);
         }
 
-        m_renderer.drawPins(scene.getComponentViewMap());
+        m_renderer.drawPins(scene.getComponentViewMap(),
+                input.getHoveredPinComponentId(),
+                input.getHoveredPinIndex(),
+                input.getHoveredPinType());
 
         glfwSwapBuffers(window);
         glfwPollEvents();

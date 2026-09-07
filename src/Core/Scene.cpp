@@ -163,7 +163,10 @@ HitResult Scene::hitTest(glm::vec2 worldPos, GridCoords gridPos) const
 
     // 3. Component bodies — world-space AABB
     for (const auto& [id, component] : m_componentViews) {
-        glm::vec2 halfSize = component->getSize() * 0.5f;
+
+
+        glm::vec2 halfSize = (component->getSize() * 0.5f) - glm::vec2(0.015f);
+
         glm::vec2 delta = worldPos - component->getPosition();
         if (std::abs(delta.x) <= halfSize.x && std::abs(delta.y) <= halfSize.y)
             return { HitType::COMPONENT_BODY, id, -1, PinType::INPUT, -1 };
