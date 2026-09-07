@@ -85,6 +85,7 @@ public:
 
     void updateHoverState(GLFWwindow* window);
     void cancelCurrentAction();
+    bool isIdle() const { return m_state == InteractionState::IDLE; }
 
     glm::vec2 getMouseWorldCoord(GLFWwindow* window, float zoom);
     glm::vec2 getPanOffset() const { return panOffset; }

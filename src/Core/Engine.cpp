@@ -155,6 +155,15 @@ void Engine::run()
             m_renderer.drawWires(scene.getWires(), nullptr);
         }
 
+        // Point highligh (for wire creation and mouse position)
+        bool overEmptyOrWire = (input.getHoveredComponentId() == -1 && input.getHoveredPinComponentId() == -1);
+        if (input.isCurrentlyDrawingWire()) {
+            m_renderer.drawGridPointHighlight(input.getCurrentGridCoords(), 1.0f);
+        }
+        else if (input.isIdle() && overEmptyOrWire) {
+            m_renderer.drawGridPointHighlight(input.getCurrentGridCoords(), 0.4f);
+        }
+
         m_renderer.drawPins(scene.getComponentViewMap(),
                 input.getHoveredPinComponentId(),
                 input.getHoveredPinIndex(),

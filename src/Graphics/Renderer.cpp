@@ -334,3 +334,24 @@ void Renderer::drawComponentBoundingBox(const ComponentView& component, float pa
     m_boundsMesh->draw();
 }
 
+void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
+{
+    auto* shader = m_sm.get("pin");
+    shader->use();
+    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
+    shader->setFloat("uZoom", m_currentCamera.zoom);
+    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
+    shader->setFloat("uPointSize", 6.0f); // Slightly smaller than standard pins (10.0f)
+
+    glm::vec2 worldPos = GridSystem::gridToWorld(gridPos);
+
+    // Orange color matching your bounding boxes
+    float r = 255.0f / 255.0f;
+    float g = 159.0f / 255.0f;
+    float b = 28.0f / 255.0f;
+
+    // Send the single point to the instanced mesh
+    std::vector<float> data = { worldPos.x, worldPos.y, r, g, b, opacity };
+    m_pointMesh->setInstanceData(data, { 2, 4 }, 1);
+    m_pointMesh->drawInstanced(1);
+}
