@@ -3,13 +3,15 @@
 #include <map>
 #include <unordered_map>
 #include <glm/glm.hpp>
+#include <cmath>
+#include <algorithm>
 #include "..\Views\GateView.h"
 #include "..\Logic\Wire.h"
 #include "..\Views\GridSystem.h"
 #include "..\Views\InputPinView.h"
 #include "../Logic/Circuit.h"
 
-enum class HitType { NONE, COMPONENT_PIN, COMPONENT_BODY, WIRE_START, WIRE_END, WIRE_BODY };
+enum class HitType { NONE, COMPONENT_PIN, COMPONENT_BODY, WIRE_START, WIRE_END, WIRE_BODY, WIRE_JUNCTION};
 
 struct HitResult {
     HitType type = HitType::NONE;
@@ -44,7 +46,9 @@ public:
     bool   splitWireAt(size_t index, GridCoords point, Wire& outA, Wire& outB);
     void   addWires(Wire a, Wire b);
     void   removeWire(size_t index);
+
     std::vector<glm::vec3> getWireIntersections() const;
+    GridCoords clipSegmentAgainstWires(GridCoords from, GridCoords to) const;
 
     // Reattaches any dangling wire endpoints at this component's pins after a drag.
     void reconnectWiresToComponent(int componentId);

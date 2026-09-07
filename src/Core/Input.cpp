@@ -159,11 +159,10 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 m_state = InteractionState::IDLE;
             }
             else if (m_state == InteractionState::DRAWING_WIRE) {
-                if (mouseGridCoords == wireStartPos && activeWire.getPath().size() <= 1) {
-                    if (activeWire.hasSource() || activeWire.hasDest() || activeWire.getPath().size() > 0) {
-                        m_selectedWireIndex = static_cast<int>(m_scene->commitWire(activeWire));
-                    }
+                // NEW: Prevent degenerate invisible wires from polluting the math!
+                if (activeWire.getPath().size() <= 1) {
                     m_state = InteractionState::IDLE;
+                    activeWire = Wire(); // Destroy it
                     return;
                 }
 
@@ -271,19 +270,21 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
     if (isMidWireBranchPending && snappedGridPos != wireStartPos && m_scene) {
         if (m_selectedWireIndex >= 0 && static_cast<size_t>(m_selectedWireIndex) < m_scene->wireCount()) {
             Wire& target = m_scene->wireAt(static_cast<size_t>(m_selectedWireIndex));
-            bool hadSrc = target.hasSource();
-            bool hadDst = target.hasDest();
-            WireEndpoint src = target.getSource();
-            WireEndpoint dst = target.getDest();
 
-            Wire wireA, wireB;
-            if (m_scene->splitWireAt(static_cast<size_t>(m_selectedWireIndex), wireStartPos, wireA, wireB)) {
-                activeWire = Wire();
-                if (hadSrc) activeWire.setSource(src.componentId, src.pinIndex);
-                else if (hadDst) activeWire.setDest(dst.componentId, dst.pinIndex);
+            PinState branchState = target.getState();
 
-                m_scene->addWires(wireA, wireB);
+            bool hitEndpoint = (!target.getPath().empty()) &&
+                (wireStartPos == target.getPath().front() || wireStartPos == target.getPath().back());
+
+            if (!hitEndpoint) {
+                Wire wireA, wireB;
+                if (m_scene->splitWireAt(static_cast<size_t>(m_selectedWireIndex), wireStartPos, wireA, wireB)) {
+                    m_scene->addWires(wireA, wireB);
+                }
             }
+
+            activeWire = Wire();
+            activeWire.setState(branchState);
             baseWirePath = { wireStartPos };
             m_state = InteractionState::DRAWING_WIRE;
             m_hasSelectedSegment = false;
@@ -313,10 +314,22 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
         std::vector<GridCoords> previewPath = baseWirePath;
         if (snappedGridPos != wireStartPos) {
             if (wireStartPos.x != snappedGridPos.x && wireStartPos.y != snappedGridPos.y) {
-                if (wireAxisXFirst) previewPath.push_back({ snappedGridPos.x, wireStartPos.y });
-                else previewPath.push_back({ wireStartPos.x, snappedGridPos.y });
+                GridCoords corner = wireAxisXFirst
+                    ? GridCoords{ snappedGridPos.x, wireStartPos.y }
+                : GridCoords{ wireStartPos.x, snappedGridPos.y };
+
+                GridCoords leg1End = m_scene ? m_scene->clipSegmentAgainstWires(wireStartPos, corner) : corner;
+                if (leg1End != wireStartPos) previewPath.push_back(leg1End);
+
+                if (leg1End == corner) {
+                    GridCoords leg2End = m_scene ? m_scene->clipSegmentAgainstWires(corner, snappedGridPos) : snappedGridPos;
+                    if (leg2End != corner) previewPath.push_back(leg2End);
+                }
             }
-            previewPath.push_back(snappedGridPos);
+            else {
+                GridCoords legEnd = m_scene ? m_scene->clipSegmentAgainstWires(wireStartPos, snappedGridPos) : snappedGridPos;
+                if (legEnd != wireStartPos) previewPath.push_back(legEnd);
+            }
         }
         activeWire.setPath(previewPath);
     }
@@ -347,7 +360,6 @@ void Input::process(GLFWwindow* window) {
     static bool key7WasPressed = false;
     static bool key8WasPressed = false;
 
-    // Helper lambda to cleanly spawn any 2-input gate without duplicating code
     auto trySpawnGate = [&](GateType type, const std::string& shaderName) {
         if (m_scene && m_state == InteractionState::IDLE) {
             std::vector<PinUI> inPins{
@@ -360,14 +372,12 @@ void Input::process(GLFWwindow* window) {
             glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
             GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-            // Capture the returned ID
             int newId = m_scene->addGate(type, gridPos, { 0.2f, 0.2f }, shaderName, inPins, outPins);
 
-            // NEW: Auto-offset if the spot is occupied
             if (ComponentView* cv = m_scene->getComponentView(newId)) {
                 while (m_scene->checkOverlap(newId)) {
                     gridPos.x += 1;
-                    gridPos.y -= 1; // Shift diagonally down-right
+                    gridPos.y -= 1;
                     cv->setGridPosition(gridPos);
                 }
             }

@@ -1,5 +1,40 @@
 #include "Scene.h"
-#include <cmath>
+
+namespace {
+    // Checks if two axis-aligned segments [a,b] and [c,d] lie on the same line and
+    // overlap over more than a single point. If so, outEntry is set to the point on
+    // [a,b] closest to 'a' where that overlap begins.
+    bool segmentsOverlapCollinearly(GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outEntry)
+    {
+        bool abHorizontal = (a.y == b.y);
+        bool abVertical = (a.x == b.x);
+        bool cdHorizontal = (c.y == d.y);
+        bool cdVertical = (c.x == d.x);
+
+        if (abHorizontal && cdHorizontal && a.y == c.y) {
+            int aMin = std::min(a.x, b.x), aMax = std::max(a.x, b.x);
+            int cMin = std::min(c.x, d.x), cMax = std::max(c.x, d.x);
+            int overlapMin = std::max(aMin, cMin);
+            int overlapMax = std::min(aMax, cMax);
+            if (overlapMax - overlapMin >= 1) {
+                outEntry = { (a.x <= b.x) ? overlapMin : overlapMax, a.y };
+                return true;
+            }
+        }
+        else if (abVertical && cdVertical && a.x == c.x) {
+            int aMin = std::min(a.y, b.y), aMax = std::max(a.y, b.y);
+            int cMin = std::min(c.y, d.y), cMax = std::max(c.y, d.y);
+            int overlapMin = std::max(aMin, cMin);
+            int overlapMax = std::min(aMax, cMax);
+            if (overlapMax - overlapMin >= 1) {
+                outEntry = { a.x, (a.y <= b.y) ? overlapMin : overlapMax };
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
 
 int Scene::addGate(GateType type, GridCoords gridPos, glm::vec2 size, const std::string& shaderName,
     std::vector<PinUI> inputs, std::vector<PinUI> outputs)
@@ -151,17 +186,42 @@ HitResult Scene::hitTest(glm::vec2 worldPos, GridCoords gridPos) const
                 return { HitType::COMPONENT_PIN, id, static_cast<int>(pin.pin_index), PinType::OUTPUT, -1 };
     }
 
-    // 2. Wire endpoints / bodies
+    // 2. Wire endpoints / bodies / junctions 
+    int endpointMatches = 0;
+    int matchedWireIndex = -1;
+    bool matchedIsStart = false;
+
     for (size_t i = 0; i < m_wires.size(); ++i) {
         const auto& path = m_wires[i].getPath();
         if (path.empty()) continue;
 
-        if (gridPos == path.back())  return { HitType::WIRE_END,   -1, -1, PinType::INPUT, static_cast<int>(i) };
-        if (gridPos == path.front()) return { HitType::WIRE_START, -1, -1, PinType::INPUT, static_cast<int>(i) };
-        if (m_wires[i].containsPoint(gridPos)) return { HitType::WIRE_BODY, -1, -1, PinType::INPUT, static_cast<int>(i) };
+        bool isStart = (gridPos == path.front());
+        bool isEnd = (path.size() > 1 && gridPos == path.back());
+
+        if (isStart || isEnd) {
+            endpointMatches++;
+            if (matchedWireIndex == -1) {
+                matchedWireIndex = static_cast<int>(i);
+                matchedIsStart = isStart;
+            }
+        }
     }
 
-    // 3. Component bodies — world-space AABB
+    if (endpointMatches >= 2) {
+        return { HitType::WIRE_JUNCTION, -1, -1, PinType::INPUT, -1 };
+    }
+    if (endpointMatches == 1) {
+        return { matchedIsStart ? HitType::WIRE_START : HitType::WIRE_END,
+                  -1, -1, PinType::INPUT, matchedWireIndex };
+    }
+
+    for (size_t i = 0; i < m_wires.size(); ++i) {
+        if (m_wires[i].containsPoint(gridPos)) {
+            return { HitType::WIRE_BODY, -1, -1, PinType::INPUT, static_cast<int>(i) };
+        }
+    }
+
+
     for (const auto& [id, component] : m_componentViews) {
 
 
@@ -175,6 +235,29 @@ HitResult Scene::hitTest(glm::vec2 worldPos, GridCoords gridPos) const
     return {};
 }
 
+GridCoords Scene::clipSegmentAgainstWires(GridCoords from, GridCoords to) const
+{
+    GridCoords bestEntry = to;
+    int bestDist = std::abs(to.x - from.x) + std::abs(to.y - from.y);
+
+    for (const auto& wire : m_wires) {
+        const auto& path = wire.getPath();
+        if (path.size() < 2) continue;
+
+        for (size_t i = 0; i + 1 < path.size(); ++i) {
+            GridCoords entry;
+            if (segmentsOverlapCollinearly(from, to, path[i], path[i + 1], entry)) {
+                int dist = std::abs(entry.x - from.x) + std::abs(entry.y - from.y);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestEntry = entry;
+                }
+            }
+        }
+    }
+    return bestEntry;
+}
+
 void Scene::propagate()
 {
     m_circuit.propagate();
@@ -182,6 +265,7 @@ void Scene::propagate()
 
 void Scene::syncVisuals()
 {
+    // Evaluate logic components
     for (auto& [id, view] : m_componentViews) {
         Component* comp = m_circuit.getComponent(id);
         if (!comp) continue;
@@ -196,40 +280,52 @@ void Scene::syncVisuals()
             inputs[i].state = inSignals[i] ? PinState::ON : PinState::OFF;
     }
 
-    // Reset all wires and evaluate explicit sources first
+    // Set source wires
     for (auto& wire : m_wires) {
         if (wire.hasSource()) {
             if (Component* src = m_circuit.getComponent(wire.getSource().componentId))
                 wire.setState(src->getStateOutPin(wire.getSource().pinIndex) ? PinState::ON : PinState::OFF);
-            else
-                wire.setState(PinState::DISCONNECTED);
+            else wire.setState(PinState::DISCONNECTED);
         }
         else {
             wire.setState(PinState::DISCONNECTED);
         }
     }
 
-    // NEW: Flood-fill state to physically touching networks!
+    // Robust Topological Flood Fill
     bool changed = true;
     while (changed) {
         changed = false;
         for (size_t i = 0; i < m_wires.size(); ++i) {
-            if (m_wires[i].getState() == PinState::DISCONNECTED) continue;
+            PinState stateI = m_wires[i].getState();
+            if (stateI == PinState::DISCONNECTED) continue;
 
             for (size_t j = 0; j < m_wires.size(); ++j) {
-                if (i == j || m_wires[j].getState() == m_wires[i].getState()) continue;
+                if (i == j) continue;
+                PinState stateJ = m_wires[j].getState();
+                
+                // Priority: ON > OFF > DISCONNECTED
+                bool shouldPropagate = (stateI == PinState::ON && (stateJ == PinState::DISCONNECTED || stateJ == PinState::OFF)) ||
+                                       (stateI == PinState::OFF && stateJ == PinState::DISCONNECTED);
 
-                // Check if paths intersect physically
+                if (!shouldPropagate) continue;
+
+                // Only propagate if the wires explicitly share an endpoint!
                 bool touches = false;
-                for (const auto& p1 : m_wires[i].getPath()) {
-                    for (const auto& p2 : m_wires[j].getPath()) {
-                        if (p1 == p2) { touches = true; break; }
+                const auto& pathI = m_wires[i].getPath();
+                const auto& pathJ = m_wires[j].getPath();
+
+                if (!pathI.empty() && !pathJ.empty()) {
+                    GridCoords iStart = pathI.front(), iEnd = pathI.back();
+                    GridCoords jStart = pathJ.front(), jEnd = pathJ.back();
+
+                    if (iStart == jStart || iStart == jEnd || iEnd == jStart || iEnd == jEnd) {
+                        touches = true;
                     }
-                    if (touches) break;
                 }
 
-                if (touches && m_wires[j].getState() == PinState::DISCONNECTED) {
-                    m_wires[j].setState(m_wires[i].getState());
+                if (touches) {
+                    m_wires[j].setState(stateI);
                     changed = true;
                 }
             }
@@ -251,43 +347,38 @@ bool Scene::handleClick(int componentId)
 std::vector<glm::vec3> Scene::getWireIntersections() const
 {
     std::vector<glm::vec3> intersections;
-
-    struct PointData {
-        int count = 0;
-        float stateVal = 0.0f;
-    };
-
+    struct PointData { int count = 0; float stateVal = 0.0f; };
     std::map<std::pair<int, int>, PointData> endpointMap;
 
     for (const auto& wire : m_wires) {
         const auto& path = wire.getPath();
         if (path.empty()) continue;
 
-        // Map state to colors (0=DISCONNECTED, 1=ON, 2=OFF)
-        float stateVal = 0.0f;
+        float stateVal = 0.0f; // DISCONNECTED
         if (wire.getState() == PinState::ON) stateVal = 1.0f;
         else if (wire.getState() == PinState::OFF) stateVal = 2.0f;
 
-        // Register the START point of the wire
+        // Register START endpoint
         auto startCoord = std::make_pair(path.front().x, path.front().y);
         endpointMap[startCoord].count++;
-        endpointMap[startCoord].stateVal = stateVal;
+        if (stateVal == 1.0f || (stateVal == 2.0f && endpointMap[startCoord].stateVal == 0.0f))
+            endpointMap[startCoord].stateVal = stateVal; // Priority: ON > OFF > DISCONNECTED
 
-        // Register the END point of the wire
+        // Register END endpoint
         if (path.size() > 1) {
             auto endCoord = std::make_pair(path.back().x, path.back().y);
             endpointMap[endCoord].count++;
-            endpointMap[endCoord].stateVal = stateVal;
+            if (stateVal == 1.0f || (stateVal == 2.0f && endpointMap[endCoord].stateVal == 0.0f))
+                endpointMap[endCoord].stateVal = stateVal;
         }
     }
 
-    // A schematic intersection dot only appears if 3 or more wires connect at the same point!
+    // Dot only appears if 3 or more topological endpoints meet here!
     for (const auto& [coord, data] : endpointMap) {
         if (data.count >= 3) {
             intersections.push_back({ static_cast<float>(coord.first), static_cast<float>(coord.second), data.stateVal });
         }
     }
-
     return intersections;
 }
 
