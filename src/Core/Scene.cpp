@@ -290,3 +290,37 @@ std::vector<glm::vec3> Scene::getWireIntersections() const
 
     return intersections;
 }
+
+
+bool Scene::checkOverlap(int draggedComponentId) const
+{
+    auto it = m_componentViews.find(draggedComponentId);
+    if (it == m_componentViews.end()) return false;
+    ComponentView* dragged = it->second.get();
+
+    GridCoords draggedPos = dragged->getGridPosition();
+
+    // Collect all absolute pin positions for the dragged component
+    std::vector<GridCoords> draggedPins;
+    for (const auto& pin : dragged->getInputPins()) draggedPins.push_back(dragged->getAbsolutePinGridPos(pin));
+    for (const auto& pin : dragged->getOutputPins()) draggedPins.push_back(dragged->getAbsolutePinGridPos(pin));
+
+    for (const auto& [id, other] : m_componentViews) {
+        if (id == draggedComponentId) continue; // Don't check against itself
+
+        // 1. Check Origin vs Origin
+        if (draggedPos == other->getGridPosition()) return true;
+
+        // 2. Check Pin vs Pin
+        for (const auto& otherPin : other->getInputPins()) {
+            GridCoords p = other->getAbsolutePinGridPos(otherPin);
+            for (const auto& dp : draggedPins) if (dp == p) return true;
+        }
+        for (const auto& otherPin : other->getOutputPins()) {
+            GridCoords p = other->getAbsolutePinGridPos(otherPin);
+            for (const auto& dp : draggedPins) if (dp == p) return true;
+        }
+    }
+
+    return false; // No overlaps found
+}

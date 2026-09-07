@@ -45,7 +45,8 @@ private:
     glm::vec2 panOffset = glm::vec2(0.0f, 0.0f);
 
     ComponentView* m_draggedComponent = nullptr;
-     
+    GridCoords m_dragStartPos = { 0, 0 };
+
     // Wire control
     Wire activeWire;
     std::vector<GridCoords> baseWirePath;

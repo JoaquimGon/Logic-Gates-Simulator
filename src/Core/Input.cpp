@@ -126,6 +126,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
 
                 if (!m_scene->handleClick(hoveredComponentId)) {
                     m_draggedComponent = m_scene->getComponentView(hoveredComponentId);
+                    m_dragStartPos = m_draggedComponent->getGridPosition();
                     m_state = InteractionState::DRAGGING_GATE;
                 }
             }
@@ -144,8 +145,15 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 m_state = InteractionState::IDLE;
                 return;
             }
-
             if (m_state == InteractionState::DRAGGING_GATE && m_draggedComponent) {
+
+                // NEW: Validate the placement
+                if (m_scene->checkOverlap(m_draggedComponent->getComponentId())) {
+                    // Overlap detected! Snap the gate back to where it started.
+                    m_draggedComponent->setGridPosition(m_dragStartPos);
+                }
+
+                // Finalize placement (either the new spot, or the reverted spot)
                 m_scene->reconnectWiresToComponent(m_draggedComponent->getComponentId());
                 m_draggedComponent = nullptr;
                 m_state = InteractionState::IDLE;
@@ -351,7 +359,18 @@ void Input::process(GLFWwindow* window) {
             };
             glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
             GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-            m_scene->addGate(type, gridPos, { 0.2f, 0.2f }, shaderName, inPins, outPins);
+
+            // Capture the returned ID
+            int newId = m_scene->addGate(type, gridPos, { 0.2f, 0.2f }, shaderName, inPins, outPins);
+
+            // NEW: Auto-offset if the spot is occupied
+            if (ComponentView* cv = m_scene->getComponentView(newId)) {
+                while (m_scene->checkOverlap(newId)) {
+                    gridPos.x += 1;
+                    gridPos.y -= 1; // Shift diagonally down-right
+                    cv->setGridPosition(gridPos);
+                }
+            }
         }
         };
 
@@ -360,7 +379,16 @@ void Input::process(GLFWwindow* window) {
         if (!key1WasPressed && m_scene && m_state == InteractionState::IDLE) {
             glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
             GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-            m_scene->addInputPin(gridPos, { 0.15f, 0.15f }, "inputPin", false);
+
+            int newId = m_scene->addInputPin(gridPos, { 0.15f, 0.15f }, "inputPin", false);
+
+            if (ComponentView* cv = m_scene->getComponentView(newId)) {
+                while (m_scene->checkOverlap(newId)) {
+                    gridPos.x += 1;
+                    gridPos.y -= 1;
+                    cv->setGridPosition(gridPos);
+                }
+            }
         }
         key1WasPressed = true;
     }
@@ -370,7 +398,6 @@ void Input::process(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
         if (!key2WasPressed && m_scene && m_state == InteractionState::IDLE) {
 
-            // Notice: Only ONE input pin, vertically centered at Y = 0
             std::vector<PinUI> inPins{
                 {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 0}}
             };
@@ -381,7 +408,15 @@ void Input::process(GLFWwindow* window) {
             glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
             GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-            m_scene->addGate(GateType::NOT, gridPos, { 0.2f, 0.2f }, "NOTgate", inPins, outPins);
+            int newId = m_scene->addGate(GateType::NOT, gridPos, { 0.2f, 0.2f }, "NOTgate", inPins, outPins);
+
+            if (ComponentView* cv = m_scene->getComponentView(newId)) {
+                while (m_scene->checkOverlap(newId)) {
+                    gridPos.x += 1;
+                    gridPos.y -= 1;
+                    cv->setGridPosition(gridPos);
+                }
+            }
         }
         key2WasPressed = true;
     }

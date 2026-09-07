@@ -60,6 +60,7 @@ public:
     void propagate();
     void syncVisuals();
     bool handleClick(int componentId);
+    bool checkOverlap(int draggedComponentId) const;
 private:
     Circuit m_circuit;
     std::unordered_map<int, std::unique_ptr<ComponentView>> m_componentViews;
