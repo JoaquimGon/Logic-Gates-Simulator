@@ -366,7 +366,55 @@ void Scene::healWires()
             break;
         }
     }
-}
+
+    bool logicChanged = true;
+    while (logicChanged) {
+        logicChanged = false;
+        for (size_t i = 0; i < m_wires.size(); ++i) {
+            for (size_t j = i + 1; j < m_wires.size(); ++j) {
+                const auto& pathI = m_wires[i].getPath();
+                const auto& pathJ = m_wires[j].getPath();
+                if (pathI.empty() || pathJ.empty()) continue;
+
+                GridCoords iStart = pathI.front(), iEnd = pathI.back();
+                GridCoords jStart = pathJ.front(), jEnd = pathJ.back();
+
+                // If the geometry physically touches at a topological junction...
+                if (iStart == jStart || iStart == jEnd || iEnd == jStart || iEnd == jEnd) {
+
+                    // Share Sources
+                    if (m_wires[i].hasSource() && !m_wires[j].hasSource()) {
+                        m_wires[j].setSource(m_wires[i].getSource().componentId, m_wires[i].getSource().pinIndex);
+                        logicChanged = true;
+                    }
+                    else if (!m_wires[i].hasSource() && m_wires[j].hasSource()) {
+                        m_wires[i].setSource(m_wires[j].getSource().componentId, m_wires[j].getSource().pinIndex);
+                        logicChanged = true;
+                    }
+
+                    // Share Destinations
+                    if (m_wires[i].hasDest() && !m_wires[j].hasDest()) {
+                        m_wires[j].setDest(m_wires[i].getDest().componentId, m_wires[i].getDest().pinIndex);
+                        logicChanged = true;
+                    }
+                    else if (!m_wires[i].hasDest() && m_wires[j].hasDest()) {
+                        m_wires[i].setDest(m_wires[j].getDest().componentId, m_wires[j].getDest().pinIndex);
+                        logicChanged = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 5. Force the Circuit engine to execute all valid, completed networks
+    for (auto& wire : m_wires) {
+        if (wire.hasSource() && wire.hasDest()) {
+            // Safe to call redundantly; Circuit::connectComponents returns false if already mapped
+            connectPins(wire.getSource().componentId, wire.getDest().componentId, wire.getDest().pinIndex);
+        }
+    }
+} // End of Scene::healWires()
+
 
 void Scene::propagate()
 {
