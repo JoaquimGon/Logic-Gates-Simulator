@@ -1,121 +1,179 @@
-# Minimum required version of CMake
-cmake_minimum_required (VERSION 3.14) 
+cmake_minimum_required(VERSION 3.20)
 
-# Enable Hot Reload for MSVC compilers if supported.
-if (POLICY CMP0141)
-    cmake_policy(SET CMP0141 NEW)
-    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
-endif()
+project(LogicGateSimulator
+    VERSION 1.0
+    LANGUAGES C CXX
+)
 
-project ("Logic-Gates-Simulator")
-
-#  SET GLOBAL C++ STANDARD HERE
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON) 
-set(CMAKE_CXX_EXTENSIONS OFF)      
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-if(MSVC)
-        add_compile_options(/permissive-)
-        string(REGEX REPLACE "/W3" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-endif()
-
-# ---------------------------------------------------------------------------
-# Dependencies: GLFW + GLAD + GLM
-# ---------------------------------------------------------------------------
 include(FetchContent)
 
+# ============================================================
 # GLFW
-FetchContent_Declare(
-    glfw
-    GIT_REPOSITORY https://github.com/glfw/glfw.git
-    GIT_TAG        3.4
-)
+# ============================================================
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG        3.4
+    GIT_SHALLOW    TRUE
+)
 
 FetchContent_MakeAvailable(glfw)
 
-# GLM
-FetchContent_Declare(
-    glm
-    GIT_REPOSITORY https://github.com/g-truc/glm.git
-    GIT_TAG        1.0.1
-)
-
-FetchContent_MakeAvailable(glm)
-
+# ============================================================
 # GLAD
-add_library(glad STATIC "external/glad/src/glad.c")
-target_include_directories(glad PUBLIC "external/glad/include")
+# ============================================================
 
-# ---------------------------------------------------------------------------
-# Main executable
-# ---------------------------------------------------------------------------
-add_executable (Logic-Gates-Simulator 
-    # Core
-    "src/Core/main.cpp" 
-    "src/Core/Engine.cpp" 
-    "src/Core/Engine.h"
-    "src/Core/Input.cpp" 
-    "src/Core/Input.h" 
-    "src/Core/Scene.cpp"
-    "src/Core/Scene.h"
-    
-    # Logic
-    "src/Logic/Gate.cpp"
-    "src/Logic/Gate.h" 
-    "src/Logic/Circuit.cpp" 
-    "src/Logic/Circuit.h"
-    "src/Logic/Wire.cpp"
-    "src/Logic/Wire.h"
-    "src/Logic/InputPin.h"
-    "src/Logic/PinTypes.h"
-    "src/Logic/Component.h"
-    
-    # Graphics
-    "src/Graphics/Shader.cpp" 
-    "src/Graphics/Shader.h" 
-    "src/Graphics/ShaderManager.cpp"
-    "src/Graphics/ShaderManager.h"
-    "src/Graphics/Mesh.cpp"
-    "src/Graphics/Mesh.h" 
-    "src/Graphics/VertexLayout.cpp"
-    "src/Graphics/VertexLayout.h"
-    "src/Graphics/Renderer.cpp"
-    "src/Graphics/Renderer.h"
-    
-    # Views
-    "src/Views/GateView.h" 
-    "src/Views/GridSystem.h"
-    "src/Views/ComponentView.h"
-    "src/Views/InputPinView.h"
+add_library(glad STATIC
+    external/glad/src/glad.c
 )
 
-# Tell CMake where to look for your headers now that they are in src/
-target_include_directories(Logic-Gates-Simulator PRIVATE src)
+target_include_directories(glad
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/glad/include
+)
 
-target_link_libraries(Logic-Gates-Simulator PRIVATE glfw glad glm::glm)
+# ============================================================
+# OpenGL
+# ============================================================
 
-if(WIN32)
-    target_link_libraries(Logic-Gates-Simulator PRIVATE opengl32)
+find_package(OpenGL REQUIRED)
+
+# ============================================================
+# Project source files
+# ============================================================
+
+set(PROJECT_SOURCES
+
+    src/Core/main.cpp
+
+    src/Core/Engine.cpp
+    src/Core/Input.cpp
+    src/Core/Scene.cpp
+
+    src/Logic/Circuit.cpp
+    src/Logic/Gate.cpp
+    src/Logic/Wire.cpp
+
+    src/Graphics/Mesh.cpp
+    src/Graphics/Renderer.cpp
+    src/Graphics/Shader.cpp
+    src/Graphics/ShaderManager.cpp
+    src/Graphics/VertexLayout.cpp
+)
+
+# ============================================================
+# Executable
+# ============================================================
+
+add_executable(${PROJECT_NAME}
+    ${PROJECT_SOURCES}
+)
+
+# ============================================================
+# Include directories
+# ============================================================
+
+target_include_directories(${PROJECT_NAME}
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# ============================================================
+# Libraries
+# ============================================================
+
+target_link_libraries(${PROJECT_NAME}
+    PRIVATE
+        glad
+        glfw
+        OpenGL::GL
+)
+
+# ============================================================
+# Copy shaders after build
+# ============================================================
+
+add_custom_command(
+    TARGET ${PROJECT_NAME}
+    POST_BUILD
+
+    COMMAND
+        ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders"
+
+    COMMENT "Copying shaders to output directory..."
+)
+
+# ============================================================
+# Compiler warnings
+# ============================================================
+
+if(MSVC)
+
+    target_compile_options(${PROJECT_NAME}
+        PRIVATE
+            /W4
+            /permissive-
+    )
+
+else()
+
+    target_compile_options(${PROJECT_NAME}
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+
 endif()
 
-# ---------------------------------------------------------------------------
-# Asset Management
-# ---------------------------------------------------------------------------
-# 1. Collect all shader files so CMake tracks them as dependencies
-file(GLOB_RECURSE SHADER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/*")
+# ============================================================
+# Output directories
+# ============================================================
 
-# 2. Create a custom target that removes and re-copies the shader folder
-add_custom_target(CopyShaders ALL
-    COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders" "${CMAKE_CURRENT_BINARY_DIR}/shaders"
-    SOURCES ${SHADER_FILES}
-    COMMENT "Syncing shaders to binary output folder..."
+set_target_properties(${PROJECT_NAME}
+    PROPERTIES
+
+        RUNTIME_OUTPUT_DIRECTORY
+            "${CMAKE_BINARY_DIR}/bin"
+
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG
+            "${CMAKE_BINARY_DIR}/bin/Debug"
+
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE
+            "${CMAKE_BINARY_DIR}/bin/Release"
 )
 
-# 3. Force your executable to depend on the shader copy target
-add_dependencies(Logic-Gates-Simulator CopyShaders)
+# ============================================================
+# Visual Studio source grouping
+# ============================================================
+
+source_group(
+    TREE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    PREFIX "Source Files"
+    FILES ${PROJECT_SOURCES}
+)
+
+# ============================================================
+# Information
+# ============================================================
+
+message(STATUS "==============================================")
+message(STATUS " ${PROJECT_NAME}")
+message(STATUS "==============================================")
+message(STATUS " C++ Standard : C++${CMAKE_CXX_STANDARD}")
+message(STATUS " Compiler     : ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS " Generator    : ${CMAKE_GENERATOR}")
+message(STATUS " GLAD         : local GLAD 1")
+message(STATUS " GLFW         : 3.4")
+message(STATUS "==============================================")
