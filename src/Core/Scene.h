@@ -48,9 +48,9 @@ public:
     void   removeWire(size_t index);
 
     std::vector<glm::vec3> getWireIntersections() const;
-    GridCoords clipSegmentAgainstWires(GridCoords from, GridCoords to) const;
+    bool getCollinearOverlap(GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd) const;
+    void forceEndpointAt(GridCoords p);
 
-    // Reattaches any dangling wire endpoints at this component's pins after a drag.
     void reconnectWiresToComponent(int componentId);
 
     // ----- Logic connections -----

@@ -109,6 +109,17 @@ glm::vec4 Wire::getColorFromState() const {
 }
 
 void Wire::simplifyPath() {
+    if (m_path.size() < 2) return;
+
+    std::vector<GridCoords> noDupes;
+    noDupes.push_back(m_path[0]);
+    for (size_t i = 1; i < m_path.size(); ++i) {
+        if (!(m_path[i] == noDupes.back())) {
+            noDupes.push_back(m_path[i]);
+        }
+    }
+    m_path = std::move(noDupes);
+
     if (m_path.size() < 3) return;
 
     std::vector<GridCoords> simplified;

@@ -208,7 +208,7 @@ HitResult Scene::hitTest(glm::vec2 worldPos, GridCoords gridPos) const
     }
 
     if (endpointMatches >= 2) {
-        return { HitType::WIRE_JUNCTION, -1, -1, PinType::INPUT, -1 };
+        return { HitType::WIRE_JUNCTION, -1, -1, PinType::INPUT, matchedWireIndex };
     }
     if (endpointMatches == 1) {
         return { matchedIsStart ? HitType::WIRE_START : HitType::WIRE_END,
@@ -235,27 +235,45 @@ HitResult Scene::hitTest(glm::vec2 worldPos, GridCoords gridPos) const
     return {};
 }
 
-GridCoords Scene::clipSegmentAgainstWires(GridCoords from, GridCoords to) const
+bool Scene::getCollinearOverlap(GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd) const
 {
-    GridCoords bestEntry = to;
-    int bestDist = std::abs(to.x - from.x) + std::abs(to.y - from.y);
+    bool abHorizontal = (a.y == b.y), abVertical = (a.x == b.x);
+    bool cdHorizontal = (c.y == d.y), cdVertical = (c.x == d.x);
 
-    for (const auto& wire : m_wires) {
-        const auto& path = wire.getPath();
-        if (path.size() < 2) continue;
+    if (abHorizontal && cdHorizontal && a.y == c.y) {
+        int aMin = std::min(a.x, b.x), aMax = std::max(a.x, b.x);
+        int cMin = std::min(c.x, d.x), cMax = std::max(c.x, d.x);
+        int oMin = std::max(aMin, cMin), oMax = std::min(aMax, cMax);
+        if (oMax > oMin) {
+            if (std::abs(a.x - oMin) < std::abs(a.x - oMax)) { outStart = { oMin, a.y }; outEnd = { oMax, a.y }; }
+            else { outStart = { oMax, a.y }; outEnd = { oMin, a.y }; }
+            return true;
+        }
+    }
+    else if (abVertical && cdVertical && a.x == c.x) {
+        int aMin = std::min(a.y, b.y), aMax = std::max(a.y, b.y);
+        int cMin = std::min(c.y, d.y), cMax = std::max(c.y, d.y);
+        int oMin = std::max(aMin, cMin), oMax = std::min(aMax, cMax);
+        if (oMax > oMin) {
+            if (std::abs(a.y - oMin) < std::abs(a.y - oMax)) { outStart = { a.x, oMin }; outEnd = { a.x, oMax }; }
+            else { outStart = { a.x, oMax }; outEnd = { a.x, oMin }; }
+            return true;
+        }
+    }
+    return false;
+}
 
-        for (size_t i = 0; i + 1 < path.size(); ++i) {
-            GridCoords entry;
-            if (segmentsOverlapCollinearly(from, to, path[i], path[i + 1], entry)) {
-                int dist = std::abs(entry.x - from.x) + std::abs(entry.y - from.y);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    bestEntry = entry;
-                }
+void Scene::forceEndpointAt(GridCoords p) {
+    size_t initialSize = m_wires.size();
+    for (size_t i = 0; i < initialSize; ++i) {
+        if (m_wires[i].containsPoint(p) && m_wires[i].getPath().front() != p && m_wires[i].getPath().back() != p) {
+            Wire wA, wB;
+            if (splitWireAt(i, p, wA, wB)) {
+                addWires(wA, wB);
+                i--; initialSize--;
             }
         }
     }
-    return bestEntry;
 }
 
 void Scene::propagate()
@@ -265,7 +283,6 @@ void Scene::propagate()
 
 void Scene::syncVisuals()
 {
-    // Evaluate logic components
     for (auto& [id, view] : m_componentViews) {
         Component* comp = m_circuit.getComponent(id);
         if (!comp) continue;
@@ -280,7 +297,6 @@ void Scene::syncVisuals()
             inputs[i].state = inSignals[i] ? PinState::ON : PinState::OFF;
     }
 
-    // Set source wires
     for (auto& wire : m_wires) {
         if (wire.hasSource()) {
             if (Component* src = m_circuit.getComponent(wire.getSource().componentId))
@@ -292,7 +308,6 @@ void Scene::syncVisuals()
         }
     }
 
-    // Robust Topological Flood Fill
     bool changed = true;
     while (changed) {
         changed = false;
@@ -303,14 +318,12 @@ void Scene::syncVisuals()
             for (size_t j = 0; j < m_wires.size(); ++j) {
                 if (i == j) continue;
                 PinState stateJ = m_wires[j].getState();
-                
-                // Priority: ON > OFF > DISCONNECTED
+
                 bool shouldPropagate = (stateI == PinState::ON && (stateJ == PinState::DISCONNECTED || stateJ == PinState::OFF)) ||
-                                       (stateI == PinState::OFF && stateJ == PinState::DISCONNECTED);
+                    (stateI == PinState::OFF && stateJ == PinState::DISCONNECTED);
 
                 if (!shouldPropagate) continue;
 
-                // Only propagate if the wires explicitly share an endpoint!
                 bool touches = false;
                 const auto& pathI = m_wires[i].getPath();
                 const auto& pathJ = m_wires[j].getPath();
@@ -318,9 +331,18 @@ void Scene::syncVisuals()
                 if (!pathI.empty() && !pathJ.empty()) {
                     GridCoords iStart = pathI.front(), iEnd = pathI.back();
                     GridCoords jStart = pathJ.front(), jEnd = pathJ.back();
+                    if (iStart == jStart || iStart == jEnd || iEnd == jStart || iEnd == jEnd) touches = true;
+                }
 
-                    if (iStart == jStart || iStart == jEnd || iEnd == jStart || iEnd == jEnd) {
-                        touches = true;
+                if (!touches) {
+                    for (size_t a = 0; a + 1 < pathI.size(); ++a) {
+                        for (size_t b = 0; b + 1 < pathJ.size(); ++b) {
+                            GridCoords dummy;
+                            if (segmentsOverlapCollinearly(pathI[a], pathI[a + 1], pathJ[b], pathJ[b + 1], dummy)) {
+                                touches = true; break;
+                            }
+                        }
+                        if (touches) break;
                     }
                 }
 
