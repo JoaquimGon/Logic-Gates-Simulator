@@ -50,8 +50,9 @@ public:
     std::vector<glm::vec3> getWireIntersections() const;
     bool getCollinearOverlap(GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd) const;
     void forceEndpointAt(GridCoords p);
-
     void reconnectWiresToComponent(int componentId);
+    void healWires();
+
 
     // ----- Logic connections -----
     bool connectPins(int srcComponentId, int destComponentId, int destPinIndex);

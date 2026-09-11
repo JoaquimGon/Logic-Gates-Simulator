@@ -276,6 +276,98 @@ void Scene::forceEndpointAt(GridCoords p) {
     }
 }
 
+void Scene::healWires()
+{
+    bool changed = true;
+    while (changed) {
+        changed = false;
+
+        struct Endpt {
+            std::vector<std::pair<int, bool>> wires; // <wireIndex, isStart>
+            bool hasPin = false;
+        };
+        std::map<std::pair<int, int>, Endpt> pointMap;
+
+        // 1. Mark all component pins as "unhealable" anchor points
+        for (const auto& [id, comp] : m_componentViews) {
+            for (const auto& pin : comp->getInputPins()) {
+                auto p = comp->getAbsolutePinGridPos(pin);
+                pointMap[{p.x, p.y}].hasPin = true;
+            }
+            for (const auto& pin : comp->getOutputPins()) {
+                auto p = comp->getAbsolutePinGridPos(pin);
+                pointMap[{p.x, p.y}].hasPin = true;
+            }
+        }
+
+        // 2. Tally all wire endpoints
+        for (size_t i = 0; i < m_wires.size(); ++i) {
+            const auto& path = m_wires[i].getPath();
+            if (path.size() >= 2) {
+                pointMap[{path.front().x, path.front().y}].wires.push_back({ static_cast<int>(i), true });
+                pointMap[{path.back().x, path.back().y}].wires.push_back({ static_cast<int>(i), false });
+            }
+        }
+
+        // 3. Heal exactly-2 junctions
+        for (const auto& [coord, data] : pointMap) {
+            if (data.hasPin || data.wires.size() != 2) continue; // Skip pins, dead ends, and 3-way/4-way junctions
+
+            int w1Idx = data.wires[0].first;
+            bool w1IsStart = data.wires[0].second;
+            int w2Idx = data.wires[1].first;
+            bool w2IsStart = data.wires[1].second;
+
+            if (w1Idx == w2Idx) continue; // Ignore a wire looping back onto itself
+
+            Wire& w1 = m_wires[w1Idx];
+            Wire& w2 = m_wires[w2Idx];
+
+            // Reconstruct a unified geometric path
+            std::vector<GridCoords> newPath;
+            if (!w1IsStart) {
+                // w1 ends at P. Append w2 to w1.
+                newPath = w1.getPath();
+                std::vector<GridCoords> p2 = w2.getPath();
+                if (!w2IsStart) std::reverse(p2.begin(), p2.end()); // Orient w2 so it starts at P
+                newPath.insert(newPath.end(), p2.begin() + 1, p2.end());
+            }
+            else {
+                // w1 starts at P. Prepend w1 to w2.
+                newPath = w1.getPath();
+                std::reverse(newPath.begin(), newPath.end()); // Flip w1 so it ends at P
+                std::vector<GridCoords> p2 = w2.getPath();
+                if (!w2IsStart) std::reverse(p2.begin(), p2.end());
+                newPath.insert(newPath.end(), p2.begin() + 1, p2.end());
+            }
+
+            // Create the newly merged wire
+            Wire mergedWire;
+            mergedWire.setPath(newPath);
+
+            // Safely inherit logic connections (since they form a continuous physical line, they share electrical states)
+            WireEndpoint src = w1.hasSource() ? w1.getSource() : (w2.hasSource() ? w2.getSource() : WireEndpoint());
+            WireEndpoint dst = w1.hasDest() ? w1.getDest() : (w2.hasDest() ? w2.getDest() : WireEndpoint());
+            if (src.isConnected()) mergedWire.setSource(src.componentId, src.pinIndex);
+            if (dst.isConnected()) mergedWire.setDest(dst.componentId, dst.pinIndex);
+
+            mergedWire.setState(w1.getState());
+            mergedWire.simplifyPath(); // MAGIC: If they were collinear, this instantly drops the seam!
+
+            // Safely erase the old fragmented wires (highest index first to prevent shifting errors)
+            int idxA = std::max(w1Idx, w2Idx);
+            int idxB = std::min(w1Idx, w2Idx);
+            m_wires.erase(m_wires.begin() + idxA);
+            m_wires.erase(m_wires.begin() + idxB);
+
+            // Push the healed wire and restart the pass
+            m_wires.push_back(mergedWire);
+            changed = true;
+            break;
+        }
+    }
+}
+
 void Scene::propagate()
 {
     m_circuit.propagate();

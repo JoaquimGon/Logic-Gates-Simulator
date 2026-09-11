@@ -126,6 +126,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 }
 
                 m_scene->reconnectWiresToComponent(m_draggedComponent->getComponentId());
+                m_scene->healWires(); // NEW: Clean up traces left behind by the gate
                 m_draggedComponent = nullptr;
                 m_state = InteractionState::IDLE;
             }
@@ -200,6 +201,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                     m_scene->reconnectWiresToComponent(id);
                 }
 
+                m_scene->healWires();
                 m_selectedWireIndex = -1;
                 m_hasSelectedSegment = false;
                 m_state = InteractionState::IDLE;
@@ -486,7 +488,8 @@ void Input::process(GLFWwindow* window) {
                     m_hasSelectedSegment = false;
                 }
             }
-
+            
+            m_scene->healWires();
             updateHoverState(window);
         }
         delWasPressed = true;
