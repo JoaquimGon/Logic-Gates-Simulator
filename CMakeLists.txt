@@ -9,12 +9,17 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Cleanly set warning level /W4 for MSVC without overriding /W3
+if(MSVC)
+    string(REGEX REPLACE "/W3" "/W4" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+    string(REGEX REPLACE "/W3" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+endif()
+
 include(FetchContent)
 
 # ============================================================
 # GLFW
 # ============================================================
-
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -25,17 +30,25 @@ FetchContent_Declare(
     GIT_TAG        3.4
     GIT_SHALLOW    TRUE
 )
-
 FetchContent_MakeAvailable(glfw)
+
+# ============================================================
+# GLM
+# ============================================================
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG        1.0.1
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(glm)
 
 # ============================================================
 # GLAD
 # ============================================================
-
 add_library(glad STATIC
     external/glad/src/glad.c
 )
-
 target_include_directories(glad
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/external/glad/include
@@ -44,17 +57,13 @@ target_include_directories(glad
 # ============================================================
 # OpenGL
 # ============================================================
-
 find_package(OpenGL REQUIRED)
 
 # ============================================================
 # Project source files
 # ============================================================
-
 set(PROJECT_SOURCES
-
     src/Core/main.cpp
-
     src/Core/Engine.cpp
     src/Core/Input.cpp
     src/Core/Scene.cpp
@@ -73,7 +82,6 @@ set(PROJECT_SOURCES
 # ============================================================
 # Executable
 # ============================================================
-
 add_executable(${PROJECT_NAME}
     ${PROJECT_SOURCES}
 )
@@ -81,7 +89,6 @@ add_executable(${PROJECT_NAME}
 # ============================================================
 # Include directories
 # ============================================================
-
 target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -90,66 +97,55 @@ target_include_directories(${PROJECT_NAME}
 # ============================================================
 # Libraries
 # ============================================================
-
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         glad
         glfw
+        glm::glm
         OpenGL::GL
 )
 
 # ============================================================
 # Copy shaders after build
 # ============================================================
-
 add_custom_command(
     TARGET ${PROJECT_NAME}
     POST_BUILD
-
     COMMAND
         ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders"
-
     COMMENT "Copying shaders to output directory..."
 )
 
 # ============================================================
-# Compiler warnings
+# Compiler options
 # ============================================================
-
 if(MSVC)
-
     target_compile_options(${PROJECT_NAME}
         PRIVATE
-            /W4
             /permissive-
+            /wd4100 # Silence unreferenced formal parameter ('outIndex')
     )
-
 else()
-
     target_compile_options(${PROJECT_NAME}
         PRIVATE
             -Wall
             -Wextra
             -Wpedantic
+            -Wno-unused-parameter
     )
-
 endif()
 
 # ============================================================
 # Output directories
 # ============================================================
-
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
-
         RUNTIME_OUTPUT_DIRECTORY
             "${CMAKE_BINARY_DIR}/bin"
-
         RUNTIME_OUTPUT_DIRECTORY_DEBUG
             "${CMAKE_BINARY_DIR}/bin/Debug"
-
         RUNTIME_OUTPUT_DIRECTORY_RELEASE
             "${CMAKE_BINARY_DIR}/bin/Release"
 )
@@ -157,7 +153,6 @@ set_target_properties(${PROJECT_NAME}
 # ============================================================
 # Visual Studio source grouping
 # ============================================================
-
 source_group(
     TREE "${CMAKE_CURRENT_SOURCE_DIR}/src"
     PREFIX "Source Files"
@@ -167,7 +162,6 @@ source_group(
 # ============================================================
 # Information
 # ============================================================
-
 message(STATUS "==============================================")
 message(STATUS " ${PROJECT_NAME}")
 message(STATUS "==============================================")
@@ -176,4 +170,5 @@ message(STATUS " Compiler     : ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS " Generator    : ${CMAKE_GENERATOR}")
 message(STATUS " GLAD         : local GLAD 1")
 message(STATUS " GLFW         : 3.4")
+message(STATUS " GLM          : 1.0.1")
 message(STATUS "==============================================")
