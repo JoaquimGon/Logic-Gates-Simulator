@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <iostream>
 
 class Engine
 {
@@ -40,6 +41,16 @@ private:
     static void resizeWindow(GLFWwindow* window, int width, int height)
     {
         glViewport(0, 0, width, height);
+    }
+
+    /**
+    * @brief GLFW error sink, registered before glfwInit().
+    * Without it, GLFW failures are silent: a context that cannot be created just
+    * returns a null window with no explanation of why.
+    */
+    static void errorCallback(int error, const char* description)
+    {
+        std::cerr << "[GLFW] Error " << error << ": " << description << std::endl;
     }
 
 public:

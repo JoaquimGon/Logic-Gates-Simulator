@@ -21,6 +21,10 @@ int Engine::init()
     // ==========================================
     // glfw Configuration
     // ==========================================
+    // Registered before glfwInit() so failures raised during initialization itself
+    // (an unsupported context version, for instance) are reported too.
+    glfwSetErrorCallback(Engine::errorCallback);
+
     if (!glfwInit())
     {
         std::cerr << "Failed to initialize GLFW" << std::endl;
@@ -41,6 +45,12 @@ int Engine::init()
     }
 
     glfwMakeContextCurrent(window);
+
+    // Cap the frame rate at the display's refresh rate. Without this the loop runs
+    // unthrottled, which pegs the GPU (and a CPU core) even on a static scene, and it
+    // would make any future time-based simulation frame-rate dependent.
+    glfwSwapInterval(1);
+
     glfwSetFramebufferSizeCallback(window, Engine::resizeWindow);
     glfwSetWindowUserPointer(window, &input);
 
@@ -69,6 +79,14 @@ int Engine::init()
 
 void Engine::run()
 {
+    // The loop below needs the window and GL context created by init(). Without them
+    // every GLFW call in here would be running on a null window.
+    if (!window)
+    {
+        std::cerr << "[Engine] run() called without a successful init(); aborting.\n";
+        return;
+    }
+
     Scene scene;
 
     std::vector<PinUI> inPins{
