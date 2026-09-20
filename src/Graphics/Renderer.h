@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <map>
 #include <glm/glm.hpp>
 
 #include "ShaderManager.h"
@@ -45,7 +46,8 @@ public:
     void drawComponents(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews);
     void drawPins(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews, int hoveredCompId = -1, int hoveredPinIdx = -1, PinType hoveredPinType = PinType::INPUT);
 
-    void drawWires(const std::vector<Wire>& wires, const Wire* activeWire = nullptr);
+    // Wires are keyed by their stable WireId; see Scene::getWires().
+    void drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire = nullptr);
 
     // Change these three lines in Renderer.h:
     void drawWireBoundingBox(const Wire& wire, float padding = 0.03f, float alpha = 1.0f);

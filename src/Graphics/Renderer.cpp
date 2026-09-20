@@ -145,7 +145,7 @@ void Renderer::drawGrid()
     m_gridMesh->draw();
 }
 
-void Renderer::drawWires(const std::vector<Wire>& wires, const Wire* activeWire)
+void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire)
 {
     auto* shader = acquireShader("wire");
     if (!shader) return;
@@ -156,7 +156,7 @@ void Renderer::drawWires(const std::vector<Wire>& wires, const Wire* activeWire)
 
     std::vector<float> allWiresData;
 
-    for (const auto& wire : wires) {
+    for (const auto& [id, wire] : wires) {
         std::vector<float> singleWireData = wire.getBatchedVertexData();
         allWiresData.insert(allWiresData.end(), singleWireData.begin(), singleWireData.end());
     }

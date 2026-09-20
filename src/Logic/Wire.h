@@ -5,6 +5,17 @@
 #include <vector>
 #include <glm/glm.hpp>
 
+/*
+* @brief Stable identity of a wire inside a Scene.
+* Ids are allocated once and never reused, so anything that caches one (hover state, a
+* selection, a future undo entry) keeps pointing at the same wire - or at no wire at
+* all - even while wires are being split, merged and healed.
+*/
+using WireId = int;
+
+// Used for "no wire" in lookups and in cached selections.
+constexpr WireId INVALID_WIRE_ID = -1;
+
 struct WireEndpoint {
     int componentId = -1;  // -1 means disconnected. The id of whatever component owns this pin.
     int pinIndex = -1;

@@ -35,7 +35,7 @@ void Input::cancelCurrentAction() {
 
     m_draggedComponent = nullptr;
     m_selectedComponentId = -1;
-    m_selectedWireIndex = -1;
+    m_selectedWireId = INVALID_WIRE_ID;
     m_hasSelectedSegment = false;
     m_state = InteractionState::IDLE;
 }
@@ -49,7 +49,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 return;
             }
             m_selectedComponentId = -1;
-            m_selectedWireIndex = -1;
+            m_selectedWireId = INVALID_WIRE_ID;
             m_hasSelectedSegment = false;
             isMidWireBranchPending = false;
             m_wireOriginComponentId = -1;
@@ -82,7 +82,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
 
             if (clickedSelectedGate) {
                 m_selectedComponentId = -1;
-                m_selectedWireIndex = -1;
+                m_selectedWireId = INVALID_WIRE_ID;
                 m_hasSelectedSegment = false;
                 isMidWireBranchPending = false;
                 m_wireOriginComponentId = -1;
@@ -92,7 +92,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             }
 
             m_selectedComponentId = -1;
-            m_selectedWireIndex = -1;
+            m_selectedWireId = INVALID_WIRE_ID;
             m_hasSelectedSegment = false;
             isMidWireBranchPending = false;
             m_wireOriginComponentId = -1;
@@ -112,11 +112,12 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 wireAxisXFirst = true;
                 m_state = InteractionState::DRAWING_WIRE;
             }
-            else if (hoveredWireIndex != -1) {
+            else if (hoveredWireId != INVALID_WIRE_ID) {
                 // FIXED: Any click on a wire (start, end, or middle) prepares a clean branch
-                m_selectedWireIndex = hoveredWireIndex;
-                m_hasSelectedSegment = m_scene->wireAt(static_cast<size_t>(hoveredWireIndex))
-                    .getSegmentAt(mouseGridCoords, m_selectedSegmentStart, m_selectedSegmentEnd);
+                m_selectedWireId = hoveredWireId;
+                const Wire* clickedWire = m_scene->getWire(hoveredWireId);
+                m_hasSelectedSegment = clickedWire &&
+                    clickedWire->getSegmentAt(mouseGridCoords, m_selectedSegmentStart, m_selectedSegmentEnd);
 
                 wireStartPos = mouseGridCoords;
                 isMidWireBranchPending = true;
@@ -186,7 +187,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                     baseWirePath.clear();
                     isMidWireBranchPending = false;
                     m_selectedComponentId = -1;
-                    m_selectedWireIndex = -1;
+                    m_selectedWireId = INVALID_WIRE_ID;
                     m_hasSelectedSegment = false;
                     m_wireOriginComponentId = -1;
                     m_state = InteractionState::IDLE;
@@ -204,8 +205,13 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
 
                     GridCoords oStart, oEnd;
                     for (size_t i = 0; i + 1 < path.size(); ++i) {
-                        for (size_t w = 0; w < m_scene->wireCount(); ++w) {
-                            const auto& tPath = m_scene->wireAt(w).getPath();
+                        // Snapshot the ids and copy the target path by value: forceEndpointAt()
+                        // below reshapes the wire container, so holding a reference into it
+                        // across that call would dangle.
+                        for (WireId targetId : m_scene->getWireIds()) {
+                            const Wire* target = m_scene->getWire(targetId);
+                            if (!target) continue;
+                            const std::vector<GridCoords> tPath = target->getPath();
                             for (size_t j = 0; j + 1 < tPath.size(); ++j) {
                                 if (m_scene->getCollinearOverlap(path[i], path[i + 1], tPath[j], tPath[j + 1], oStart, oEnd)) {
 
@@ -259,7 +265,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
 
                 m_scene->healWires();
                 m_selectedComponentId = -1;
-                m_selectedWireIndex = -1;
+                m_selectedWireId = INVALID_WIRE_ID;
                 m_hasSelectedSegment = false;
                 m_wireOriginComponentId = -1;
                 m_state = InteractionState::IDLE;
@@ -274,8 +280,8 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
     GridCoords snappedGridPos = GridSystem::worldToGrid(worldCoords);
 
     if (isMidWireBranchPending && snappedGridPos != wireStartPos && m_scene) {
-        if (m_selectedWireIndex >= 0 && static_cast<size_t>(m_selectedWireIndex) < m_scene->wireCount()) {
-            Wire& target = m_scene->wireAt(static_cast<size_t>(m_selectedWireIndex));
+        if (Wire* selectedWire = m_scene->getWire(m_selectedWireId)) {
+            Wire& target = *selectedWire;
 
             PinState branchState = target.getState();
             if (target.hasSource()) {
@@ -290,7 +296,7 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
 
             if (!hitEndpoint) {
                 Wire wireA, wireB;
-                if (m_scene->splitWireAt(static_cast<size_t>(m_selectedWireIndex), wireStartPos, wireA, wireB)) {
+                if (m_scene->splitWireAt(m_selectedWireId, wireStartPos, wireA, wireB)) {
                     m_scene->addWires(wireA, wireB);
                 }
             }
@@ -482,14 +488,14 @@ void Input::process(GLFWwindow* window) {
         if (!delWasPressed && m_scene && m_state == InteractionState::IDLE) {
 
             int compToDelete = m_selectedComponentId != -1 ? m_selectedComponentId : hoveredComponentId;
-            int wireToDelete = m_selectedWireIndex != -1 ? m_selectedWireIndex : hoveredWireIndex;
+            WireId wireToDelete = m_selectedWireId != INVALID_WIRE_ID ? m_selectedWireId : hoveredWireId;
 
             if (compToDelete != -1) {
                 m_scene->removeComponent(compToDelete);
                 if (m_selectedComponentId == compToDelete) m_selectedComponentId = -1;
             }
-            else if (wireToDelete != -1 && static_cast<size_t>(wireToDelete) < m_scene->wireCount()) {
-                Wire& w = m_scene->wireAt(static_cast<size_t>(wireToDelete));
+            else if (Wire* wireToRemove = m_scene->getWire(wireToDelete)) {
+                Wire& w = *wireToRemove;
 
                 if (w.hasSource() && w.hasDest()) {
                     m_scene->disconnectPins(w.getSource().componentId, w.getDest().componentId, w.getDest().pinIndex);
@@ -498,7 +504,7 @@ void Input::process(GLFWwindow* window) {
                 GridCoords segStart, segEnd;
                 bool hasSeg = false;
 
-                if (m_selectedWireIndex != -1 && m_hasSelectedSegment) {
+                if (m_selectedWireId != INVALID_WIRE_ID && m_hasSelectedSegment) {
                     segStart = m_selectedSegmentStart; segEnd = m_selectedSegmentEnd;
                     hasSeg = true;
                 }
@@ -525,7 +531,7 @@ void Input::process(GLFWwindow* window) {
                         WireEndpoint src = w.getSource();
                         WireEndpoint dst = w.getDest();
 
-                        m_scene->removeWire(static_cast<size_t>(wireToDelete));
+                        m_scene->removeWire(wireToDelete);
 
                         if (pathA.size() >= 2) {
                             Wire wa; wa.setPath(pathA);
@@ -540,15 +546,15 @@ void Input::process(GLFWwindow* window) {
                         }
                     }
                     else {
-                        m_scene->removeWire(static_cast<size_t>(wireToDelete));
+                        m_scene->removeWire(wireToDelete);
                     }
                 }
                 else {
-                    m_scene->removeWire(static_cast<size_t>(wireToDelete));
+                    m_scene->removeWire(wireToDelete);
                 }
 
-                if (m_selectedWireIndex == wireToDelete) {
-                    m_selectedWireIndex = -1;
+                if (m_selectedWireId == wireToDelete) {
+                    m_selectedWireId = INVALID_WIRE_ID;
                     m_hasSelectedSegment = false;
                 }
             }
@@ -587,7 +593,7 @@ void Input::updateHoverState(GLFWwindow* window)
     hoveredComponentId = -1;
     hoveredPinIndex = -1;
     hoveredPinComponentId = -1;
-    hoveredWireIndex = -1;
+    hoveredWireId = INVALID_WIRE_ID;
     isHoveredWireStart = false;
     isHoveredWireEnd = false;
     m_hoveredSegmentValid = false;
@@ -600,19 +606,19 @@ void Input::updateHoverState(GLFWwindow* window)
         hoveredPinType = hit.pinType;
         break;
     case HitType::WIRE_END:
-        hoveredWireIndex = hit.wireIndex;
+        hoveredWireId = hit.wireId;
         isHoveredWireEnd = true;
         break;
     case HitType::WIRE_START:
-        hoveredWireIndex = hit.wireIndex;
+        hoveredWireId = hit.wireId;
         isHoveredWireStart = true;
         break;
     case HitType::WIRE_JUNCTION:
-        hoveredWireIndex = hit.wireIndex;
+        hoveredWireId = hit.wireId;
         isHoveredWireStart = true;
         break;
     case HitType::WIRE_BODY:
-        hoveredWireIndex = hit.wireIndex;
+        hoveredWireId = hit.wireId;
         break;
     case HitType::COMPONENT_BODY:
         hoveredComponentId = hit.componentId;
@@ -620,9 +626,11 @@ void Input::updateHoverState(GLFWwindow* window)
     default: break;
     }
 
-    if (hoveredWireIndex != -1 && m_scene) {
-        m_hoveredSegmentValid = m_scene->wireAt(static_cast<size_t>(hoveredWireIndex)).getSegmentAt(mouseGridCoords, m_hoveredSegmentStart, m_hoveredSegmentEnd);
-    }
+    // Resolve the hovered id once and tolerate it being gone: the wire may have been
+    // merged or split away since the hit test ran.
+    const Wire* hoveredWire = m_scene->getWire(hoveredWireId);
+    m_hoveredSegmentValid = hoveredWire &&
+        hoveredWire->getSegmentAt(mouseGridCoords, m_hoveredSegmentStart, m_hoveredSegmentEnd);
 }
 
 glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom) {

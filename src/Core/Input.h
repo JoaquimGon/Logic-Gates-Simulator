@@ -60,12 +60,12 @@ private:
     int hoveredPinComponentId = -1;
     int hoveredPinIndex = -1;
     PinType hoveredPinType = PinType::INPUT;
-    int hoveredWireIndex = -1;
+    WireId hoveredWireId = INVALID_WIRE_ID; // stable wire id, never a container index
     bool isHoveredWireStart = false;
     bool isHoveredWireEnd = false;
 
     int m_selectedGateId = -1;
-    int m_selectedWireIndex = -1;
+    WireId m_selectedWireId = INVALID_WIRE_ID; // stable wire id, never a container index
 
     bool m_hoveredSegmentValid = false;
     GridCoords m_hoveredSegmentStart = { 0, 0 };
@@ -104,14 +104,14 @@ public:
 
     int getHoveredComponentId() const { return hoveredComponentId; }
     int getHoveredPinIndex() const { return hoveredPinIndex; }
-    int getHoveredWireIndex() const { return hoveredWireIndex; }
+    WireId getHoveredWireId() const { return hoveredWireId; }
 
     int getHoveredPinComponentId() const { return hoveredPinComponentId; }
     PinType getHoveredPinType() const { return hoveredPinType; }
 
 
     int getSelectedComponentId() const { return m_selectedComponentId; }
-    int getSelectedWireIndex() const { return m_selectedWireIndex; }
+    WireId getSelectedWireId() const { return m_selectedWireId; }
 
     bool hasSelectedSegment() const { return m_hasSelectedSegment; }
     GridCoords getSelectedSegmentStart() const { return m_selectedSegmentStart; }
