@@ -69,6 +69,13 @@ bool Wire::containsPoint(const GridCoords& point, size_t* segmentIndex) const {
 }
 
 bool Wire::splitAt(const GridCoords& splitPoint, Wire& outWireA, Wire& outWireB) const {
+    // Splitting at an existing endpoint would create a one-point wire. Those
+    // degenerate fragments are not drawable, but they were still counted as
+    // topology endpoints and could later appear as false junctions.
+    if (m_path.size() < 2 || splitPoint == m_path.front() || splitPoint == m_path.back()) {
+        return false;
+    }
+
     size_t segmentIdx = 0;
     if (!containsPoint(splitPoint, &segmentIdx)) {
         return false;

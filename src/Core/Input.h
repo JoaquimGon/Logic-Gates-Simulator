@@ -49,6 +49,7 @@ private:
 
     // Wire control
     Wire activeWire;
+    int m_wireOriginComponentId = -1;
     std::vector<GridCoords> baseWirePath;
     GridCoords wireStartPos = { 0, 0 };
     bool wireAxisLocked = false;
@@ -73,7 +74,7 @@ private:
     GridCoords m_selectedSegmentStart = { 0, 0 };
     GridCoords m_selectedSegmentEnd = { 0, 0 };
     bool m_hasSelectedSegment = false;
-    int m_selectedComponentId;
+    int m_selectedComponentId = -1;
 public:
     void process(GLFWwindow* window);
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);

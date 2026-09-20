@@ -75,6 +75,11 @@ Component* Scene::getLogicComponent(int componentId)
 
 size_t Scene::commitWire(Wire wire)
 {
+    wire.simplifyPath();
+    if (wire.getPath().size() < 2) {
+        return static_cast<size_t>(-1);
+    }
+
     m_wires.push_back(std::move(wire));
     return m_wires.size() - 1;
 }
@@ -107,6 +112,7 @@ void Scene::removeWire(size_t index)
 
 bool Scene::connectPins(int srcComponentId, int destComponentId, int destPinIndex)
 {
+    if (srcComponentId == destComponentId) return false;
     return m_circuit.connectComponents(srcComponentId, destComponentId, destPinIndex);
 }
 
@@ -129,12 +135,24 @@ void Scene::reconnectWiresToComponent(int componentId)
             Wire& wire = m_wires[i];
             if (wire.getPath().empty()) continue;
 
-            if (!wire.hasDest() && (wire.getPath().front() == pinPos || wire.getPath().back() == pinPos)) {
-                wire.setDest(componentId, static_cast<int>(pin.pin_index));
-                if (wire.hasSource()) connectPins(wire.getSource().componentId, componentId, static_cast<int>(pin.pin_index));
-                handled = true;
+            // Never attach an input to a wire sourced by the same component.
+            if (wire.hasSource() && wire.getSource().componentId == componentId) continue;
+
+            const bool atEndpoint = wire.getPath().front() == pinPos || wire.getPath().back() == pinPos;
+            if (atEndpoint) {
+                if (!wire.hasDest()) {
+                    wire.setDest(componentId, static_cast<int>(pin.pin_index));
+                    if (wire.hasSource()) connectPins(wire.getSource().componentId, componentId, static_cast<int>(pin.pin_index));
+                    handled = true;
+                }
+                else if (wire.getDest().componentId == componentId &&
+                    wire.getDest().pinIndex == static_cast<int>(pin.pin_index)) {
+                    handled = true;
+                }
+                continue;
             }
-            else if (wire.containsPoint(pinPos)) {
+
+            if (wire.containsPoint(pinPos)) {
                 Wire wireA, wireB;
                 if (splitWireAt(i, pinPos, wireA, wireB)) {
                     wireA.setDest(componentId, static_cast<int>(pin.pin_index));
@@ -155,12 +173,24 @@ void Scene::reconnectWiresToComponent(int componentId)
             Wire& wire = m_wires[i];
             if (wire.getPath().empty()) continue;
 
-            if (!wire.hasSource() && (wire.getPath().front() == pinPos || wire.getPath().back() == pinPos)) {
-                wire.setSource(componentId, static_cast<int>(pin.pin_index));
-                if (wire.hasDest()) connectPins(componentId, wire.getDest().componentId, wire.getDest().pinIndex);
-                handled = true;
+            // Never attach an output to a wire ending at the same component.
+            if (wire.hasDest() && wire.getDest().componentId == componentId) continue;
+
+            const bool atEndpoint = wire.getPath().front() == pinPos || wire.getPath().back() == pinPos;
+            if (atEndpoint) {
+                if (!wire.hasSource()) {
+                    wire.setSource(componentId, static_cast<int>(pin.pin_index));
+                    if (wire.hasDest()) connectPins(componentId, wire.getDest().componentId, wire.getDest().pinIndex);
+                    handled = true;
+                }
+                else if (wire.getSource().componentId == componentId &&
+                    wire.getSource().pinIndex == static_cast<int>(pin.pin_index)) {
+                    handled = true;
+                }
+                continue;
             }
-            else if (wire.containsPoint(pinPos)) {
+
+            if (wire.containsPoint(pinPos)) {
                 Wire wireA, wireB;
                 if (splitWireAt(i, pinPos, wireA, wireB)) {
                     wireB.setSource(componentId, static_cast<int>(pin.pin_index));
@@ -278,6 +308,13 @@ void Scene::forceEndpointAt(GridCoords p) {
 
 void Scene::healWires()
 {
+    // One-point wires have no drawable segment and no electrical meaning. Old
+    // endpoint splits could leave them behind and make the intersection counter
+    // report a junction that did not really exist.
+    std::erase_if(m_wires, [](const Wire& wire) {
+        return wire.getPath().size() < 2;
+        });
+
     bool changed = true;
     while (changed) {
         changed = false;
@@ -384,22 +421,34 @@ void Scene::healWires()
 
                     // Share Sources
                     if (m_wires[i].hasSource() && !m_wires[j].hasSource()) {
-                        m_wires[j].setSource(m_wires[i].getSource().componentId, m_wires[i].getSource().pinIndex);
-                        logicChanged = true;
+                        const auto source = m_wires[i].getSource();
+                        if (!m_wires[j].hasDest() || m_wires[j].getDest().componentId != source.componentId) {
+                            m_wires[j].setSource(source.componentId, source.pinIndex);
+                            logicChanged = true;
+                        }
                     }
                     else if (!m_wires[i].hasSource() && m_wires[j].hasSource()) {
-                        m_wires[i].setSource(m_wires[j].getSource().componentId, m_wires[j].getSource().pinIndex);
-                        logicChanged = true;
+                        const auto source = m_wires[j].getSource();
+                        if (!m_wires[i].hasDest() || m_wires[i].getDest().componentId != source.componentId) {
+                            m_wires[i].setSource(source.componentId, source.pinIndex);
+                            logicChanged = true;
+                        }
                     }
 
                     // Share Destinations
                     if (m_wires[i].hasDest() && !m_wires[j].hasDest()) {
-                        m_wires[j].setDest(m_wires[i].getDest().componentId, m_wires[i].getDest().pinIndex);
-                        logicChanged = true;
+                        const auto dest = m_wires[i].getDest();
+                        if (!m_wires[j].hasSource() || m_wires[j].getSource().componentId != dest.componentId) {
+                            m_wires[j].setDest(dest.componentId, dest.pinIndex);
+                            logicChanged = true;
+                        }
                     }
                     else if (!m_wires[i].hasDest() && m_wires[j].hasDest()) {
-                        m_wires[i].setDest(m_wires[j].getDest().componentId, m_wires[j].getDest().pinIndex);
-                        logicChanged = true;
+                        const auto dest = m_wires[j].getDest();
+                        if (!m_wires[i].hasSource() || m_wires[i].getSource().componentId != dest.componentId) {
+                            m_wires[i].setDest(dest.componentId, dest.pinIndex);
+                            logicChanged = true;
+                        }
                     }
                 }
             }
@@ -408,7 +457,8 @@ void Scene::healWires()
 
     // 5. Force the Circuit engine to execute all valid, completed networks
     for (auto& wire : m_wires) {
-        if (wire.hasSource() && wire.hasDest()) {
+        if (wire.hasSource() && wire.hasDest() &&
+            wire.getSource().componentId != wire.getDest().componentId) {
             // Safe to call redundantly; Circuit::connectComponents returns false if already mapped
             connectPins(wire.getSource().componentId, wire.getDest().componentId, wire.getDest().pinIndex);
         }
@@ -511,10 +561,22 @@ std::vector<glm::vec3> Scene::getWireIntersections() const
     std::vector<glm::vec3> intersections;
     struct PointData { int count = 0; float stateVal = 0.0f; };
     std::map<std::pair<int, int>, PointData> endpointMap;
+    std::map<std::pair<int, int>, bool> componentPinPositions;
+
+    for (const auto& [id, component] : m_componentViews) {
+        for (const auto& pin : component->getInputPins()) {
+            GridCoords pos = component->getAbsolutePinGridPos(pin);
+            componentPinPositions[{ pos.x, pos.y }] = true;
+        }
+        for (const auto& pin : component->getOutputPins()) {
+            GridCoords pos = component->getAbsolutePinGridPos(pin);
+            componentPinPositions[{ pos.x, pos.y }] = true;
+        }
+    }
 
     for (const auto& wire : m_wires) {
         const auto& path = wire.getPath();
-        if (path.empty()) continue;
+        if (path.size() < 2) continue;
 
         float stateVal = 0.0f; // DISCONNECTED
         if (wire.getState() == PinState::ON) stateVal = 1.0f;
@@ -537,7 +599,10 @@ std::vector<glm::vec3> Scene::getWireIntersections() const
 
     // Dot only appears if 3 or more topological endpoints meet here!
     for (const auto& [coord, data] : endpointMap) {
-        if (data.count >= 3) {
+        // A component pin already has its own visual marker. It is a terminal,
+        // not a free-standing wire junction, even when several wire fragments
+        // share its coordinates.
+        if (data.count >= 3 && componentPinPositions.find(coord) == componentPinPositions.end()) {
             intersections.push_back({ static_cast<float>(coord.first), static_cast<float>(coord.second), data.stateVal });
         }
     }

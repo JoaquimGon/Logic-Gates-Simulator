@@ -45,9 +45,18 @@ void Circuit::delComponent(int id)
 
 bool Circuit::connectComponents(int srcComponentId, int destComponentId, int destPinIndex)
 {
+    // A component feeding one of its own inputs is a cycle of length one and
+    // must never enter either the netlist or the topological evaluation order.
+    if (srcComponentId == destComponentId) return false;
+
     Component* src = getComponent(srcComponentId);
     Component* dest = getComponent(destComponentId);
     if (!src || !dest) return false;
+
+    if (src->getOutputPinCount() <= 0 ||
+        destPinIndex < 0 || destPinIndex >= dest->getInputPinCount()) {
+        return false;
+    }
 
     for (const auto& c : dest->getInConnections())
         if (c.pinIndex == destPinIndex) return false;

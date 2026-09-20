@@ -28,6 +28,7 @@ void Input::cancelCurrentAction() {
             m_scene->commitWire(activeWire);
         }
         activeWire = Wire();
+        m_wireOriginComponentId = -1;
         baseWirePath.clear();
         isMidWireBranchPending = false;
     }
@@ -51,6 +52,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             m_selectedWireIndex = -1;
             m_hasSelectedSegment = false;
             isMidWireBranchPending = false;
+            m_wireOriginComponentId = -1;
 
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
             m_state = InteractionState::PANNING;
@@ -65,13 +67,39 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
             updateHoverState(window);
 
+            const int clickedComponentId = hoveredPinComponentId != -1
+                ? hoveredPinComponentId
+                : hoveredComponentId;
+
+            // A second click on an already-selected gate is a deselection, not
+            // the start of another drag or connection pass. In particular, do
+            // not call reconnectWiresToComponent()/healWires() for a gate that
+            // has not moved, as that used to create duplicate wire topology.
+            const bool clickedSelectedGate =
+                m_selectedComponentId != -1 &&
+                clickedComponentId == m_selectedComponentId &&
+                dynamic_cast<InputPin*>(m_scene->getLogicComponent(clickedComponentId)) == nullptr;
+
+            if (clickedSelectedGate) {
+                m_selectedComponentId = -1;
+                m_selectedWireIndex = -1;
+                m_hasSelectedSegment = false;
+                isMidWireBranchPending = false;
+                m_wireOriginComponentId = -1;
+                m_draggedComponent = nullptr;
+                m_state = InteractionState::IDLE;
+                return;
+            }
+
             m_selectedComponentId = -1;
             m_selectedWireIndex = -1;
             m_hasSelectedSegment = false;
             isMidWireBranchPending = false;
+            m_wireOriginComponentId = -1;
 
             if (hoveredPinComponentId != -1 && hoveredPinIndex != -1) {
-                m_selectedComponentId = hoveredComponentId;
+                m_selectedComponentId = hoveredPinComponentId;
+                m_wireOriginComponentId = hoveredPinComponentId;
 
                 activeWire = Wire();
                 if (hoveredPinType == PinType::INPUT) activeWire.setDest(hoveredPinComponentId, hoveredPinIndex);
@@ -121,12 +149,19 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             }
 
             if (m_state == InteractionState::DRAGGING_GATE && m_draggedComponent) {
-                if (m_scene->checkOverlap(m_draggedComponent->getComponentId())) {
-                    m_draggedComponent->setGridPosition(m_dragStartPos);
-                }
+                const bool componentMoved = m_draggedComponent->getGridPosition() != m_dragStartPos;
 
-                m_scene->reconnectWiresToComponent(m_draggedComponent->getComponentId());
-                m_scene->healWires(); // NEW: Clean up traces left behind by the gate
+                // A plain click is only a selection. Reconnection and wire
+                // healing are topology-changing operations and must run only
+                // after a real drag to a different grid position.
+                if (componentMoved) {
+                    if (m_scene->checkOverlap(m_draggedComponent->getComponentId())) {
+                        m_draggedComponent->setGridPosition(m_dragStartPos);
+                    }
+
+                    m_scene->reconnectWiresToComponent(m_draggedComponent->getComponentId());
+                    m_scene->healWires();
+                }
                 m_draggedComponent = nullptr;
                 m_state = InteractionState::IDLE;
             }
@@ -134,10 +169,31 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 if (activeWire.getPath().size() <= 1) {
                     m_state = InteractionState::IDLE;
                     activeWire = Wire();
+                    m_selectedComponentId = -1;
+                    m_wireOriginComponentId = -1;
                     return;
                 }
 
                 updateHoverState(window);
+
+                // A wire may never return to the component it started from.
+                // Cancel before committing or splitting any geometry so no
+                // visual fragment and no logical self-edge can be created.
+                if (hoveredPinComponentId != -1 &&
+                    m_wireOriginComponentId != -1 &&
+                    hoveredPinComponentId == m_wireOriginComponentId) {
+                    activeWire = Wire();
+                    baseWirePath.clear();
+                    isMidWireBranchPending = false;
+                    m_selectedComponentId = -1;
+                    m_selectedWireIndex = -1;
+                    m_hasSelectedSegment = false;
+                    m_wireOriginComponentId = -1;
+                    m_state = InteractionState::IDLE;
+                    m_scene->healWires();
+                    return;
+                }
+
                 GridCoords rawEnd = activeWire.getPath().back();
 
                 bool foundOverlap = true;
@@ -202,8 +258,10 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 }
 
                 m_scene->healWires();
+                m_selectedComponentId = -1;
                 m_selectedWireIndex = -1;
                 m_hasSelectedSegment = false;
+                m_wireOriginComponentId = -1;
                 m_state = InteractionState::IDLE;
             }
         }
@@ -220,6 +278,12 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
             Wire& target = m_scene->wireAt(static_cast<size_t>(m_selectedWireIndex));
 
             PinState branchState = target.getState();
+            if (target.hasSource()) {
+                m_wireOriginComponentId = target.getSource().componentId;
+            }
+            else if (target.hasDest()) {
+                m_wireOriginComponentId = target.getDest().componentId;
+            }
 
             bool hitEndpoint = (!target.getPath().empty()) &&
                 (wireStartPos == target.getPath().front() || wireStartPos == target.getPath().back());
@@ -488,7 +552,7 @@ void Input::process(GLFWwindow* window) {
                     m_hasSelectedSegment = false;
                 }
             }
-            
+
             m_scene->healWires();
             updateHoverState(window);
         }
