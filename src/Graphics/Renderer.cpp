@@ -1,5 +1,6 @@
 #include "Renderer.h"
 #include <glad/glad.h>
+#include <iostream>
 
 Renderer::Renderer()
 {
@@ -7,6 +8,22 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+}
+
+Shader* Renderer::acquireShader(const std::string& name)
+{
+    if (Shader* shader = m_sm.get(name))
+        return shader;
+
+    // A miss here is a programming error: some component was registered with a
+    // shader name that init() never loaded, so nothing would ever be drawn for
+    // it. Report it once per name instead of failing silently every frame.
+    if (m_missingShaderWarned.insert(name).second)
+    {
+        std::cerr << "[Renderer] No shader registered under the name \"" << name
+            << "\" - that component will not be drawn. Register it in Renderer::init().\n";
+    }
+    return nullptr;
 }
 
 void Renderer::init()
@@ -32,6 +49,9 @@ void Renderer::init()
     m_sm.load("ORgate", "shaders/gates/gate.vert", "shaders/gates/orGate.frag");
     m_sm.load("XORgate", "shaders/gates/gate.vert", "shaders/gates/xorGate.frag");
     m_sm.load("NOTgate", "shaders/gates/gate.vert", "shaders/gates/notGate.frag");
+    // Manual input switch (InputPinView). Shares the gate vertex shader so the
+    // SDF body receives localPos in the same -0.5..0.5 space as the gates.
+    m_sm.load("inputPin", "shaders/gates/gate.vert", "shaders/gates/inputPin.frag");
 
     // Grid
     m_sm.load("grid", "shaders/vec3Shader.vert", "shaders/grid.frag");
@@ -98,7 +118,8 @@ void Renderer::beginFrame(const CameraState& camera)
 
 void Renderer::drawGrid()
 {
-    auto* shader = m_sm.get("grid");
+    auto* shader = acquireShader("grid");
+    if (!shader) return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -110,7 +131,8 @@ void Renderer::drawGrid()
 
 void Renderer::drawWires(const std::vector<Wire>& wires, const Wire* activeWire)
 {
-    auto* shader = m_sm.get("wire");
+    auto* shader = acquireShader("wire");
+    if (!shader) return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -138,7 +160,8 @@ void Renderer::drawWireBoundingBox(const Wire& wire, float padding, float alpha)
 {
     if (wire.getPath().empty()) return;
 
-    auto* shader = m_sm.get("wire");
+    auto* shader = acquireShader("wire");
+    if (!shader) return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -185,7 +208,8 @@ void Renderer::drawWireBoundingBox(const Wire& wire, float padding, float alpha)
 
 void Renderer::drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding, float alpha)
 {
-    auto* shader = m_sm.get("wire");
+    auto* shader = acquireShader("wire");
+    if (!shader) return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -234,8 +258,8 @@ void Renderer::drawComponents(const std::unordered_map<int, std::unique_ptr<Comp
     }
 
     for (auto& [shaderName, positions] : positionsByShader) {
-        auto* shader = m_sm.get(shaderName);
-        if (!shader) continue; // shader wasn't preloaded in init() — see note below
+        auto* shader = acquireShader(shaderName);
+        if (!shader) continue; // acquireShader already logged the missing name
 
         shader->use();
         shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
@@ -257,7 +281,8 @@ void Renderer::drawComponents(const std::unordered_map<int, std::unique_ptr<Comp
 
 void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews, int hoveredCompId, int hoveredPinIdx, PinType hoveredPinType)
 {
-    auto* shader = m_sm.get("pin");
+    auto* shader = acquireShader("pin");
+    if (!shader) return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -297,7 +322,8 @@ void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentV
 
 void Renderer::drawComponentBoundingBox(const ComponentView& component, float padding, float alpha)
 {
-    auto* shader = m_sm.get("wire"); // reused: a bounding box is just 4 colored lines
+    auto* shader = acquireShader("wire"); // reused: a bounding box is just 4 colored lines
+    if (!shader) return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -336,7 +362,8 @@ void Renderer::drawComponentBoundingBox(const ComponentView& component, float pa
 
 void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
 {
-    auto* shader = m_sm.get("pin");
+    auto* shader = acquireShader("pin");
+    if (!shader) return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -361,7 +388,8 @@ void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
 {
     if (intersectionData.empty()) return;
 
-    auto* shader = m_sm.get("pin");
+    auto* shader = acquireShader("pin");
+    if (!shader) return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);

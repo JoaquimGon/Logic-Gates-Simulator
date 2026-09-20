@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <glm/glm.hpp>
 
 #include "ShaderManager.h"
@@ -44,7 +45,19 @@ public:
     void drawGridPointHighlight(GridCoords gridPos, float opacity);
     void drawIntersections(const std::vector<glm::vec3>& intersectionData);
 private:
+    /**
+    * @brief Looks a shader up by name, logging (at most once per name) the ones
+    * that were never registered in init().
+    * @param name Name the shader was registered under.
+    * @return The shader, or nullptr when nothing was registered under that name.
+    */
+    Shader* acquireShader(const std::string& name);
+
     ShaderManager m_sm;
+
+    // Names already reported by acquireShader(), so a component with a missing
+    // shader produces one actionable error instead of one per frame.
+    std::unordered_set<std::string> m_missingShaderWarned;
 
     std::unique_ptr<Mesh> m_gateMesh;
     std::unique_ptr<Mesh> m_gridMesh;
