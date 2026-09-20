@@ -100,8 +100,18 @@ void Engine::run()
     {
         input.process(window);
 
-        try { scene.propagate(); }
-        catch (const std::runtime_error& e) { std::cerr << "Simulation Error: " << e.what() << "\n"; }
+        // A cyclic netlist is reported once per state change rather than every frame:
+        // the evaluation order is only rebuilt when the circuit is edited.
+        EvalOrderResult orderResult = scene.propagate();
+        if (orderResult != m_lastOrderResult) {
+            m_lastOrderResult = orderResult;
+
+            if (orderResult == EvalOrderResult::CYCLE_DETECTED)
+                std::cerr << "[Simulation] Combinational loop detected: the last valid evaluation "
+                    "order is kept and nothing is evaluated until the loop is broken.\n";
+            else
+                std::cerr << "[Simulation] Evaluation order rebuilt, simulation resumed.\n";
+        }
 
         scene.syncVisuals();
 

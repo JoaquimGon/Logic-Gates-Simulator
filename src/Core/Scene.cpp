@@ -466,9 +466,9 @@ void Scene::healWires()
 } // End of Scene::healWires()
 
 
-void Scene::propagate()
+EvalOrderResult Scene::propagate()
 {
-    m_circuit.propagate();
+    return m_circuit.propagate();
 }
 
 void Scene::syncVisuals()

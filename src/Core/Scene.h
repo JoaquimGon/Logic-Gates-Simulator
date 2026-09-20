@@ -62,7 +62,9 @@ public:
     HitResult hitTest(glm::vec2 worldPos, GridCoords gridPos) const;
 
     // ----- Simulation -----
-    void propagate();
+    // Forwards the simulation status (e.g. a detected combinational loop) so callers
+    // can report it without catching exceptions.
+    EvalOrderResult propagate();
     void syncVisuals();
     bool handleClick(int componentId);
     bool checkOverlap(int draggedComponentId) const;
