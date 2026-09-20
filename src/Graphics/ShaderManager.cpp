@@ -1,5 +1,7 @@
 #include "ShaderManager.h"
 
+#include <iostream>
+
 
 ShaderManager& ShaderManager::instance() {
     static ShaderManager mgr; // Created only once, safely
@@ -18,6 +20,16 @@ Shader* ShaderManager::load(const std::string& name,
 
     // Load shader
     auto shader = std::make_unique<Shader>(vertexPath.c_str(), fragmentPath.c_str());
+
+    // A shader that failed to compile or link is deliberately kept out of the
+    // registry instead of being cached: it is unusable, and a later load() after
+    // the source has been fixed can still succeed. Callers get nullptr so they can
+    // report the problem, rather than a shader that silently draws nothing.
+    if (!shader->isValid()) {
+        std::cerr << "ERROR::SHADER::BUILD_FAILED: \"" << name << "\" was not registered.\n";
+        return nullptr;
+    }
+
     Shader* ptr = shader.get();
     shaders[name] = std::move(shader);
     return ptr;
