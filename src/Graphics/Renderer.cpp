@@ -8,6 +8,22 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+    // Safety net only: the engine calls shutdown() while the context is still
+    // alive, since deleting GL objects after glfwTerminate() is invalid.
+    shutdown();
+}
+
+void Renderer::shutdown()
+{
+    // reset() destroys each Mesh, whose destructor releases its GL buffers.
+    m_gateMesh.reset();
+    m_gridMesh.reset();
+    m_pointMesh.reset();
+    m_wireMesh.reset();
+    m_boundsMesh.reset();
+
+    // Runs every Shader destructor, i.e. glDeleteProgram(), before the context dies.
+    m_sm.release();
 }
 
 Shader* Renderer::acquireShader(const std::string& name)

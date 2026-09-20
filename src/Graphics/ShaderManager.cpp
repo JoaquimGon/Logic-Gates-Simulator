@@ -41,3 +41,10 @@ Shader* ShaderManager::get(const std::string& name)
     auto it = shaders.find(name);
     return (it != shaders.end()) ? it->second.get() : nullptr;
 }
+
+
+void ShaderManager::release()
+{
+    // Clearing the map runs each Shader's destructor, which calls glDeleteProgram().
+    shaders.clear();
+}

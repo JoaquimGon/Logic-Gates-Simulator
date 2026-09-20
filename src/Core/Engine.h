@@ -22,10 +22,11 @@ class Engine
 {
 private:
     bool isDragging = false;
-    GLFWwindow* window;
+    GLFWwindow* window = nullptr; // starts null so shutdown() is safe before init()
     std::string m_windowName;
     int m_windowWidth = 0;
     int m_windowHeight = 0;
+    bool m_glfwInitialized = false;
 
     Input input;
 
@@ -39,7 +40,17 @@ private:
 
 public:
     Engine(std::string windowName, int windowWidth, int windowHeight);
+    ~Engine();
+
     int init();
     void run();
+
+    /**
+    * @brief Releases the renderer's GL objects, the window and GLFW, in that order.
+    * GL objects can only be deleted while their context is still current, so this
+    * must run before glfwTerminate(). It is idempotent, which also makes it usable
+    * from the failure paths of init() and from the destructor.
+    */
+    void shutdown();
 
 };

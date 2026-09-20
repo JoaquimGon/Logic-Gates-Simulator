@@ -35,9 +35,23 @@ Mesh::Mesh(const std::vector<float>& vertices,
 
 Mesh::~Mesh()
 {
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &EBO);
+    destroy();
+}
+
+
+void Mesh::destroy()
+{
+    // glDelete*() silently ignores 0, but zeroing the handles afterwards both keeps
+    // this idempotent and makes it obvious the mesh no longer owns any GL object.
+    if (VAO != 0) glDeleteVertexArrays(1, &VAO);
+    if (VBO != 0) glDeleteBuffers(1, &VBO);
+    if (EBO != 0) glDeleteBuffers(1, &EBO);
+    if (instanceVBO != 0) glDeleteBuffers(1, &instanceVBO); // this one used to be leaked
+
+    VAO = 0;
+    VBO = 0;
+    EBO = 0;
+    instanceVBO = 0;
 }
 
 void Mesh::draw() const {

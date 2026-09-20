@@ -39,4 +39,11 @@ public:
 	*/
 	Shader* get(const std::string& name);
 
+	/*
+	* @brief Destroys every loaded shader program.
+	* Needs a current OpenGL context, so call it before the context goes away; the
+	* manager is left empty and can still be reused afterwards.
+	*/
+	void release();
+
 };

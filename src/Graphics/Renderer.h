@@ -27,6 +27,15 @@ public:
     ~Renderer();
 
     void init();
+
+    /**
+    * @brief Releases every GL resource the renderer owns (meshes and shaders).
+    * Must run while the context is still current - i.e. before glfwDestroyWindow()
+    * / glfwTerminate() - because GL objects must not outlive their context. Safe to
+    * call more than once.
+    */
+    void shutdown();
+
     void beginFrame(const CameraState& camera);
 
     void drawGrid();

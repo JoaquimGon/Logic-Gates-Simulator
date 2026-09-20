@@ -46,8 +46,15 @@ public:
     */
     void draw() const;
     
+    /**
+    * @brief Releases the VAO, VBO, EBO and the instancing buffer.
+    * Needs a current OpenGL context, and is safe to call more than once, so it can
+    * be used both explicitly at shutdown and from the destructor.
+    */
+    void destroy();
+
     /*
-    * @brief Mesh deconstructor, deletes the VAO, EBO and VAO buffers
+    * @brief Mesh deconstructor, releases the GPU buffers
     */
     ~Mesh();
 };

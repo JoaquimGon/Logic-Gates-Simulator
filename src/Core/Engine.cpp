@@ -8,12 +8,26 @@ Engine::Engine(std::string windowName, int windowWidth, int windowHeight)
     m_windowHeight = windowHeight;
 }
 
+Engine::~Engine()
+{
+    // Safety net for the paths that never reach the end of run(): a failed init(),
+    // or run() returning early. shutdown() is idempotent, so this is a no-op when
+    // run() already tore everything down.
+    shutdown();
+}
+
 int Engine::init()
 {
     // ==========================================
     // glfw Configuration
     // ==========================================
-    glfwInit();
+    if (!glfwInit())
+    {
+        std::cerr << "Failed to initialize GLFW" << std::endl;
+        return -1;
+    }
+    m_glfwInitialized = true;
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -21,8 +35,8 @@ int Engine::init()
     window = glfwCreateWindow(m_windowWidth, m_windowHeight, m_windowName.c_str(), NULL, NULL);
     if (window == NULL)
     {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
+        std::cerr << "Failed to create GLFW window" << std::endl;
+        shutdown(); // nothing to delete yet, but the window and GLFW must not leak
         return -1;
     }
 
@@ -40,7 +54,8 @@ int Engine::init()
     // ==========================================
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
-        std::cout << "Failed to initialize GLAD" << std::endl;
+        std::cerr << "Failed to initialize GLAD" << std::endl;
+        shutdown(); // no GL objects exist yet; releases the window and GLFW
         return -1;
     }
 
@@ -175,5 +190,28 @@ void Engine::run()
         glfwPollEvents();
     }
 
-    glfwTerminate();
+    shutdown();
+}
+
+
+void Engine::shutdown()
+{
+    // 1. Delete the GL objects while the window's context is still current:
+    //    programs, VAOs and VBOs must not outlive the context they were created in.
+    m_renderer.shutdown();
+
+    // 2. Destroy the window explicitly. glfwTerminate() would do this as well, but
+    //    doing it here keeps the teardown order unambiguous.
+    if (window)
+    {
+        glfwDestroyWindow(window);
+        window = nullptr;
+    }
+
+    // 3. Shut GLFW down once, and only if it was actually initialized.
+    if (m_glfwInitialized)
+    {
+        glfwTerminate();
+        m_glfwInitialized = false;
+    }
 }
