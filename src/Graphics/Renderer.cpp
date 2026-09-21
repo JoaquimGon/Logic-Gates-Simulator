@@ -172,56 +172,6 @@ void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* active
     }
 }
 
-void Renderer::drawWireBoundingBox(const Wire& wire, float padding, float alpha)
-{
-    if (wire.getPath().empty()) return;
-
-    auto* shader = acquireShader("wire");
-    if (!shader) return;
-    shader->use();
-    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
-    shader->setFloat("uZoom", m_currentCamera.zoom);
-    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
-
-    float minX = 999999.0f, minY = 999999.0f;
-    float maxX = -999999.0f, maxY = -999999.0f;
-
-    // Find the furthest edges of the wire
-    for (const auto& gridPos : wire.getPath()) {
-        glm::vec2 worldPos = GridSystem::gridToWorld(gridPos);
-        if (worldPos.x < minX) minX = worldPos.x;
-        if (worldPos.x > maxX) maxX = worldPos.x;
-        if (worldPos.y < minY) minY = worldPos.y;
-        if (worldPos.y > maxY) maxY = worldPos.y;
-    }
-
-    // Apply the visual padding
-    minX -= padding;
-    maxX += padding;
-    minY -= padding;
-    maxY += padding;
-
-    // Convert (255, 159, 28) to Normalized RGB
-    float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = alpha;
-
-    std::vector<float> boxData = {
-        minX, maxY, 0.0f, r, g, b, a,
-        maxX, maxY, 0.0f, r, g, b, a,
-
-        maxX, maxY, 0.0f, r, g, b, a,
-        maxX, minY, 0.0f, r, g, b, a,
-
-        maxX, minY, 0.0f, r, g, b, a,
-        minX, minY, 0.0f, r, g, b, a,
-
-        minX, minY, 0.0f, r, g, b, a,
-        minX, maxY, 0.0f, r, g, b, a
-    };
-
-    m_boundsMesh->updateData(boxData, 7);
-    m_boundsMesh->draw();
-}
-
 void Renderer::drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding, float alpha)
 {
     auto* shader = acquireShader("wire");

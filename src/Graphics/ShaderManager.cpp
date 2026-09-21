@@ -2,12 +2,6 @@
 
 #include <iostream>
 
-
-ShaderManager& ShaderManager::instance() {
-    static ShaderManager mgr; // Created only once, safely
-    return mgr;
-}
-
 ShaderManager::ShaderManager() {}
 
 Shader* ShaderManager::load(const std::string& name,

@@ -97,10 +97,10 @@ void Engine::run()
         {PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}
     };
 
-    int gate0_id = scene.addGate(GateType::AND, { 0, 0 }, { 0.2f, 0.2f }, "ANDgate", inPins, outPins);
-    int gate1_id = scene.addGate(GateType::AND, { 10, 0 }, { 0.2f, 0.2f }, "ANDgate", inPins, outPins);
-    int gate2_id = scene.addGate(GateType::OR, { 0, 10 }, { 0.2f, 0.2f }, "ORgate", inPins, outPins);
-    int gate3_id = scene.addGate(GateType::XOR, { 10, 10 }, { 0.2f, 0.2f }, "XORgate", inPins, outPins);
+    scene.addGate(GateType::AND, { 0, 0 }, { 0.2f, 0.2f }, "ANDgate", inPins, outPins);
+    scene.addGate(GateType::AND, { 10, 0 }, { 0.2f, 0.2f }, "ANDgate", inPins, outPins);
+    scene.addGate(GateType::OR, { 0, 10 }, { 0.2f, 0.2f }, "ORgate", inPins, outPins);
+    scene.addGate(GateType::XOR, { 10, 10 }, { 0.2f, 0.2f }, "XORgate", inPins, outPins);
 
     input.setScene(&scene);
 
@@ -177,13 +177,6 @@ void Engine::run()
                 // Hovered: 40% Opacity
                 m_renderer.drawWireSegmentBoundingBox(input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.01f, 0.4f);
             }
-        }
-
-        // (Make sure to delete the redundant !input.isCurrentlyDrawingWire() && input.hasSelectedSegment() block that was below this!)
-
-
-        if (!input.isCurrentlyDrawingWire() && input.hasSelectedSegment()) {
-            m_renderer.drawWireSegmentBoundingBox(input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 0.01f);
         }
 
         if (input.isCurrentlyDrawingWire()) {

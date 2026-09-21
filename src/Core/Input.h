@@ -11,17 +11,6 @@
 #include <vector>
 
 
-
-enum class WireAction { CONNECT, DISCONNECT };
-
-struct WireEvent {
-    WireAction action;
-    int srcGateId;
-    int srcPinIndex;
-    int destGateId;
-    int destPinIndex;
-};
-
 enum class InteractionState {
     IDLE,
     PANNING,
@@ -60,12 +49,9 @@ private:
     int hoveredPinComponentId = -1;
     int hoveredPinIndex = -1;
     PinType hoveredPinType = PinType::INPUT;
-    WireId hoveredWireId = INVALID_WIRE_ID; // stable wire id, never a container index
-    bool isHoveredWireStart = false;
-    bool isHoveredWireEnd = false;
+    WireId hoveredWireId = INVALID_WIRE_ID;
 
-    int m_selectedGateId = -1;
-    WireId m_selectedWireId = INVALID_WIRE_ID; // stable wire id, never a container index
+    WireId m_selectedWireId = INVALID_WIRE_ID;
 
     bool m_hoveredSegmentValid = false;
     GridCoords m_hoveredSegmentStart = { 0, 0 };

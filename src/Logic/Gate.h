@@ -20,7 +20,6 @@ public:
 
 private:
     GateType m_gateType;
-    bool m_outInverted;
     std::vector<bool> m_stateInPins;
     bool m_stateOutPin = false;
 };

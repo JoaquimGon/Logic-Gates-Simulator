@@ -50,7 +50,6 @@ public:
     void drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire = nullptr);
 
     // Change these three lines in Renderer.h:
-    void drawWireBoundingBox(const Wire& wire, float padding = 0.03f, float alpha = 1.0f);
     void drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding = 0.03f, float alpha = 1.0f);
     void drawComponentBoundingBox(const ComponentView& component, float padding = 0.3f, float alpha = 1.0f);
     void drawGridPointHighlight(GridCoords gridPos, float opacity);

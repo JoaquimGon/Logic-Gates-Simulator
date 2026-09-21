@@ -22,7 +22,6 @@
 class Engine
 {
 private:
-    bool isDragging = false;
     GLFWwindow* window = nullptr; // starts null so shutdown() is safe before init()
     std::string m_windowName;
     int m_windowWidth = 0;

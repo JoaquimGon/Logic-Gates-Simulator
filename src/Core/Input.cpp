@@ -596,8 +596,6 @@ void Input::updateHoverState(GLFWwindow* window)
     hoveredPinIndex = -1;
     hoveredPinComponentId = -1;
     hoveredWireId = INVALID_WIRE_ID;
-    isHoveredWireStart = false;
-    isHoveredWireEnd = false;
     m_hoveredSegmentValid = false;
 
     HitResult hit = m_scene->hitTest(currentWorldCoords, mouseGridCoords);
@@ -609,15 +607,12 @@ void Input::updateHoverState(GLFWwindow* window)
         break;
     case HitType::WIRE_END:
         hoveredWireId = hit.wireId;
-        isHoveredWireEnd = true;
         break;
     case HitType::WIRE_START:
         hoveredWireId = hit.wireId;
-        isHoveredWireStart = true;
         break;
     case HitType::WIRE_JUNCTION:
         hoveredWireId = hit.wireId;
-        isHoveredWireStart = true;
         break;
     case HitType::WIRE_BODY:
         hoveredWireId = hit.wireId;

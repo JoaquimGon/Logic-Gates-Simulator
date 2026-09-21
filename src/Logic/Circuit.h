@@ -60,10 +60,6 @@ public:
     bool connectComponents(int srcComponentId, int destComponentId, int destPinIndex);
     void disconnectComponents(int srcComponentId, int destComponentId, int destPinIndex);
 
-    void changeConnection(int srcComponentId,
-        int oldDestComponentId, int oldDestPinIndex,
-        int newDestComponentId, int newDestPinIndex);
-
     /*
     * @brief Settles the circuit: rebuilds the evaluation order when the netlist
     * changed, then evaluates every component in that order.

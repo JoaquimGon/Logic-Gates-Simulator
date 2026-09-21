@@ -104,15 +104,6 @@ void Circuit::disconnectComponents(int srcComponentId, int destComponentId, int 
     m_evalOrderDirty = true;
 }
 
-void Circuit::changeConnection(
-    int srcComponentId,
-    int oldDestComponentId, int oldDestPinIndex,
-    int newDestComponentId, int newDestPinIndex)
-{
-    disconnectComponents(srcComponentId, oldDestComponentId, oldDestPinIndex);
-    connectComponents(srcComponentId, newDestComponentId, newDestPinIndex);
-}
-
 bool Circuit::wouldCreateCycle(int srcComponentId, int destComponentId)
 {
     // Adding src -> dest closes a loop when dest can already reach src. Only
