@@ -202,7 +202,11 @@ void Scene::reconnectWiresToComponent(int componentId)
             if (atEndpoint) {
                 if (!wire->hasDest()) {
                     wire->setDest(componentId, static_cast<int>(pin.pin_index));
-                    if (wire->hasSource()) connectPins(wire->getSource().componentId, componentId, static_cast<int>(pin.pin_index));
+                    if (wire->hasSource()) {
+                        if (!connectPins(wire->getSource().componentId, componentId, static_cast<int>(pin.pin_index))) {
+                            wire->disconnectDest();
+                        }
+                    }
                     handled = true;
                 }
                 else if (wire->getDest().componentId == componentId &&
@@ -216,7 +220,11 @@ void Scene::reconnectWiresToComponent(int componentId)
                 Wire wireA, wireB;
                 if (splitWireAt(wireId, pinPos, wireA, wireB)) {
                     wireA.setDest(componentId, static_cast<int>(pin.pin_index));
-                    if (wireA.hasSource()) connectPins(wireA.getSource().componentId, componentId, static_cast<int>(pin.pin_index));
+                    if (wireA.hasSource()) {
+                        if (!connectPins(wireA.getSource().componentId, componentId, static_cast<int>(pin.pin_index))) {
+                            wireA.disconnectDest();
+                        }
+                    }
                     addWires(std::move(wireA), std::move(wireB));
                 }
                 handled = true;
@@ -241,7 +249,11 @@ void Scene::reconnectWiresToComponent(int componentId)
             if (atEndpoint) {
                 if (!wire->hasSource()) {
                     wire->setSource(componentId, static_cast<int>(pin.pin_index));
-                    if (wire->hasDest()) connectPins(componentId, wire->getDest().componentId, wire->getDest().pinIndex);
+                    if (wire->hasDest()) {
+                        if (!connectPins(componentId, wire->getDest().componentId, wire->getDest().pinIndex)) {
+                            wire->disconnectDest();
+                        }
+                    }
                     handled = true;
                 }
                 else if (wire->getSource().componentId == componentId &&
@@ -255,7 +267,10 @@ void Scene::reconnectWiresToComponent(int componentId)
                 Wire wireA, wireB;
                 if (splitWireAt(wireId, pinPos, wireA, wireB)) {
                     wireB.setSource(componentId, static_cast<int>(pin.pin_index));
-                    if (wireB.hasDest()) connectPins(componentId, wireB.getDest().componentId, wireB.getDest().pinIndex);
+                    if (wireB.hasDest()) 
+                        if (!connectPins(componentId, wireB.getDest().componentId, wireB.getDest().pinIndex)) {
+                            wireB.disconnectDest();
+                        }
                     addWires(std::move(wireA), std::move(wireB));
                 }
                 handled = true;
@@ -533,10 +548,13 @@ void Scene::healWires()
         if (wire.hasSource() && wire.hasDest() &&
             wire.getSource().componentId != wire.getDest().componentId) {
             // Safe to call redundantly; Circuit::connectComponents returns false if already mapped
-            connectPins(wire.getSource().componentId, wire.getDest().componentId, wire.getDest().pinIndex);
+            if (!connectPins(wire.getSource().componentId, wire.getDest().componentId, wire.getDest().pinIndex))
+            {
+                wire.disconnectDest();
+            }
         }
     }
-} // End of Scene::healWires()
+}
 
 
 EvalOrderResult Scene::propagate()

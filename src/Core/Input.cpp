@@ -23,7 +23,9 @@ void Input::cancelCurrentAction() {
             (activeWire.hasSource() || activeWire.hasDest() || activeWire.getPath().size() > 1)) {
 
             if (activeWire.hasSource() && activeWire.hasDest()) {
-                m_scene->connectPins(activeWire.getSource().componentId, activeWire.getDest().componentId, activeWire.getDest().pinIndex);
+                if (!m_scene->connectPins(activeWire.getSource().componentId, activeWire.getDest().componentId, activeWire.getDest().pinIndex)) {
+                    activeWire.disconnectDest();
+                }
             }
             m_scene->commitWire(activeWire);
         }

@@ -58,8 +58,17 @@ bool Circuit::connectComponents(int srcComponentId, int destComponentId, int des
         return false;
     }
 
-    for (const auto& c : dest->getInConnections())
-        if (c.pinIndex == destPinIndex) return false;
+    for (const auto& c : dest->getInConnections()) {
+        if (c.pinIndex == destPinIndex) {
+            if (c.gateId == srcComponentId) {
+                return true; // Already connected exactly like this, report success
+            }
+            std::cerr << "[Circuit] Refused connection " << srcComponentId << " -> "
+                << destComponentId << " (pin " << destPinIndex
+                << "): pin is already occupied.\n";
+            return false;
+        }
+    }
 
     // Closing a combinational loop would make the topological order impossible to
     // build, so the edge is refused before it ever reaches the netlist. This keeps the
