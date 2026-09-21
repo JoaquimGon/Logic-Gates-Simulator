@@ -62,9 +62,16 @@ void Renderer::init()
 
     // Gates
     m_sm.load("ANDgate", "shaders/gates/gate.vert", "shaders/gates/andGate.frag");
+    m_sm.load("NANDgate", "shaders/gates/gate.vert", "shaders/gates/nandGate.frag");
+
     m_sm.load("ORgate", "shaders/gates/gate.vert", "shaders/gates/orGate.frag");
+    m_sm.load("NORgate", "shaders/gates/gate.vert", "shaders/gates/norGate.frag");
+
     m_sm.load("XORgate", "shaders/gates/gate.vert", "shaders/gates/xorGate.frag");
+    m_sm.load("NXORgate", "shaders/gates/gate.vert", "shaders/gates/nxorGate.frag");
+
     m_sm.load("NOTgate", "shaders/gates/gate.vert", "shaders/gates/notGate.frag");
+
     // Manual input switch (InputPinView). Shares the gate vertex shader so the
     // SDF body receives localPos in the same -0.5..0.5 space as the gates.
     m_sm.load("inputPin", "shaders/gates/gate.vert", "shaders/gates/inputPin.frag");
@@ -253,7 +260,7 @@ void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentV
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
     shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
-    shader->setFloat("uPointSize", 10.0f);
+    shader->setFloat("uPointSize", 8.0f);
 
     std::vector<float> pinInstanceData;
     int totalPins = 0;

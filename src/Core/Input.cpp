@@ -370,17 +370,25 @@ void Input::process(GLFWwindow* window) {
 
     auto trySpawnGate = [&](GateType type, const std::string& shaderName) {
         if (m_scene && m_state == InteractionState::IDLE) {
-            std::vector<PinUI> inPins{
+            bool isInverted = (type == GateType::NAND || type == GateType::NOR || type == GateType::NXOR);
+
+            std::vector<PinUI> inPins = {
                 {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
                 {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
             };
-            std::vector<PinUI> outPins{
-                {PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}
+
+            // Push the output pin out 1 grid cell for inverted gates to sit on the bubble
+            std::vector<PinUI> outPins = {
+                {PinType::OUTPUT, 0, PinState::DISCONNECTED, {isInverted ? 3 : 2, 0}}
             };
+
+            // Widen the bounding box to 0.3 for inverted gates
+            glm::vec2 size = isInverted ? glm::vec2{ 0.3f, 0.2f } : glm::vec2{ 0.2f, 0.2f };
+
             glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
             GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-            int newId = m_scene->addGate(type, gridPos, { 0.2f, 0.2f }, shaderName, inPins, outPins);
+            int newId = m_scene->addGate(type, gridPos, size, shaderName, inPins, outPins);
 
             if (ComponentView* cv = m_scene->getComponentView(newId)) {
                 while (m_scene->checkOverlap(newId)) {
@@ -416,17 +424,19 @@ void Input::process(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
         if (!key2WasPressed && m_scene && m_state == InteractionState::IDLE) {
 
+            // Pins spaced exactly 3 grid cells apart
             std::vector<PinUI> inPins{
                 {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 0}}
             };
             std::vector<PinUI> outPins{
-                {PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}
+                {PinType::OUTPUT, 0, PinState::DISCONNECTED, {1, 0}}
             };
 
             glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
             GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-            int newId = m_scene->addGate(GateType::NOT, gridPos, { 0.2f, 0.2f }, "NOTgate", inPins, outPins);
+            // Bounding box must be 4 cells wide (0.2f) so edges land on integer grid lines
+            int newId = m_scene->addGate(GateType::NOT, gridPos, { 0.2f, 0.1f }, "NOTgate", inPins, outPins);
 
             if (ComponentView* cv = m_scene->getComponentView(newId)) {
                 while (m_scene->checkOverlap(newId)) {
@@ -449,7 +459,7 @@ void Input::process(GLFWwindow* window) {
 
     // 4. SPAWN NAND GATE (Key '4')
     if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
-        if (!key4WasPressed) trySpawnGate(GateType::NAND, "ANDgate");
+        if (!key4WasPressed) trySpawnGate(GateType::NAND, "NANDgate");
         key4WasPressed = true;
     }
     else key4WasPressed = false;
@@ -463,7 +473,7 @@ void Input::process(GLFWwindow* window) {
 
     // 6. SPAWN NOR GATE (Key '6')
     if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS) {
-        if (!key6WasPressed) trySpawnGate(GateType::NOR, "ORgate");
+        if (!key6WasPressed) trySpawnGate(GateType::NOR, "NORgate");
         key6WasPressed = true;
     }
     else key6WasPressed = false;
@@ -477,7 +487,7 @@ void Input::process(GLFWwindow* window) {
 
     // 8. SPAWN NXOR GATE (Key '8')
     if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS) {
-        if (!key8WasPressed) trySpawnGate(GateType::NXOR, "XORgate");
+        if (!key8WasPressed) trySpawnGate(GateType::NXOR, "NXORgate");
         key8WasPressed = true;
     }
     else key8WasPressed = false;
