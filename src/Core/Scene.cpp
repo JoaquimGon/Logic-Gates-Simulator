@@ -110,6 +110,30 @@ std::optional<WireId> Scene::commitWire(Wire wire)
         return std::nullopt;
     }
 
+    // Normalize path orientation so front() is the source side.
+    // If the wire was drawn starting from an input pin (sink -> source or sink -> empty space),
+    // it holds a destination, and its first point sits exactly on that destination pin.
+    if (wire.hasDest()) {
+        const auto& dest = wire.getDest();
+
+        auto viewIt = m_componentViews.find(dest.componentId);
+        if (viewIt != m_componentViews.end()) {
+            ComponentView* view = viewIt->second.get();
+
+            for (const auto& pin : view->getInputPins()) {
+                if (pin.pin_index == dest.pinIndex) {
+                    GridCoords destPos = view->getAbsolutePinGridPos(pin);
+                    if (wire.getPath().front() == destPos) {
+                        std::vector<GridCoords> reversedPath = wire.getPath();
+                        std::reverse(reversedPath.begin(), reversedPath.end());
+                        wire.setPath(reversedPath);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
     return insertWire(std::move(wire));
 }
 
