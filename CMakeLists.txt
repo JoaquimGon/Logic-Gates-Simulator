@@ -107,15 +107,23 @@ target_link_libraries(${PROJECT_NAME}
 # ============================================================
 # Copy shaders after build
 # ============================================================
+# Glob all shader files so changes to them are tracked as a dependency
+file(GLOB_RECURSE SHADER_FILES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/*"
+)
+
 add_custom_command(
-    TARGET ${PROJECT_NAME}
-    POST_BUILD
-    COMMAND
-        ${CMAKE_COMMAND} -E copy_directory
+    OUTPUT "${CMAKE_BINARY_DIR}/shader_stamp.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders"
+    COMMAND ${CMAKE_COMMAND} -E touch "${CMAKE_BINARY_DIR}/shader_stamp.txt"
+    DEPENDS ${SHADER_FILES}
     COMMENT "Copying shaders to output directory..."
 )
+
+add_custom_target(CopyShaders DEPENDS "${CMAKE_BINARY_DIR}/shader_stamp.txt")
+add_dependencies(${PROJECT_NAME} CopyShaders)
 
 # ============================================================
 # Compiler options
