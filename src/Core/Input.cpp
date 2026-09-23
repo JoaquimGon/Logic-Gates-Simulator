@@ -54,6 +54,9 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         }
     }
 
+    // State guard panning so it doesn't get overwritten  
+    if (m_state == InteractionState::PANNING) return;
+
     if (button == GLFW_MOUSE_BUTTON_LEFT && m_scene) {
         if (action == GLFW_PRESS) {
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
