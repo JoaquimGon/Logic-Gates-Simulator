@@ -7,9 +7,11 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
+#include <chrono>
 
-/*
-* @brief Class that handles shaders files, compilation and linking.
+/**
+* @brief Class that handles shader files, compilation, linking, and live hot-reloading.
 */
 class Shader
 {
@@ -54,16 +56,33 @@ private:
 
     unsigned int ID = 0; // OpenGL program handle; 0 means the shader is unusable
 
+    // Hot-reload tracking
+    std::string m_vertPath = "";
+    std::string m_fragPath = "";
+    std::filesystem::file_time_type m_lastVertTime{};
+    std::filesystem::file_time_type m_lastFragTime{};
+    std::chrono::steady_clock::time_point m_lastCheckTime{}; // Per-instance poll throttle
+
+    /*
+    * @brief Internal compiler and linker pipeline that safe-swaps GL program IDs.
+    */
+    bool buildProgram(bool isReload = false);
+
 public:
     /**
-    * @brief Shader initializer, loads file and compiles shader
+    * @brief Shader initializer, resolves paths, loads file and compiles shader
     * @param vertexPath File path for the vertex shader
     * @param fragmentPath File path for the fragment shader
     */
     Shader(const char* vertexPath, const char* fragmentPath);
 
+    /**
+    * @brief Checks if source files on disk have been edited, recompiling if needed.
+    */
+    void checkAndReload();
+
     /*
-    * @brief Points to openGL to use this shader. Does nothing when the shader
+    * @brief Points OpenGL to use this shader. Does nothing when the shader
     * could not be built (see isValid()).
     */
     void use() const;
@@ -76,52 +95,15 @@ public:
     bool isValid() const { return ID != 0; }
 
     /*
-    * @brief Shader class deconstructor
+    * @brief Shader class destructor
     */
     ~Shader();
 
-    /*
-    * @brief Sets a boolean uniform variable in the shader.
-    * @param name The name of the uniform as written in the GLSL source code.
-    * @param value The boolean value to assign (true or false).
-    */
+    /* Uniform Setters */
     void setBool(const std::string& name, bool value) const;
-    
-    /*
-    * @brief Sets a float uniform variable in the shader.
-    * @param name The name of the uniform as written in the GLSL source code.
-    * @param value The float value to assign.
-    */
     void setFloat(const std::string& name, float value) const;
-    
-    /*
-    * @brief Sets a shader's 3x3 matrix uniform
-    * @param name Name of the variable in the shader
-    * @param mat The glm::mat3 matrix to be passed to the shader
-    */
     void setMat3(const std::string& name, const glm::mat3& mat) const;
-
-    /*
-    * @brief Sets a shader's 4x4 matrix uniform
-    * @param name Name of the variable in the shader
-    * @param mat The glm::mat4 matrix to be passed to the shader
-    */
     void setMat4(const std::string& name, const glm::mat4& mat) const;
-
-
-    /*
-    * @brief Sets a shader's vector of size 2 uniform
-    * @param name Name of the variable in the shader
-    * @paral valueX Value of each item in the vector
-    */
     void setVec2(const std::string& name, float value1, float value2) const;
-
-
-    /*
-    * @brief Sets a shader's vector of size 4 uniform
-    * @param name Name of the variable in the shader
-    * @paral valueX Value of each item in the vector
-    */
     void setVec4(const std::string& name, float value1, float value2, float value3, float value4) const;
 };
-

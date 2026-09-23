@@ -41,4 +41,8 @@ public:
 	*/
 	void release();
 
+	/*
+	* @brief Checks if files were altered, if yes trigger shader reload
+	*/
+	void checkHotReload();
 };

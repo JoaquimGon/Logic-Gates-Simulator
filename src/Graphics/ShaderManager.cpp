@@ -42,3 +42,12 @@ void ShaderManager::release()
     // Clearing the map runs each Shader's destructor, which calls glDeleteProgram().
     shaders.clear();
 }
+
+void ShaderManager::checkHotReload()
+{
+    for (auto& [name, shader] : shaders) {
+        if (shader) {
+            shader->checkAndReload();
+        }
+    }
+}

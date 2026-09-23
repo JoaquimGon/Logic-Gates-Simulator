@@ -135,6 +135,8 @@ void Renderer::init()
 
 void Renderer::beginFrame(const CameraState& camera)
 {
+    m_sm.checkHotReload(); // Polls the loaded shaders
+
     m_currentCamera = camera;
     glClear(GL_COLOR_BUFFER_BIT);
 }
