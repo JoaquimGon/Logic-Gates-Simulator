@@ -19,16 +19,6 @@ void Input::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
 
 void Input::cancelCurrentAction() {
     if (m_state == InteractionState::DRAWING_WIRE) {
-        if (m_scene && !isMidWireBranchPending &&
-            (activeWire.hasSource() || activeWire.hasDest() || activeWire.getPath().size() > 1)) {
-
-            if (activeWire.hasSource() && activeWire.hasDest()) {
-                if (!m_scene->connectPins(activeWire.getSource().componentId, activeWire.getDest().componentId, activeWire.getDest().pinIndex)) {
-                    activeWire.disconnectDest();
-                }
-            }
-            m_scene->commitWire(activeWire);
-        }
         activeWire = Wire();
         m_wireOriginComponentId = -1;
         baseWirePath.clear();
