@@ -1,46 +1,48 @@
 #include "Shader.h"
-
+#ifndef PROJECT_ASSETS_DIR
+#define PROJECT_ASSETS_DIR "assets"
+#endif
 #include <vector>
+#include <filesystem>
 
+Shader::Shader(const char* vertexPath, const char* fragmentPath)
+{
+    // Convert relative paths to guaranteed absolute paths on the host machine
+    std::string vResolved = resolvePath(vertexPath);
+    std::string fResolved = resolvePath(fragmentPath);
 
-Shader::Shader(const char* vertexPath, const char* fragmentPath) {
-        std::string vCode = readFile(vertexPath);
-        std::string fCode = readFile(fragmentPath);
+    std::string vCode = readFile(vResolved.c_str());
+    std::string fCode = readFile(fResolved.c_str());
 
-        // readFile() already reported which path failed. Bail out here instead of
-        // handing GLSL an empty string, which would bury the real error under a
-        // second, misleading one.
-        if (vCode.empty() || fCode.empty()) {
-            std::cerr << "ERROR::SHADER::BUILD_SKIPPED: missing source for \""
-                << vertexPath << "\" / \"" << fragmentPath << "\".\n";
-            return; // ID stays 0, so isValid() is false
-        }
+    if (vCode.empty() || fCode.empty()) {
+        std::cerr << "ERROR::SHADER::BUILD_SKIPPED: missing source for \""
+            << vResolved << "\" / \"" << fResolved << "\".\n";
+        return; // ID stays 0, so isValid() is false
+    }
 
-        unsigned int vertexShader = compile(vCode.c_str(), GL_VERTEX_SHADER, "VERTEX", vertexPath);
-        unsigned int fragmentShader = compile(fCode.c_str(), GL_FRAGMENT_SHADER, "FRAGMENT", fragmentPath);
+    unsigned int vertexShader = compile(vCode.c_str(), GL_VERTEX_SHADER, "VERTEX", vResolved.c_str());
+    unsigned int fragmentShader = compile(fCode.c_str(), GL_FRAGMENT_SHADER, "FRAGMENT", fResolved.c_str());
 
-        if (vertexShader == 0 || fragmentShader == 0) {
-            std::cerr << "ERROR::SHADER::BUILD_FAILED: \"" << vertexPath << "\" / \""
-                << fragmentPath << "\" will not be usable.\n";
-            if (vertexShader != 0) glDeleteShader(vertexShader);
-            if (fragmentShader != 0) glDeleteShader(fragmentShader);
-            return; // ID stays 0
-        }
+    if (vertexShader == 0 || fragmentShader == 0) {
+        std::cerr << "ERROR::SHADER::BUILD_FAILED: \"" << vResolved << "\" / \""
+            << fResolved << "\" will not be usable.\n";
+        if (vertexShader != 0) glDeleteShader(vertexShader);
+        if (fragmentShader != 0) glDeleteShader(fragmentShader);
+        return; // ID stays 0
+    }
 
-        ID = glCreateProgram();
-        glAttachShader(ID, vertexShader);
-        glAttachShader(ID, fragmentShader);
-        glLinkProgram(ID);
+    ID = glCreateProgram();
+    glAttachShader(ID, vertexShader);
+    glAttachShader(ID, fragmentShader);
+    glLinkProgram(ID);
 
-        // The program keeps its own reference to the stages, so they can be
-        // released now that linking has happened.
-        glDeleteShader(vertexShader);
-        glDeleteShader(fragmentShader);
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
 
-        if (!checkLinkErrors(ID)) {
-            glDeleteProgram(ID);
-            ID = 0;
-        }
+    if (!checkLinkErrors(ID)) {
+        glDeleteProgram(ID);
+        ID = 0;
+    }
 }
 
 
@@ -121,6 +123,19 @@ unsigned int Shader::compile(const char* src, GLenum type, const char* stageName
         return 0;
 }
 
+std::string Shader::resolvePath(const std::string& path)
+{
+    std::filesystem::path p(path);
+
+    // If it's already absolute, leave it as is
+    if (p.is_absolute()) {
+        return p.string();
+    }
+
+    // Combine CMake's project asset root with the relative path
+    std::filesystem::path fullPath = std::filesystem::path(PROJECT_ASSETS_DIR) / p;
+    return fullPath.lexically_normal().string();
+}
 
 std::string Shader::readFile(const char* path)
 { 

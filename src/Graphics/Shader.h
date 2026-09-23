@@ -32,6 +32,11 @@ private:
     std::string readFile(const char* path);
 
     /*
+    * @brief Converts a relative asset path into an absolute file path using the CMake project root.
+    */
+    static std::string resolvePath(const std::string& path);
+
+    /*
     * @brief Reports whether glLinkProgram succeeded, printing the info log when it did not.
     * @param program The linked program to inspect.
     * @return true when the program linked successfully.
