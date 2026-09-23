@@ -1,74 +1,61 @@
-#visual studio cache
+# Visual Studio / VS Code
 .vs/
+.vscode/
 
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a		
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
+# Build and output directories
 build/
 Build/
 build-*/
+out/
+bin/
 
-# CMake generated files
+# Presets
+CMakeUserPresets.json
+
+# CMake generated artifacts
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
 install_manifest.txt
 compile_commands.json
+Testing/
+.cache/
 
-# Temporary files
+# Compiled Object & Intermediate files
+*.d
+*.slo
+*.lo
+*.o
+*.obj
+*.gch
+*.pch
+*.ilk
+*.pdb
+*.dwo
+
+# Libraries and Executables
+*.so
+*.dylib
+*.dll
+*.so.*
+*.lai
+*.la
+*.a
+*.lib
+*.exe
+*.out
+*.app
+
+# Temporary / swap files
 *.tmp
 *.log
 *.bak
 *.swp
 
-# vcpkg
+# Package managers
 vcpkg_installed/
 
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
-
-external/
+# Vendored libraries (ignore all of external except external/glad)
+external/*
+!external/glad/

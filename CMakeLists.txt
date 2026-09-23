@@ -8,11 +8,7 @@ project(LogicGateSimulator
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-if(MSVC)
-    string(REGEX REPLACE "/W3" "/W4" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-    string(REGEX REPLACE "/W3" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-endif()
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
 
@@ -43,14 +39,22 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glm)
 
 # ============================================================
-# GLAD
+# GLAD (vendored)
 # ============================================================
-add_library(glad STATIC
-    external/glad/src/glad.c
-)
+set(GLAD_SOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/external/glad/src/glad.c")
+set(GLAD_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/glad/include")
+
+if(NOT EXISTS "${GLAD_SOURCE_FILE}" OR NOT EXISTS "${GLAD_INCLUDE_DIR}/glad/glad.h")
+    message(FATAL_ERROR
+        "GLAD sources not found in external/glad/.\n"
+        "Ensure external/glad/ is tracked and committed in git."
+    )
+endif()
+
+add_library(glad STATIC ${GLAD_SOURCE_FILE})
 target_include_directories(glad
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/external/glad/include
+        ${GLAD_INCLUDE_DIR}
 )
 
 # ============================================================
@@ -114,13 +118,16 @@ target_compile_definitions(${PROJECT_NAME}
 )
 
 # ============================================================
-# Compiler options
+# Target-scoped Compiler Options (No global flag pollution)
 # ============================================================
 if(MSVC)
     target_compile_options(${PROJECT_NAME}
         PRIVATE
+            /W4
             /permissive-
-            /wd4100 # Silence unreferenced formal parameter ('outIndex')
+            /utf-8
+            /external:W0
+            /wd4100 # Unreferenced formal parameter
     )
 else()
     target_compile_options(${PROJECT_NAME}
@@ -145,25 +152,8 @@ set_target_properties(${PROJECT_NAME}
             "${CMAKE_BINARY_DIR}/bin/Release"
 )
 
-# ============================================================
-# Visual Studio source grouping
-# ============================================================
 source_group(
     TREE "${CMAKE_CURRENT_SOURCE_DIR}/src"
     PREFIX "Source Files"
     FILES ${PROJECT_SOURCES}
 )
-
-# ============================================================
-# Information
-# ============================================================
-message(STATUS "==============================================")
-message(STATUS " ${PROJECT_NAME}")
-message(STATUS "==============================================")
-message(STATUS " C++ Standard : C++${CMAKE_CXX_STANDARD}")
-message(STATUS " Compiler     : ${CMAKE_CXX_COMPILER_ID}")
-message(STATUS " Generator    : ${CMAKE_GENERATOR}")
-message(STATUS " GLAD         : local GLAD 1")
-message(STATUS " GLFW         : 3.4")
-message(STATUS " GLM          : 1.0.1")
-message(STATUS "==============================================")
