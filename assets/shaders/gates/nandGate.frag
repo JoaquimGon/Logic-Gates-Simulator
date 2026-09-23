@@ -1,38 +1,49 @@
 #version 330 core
 out vec4 FragColor;
-in vec2 localPos;
+in vec2 localPos; // Range: -0.5 .. 0.5
 
-float sdBox(in vec2 p, in vec2 b) {
-    vec2 d = abs(p) - b;
-    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+// AND Gate SDF: Flat back at -halfSize.x, curved nose reaching +halfSize.x
+float sdAndGate(vec2 p, vec2 halfSize)
+{
+    p.y = abs(p.y);
+
+    // Split point where the flat top/bottom ends and the curved cap begins.
+    // The curve radius matches the half-height (halfSize.y) so it meets the walls seamlessly.
+    float splitX = halfSize.x - halfSize.y;
+
+    if (p.x > splitX) {
+        // Semi-circle arc centered at (splitX, 0) reaching exactly +halfSize.x at its tip
+        return length(p - vec2(splitX, 0.0)) - halfSize.y;
+    }
+
+    // Straight body box spanning from -halfSize.x to splitX
+    float boxHalfW = (splitX - (-halfSize.x)) * 0.5;
+    float boxCenterX = -halfSize.x + boxHalfW;
+
+    vec2 d = abs(p - vec2(boxCenterX, 0.0)) - vec2(boxHalfW, halfSize.y);
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
-float sdAndGate(in vec2 p) {
-    p.x -= 0.05;
-    float halfWidth  = 0.591;
-    float halfHeight = 0.591;
-    vec2 boxP = p - vec2(-halfWidth, 0.0);
-    float box = sdBox(boxP, vec2(halfWidth, halfHeight));
-    float cap = (p.x > 0.0) ? length(p) - halfHeight : abs(p.y) - halfHeight;
-    return min(box, cap);
-}
+void main()
+{
+    // Local quad bounds:
+    // X goes from -0.5 (inputs) to +0.5 (output pin).
+    // Y has a small margin so the top and bottom edges anti-alias cleanly.
+    const float halfWidth  = 0.5;
+    const float halfHeight = 0.42;
 
-void main() {
-    // Scales X to counteract the wider 0.3 quad so the gate body matches AND exactly
-    vec2 p = vec2(localPos.x * 1.95, localPos.y * 1.3);
+    vec2 p = vec2(localPos.x * 1.5, localPos.y);
 
-    float d = sdAndGate(p);
-    
-    // Solid circle bridging the gate tip (0.64) and the pin (0.97)
-    float bubble = length(p - vec2(0.81, 0.0)) - 0.18;
+    float d = sdAndGate(p, vec2(halfWidth, halfHeight));
+
+    // Invertion circle
+    float bubble = length(p - vec2(0.615, 0.0)) - 0.13;
     d = min(d, bubble);
 
-    // Hard clip on the left edge so it doesn't draw past the input pins
-    d = max(d, -0.3333 - localPos.x);
-
+    // Pixel-width anti-aliasing
     float aa = fwidth(d);
-    float fillFactor = 1.0 - smoothstep(-aa, aa, d);
+    float fillFactor = 1.0 - smoothstep(0.0, aa, d);
 
-    vec3 gateColor = vec3(0.2, 0.5, 0.9); // AND Blue
+    vec3 gateColor = vec3(0.2, 0.5, 0.9);
     FragColor = vec4(gateColor, fillFactor);
 }

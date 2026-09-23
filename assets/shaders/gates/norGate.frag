@@ -1,33 +1,44 @@
 #version 330 core
 out vec4 FragColor;
-in vec2 localPos;
+in vec2 localPos; // Range: -0.5 .. 0.5
 
-float sdVesica(vec2 p, float r, float d) {
-    float d1 = length(p - vec2(0.0,  d)) - r;
-    float d2 = length(p - vec2(0.0, -d)) - r;
-    return max(d1, d2);
+float sdCircle(vec2 p, vec2 center, float r)
+{
+    return length(p - center) - r;
 }
 
-float sdOrGate(vec2 p) {
-    p.x -= 0.05;
-    float lens = sdVesica(p, 0.75, 0.35);
-    float backCircle = length(p - vec2(-1.55, 0.0)) - 1.05;
-    return max(lens, -backCircle);
+float sdOrGate(vec2 p)
+{
+    // Lens body: circles intersect at tip
+    float Rc = 1.05;
+    float cy = 0.65;
+    float cx = -0.334;
+
+    float topCircle = sdCircle(p, vec2(cx,  cy), Rc);
+    float botCircle = sdCircle(p, vec2(cx, -cy), Rc);
+    float lens = max(topCircle, botCircle);
+
+    // Concave back cut
+    vec2 backCenter = vec2(-1.4, 0.0);
+    float backR = 0.98;
+    float backCut = sdCircle(p, backCenter, backR);
+
+    // Carve back cavity out of the lens body
+    return max(lens, -backCut);
 }
 
-void main() {
-    vec2 p = vec2(localPos.x * 1.95, localPos.y * 1.3);
+void main()
+{
+    vec2 p = vec2(localPos.x * 1.5, localPos.y);
 
     float d = sdOrGate(p);
-    
-    // Solid circle bridging the OR tip (0.70) and the pin (0.97)
-    float bubble = length(p - vec2(0.84, 0.0)) - 0.16;
+
+    // Invertion circle
+    float bubble = length(p - vec2(0.615, 0.0)) - 0.13;
     d = min(d, bubble);
-
-    d = max(d, -0.3333 - localPos.x);
-
+    // Anti-aliasing
     float aa = fwidth(d);
-    float fillFactor = 1.0 - smoothstep(-aa, aa, d);
+    float fillFactor = 1.0 - smoothstep(0.0, aa, d);
 
     vec3 gateColor = vec3(0.9, 0.55, 0.2); // OR Orange
     FragColor = vec4(gateColor, fillFactor);

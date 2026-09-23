@@ -97,22 +97,18 @@ void Engine::run()
         {PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}
     };
 
+    std::vector<PinUI> notOutPins{
+        {PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 0}}
+    };
+
     scene.addGate(GateType::AND, { 0, 0 }, { 0.2f, 0.2f }, "ANDgate", inPins, outPins);
-    scene.addGate(GateType::AND, { 10, 0 }, { 0.2f, 0.2f }, "ANDgate", inPins, outPins);
-    scene.addGate(GateType::OR, { 0, 10 }, { 0.2f, 0.2f }, "ORgate", inPins, outPins);
-    scene.addGate(GateType::XOR, { 10, 10 }, { 0.2f, 0.2f }, "XORgate", inPins, outPins);
+    scene.addGate(GateType::NAND, { 0, 10 }, { 0.3f, 0.2f }, "NANDgate", inPins, notOutPins);
+    scene.addGate(GateType::OR, { 10, 0 }, { 0.2f, 0.2f }, "ORgate", inPins, outPins);
+    scene.addGate(GateType::NOR, { 10, 10 }, { 0.3f, 0.2f }, "NORgate", inPins, notOutPins);
+    scene.addGate(GateType::XOR, { -10, 0 }, { 0.2f, 0.2f }, "XORgate", inPins, outPins);
+    scene.addGate(GateType::NXOR, { -10, 10 }, { 0.3f, 0.2f }, "NXORgate", inPins, notOutPins);
 
     input.setScene(&scene);
-
-    Wire testWire1;
-    testWire1.setPath({ {3, 0}, {5, 0}, {5, -3}, {8, -3} });
-    testWire1.setState(PinState::ON);
-    scene.commitWire(testWire1);
-
-    Wire testWire2;
-    testWire2.setPath({ {0, -5}, {10, -5} });
-    testWire2.setState(PinState::DISCONNECTED);
-    scene.commitWire(testWire2);
 
     while (!glfwWindowShouldClose(window))
     {

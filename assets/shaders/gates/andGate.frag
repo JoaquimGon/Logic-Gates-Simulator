@@ -1,34 +1,42 @@
 #version 330 core
 out vec4 FragColor;
-in vec2 localPos; // -0.5..0.5, independent of camera now
+in vec2 localPos; // Range: -0.5 .. 0.5
 
-float sdBox(in vec2 p, in vec2 b)
+// AND Gate SDF: Flat back at -halfSize.x, curved nose reaching +halfSize.x
+float sdAndGate(vec2 p, vec2 halfSize)
 {
-    vec2 d = abs(p) - b;
-    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
-}
+    p.y = abs(p.y);
 
-float sdAndGate(in vec2 p)
-{
-    p.x -= 0.05;
-    float halfWidth  = 0.591;
-    float halfHeight = 0.591;
+    // Split point where the flat top/bottom ends and the curved cap begins.
+    // The curve radius matches the half-height (halfSize.y) so it meets the walls seamlessly.
+    float splitX = halfSize.x - halfSize.y;
 
-    vec2 boxP = p - vec2(-halfWidth, 0.0);
-    float box = sdBox(boxP, vec2(halfWidth, halfHeight));
+    if (p.x > splitX) {
+        // Semi-circle arc centered at (splitX, 0) reaching exactly +halfSize.x at its tip
+        return length(p - vec2(splitX, 0.0)) - halfSize.y;
+    }
 
-    float cap = (p.x > 0.0) ? length(p) - halfHeight
-                             : abs(p.y) - halfHeight;
-    return min(box, cap);
+    // Straight body box spanning from -halfSize.x to splitX
+    float boxHalfW = (splitX - (-halfSize.x)) * 0.5;
+    float boxCenterX = -halfSize.x + boxHalfW;
+
+    vec2 d = abs(p - vec2(boxCenterX, 0.0)) - vec2(boxHalfW, halfSize.y);
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
 void main()
 {
-    vec2 p = localPos * 1.3; // same internal shape scale as before
+    // Local quad bounds:
+    // X goes from -0.5 (inputs) to +0.5 (output pin).
+    // Y has a small margin so the top and bottom edges anti-alias cleanly.
+    const float halfWidth  = 0.5;
+    const float halfHeight = 0.42;
 
-    float d = sdAndGate(p);
-    float aa = fwidth(d); // screen-derivative AA, adapts to zoom automatically
-    float fillFactor = 1.0 - smoothstep(-aa, aa, d);
+    float d = sdAndGate(localPos, vec2(halfWidth, halfHeight));
+
+    // Pixel-width anti-aliasing
+    float aa = fwidth(d);
+    float fillFactor = 1.0 - smoothstep(0.0, aa, d);
 
     vec3 gateColor = vec3(0.2, 0.5, 0.9);
     FragColor = vec4(gateColor, fillFactor);
