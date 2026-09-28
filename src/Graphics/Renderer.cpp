@@ -121,10 +121,10 @@ void Renderer::init()
     VertexLayout wireLayout;
     wireLayout.addAttribute(3); // Location 0: Position (X, Y, Z)
     wireLayout.addAttribute(4); // Location 1: Color (R, G, B, A)
-    m_wireMesh = std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_LINES);
+    m_wireMesh = std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_TRIANGLES);
 
     // ==========================================
-    // NEW: 5. Bounding Box Mesh
+    // Bounding Box Mesh
     // ==========================================
     // We use GL_LINES so we can draw crisp edges, reusing the exact same layout as wires!
     VertexLayout boundsLayout;

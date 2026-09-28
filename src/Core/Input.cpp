@@ -227,9 +227,6 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
                 }
             }
 
-            // Start drawing from wireStartPos directly. 
-            // DO NOT call splitWireAt() here! Scene::settleGeometry() will split,
-            // extend, and merge on commitWire() without leaving phantom seam fragments.
             activeWire = Wire();
             if (const Net* net = m_scene->getNet(target.getNet())) {
                 activeWire.setState(net->getState() == PinState::ON ? PinState::ON : PinState::DISCONNECTED);
