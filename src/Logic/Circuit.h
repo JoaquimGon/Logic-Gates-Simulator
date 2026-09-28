@@ -1,6 +1,7 @@
 #pragma once
 #include "Gate.h"
 #include "InputPin.h"
+#include "Clock.h"
 
 #include <vector>
 #include <unordered_map>
@@ -8,14 +9,8 @@
 #include <iostream>
 #include <memory>
 
-/*
-* @brief Outcome of (re)building the evaluation order.
-*/
 enum class EvalOrderResult { OK, CYCLE_DETECTED };
 
-/*
-* @brief Class that handles connections and components.
-*/
 class Circuit
 {
 private:
@@ -23,57 +18,32 @@ private:
     std::vector<int> m_evaluationOrder;
     int m_currentId{ 0 };
     bool m_evalOrderDirty{ true };
+    bool m_stateDirty{ true };
 
-    /*
-    * @brief Depth First Sort to topologically sort the component list.
-    * @param componentId ID of the starting component.
-    * @param visited Components already visited.
-    * @param scheduled Components currently on the recursion stack (cycle detection).
-    * @param order The current order (recursion).
-    * @return false when a cycle was reached, in which case 'order' must be discarded.
-    */
     bool dfsSort(int componentId, std::unordered_set<int>& visited, std::unordered_set<int>& scheduled, std::vector<int>& order);
-
-    /*
-    * @brief Wrapper of the DFS that starts and prepares the recursive sort.
-    * @return CYCLE_DETECTED when the netlist contains a combinational loop, in which
-    *         case the stored order is left untouched.
-    */
     EvalOrderResult evaluateOrder();
-
-    /*
-    * @brief Whether connecting src's output to dest's input would close a loop.
-    * @param srcComponentId The future driver.
-    * @param destComponentId The future sink.
-    * @return true when dest can already reach src, i.e. when the new edge would make
-    *         the graph cyclic and a topological order impossible to build.
-    */
     bool wouldCreateCycle(int srcComponentId, int destComponentId);
 
 public:
     int addGate(GateType type);
     int addInputPin(bool initialState = false);
+    int addClock(float frequencyHz = 1.0f); // NEW
 
     Component* getComponent(int id);
     void delComponent(int id);
 
     bool connectComponents(int srcComponentId, int destComponentId, int destPinIndex);
     void disconnectComponents(int srcComponentId, int destComponentId, int destPinIndex);
-
-    /*
-    * @brief Drops every edge, so connectivity can be re-applied from scratch.
-    * The nets are the source of truth and are re-emitted in full after each edit, so the
-    * graph is cleared first rather than patched edge by edge. Input pin states are pulled
-    * low in the same pass: a sink whose driver has gone away must not keep showing the
-    * value that driver last pushed into it.
-    */
     void clearConnections();
 
-    /*
-    * @brief Settles the circuit: rebuilds the evaluation order when the netlist
-    * changed, then evaluates every component in that order.
-    * @return CYCLE_DETECTED when the netlist contains a combinational loop; nothing is
-    *         evaluated in that case and the last known-good order is kept.
-    */
+    void markStateDirty() { m_stateDirty = true; }
+    bool isStateDirty() const { return m_stateDirty || m_evalOrderDirty; }
+
+    /**
+     * @brief Advances all clocks in the circuit.
+     * @return true if any clock completed a cycle and flipped state.
+     */
+    bool updateClocks(float deltaTime);
+
     EvalOrderResult propagate();
 };

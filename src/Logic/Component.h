@@ -14,15 +14,17 @@ public:
 
     int getId() const { return m_id; }
 
-    // ----- Simulation contract every component must implement -----
-    virtual void evaluate() = 0;                                  // recompute output(s) from input(s)
+    virtual void evaluate() = 0;
     virtual bool getStateOutPin(int outIndex = 0) const = 0;
     virtual void setStateInPin(int pinIndex, bool state) = 0;
     virtual std::vector<bool> getStateInPins() const = 0;
     virtual int getInputPinCount()  const = 0;
     virtual int getOutputPinCount() const = 0;
 
-    // ----- Connections: identical for every component, so NOT virtual -----
+    // Clock and sequential simulation hooks
+    virtual bool isClocked() const { return false; }
+    virtual void onClockEdge(bool clockState) {}
+
     void addOutConnection(int gateId, int pinIndex) { m_outConnections.push_back({ gateId, pinIndex }); }
     void addInConnection(int gateId, int pinIndex) { m_inConnections.push_back({ gateId, pinIndex }); }
     void delOutConnection(int destGateId, int destPinIndex) {
@@ -39,12 +41,6 @@ public:
     const std::vector<Connection>& getInConnections()  const { return m_inConnections; }
     bool hasConnection() const { return !m_outConnections.empty(); }
 
-    /*
-    * @brief Drops every edge this component takes part in.
-    * Connectivity is re-applied from the nets after each edit, so a stale edge must not be
-    * able to survive one: a sink whose driver was deleted would otherwise keep its old
-    * input value forever.
-    */
     void clearConnections() {
         m_outConnections.clear();
         m_inConnections.clear();

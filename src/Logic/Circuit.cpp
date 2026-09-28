@@ -5,6 +5,7 @@ int Circuit::addGate(GateType type)
     int id = m_currentId++;
     m_components.emplace(id, std::make_unique<Gate>(id, type));
     m_evalOrderDirty = true;
+    m_stateDirty = true;
     return id;
 }
 
@@ -13,6 +14,7 @@ int Circuit::addInputPin(bool initialState)
     int id = m_currentId++;
     m_components.emplace(id, std::make_unique<InputPin>(id, initialState));
     m_evalOrderDirty = true;
+    m_stateDirty = true;
     return id;
 }
 
@@ -33,20 +35,17 @@ void Circuit::delComponent(int id)
     for (const auto& c : comp->getOutConnections()) {
         if (Component* dest = getComponent(c.gateId)) {
             dest->delInConnection(id, c.pinIndex);
-
-            // NEW: Pull the input low on the destination component since its power source was just deleted!
             dest->setStateInPin(c.pinIndex, false);
         }
     }
 
     m_components.erase(id);
     m_evalOrderDirty = true;
+    m_stateDirty = true;
 }
 
 bool Circuit::connectComponents(int srcComponentId, int destComponentId, int destPinIndex)
 {
-    // A component feeding one of its own inputs is a cycle of length one and
-    // must never enter either the netlist or the topological evaluation order.
     if (srcComponentId == destComponentId) return false;
 
     Component* src = getComponent(srcComponentId);
@@ -60,31 +59,19 @@ bool Circuit::connectComponents(int srcComponentId, int destComponentId, int des
 
     for (const auto& c : dest->getInConnections()) {
         if (c.pinIndex == destPinIndex) {
-            if (c.gateId == srcComponentId) {
-                return true; // Already connected exactly like this, report success
-            }
-            std::cerr << "[Circuit] Refused connection " << srcComponentId << " -> "
-                << destComponentId << " (pin " << destPinIndex
-                << "): pin is already occupied.\n";
+            if (c.gateId == srcComponentId) return true;
             return false;
         }
     }
 
-    // Closing a combinational loop would make the topological order impossible to
-    // build, so the edge is refused before it ever reaches the netlist. This keeps the
-    // cycle handling in propagate() a defensive invariant instead of the normal path.
-    // (Latches and flip-flops will need loops to be allowed through clocked components,
-    // at which point this check has to ignore paths that run through a register.)
     if (wouldCreateCycle(srcComponentId, destComponentId)) {
-        std::cerr << "[Circuit] Refused connection " << srcComponentId << " -> "
-            << destComponentId << " (pin " << destPinIndex
-            << "): it would create a combinational loop.\n";
         return false;
     }
 
     src->addOutConnection(destComponentId, destPinIndex);
     dest->addInConnection(srcComponentId, destPinIndex);
     m_evalOrderDirty = true;
+    m_stateDirty = true;
     return true;
 }
 
@@ -96,33 +83,26 @@ void Circuit::disconnectComponents(int srcComponentId, int destComponentId, int 
 
     src->delOutConnection(destComponentId, destPinIndex);
     dest->delInConnection(srcComponentId, destPinIndex);
-
-    // TEST
     dest->setStateInPin(destPinIndex, false);
 
-
     m_evalOrderDirty = true;
+    m_stateDirty = true;
 }
 
 void Circuit::clearConnections()
 {
     for (auto& [id, component] : m_components) {
         component->clearConnections();
-
-        // Pull every sink low in the same pass: with no driver left, a leftover HIGH would
-        // be indistinguishable from a signal that is actually being driven.
         for (int pin = 0; pin < component->getInputPinCount(); ++pin)
             component->setStateInPin(pin, false);
     }
 
     m_evalOrderDirty = true;
+    m_stateDirty = true;
 }
 
 bool Circuit::wouldCreateCycle(int srcComponentId, int destComponentId)
 {
-    // Adding src -> dest closes a loop when dest can already reach src. Only
-    // out-connections are walked, which is correct while every component is
-    // combinational: the netlist is a DAG.
     std::unordered_set<int> visited;
     std::vector<int> stack{ destComponentId };
 
@@ -151,9 +131,6 @@ EvalOrderResult Circuit::evaluateOrder()
         int currentId = pair.first;
         if (visited.find(currentId) == visited.end()) {
             if (!dfsSort(currentId, visited, scheduled, order)) {
-                // 'order' is only partially filled, so it is discarded instead of being
-                // committed: the previous known-good order stays in place. m_evalOrderDirty
-                // also stays set, so the next edit to the netlist re-tries the sort.
                 return EvalOrderResult::CYCLE_DETECTED;
             }
         }
@@ -166,16 +143,12 @@ EvalOrderResult Circuit::evaluateOrder()
 
 bool Circuit::dfsSort(int componentId, std::unordered_set<int>& visited, std::unordered_set<int>& scheduled, std::vector<int>& order)
 {
-    // Still being on the recursion stack means this component is reached twice along one
-    // path: a combinational loop. It is reported instead of thrown, because a user can
-    // reach this state by drawing wires, and an exception per frame used to leave the
-    // circuit evaluating a stale order with no indication that it had given up.
     if (scheduled.find(componentId) != scheduled.end()) return false;
     if (visited.find(componentId) != visited.end()) return true;
 
     scheduled.insert(componentId);
 
-    if (Component* comp = getComponent(componentId)) {   // <-- was getGate(gateId), which didn't exist
+    if (Component* comp = getComponent(componentId)) {
         for (const auto& conn : comp->getOutConnections()) {
             if (!dfsSort(conn.gateId, visited, scheduled, order)) {
                 scheduled.erase(componentId);
@@ -190,19 +163,44 @@ bool Circuit::dfsSort(int componentId, std::unordered_set<int>& visited, std::un
     return true;
 }
 
+int Circuit::addClock(float frequencyHz)
+{
+    int id = m_currentId++;
+    m_components.emplace(id, std::make_unique<Clock>(id, frequencyHz));
+    m_evalOrderDirty = true;
+    m_stateDirty = true;
+    return id;
+}
+
+bool Circuit::updateClocks(float deltaTime)
+{
+    bool clockEdgeOccurred = false;
+    for (auto& [id, comp] : m_components) {
+        if (auto* clk = dynamic_cast<Clock*>(comp.get())) {
+            if (clk->advanceTime(deltaTime)) {
+                clockEdgeOccurred = true;
+            }
+        }
+    }
+
+    if (clockEdgeOccurred) {
+        m_stateDirty = true;
+    }
+    return clockEdgeOccurred;
+}
+
 EvalOrderResult Circuit::propagate()
 {
+    // Step 1: Structural sort only when topology changed
     if (m_evalOrderDirty) {
         EvalOrderResult result = evaluateOrder();
         if (result == EvalOrderResult::CYCLE_DETECTED) {
-            // Nothing is evaluated against a stale order: the values on screen would be
-            // wrong with no way to tell. The netlist stays dirty, so breaking the loop
-            // (rewiring or deleting a component) rebuilds the order on the next call.
             return result;
         }
         m_evalOrderDirty = false;
     }
 
+    // Step 2: Forward evaluation pass
     for (int id : m_evaluationOrder) {
         Component* comp = getComponent(id);
         if (!comp) continue;
@@ -210,10 +208,13 @@ EvalOrderResult Circuit::propagate()
         comp->evaluate();
         bool out = comp->getStateOutPin();
 
-        for (const auto& connection : comp->getOutConnections())
-            if (Component* child = getComponent(connection.gateId))
+        for (const auto& connection : comp->getOutConnections()) {
+            if (Component* child = getComponent(connection.gateId)) {
                 child->setStateInPin(connection.pinIndex, out);
+            }
+        }
     }
 
+    m_stateDirty = false;
     return EvalOrderResult::OK;
 }

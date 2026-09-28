@@ -93,7 +93,7 @@ public:
     void cancelCurrentAction();
     bool isIdle() const { return m_state == InteractionState::IDLE; }
 
-    glm::vec2 getMouseWorldCoord(GLFWwindow* window, float zoom);
+    glm::vec2 getMouseWorldCoord(GLFWwindow* window, float zoom) const;
     glm::vec2 getPanOffset() const { return panOffset; }
     glm::vec2 getLastMouse() const { return glm::vec2(static_cast<float>(lastMouseX), static_cast<float>(lastMouseY)); }
     GridCoords getCurrentGridCoords() const { return mouseGridCoords; }
@@ -102,7 +102,7 @@ public:
     void setZoom(float zoom) { m_zoom = zoom; }
 
     bool isCurrentlyDrawingWire() const { return m_state == InteractionState::DRAWING_WIRE; }
-    Wire getActiveWire() const { return activeWire; }
+    const Wire& getActiveWire() const { return activeWire; }
 
     PinRef getWireOriginPin() const { return m_wireOriginPin; }
     PinType getWireOriginType() const { return m_wireOriginType; }

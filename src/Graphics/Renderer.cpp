@@ -85,6 +85,8 @@ void Renderer::init()
     // Wires
     m_sm.load("wire", "shaders/wires/wires.vert", "shaders/wires/wires.frag");
 
+    // Clock
+    m_sm.load("clock", "shaders/gates/gate.vert", "shaders/gates/clock.frag");
 
     // ==========================================
     // Meshes

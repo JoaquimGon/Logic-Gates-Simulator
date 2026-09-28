@@ -8,12 +8,15 @@
 #include <glm/glm.hpp>
 #include <cmath>
 #include <algorithm>
+
 #include "..\Views\GateView.h"
 #include "..\Logic\Net.h"
 #include "..\Logic\Wire.h"
 #include "..\Views\GridSystem.h"
 #include "..\Views\InputPinView.h"
 #include "../Logic/Circuit.h"
+#include "..\Views\ClockView.h"
+
 
 enum class HitType { NONE, COMPONENT_PIN, COMPONENT_BODY, WIRE_START, WIRE_END, WIRE_BODY, WIRE_JUNCTION};
 
@@ -97,6 +100,17 @@ public:
     void syncVisuals();
     bool handleClick(int componentId);
     bool checkOverlap(int draggedComponentId) const;
+
+    bool updateClocks(float deltaTime);
+    bool isSimulationDirty() const { return m_circuit.isStateDirty(); }
+    void markSimulationDirty() { m_circuit.markStateDirty(); }
+    void togglePauseAllClocks();
+    void stepAllClocks();
+    void setAllClocksFrequency(float hz);
+
+    int addClock(GridCoords gridPos, glm::vec2 size, const std::string& shaderName, float frequencyHz = 1.0f);
+
+
 private:
     Circuit m_circuit;
     std::unordered_map<int, std::unique_ptr<ComponentView>> m_componentViews;

@@ -91,6 +91,7 @@ void Engine::run()
 
     Scene scene;
 
+    // Example gates
     std::vector<PinUI> inPins{
         {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
         {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
@@ -112,25 +113,38 @@ void Engine::run()
 
     input.setScene(&scene);
 
+    double lastFrameTime = glfwGetTime();
+
     while (!glfwWindowShouldClose(window))
     {
+        double currentFrameTime = glfwGetTime();
+        float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);
+        lastFrameTime = currentFrameTime;
+
+        // 1. Process OS user inputs
         input.process(window);
 
-        // A cyclic netlist is reported once per state change rather than every frame:
-        // the evaluation order is only rebuilt when the circuit is edited.
-        EvalOrderResult orderResult = scene.propagate();
-        if (orderResult != m_lastOrderResult) {
-            m_lastOrderResult = orderResult;
+        // 2. Advance time for any clocks in the circuit
+        bool clockEdgeFlipped = scene.updateClocks(deltaTime);
 
-            if (orderResult == EvalOrderResult::CYCLE_DETECTED)
-                std::cerr << "[Simulation] Combinational loop detected: the last valid evaluation "
-                    "order is kept and nothing is evaluated until the loop is broken.\n";
-            else
+        // 3. EVENT-DRIVEN SIMULATION:
+        // Only run DFS/propagation when an edge flipped or a component/wire was touched
+        if (clockEdgeFlipped || scene.isSimulationDirty()) {
+            EvalOrderResult orderResult = scene.propagate();
+            if (orderResult != m_lastOrderResult) {
+                m_lastOrderResult = orderResult;
+
+                if (orderResult == EvalOrderResult::CYCLE_DETECTED) {
+                    std::cerr << "[Simulation] Combinational loop detected: the last valid evaluation "
+                        "order is kept and nothing is evaluated until the loop is broken.\n";
+                } else {
                 std::cerr << "[Simulation] Evaluation order rebuilt, simulation resumed.\n";
+                }
+            }
+            scene.syncVisuals();
         }
 
-        scene.syncVisuals();
-
+        // 4. Render graphics as normal
         int width, height;
         glfwGetWindowSize(window, &width, &height);
         float aspectRatio = (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
@@ -200,9 +214,9 @@ void Engine::run()
         }
 
         m_renderer.drawPins(scene.getComponentViewMap(),
-                input.getHoveredPinComponentId(),
-                input.getHoveredPinIndex(),
-                input.getHoveredPinType());
+            input.getHoveredPinComponentId(),
+            input.getHoveredPinIndex(),
+            input.getHoveredPinType());
 
         glfwSwapBuffers(window);
         glfwPollEvents();

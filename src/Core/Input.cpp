@@ -387,6 +387,38 @@ void Input::process(GLFWwindow* window) {
     // 8. SPAWN NXOR GATE (Key '8')
     if (consumeKeyPress(GLFW_KEY_8)) trySpawnGate(GateType::NXOR, "NXORgate");
 
+    // 9. SPAWN CLOCK (Key '9')
+    if (consumeKeyPress(GLFW_KEY_9) && canSpawn) {
+        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
+        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
+
+        int newId = m_scene->addClock(gridPos, { 0.15f, 0.15f }, "clock", 1.0f);
+
+        if (ComponentView* cv = m_scene->getComponentView(newId)) {
+            while (m_scene->checkOverlap(newId)) {
+                gridPos.x += 1;
+                gridPos.y -= 1;
+                cv->setGridPosition(gridPos);
+            }
+        }
+    }
+
+    // Toggle clock(s) pause on Space
+    if (consumeKeyPress(GLFW_KEY_SPACE) && m_scene) {
+        m_scene->togglePauseAllClocks();
+    }
+
+    // Single-step on Period key
+    if (consumeKeyPress(GLFW_KEY_PERIOD) && m_scene) {
+        m_scene->stepAllClocks();
+    }
+
+    // Adjust frequency: Up Arrow = faster (+1 Hz), Down Arrow = slower (-1 Hz)
+    if (consumeKeyPress(GLFW_KEY_UP) && m_scene) {
+        // scale up or down
+    }
+
+
     // ==========================================
     // DELETE SELECTED OR HOVERED (Delete or Backspace)
     // ==========================================
@@ -534,7 +566,7 @@ void Input::updateHoverState(GLFWwindow* window)
         hoveredWire->getSegmentAt(mouseGridCoords, m_hoveredSegmentStart, m_hoveredSegmentEnd);
 }
 
-glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom) {
+glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom) const {
     double mouseX, mouseY;
     glfwGetCursorPos(window, &mouseX, &mouseY);
     int width, height;

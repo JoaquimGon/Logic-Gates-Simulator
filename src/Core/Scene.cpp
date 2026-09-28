@@ -618,14 +618,57 @@ bool Scene::getCollinearOverlap(GridCoords a, GridCoords b, GridCoords c, GridCo
 }
 
 
-
-
+bool Scene::updateClocks(float deltaTime)
+{
+    return m_circuit.updateClocks(deltaTime);
+}
 
 
 EvalOrderResult Scene::propagate()
 {
     return m_circuit.propagate();
 }
+
+int Scene::addClock(GridCoords gridPos, glm::vec2 size, const std::string& shaderName, float frequencyHz)
+{
+    int id = m_circuit.addClock(frequencyHz);
+    m_componentViews.emplace(id, std::make_unique<ClockView>(gridPos, id, size, shaderName));
+
+    rebuildNets();
+    return id;
+}
+
+void Scene::togglePauseAllClocks()
+{
+    for (auto& [id, view] : m_componentViews) {
+        if (auto* clk = dynamic_cast<Clock*>(m_circuit.getComponent(id))) {
+            clk->togglePause();
+        }
+    }
+}
+
+void Scene::stepAllClocks()
+{
+    bool anyStepped = false;
+    for (auto& [id, view] : m_componentViews) {
+        if (auto* clk = dynamic_cast<Clock*>(m_circuit.getComponent(id))) {
+            anyStepped |= clk->step();
+        }
+    }
+    if (anyStepped) {
+        markSimulationDirty();
+    }
+}
+
+void Scene::setAllClocksFrequency(float hz)
+{
+    for (auto& [id, view] : m_componentViews) {
+        if (auto* clk = dynamic_cast<Clock*>(m_circuit.getComponent(id))) {
+            clk->setFrequency(hz);
+        }
+    }
+}
+
 
 void Scene::syncVisuals()
 {
@@ -666,16 +709,20 @@ void Scene::syncVisuals()
     }
 }
 
+
 bool Scene::handleClick(int componentId)
 {
     ComponentView* view = getComponentView(componentId);
     if (view) {
-        // This dynamically routes to either GateView (returns false) 
-        // or InputPinView (toggles state and returns true)
-        return view->onClick(m_circuit);
+        bool consumed = view->onClick(m_circuit);
+        if (consumed) {
+            m_circuit.markStateDirty();
+        }
+        return consumed;
     }
     return false;
 }
+
 
 std::vector<glm::vec3> Scene::getWireIntersections() const
 {
