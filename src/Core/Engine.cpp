@@ -179,9 +179,8 @@ void Engine::run()
 
         if (input.isCurrentlyDrawingWire()) {
             Wire active = input.getActiveWire();
-            if (active.hasSource()) {
-                if (Component* srcComp = scene.getLogicComponent(active.getSource().componentId))  // was getLogicGate(...gateId)
-                    active.setState(srcComp->getStateOutPin(active.getSource().pinIndex) ? PinState::ON : PinState::OFF);
+            if (input.getWireOriginPin().isConnected()) {
+                active.setState(scene.pinState(input.getWireOriginPin(), input.getWireOriginType()));
             }
             m_renderer.drawWires(scene.getWires(), &active);
         }

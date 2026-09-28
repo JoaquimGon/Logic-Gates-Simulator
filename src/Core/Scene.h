@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <map>
+#include <tuple>
 #include <unordered_map>
 #include <optional>
 #include <utility>
@@ -8,6 +9,7 @@
 #include <cmath>
 #include <algorithm>
 #include "..\Views\GateView.h"
+#include "..\Logic\Net.h"
 #include "..\Logic\Wire.h"
 #include "..\Views\GridSystem.h"
 #include "..\Views\InputPinView.h"
@@ -38,10 +40,10 @@ public:
     Component* getLogicComponent(int componentId);
     const std::unordered_map<int, std::unique_ptr<ComponentView>>& getComponentViewMap() const { return m_componentViews; }
 
-    // ----- Wires (Input never touches this container's internals) -----
-    // Wires are stored by a stable WireId rather than by a container index. Splitting,
-    // merging and healing reshape the container, and an index cached on an earlier
-    // frame would silently resolve to a different wire - or to no wire at all.
+    // ----- Wires: pure geometry (the electrical side lives in Net) -----
+    // Wires are stored by a stable WireId rather than by a container index. Splitting and
+    // merging reshape the container, and an index cached on an earlier frame would
+    // silently resolve to a different wire - or to no wire at all.
     size_t wireCount() const { return m_wires.size(); }
     Wire* getWire(WireId id);
     const Wire* getWire(WireId id) const;
@@ -52,6 +54,8 @@ public:
     // Ids of every stored wire, for callers that walk the container while reshaping it.
     std::vector<WireId> getWireIds() const;
 
+    // Each of these re-derives the nets: geometry is the only thing callers edit, and
+    // rebuildNets() is what turns that geometry into connectivity and Circuit edges.
     std::optional<WireId>     commitWire(Wire wire);
     std::optional<Wire>       extractWire(WireId id);
     bool                      splitWireAt(WireId id, GridCoords point, Wire& outA, Wire& outB);
@@ -60,14 +64,28 @@ public:
 
     std::vector<glm::vec3> getWireIntersections() const;
     bool getCollinearOverlap(GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd) const;
-    void forceEndpointAt(GridCoords p);
-    void reconnectWiresToComponent(int componentId);
-    void healWires();
 
+    // ----- Nets: the single source of truth for connectivity -----
+    size_t netCount() const { return m_nets.size(); }
+    const std::map<NetId, Net>& getNets() const { return m_nets; }
+    const Net* getNet(NetId id) const;
+    NetId netOfWire(WireId id) const;
+    NetId netOfPin(const PinRef& pin, PinType type) const;
 
-    // ----- Logic connections -----
-    bool connectPins(int srcComponentId, int destComponentId, int destPinIndex);
-    void disconnectPins(int srcComponentId, int destComponentId, int destPinIndex);
+    /*
+    * @brief The state a wire drawn from this pin would show right now.
+    * An output pin is a driver, so it reports its own value even before any geometry has
+    * been drawn from it; an input pin reports whatever drives the net it hangs off.
+    */
+    PinState pinState(const PinRef& pin, PinType type);
+
+    /*
+    * @brief Re-derives every net, and the Circuit edges that follow from them.
+    * Run after every geometry or component edit, never per frame: a net is one connected
+    * component of the wires that share an endpoint, so this is a graph walk over the wires
+    * rather than the geometric fixpoint over every pair of segments the old code needed.
+    */
+    void rebuildNets();
 
     // ----- Hit-testing -----
     HitResult hitTest(glm::vec2 worldPos, GridCoords gridPos) const;
@@ -87,6 +105,16 @@ private:
     std::map<WireId, Wire> m_wires;
     WireId m_nextWireId = 0;
 
+    // The nets, and the pin -> net index that makes a pin lookup O(log n). Both are
+    // rebuilt from the geometry by rebuildNets(); Wire::getNet() is the per-wire reverse
+    // lookup. Nothing else is allowed to own connectivity.
+    std::map<NetId, Net> m_nets;
+    NetId m_nextNetId = 0;
+
+    // (componentId, pinIndex, isOutput) -> net. The direction belongs in the key because a
+    // component's input and output pins have separate index spaces that overlap.
+    std::map<std::tuple<int, int, bool>, NetId> m_pinNet;
+
     /*
     * @brief Stores a wire under a freshly allocated id, without validating its path.
     * @param wire The wire to store.
@@ -94,4 +122,15 @@ private:
     */
     WireId insertWire(Wire wire);
 
+    // Geometry surgery that deliberately leaves the nets untouched, so that the steps of
+    // rebuildNets() can reshape the container while they collect. The public mutators above
+    // wrap these and re-derive the nets afterwards.
+    std::pair<WireId, WireId> insertWires(Wire a, Wire b);
+    bool splitWireGeometry(WireId id, GridCoords point, Wire& outA, Wire& outB);
+    void dropDegenerateWires();
+
+    // The three steps of rebuildNets(), split apart so each one stays readable.
+    void settleGeometry();
+    void collectNets();
+    void emitNetEdges();
 };

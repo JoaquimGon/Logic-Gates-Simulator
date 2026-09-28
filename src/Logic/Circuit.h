@@ -61,6 +61,15 @@ public:
     void disconnectComponents(int srcComponentId, int destComponentId, int destPinIndex);
 
     /*
+    * @brief Drops every edge, so connectivity can be re-applied from scratch.
+    * The nets are the source of truth and are re-emitted in full after each edit, so the
+    * graph is cleared first rather than patched edge by edge. Input pin states are pulled
+    * low in the same pass: a sink whose driver has gone away must not keep showing the
+    * value that driver last pushed into it.
+    */
+    void clearConnections();
+
+    /*
     * @brief Settles the circuit: rebuilds the evaluation order when the netlist
     * changed, then evaluates every component in that order.
     * @return CYCLE_DETECTED when the netlist contains a combinational loop; nothing is

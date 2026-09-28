@@ -104,6 +104,20 @@ void Circuit::disconnectComponents(int srcComponentId, int destComponentId, int 
     m_evalOrderDirty = true;
 }
 
+void Circuit::clearConnections()
+{
+    for (auto& [id, component] : m_components) {
+        component->clearConnections();
+
+        // Pull every sink low in the same pass: with no driver left, a leftover HIGH would
+        // be indistinguishable from a signal that is actually being driven.
+        for (int pin = 0; pin < component->getInputPinCount(); ++pin)
+            component->setStateInPin(pin, false);
+    }
+
+    m_evalOrderDirty = true;
+}
+
 bool Circuit::wouldCreateCycle(int srcComponentId, int destComponentId)
 {
     // Adding src -> dest closes a loop when dest can already reach src. Only

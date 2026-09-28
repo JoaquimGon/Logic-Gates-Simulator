@@ -39,6 +39,17 @@ public:
     const std::vector<Connection>& getInConnections()  const { return m_inConnections; }
     bool hasConnection() const { return !m_outConnections.empty(); }
 
+    /*
+    * @brief Drops every edge this component takes part in.
+    * Connectivity is re-applied from the nets after each edit, so a stale edge must not be
+    * able to survive one: a sink whose driver was deleted would otherwise keep its old
+    * input value forever.
+    */
+    void clearConnections() {
+        m_outConnections.clear();
+        m_inConnections.clear();
+    }
+
 protected:
     int m_id;
     std::vector<Connection> m_outConnections;

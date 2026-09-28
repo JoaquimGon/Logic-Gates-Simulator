@@ -40,6 +40,11 @@ private:
     // Wire control
     Wire activeWire;
     int m_wireOriginComponentId = -1;
+    // Pin the wire being drawn started from. The wire carries no electrical identity until
+    // it is committed and the scene derives its net, so this is what the preview colour is
+    // read from - and it is the component a wire may never loop back to.
+    PinRef m_wireOriginPin;
+    PinType m_wireOriginType = PinType::INPUT;
     std::vector<GridCoords> baseWirePath;
     GridCoords wireStartPos = { 0, 0 };
     bool wireAxisLocked = false;
@@ -98,6 +103,9 @@ public:
 
     bool isCurrentlyDrawingWire() const { return m_state == InteractionState::DRAWING_WIRE; }
     Wire getActiveWire() const { return activeWire; }
+
+    PinRef getWireOriginPin() const { return m_wireOriginPin; }
+    PinType getWireOriginType() const { return m_wireOriginType; }
 
     void setScene(Scene* scene) { m_scene = scene; }
 

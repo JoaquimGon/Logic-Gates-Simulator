@@ -1,32 +1,7 @@
 #include "Wire.h"
 #include <algorithm>
 
-Wire::Wire()
-    : m_state(PinState::DISCONNECTED)
-{
-}
-
-void Wire::setSource(int componentId, int pinIndex) {
-    m_source.componentId = componentId;
-    m_source.pinIndex = pinIndex;
-}
-
-void Wire::setDest(int componentId, int pinIndex) {
-    m_dest.componentId = componentId;
-    m_dest.pinIndex = pinIndex;
-}
-
-void Wire::disconnectSource() {
-    m_source.disconnect();
-    m_state = PinState::DISCONNECTED;
-}
-
-void Wire::disconnectDest() {
-    m_dest.disconnect();
-}
-
-bool Wire::hasSource() const { return m_source.isConnected(); }
-bool Wire::hasDest() const { return m_dest.isConnected(); }
+Wire::Wire() : m_state(PinState::DISCONNECTED) {}
 
 void Wire::setState(PinState newState) {
     m_state = newState;
@@ -48,17 +23,14 @@ bool Wire::isPointOnSegment(const GridCoords& p, const GridCoords& a, const Grid
     int crossProduct = (p.y - a.y) * (b.x - a.x) - (p.x - a.x) * (b.y - a.y);
     if (crossProduct != 0) return false;
 
-    int minX = std::min(a.x, b.x);
-    int maxX = std::max(a.x, b.x);
-    int minY = std::min(a.y, b.y);
-    int maxY = std::max(a.y, b.y);
+    int minX = std::min(a.x, b.x), maxX = std::max(a.x, b.x);
+    int minY = std::min(a.y, b.y), maxY = std::max(a.y, b.y);
 
     return (p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY);
 }
 
 bool Wire::containsPoint(const GridCoords& point, size_t* segmentIndex) const {
     if (m_path.size() < 2) return false;
-
     for (size_t i = 0; i < m_path.size() - 1; ++i) {
         if (isPointOnSegment(point, m_path[i], m_path[i + 1])) {
             if (segmentIndex) *segmentIndex = i;
@@ -69,42 +41,31 @@ bool Wire::containsPoint(const GridCoords& point, size_t* segmentIndex) const {
 }
 
 bool Wire::splitAt(const GridCoords& splitPoint, Wire& outWireA, Wire& outWireB) const {
-    // Splitting at an existing endpoint would create a one-point wire. Those
-    // degenerate fragments are not drawable, but they were still counted as
-    // topology endpoints and could later appear as false junctions.
     if (m_path.size() < 2 || splitPoint == m_path.front() || splitPoint == m_path.back()) {
         return false;
     }
 
     size_t segmentIdx = 0;
-    if (!containsPoint(splitPoint, &segmentIdx)) {
-        return false;
-    }
+    if (!containsPoint(splitPoint, &segmentIdx)) return false;
 
-    std::vector<GridCoords> pathA;
-    for (size_t i = 0; i <= segmentIdx; ++i) {
-        pathA.push_back(m_path[i]);
-    }
-    if (pathA.empty() || pathA.back() != splitPoint) {
+    std::vector<GridCoords> pathA(m_path.begin(), m_path.begin() + segmentIdx + 1);
+    if (pathA.empty() || !(pathA.back() == splitPoint)) {
         pathA.push_back(splitPoint);
     }
 
     std::vector<GridCoords> pathB;
     pathB.push_back(splitPoint);
-    for (size_t i = segmentIdx + 1; i < m_path.size(); ++i) {
-        pathB.push_back(m_path[i]);
-    }
+    pathB.insert(pathB.end(), m_path.begin() + segmentIdx + 1, m_path.end());
 
     outWireA = Wire();
+    outWireA.setNet(m_net);
     outWireA.setPath(pathA);
     outWireA.setState(m_state);
-    if (hasSource()) outWireA.setSource(m_source.componentId, m_source.pinIndex);
 
     outWireB = Wire();
+    outWireB.setNet(m_net);
     outWireB.setPath(pathB);
     outWireB.setState(m_state);
-    if (hasSource()) outWireB.setSource(m_source.componentId, m_source.pinIndex); // inherits source so it stays powered
-    if (hasDest()) outWireB.setDest(m_dest.componentId, m_dest.pinIndex);
 
     return true;
 }
@@ -112,7 +73,7 @@ bool Wire::splitAt(const GridCoords& splitPoint, Wire& outWireA, Wire& outWireB)
 glm::vec4 Wire::getColorFromState() const {
     if (m_state == PinState::ON) return glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
     if (m_state == PinState::OFF) return glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-    return glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+    return glm::vec4(0.0f, 0.0f, 1.0f, 1.0f); // DISCONNECTED
 }
 
 void Wire::simplifyPath() {
@@ -126,7 +87,6 @@ void Wire::simplifyPath() {
         }
     }
     m_path = std::move(noDupes);
-
     if (m_path.size() < 3) return;
 
     std::vector<GridCoords> simplified;
@@ -150,7 +110,6 @@ void Wire::simplifyPath() {
 
 bool Wire::getSegmentAt(const GridCoords& point, GridCoords& outStart, GridCoords& outEnd) const {
     if (m_path.size() < 2) return false;
-
     for (size_t i = 0; i < m_path.size() - 1; ++i) {
         if (isPointOnSegment(point, m_path[i], m_path[i + 1])) {
             outStart = m_path[i];
@@ -166,17 +125,15 @@ std::vector<float> Wire::getBatchedVertexData() const {
     if (m_path.size() < 2) return data;
 
     glm::vec4 color = getColorFromState();
-
     for (size_t i = 0; i < m_path.size() - 1; ++i) {
         glm::vec2 startPos = GridSystem::gridToWorld(m_path[i]);
         glm::vec2 endPos = GridSystem::gridToWorld(m_path[i + 1]);
 
         data.push_back(startPos.x); data.push_back(startPos.y); data.push_back(0.0f);
-        data.push_back(color.r); data.push_back(color.g); data.push_back(color.b); data.push_back(color.a);
+        data.push_back(color.r);    data.push_back(color.g);    data.push_back(color.b); data.push_back(color.a);
 
-        data.push_back(endPos.x); data.push_back(endPos.y); data.push_back(0.0f);
-        data.push_back(color.r); data.push_back(color.g); data.push_back(color.b); data.push_back(color.a);
+        data.push_back(endPos.x);   data.push_back(endPos.y);   data.push_back(0.0f);
+        data.push_back(color.r);    data.push_back(color.g);    data.push_back(color.b); data.push_back(color.a);
     }
-
     return data;
 }
