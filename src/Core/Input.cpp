@@ -17,6 +17,19 @@ void Input::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
     if (input) input->handleScroll(window, xoffset, yoffset);
 }
 
+void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    Input* input = static_cast<Input*>(glfwGetWindowUserPointer(window));
+    if (input) input->handleKey(key, action);
+}
+
+void Input::handleKey(int key, int action) {
+    if (action == GLFW_PRESS) m_pendingKeyPresses.insert(key);
+}
+
+bool Input::consumeKeyPress(int key) {
+    return m_pendingKeyPresses.erase(key) > 0;
+}
+
 void Input::cancelCurrentAction() {
     if (m_state == InteractionState::DRAWING_WIRE) {
         activeWire = Wire();
@@ -350,147 +363,116 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
 }
 
 void Input::process(GLFWwindow* window) {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) cancelCurrentAction();
+    // Every press is recorded by keyCallback() and drained here, so a key that is tapped
+    // between two frames still acts, and Escape no longer has to be held down.
+    if (consumeKeyPress(GLFW_KEY_ESCAPE)) cancelCurrentAction();
 
-    static bool key1WasPressed = false;
-    static bool key2WasPressed = false;
-    static bool key3WasPressed = false;
-    static bool key4WasPressed = false;
-    static bool key5WasPressed = false;
-    static bool key6WasPressed = false;
-    static bool key7WasPressed = false;
-    static bool key8WasPressed = false;
+    // Spawning and deleting only apply while no gesture owns the mouse. The press is
+    // consumed regardless of this flag, so a key pressed during a drag cannot fire later,
+    // out of context.
+    const bool canSpawn = (m_scene != nullptr) && isIdle();
 
     auto trySpawnGate = [&](GateType type, const std::string& shaderName) {
-        if (m_scene && m_state == InteractionState::IDLE) {
-            bool isInverted = (type == GateType::NAND || type == GateType::NOR || type == GateType::NXOR);
+        if (!canSpawn) return;
 
-            std::vector<PinUI> inPins = {
-                {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
-                {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
-            };
+        bool isInverted = (type == GateType::NAND || type == GateType::NOR || type == GateType::NXOR);
 
-            // Push the output pin out 1 grid cell for inverted gates to sit on the bubble
-            std::vector<PinUI> outPins = {
-                {PinType::OUTPUT, 0, PinState::DISCONNECTED, {isInverted ? 3 : 2, 0}}
-            };
+        std::vector<PinUI> inPins = {
+            {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
+            {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
+        };
 
-            // Widen the bounding box to 0.3 for inverted gates
-            glm::vec2 size = isInverted ? glm::vec2{ 0.3f, 0.2f } : glm::vec2{ 0.2f, 0.2f };
+        // Push the output pin out 1 grid cell for inverted gates to sit on the bubble
+        std::vector<PinUI> outPins = {
+            {PinType::OUTPUT, 0, PinState::DISCONNECTED, {isInverted ? 3 : 2, 0}}
+        };
 
-            glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
-            GridCoords gridPos = GridSystem::worldToGrid(worldPos);
+        // Widen the bounding box to 0.3 for inverted gates
+        glm::vec2 size = isInverted ? glm::vec2{ 0.3f, 0.2f } : glm::vec2{ 0.2f, 0.2f };
 
-            int newId = m_scene->addGate(type, gridPos, size, shaderName, inPins, outPins);
+        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
+        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-            if (ComponentView* cv = m_scene->getComponentView(newId)) {
-                while (m_scene->checkOverlap(newId)) {
-                    gridPos.x += 1;
-                    gridPos.y -= 1;
-                    cv->setGridPosition(gridPos);
-                }
+        int newId = m_scene->addGate(type, gridPos, size, shaderName, inPins, outPins);
+
+        if (ComponentView* cv = m_scene->getComponentView(newId)) {
+            while (m_scene->checkOverlap(newId)) {
+                gridPos.x += 1;
+                gridPos.y -= 1;
+                cv->setGridPosition(gridPos);
             }
         }
         };
 
     // 1. SPAWN INPUT PIN (Key '1')
-    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
-        if (!key1WasPressed && m_scene && m_state == InteractionState::IDLE) {
-            glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
-            GridCoords gridPos = GridSystem::worldToGrid(worldPos);
+    if (consumeKeyPress(GLFW_KEY_1) && canSpawn) {
+        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
+        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-            int newId = m_scene->addInputPin(gridPos, { 0.15f, 0.15f }, "inputPin", false);
+        int newId = m_scene->addInputPin(gridPos, { 0.15f, 0.15f }, "inputPin", false);
 
-            if (ComponentView* cv = m_scene->getComponentView(newId)) {
-                while (m_scene->checkOverlap(newId)) {
-                    gridPos.x += 1;
-                    gridPos.y -= 1;
-                    cv->setGridPosition(gridPos);
-                }
+        if (ComponentView* cv = m_scene->getComponentView(newId)) {
+            while (m_scene->checkOverlap(newId)) {
+                gridPos.x += 1;
+                gridPos.y -= 1;
+                cv->setGridPosition(gridPos);
             }
         }
-        key1WasPressed = true;
     }
-    else key1WasPressed = false;
 
     // 2. SPAWN NOT GATE (Key '2')
-    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
-        if (!key2WasPressed && m_scene && m_state == InteractionState::IDLE) {
+    if (consumeKeyPress(GLFW_KEY_2) && canSpawn) {
+        // Pins spaced exactly 3 grid cells apart
+        std::vector<PinUI> inPins{
+            {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 0}}
+        };
+        std::vector<PinUI> outPins{
+            {PinType::OUTPUT, 0, PinState::DISCONNECTED, {1, 0}}
+        };
 
-            // Pins spaced exactly 3 grid cells apart
-            std::vector<PinUI> inPins{
-                {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 0}}
-            };
-            std::vector<PinUI> outPins{
-                {PinType::OUTPUT, 0, PinState::DISCONNECTED, {1, 0}}
-            };
+        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
+        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-            glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
-            GridCoords gridPos = GridSystem::worldToGrid(worldPos);
+        // Bounding box must be 4 cells wide (0.2f) so edges land on integer grid lines
+        int newId = m_scene->addGate(GateType::NOT, gridPos, { 0.2f, 0.1f }, "NOTgate", inPins, outPins);
 
-            // Bounding box must be 4 cells wide (0.2f) so edges land on integer grid lines
-            int newId = m_scene->addGate(GateType::NOT, gridPos, { 0.2f, 0.1f }, "NOTgate", inPins, outPins);
-
-            if (ComponentView* cv = m_scene->getComponentView(newId)) {
-                while (m_scene->checkOverlap(newId)) {
-                    gridPos.x += 1;
-                    gridPos.y -= 1;
-                    cv->setGridPosition(gridPos);
-                }
+        if (ComponentView* cv = m_scene->getComponentView(newId)) {
+            while (m_scene->checkOverlap(newId)) {
+                gridPos.x += 1;
+                gridPos.y -= 1;
+                cv->setGridPosition(gridPos);
             }
         }
-        key2WasPressed = true;
     }
-    else key2WasPressed = false;
 
     // 3. SPAWN AND GATE (Key '3')
-    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
-        if (!key3WasPressed) trySpawnGate(GateType::AND, "ANDgate");
-        key3WasPressed = true;
-    }
-    else key3WasPressed = false;
+    if (consumeKeyPress(GLFW_KEY_3)) trySpawnGate(GateType::AND, "ANDgate");
 
     // 4. SPAWN NAND GATE (Key '4')
-    if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
-        if (!key4WasPressed) trySpawnGate(GateType::NAND, "NANDgate");
-        key4WasPressed = true;
-    }
-    else key4WasPressed = false;
+    if (consumeKeyPress(GLFW_KEY_4)) trySpawnGate(GateType::NAND, "NANDgate");
 
     // 5. SPAWN OR GATE (Key '5')
-    if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) {
-        if (!key5WasPressed) trySpawnGate(GateType::OR, "ORgate");
-        key5WasPressed = true;
-    }
-    else key5WasPressed = false;
+    if (consumeKeyPress(GLFW_KEY_5)) trySpawnGate(GateType::OR, "ORgate");
 
     // 6. SPAWN NOR GATE (Key '6')
-    if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS) {
-        if (!key6WasPressed) trySpawnGate(GateType::NOR, "NORgate");
-        key6WasPressed = true;
-    }
-    else key6WasPressed = false;
+    if (consumeKeyPress(GLFW_KEY_6)) trySpawnGate(GateType::NOR, "NORgate");
 
     // 7. SPAWN XOR GATE (Key '7')
-    if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS) {
-        if (!key7WasPressed) trySpawnGate(GateType::XOR, "XORgate");
-        key7WasPressed = true;
-    }
-    else key7WasPressed = false;
+    if (consumeKeyPress(GLFW_KEY_7)) trySpawnGate(GateType::XOR, "XORgate");
 
     // 8. SPAWN NXOR GATE (Key '8')
-    if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS) {
-        if (!key8WasPressed) trySpawnGate(GateType::NXOR, "NXORgate");
-        key8WasPressed = true;
-    }
-    else key8WasPressed = false;
+    if (consumeKeyPress(GLFW_KEY_8)) trySpawnGate(GateType::NXOR, "NXORgate");
 
     // ==========================================
     // DELETE SELECTED OR HOVERED (Delete or Backspace)
     // ==========================================
-    static bool delWasPressed = false;
-    if (glfwGetKey(window, GLFW_KEY_DELETE) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_BACKSPACE) == GLFW_PRESS) {
-        if (!delWasPressed && m_scene && m_state == InteractionState::IDLE) {
+    // Both delete keys are drained before the action is attempted, so a press of either
+    // one cannot stay queued into the next frame.
+    const bool deletePressed = consumeKeyPress(GLFW_KEY_DELETE);
+    const bool backspacePressed = consumeKeyPress(GLFW_KEY_BACKSPACE);
+
+    if (deletePressed || backspacePressed) {
+        if (canSpawn) {
 
             int compToDelete = m_selectedComponentId != -1 ? m_selectedComponentId : hoveredComponentId;
             WireId wireToDelete = m_selectedWireId != INVALID_WIRE_ID ? m_selectedWireId : hoveredWireId;
@@ -567,10 +549,6 @@ void Input::process(GLFWwindow* window) {
             m_scene->healWires();
             updateHoverState(window);
         }
-        delWasPressed = true;
-    }
-    else {
-        delWasPressed = false;
     }
 
     updateHoverState(window);

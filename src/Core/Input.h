@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <iostream>
+#include <unordered_set>
 #include <vector>
 
 
@@ -61,13 +62,25 @@ private:
     GridCoords m_selectedSegmentEnd = { 0, 0 };
     bool m_hasSelectedSegment = false;
     int m_selectedComponentId = -1;
+
+    // Keys whose GLFW_PRESS event has arrived but has not been drained by process() yet.
+    std::unordered_set<int> m_pendingKeyPresses;
 public:
     void process(GLFWwindow* window);
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos);
     static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     void handleMouseButton(GLFWwindow* window, int button, int action, int mods);
+    void handleKey(int key, int action);
+
+    /*
+    * @brief Drains the recorded press edge of a key.
+    * @param key A GLFW key code.
+    * @return true exactly once per physical press, so auto-repeat cannot fire twice.
+    */
+    bool consumeKeyPress(int key);
     void handleCursorPos(GLFWwindow* window, double xpos, double ypos);
     void handleScroll(GLFWwindow* window, double xoffset, double yoffset);
 

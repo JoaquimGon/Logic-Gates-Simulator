@@ -54,10 +54,12 @@ int Engine::init()
     glfwSetFramebufferSizeCallback(window, Engine::resizeWindow);
     glfwSetWindowUserPointer(window, &input);
 
-    // Mouse callbacks
+    // Mouse and keyboard callbacks. Keys are handled as events rather than polled
+    // for consistent and responsive behaviour
     glfwSetMouseButtonCallback(window, Input::mouseButtonCallback);
     glfwSetCursorPosCallback(window, Input::cursorPositionCallback);
     glfwSetScrollCallback(window, Input::scrollCallback);
+    glfwSetKeyCallback(window, Input::keyCallback);
 
     // ==========================================
     // glad Configuration
