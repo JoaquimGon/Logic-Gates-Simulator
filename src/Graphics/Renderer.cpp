@@ -1,10 +1,9 @@
-#include "Renderer.h"
+﻿#include "Renderer.h"
+
 #include <glad/glad.h>
 #include <iostream>
 
-Renderer::Renderer()
-{
-}
+Renderer::Renderer() {}
 
 Renderer::~Renderer()
 {
@@ -12,6 +11,7 @@ Renderer::~Renderer()
     // alive, since deleting GL objects after glfwTerminate() is invalid.
     shutdown();
 }
+
 
 void Renderer::shutdown()
 {
@@ -22,9 +22,11 @@ void Renderer::shutdown()
     m_wireMesh.reset();
     m_boundsMesh.reset();
 
-    // Runs every Shader destructor, i.e. glDeleteProgram(), before the context dies.
+    // Runs every Shader destructor, i.e. glDeleteProgram(), before the context
+    // dies.
     m_sm.release();
 }
+
 
 Shader* Renderer::acquireShader(const std::string& name)
 {
@@ -37,10 +39,12 @@ Shader* Renderer::acquireShader(const std::string& name)
     if (m_missingShaderWarned.insert(name).second)
     {
         std::cerr << "[Renderer] No shader registered under the name \"" << name
-            << "\" - that component will not be drawn. Register it in Renderer::init().\n";
+                  << "\" - that component will not be drawn. Register it in "
+                     "Renderer::init().\n";
     }
     return nullptr;
 }
+
 
 void Renderer::init()
 {
@@ -55,10 +59,11 @@ void Renderer::init()
     // ==========================================
     // Shaders
     // ==========================================
-    // 
-    // .load will attempt to use the shaders in the build folder, which is corrected by
-    // cmake rebuilding them in said folder by copying the "assets/shaders" folder
-    // Always start path with the "shaders" folder cmake will do the rest
+    //
+    // .load will attempt to use the shaders in the build folder, which is
+    // corrected by cmake rebuilding them in said folder by copying the
+    // "assets/shaders" folder Always start path with the "shaders" folder cmake
+    // will do the rest
 
     // Gates
     m_sm.load("ANDgate", "shaders/gates/gate.vert", "shaders/gates/andGate.frag");
@@ -93,47 +98,51 @@ void Renderer::init()
     // ==========================================
     // 1. Gate Mesh
     std::vector<float> quadVertices = {
-        -0.5f,  0.5f, 0.0,
-        -0.5f, -0.5f, 0.0,
-         0.5f, -0.5f, 0.0,
-         0.5f,  0.5f, 0.0
+        -0.5f, 0.5f, 0.0, -0.5f, -0.5f, 0.0, 0.5f, -0.5f, 0.0, 0.5f, 0.5f, 0.0
     };
-    std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0 };
+    std::vector<unsigned int> quadIndices = {0, 1, 2, 2, 3, 0};
     VertexLayout gateLayout;
     gateLayout.addAttribute(3);
     m_gateMesh = std::make_unique<Mesh>(quadVertices, quadIndices, gateLayout, GL_TRIANGLES);
 
     // 2. Grid Mesh
     std::vector<float> fullScreenVertices = {
-        -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,
-         1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f
+        -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f
     };
-    std::vector<unsigned int> fullScreenIndeces = { 0, 1, 2, 2, 3, 0 };
+    std::vector<unsigned int> fullScreenIndeces = {0, 1, 2, 2, 3, 0};
     VertexLayout gridLayout;
     gridLayout.addAttribute(3);
-    m_gridMesh = std::make_unique<Mesh>(fullScreenVertices, fullScreenIndeces, gridLayout, GL_TRIANGLES);
+    m_gridMesh =
+        std::make_unique<Mesh>(fullScreenVertices, fullScreenIndeces, gridLayout, GL_TRIANGLES);
 
     // 3. Pin Mesh
-    std::vector<float> pointVertices = { 0.0f, 0.0f, 0.0f };
+    std::vector<float> pointVertices = {0.0f, 0.0f, 0.0f};
     VertexLayout pointLayout;
     pointLayout.addAttribute(3);
-    m_pointMesh = std::make_unique<Mesh>(pointVertices, std::vector<unsigned int>{}, pointLayout, GL_POINTS);
+    m_pointMesh =
+        std::make_unique<Mesh>(pointVertices, std::vector<unsigned int>{}, pointLayout, GL_POINTS);
 
-    // 4. Wire Mesh 
+    // 4. Wire Mesh
     VertexLayout wireLayout;
     wireLayout.addAttribute(3); // Location 0: Position (X, Y, Z)
     wireLayout.addAttribute(4); // Location 1: Color (R, G, B, A)
-    m_wireMesh = std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_TRIANGLES);
+    m_wireMesh = std::make_unique<Mesh>(
+        std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_TRIANGLES
+    );
 
     // ==========================================
     // Bounding Box Mesh
     // ==========================================
-    // We use GL_LINES so we can draw crisp edges, reusing the exact same layout as wires!
+    // We use GL_LINES so we can draw crisp edges, reusing the exact same layout
+    // as wires!
     VertexLayout boundsLayout;
     boundsLayout.addAttribute(3); // Position
     boundsLayout.addAttribute(4); // Color
-    m_boundsMesh = std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_LINES);
+    m_boundsMesh = std::make_unique<Mesh>(
+        std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_LINES
+    );
 }
+
 
 void Renderer::beginFrame(const CameraState& camera)
 {
@@ -143,23 +152,31 @@ void Renderer::beginFrame(const CameraState& camera)
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
+
 void Renderer::drawGrid()
 {
     auto* shader = acquireShader("grid");
-    if (!shader) return;
+    if (!shader)
+        return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
     shader->setFloat("uGridSpacing", 0.05f);
-    shader->setVec2("uResolution", static_cast<float>(m_currentCamera.windowWidth), static_cast<float>(m_currentCamera.windowHeight));
+    shader->setVec2(
+        "uResolution",
+        static_cast<float>(m_currentCamera.windowWidth),
+        static_cast<float>(m_currentCamera.windowHeight)
+    );
 
     m_gridMesh->draw();
 }
 
+
 void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire)
 {
     auto* shader = acquireShader("wire");
-    if (!shader) return;
+    if (!shader)
+        return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -167,26 +184,33 @@ void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* active
 
     std::vector<float> allWiresData;
 
-    for (const auto& [id, wire] : wires) {
+    for (const auto& [id, wire] : wires)
+    {
         std::vector<float> singleWireData = wire.getBatchedVertexData();
         allWiresData.insert(allWiresData.end(), singleWireData.begin(), singleWireData.end());
     }
 
-    if (activeWire != nullptr) {
+    if (activeWire != nullptr)
+    {
         std::vector<float> singleWireData = activeWire->getBatchedVertexData();
         allWiresData.insert(allWiresData.end(), singleWireData.begin(), singleWireData.end());
     }
 
-    if (!allWiresData.empty()) {
+    if (!allWiresData.empty())
+    {
         m_wireMesh->updateData(allWiresData, 7);
         m_wireMesh->draw();
     }
 }
 
-void Renderer::drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding, float alpha)
+
+void Renderer::drawWireSegmentBoundingBox(
+    const GridCoords& start, const GridCoords& end, float padding, float alpha
+)
 {
     auto* shader = acquireShader("wire");
-    if (!shader) return;
+    if (!shader)
+        return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -205,38 +229,39 @@ void Renderer::drawWireSegmentBoundingBox(const GridCoords& start, const GridCoo
     float b = 28.0f / 255.0f;
     float a = alpha;
 
-    std::vector<float> boxData = {
-        minX, maxY, 0.0f, r, g, b, a,
-        maxX, maxY, 0.0f, r, g, b, a,
+    std::vector<float> boxData = {minX, maxY, 0.0f, r, g, b, a, maxX, maxY, 0.0f, r, g, b, a,
 
-        maxX, maxY, 0.0f, r, g, b, a,
-        maxX, minY, 0.0f, r, g, b, a,
+                                  maxX, maxY, 0.0f, r, g, b, a, maxX, minY, 0.0f, r, g, b, a,
 
-        maxX, minY, 0.0f, r, g, b, a,
-        minX, minY, 0.0f, r, g, b, a,
+                                  maxX, minY, 0.0f, r, g, b, a, minX, minY, 0.0f, r, g, b, a,
 
-        minX, minY, 0.0f, r, g, b, a,
-        minX, maxY, 0.0f, r, g, b, a
-    };
+                                  minX, minY, 0.0f, r, g, b, a, minX, maxY, 0.0f, r, g, b, a};
 
     m_boundsMesh->updateData(boxData, 7);
     m_boundsMesh->draw();
 }
 
-void Renderer::drawComponents(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews)
+
+void Renderer::drawComponents(
+    const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews
+)
 {
-    // Group by shader so components sharing a shader still get instanced together.
+    // Group by shader so components sharing a shader still get instanced
+    // together.
     std::unordered_map<std::string, std::vector<glm::vec2>> positionsByShader;
     std::unordered_map<std::string, glm::vec2> sizeByShader;
 
-    for (const auto& [id, view] : componentViews) {
+    for (const auto& [id, view] : componentViews)
+    {
         positionsByShader[view->getShaderName()].push_back(view->getPosition());
         sizeByShader[view->getShaderName()] = view->getSize();
     }
 
-    for (auto& [shaderName, positions] : positionsByShader) {
+    for (auto& [shaderName, positions] : positionsByShader)
+    {
         auto* shader = acquireShader(shaderName);
-        if (!shader) continue; // acquireShader already logged the missing name
+        if (!shader)
+            continue; // acquireShader already logged the missing name
 
         shader->use();
         shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
@@ -246,20 +271,28 @@ void Renderer::drawComponents(const std::unordered_map<int, std::unique_ptr<Comp
 
         std::vector<float> flatPositions;
         flatPositions.reserve(positions.size() * 2);
-        for (const auto& p : positions) {
+        for (const auto& p : positions)
+        {
             flatPositions.push_back(p.x);
             flatPositions.push_back(p.y);
         }
 
-        m_gateMesh->setInstanceData(flatPositions, { 2 }, 1);
+        m_gateMesh->setInstanceData(flatPositions, {2}, 1);
         m_gateMesh->drawInstanced(static_cast<unsigned int>(positions.size()));
     }
 }
 
-void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews, int hoveredCompId, int hoveredPinIdx, PinType hoveredPinType)
+
+void Renderer::drawPins(
+    const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews,
+    int hoveredCompId,
+    int hoveredPinIdx,
+    PinType hoveredPinType
+)
 {
     auto* shader = acquireShader("pin");
-    if (!shader) return;
+    if (!shader)
+        return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -272,37 +305,50 @@ void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentV
     std::vector<float> pinInstanceData;
     int totalPins = 0;
 
-    for (const auto& [id, view] : componentViews) {
-        auto processPin = [&](const PinUI& pin) {
+    for (const auto& [id, view] : componentViews)
+    {
+        auto processPin = [&](const PinUI& pin)
+        {
             glm::vec2 pinWorldPos = view->getAbsolutePinWorldPos(pin);
             pinInstanceData.push_back(pinWorldPos.x);
             pinInstanceData.push_back(pinWorldPos.y);
 
-            if (id == hoveredCompId && pin.pin_index == hoveredPinIdx && pin.type == hoveredPinType) {
+            if (id == hoveredCompId && pin.pin_index == hoveredPinIdx && pin.type == hoveredPinType)
+            {
                 float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = 1.0f;
-                pinInstanceData.insert(pinInstanceData.end(), { r, g, b, a });
+                pinInstanceData.insert(pinInstanceData.end(), {r, g, b, a});
             }
-            else {
-                if (pin.state == PinState::DISCONNECTED)  pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 0.0f, 1.0f, 1.0f });
-                else if (pin.state == PinState::ON)        pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 1.0f, 0.0f, 1.0f });
-                else                                        pinInstanceData.insert(pinInstanceData.end(), { 1.0f, 0.0f, 0.0f, 1.0f });
+            else
+            {
+                if (pin.state == PinState::DISCONNECTED)
+                    pinInstanceData.insert(pinInstanceData.end(), {0.0f, 0.0f, 1.0f, 1.0f});
+                else if (pin.state == PinState::ON)
+                    pinInstanceData.insert(pinInstanceData.end(), {0.0f, 1.0f, 0.0f, 1.0f});
+                else
+                    pinInstanceData.insert(pinInstanceData.end(), {1.0f, 0.0f, 0.0f, 1.0f});
             }
             totalPins++;
-            };
+        };
 
-        for (const auto& pin : view->getInputPins())  processPin(pin);
-        for (const auto& pin : view->getOutputPins()) processPin(pin);
+        for (const auto& pin : view->getInputPins())
+            processPin(pin);
+        for (const auto& pin : view->getOutputPins())
+            processPin(pin);
     }
 
-    if (totalPins > 0) {
-        m_pointMesh->setInstanceData(pinInstanceData, { 2, 4 }, 1);
+    if (totalPins > 0)
+    {
+        m_pointMesh->setInstanceData(pinInstanceData, {2, 4}, 1);
         m_pointMesh->drawInstanced(totalPins);
     }
 }
+
+
 void Renderer::drawComponentBoundingBox(const ComponentView& component, float padding, float alpha)
 {
     auto* shader = acquireShader("wire"); // reused: a bounding box is just 4 colored lines
-    if (!shader) return;
+    if (!shader)
+        return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -321,28 +367,28 @@ void Renderer::drawComponentBoundingBox(const ComponentView& component, float pa
 
     float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = alpha;
 
-    std::vector<float> boxData = {
-        topLeft.x, topLeft.y, 0.0f, r, g, b, a,
-        topRight.x, topRight.y, 0.0f, r, g, b, a,
+    std::vector<float> boxData = {topLeft.x,     topLeft.y,     0.0f, r, g, b, a,
+                                  topRight.x,    topRight.y,    0.0f, r, g, b, a,
 
-        topRight.x, topRight.y, 0.0f, r, g, b, a,
-        bottomRight.x, bottomRight.y, 0.0f, r, g, b, a,
+                                  topRight.x,    topRight.y,    0.0f, r, g, b, a,
+                                  bottomRight.x, bottomRight.y, 0.0f, r, g, b, a,
 
-        bottomRight.x, bottomRight.y, 0.0f, r, g, b, a,
-        bottomLeft.x, bottomLeft.y, 0.0f, r, g, b, a,
+                                  bottomRight.x, bottomRight.y, 0.0f, r, g, b, a,
+                                  bottomLeft.x,  bottomLeft.y,  0.0f, r, g, b, a,
 
-        bottomLeft.x, bottomLeft.y, 0.0f, r, g, b, a,
-        topLeft.x, topLeft.y, 0.0f, r, g, b, a
-    };
+                                  bottomLeft.x,  bottomLeft.y,  0.0f, r, g, b, a,
+                                  topLeft.x,     topLeft.y,     0.0f, r, g, b, a};
 
     m_boundsMesh->updateData(boxData, 7);
     m_boundsMesh->draw();
 }
 
+
 void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
 {
     auto* shader = acquireShader("pin");
-    if (!shader) return;
+    if (!shader)
+        return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -355,18 +401,20 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
     glm::vec2 worldPos = GridSystem::gridToWorld(gridPos);
     float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f;
 
-    std::vector<float> data = { worldPos.x, worldPos.y, r, g, b, opacity };
-    m_pointMesh->setInstanceData(data, { 2, 4 }, 1);
+    std::vector<float> data = {worldPos.x, worldPos.y, r, g, b, opacity};
+    m_pointMesh->setInstanceData(data, {2, 4}, 1);
     m_pointMesh->drawInstanced(1);
 }
 
 
 void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
 {
-    if (intersectionData.empty()) return;
+    if (intersectionData.empty())
+        return;
 
     auto* shader = acquireShader("pin");
-    if (!shader) return;
+    if (!shader)
+        return;
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
@@ -379,16 +427,21 @@ void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
     std::vector<float> instancedData;
     instancedData.reserve(intersectionData.size() * 6);
 
-    for (const auto& data : intersectionData) {
-        glm::vec2 worldPos = GridSystem::gridToWorld({ static_cast<int>(data.x), static_cast<int>(data.y) });
+    for (const auto& data : intersectionData)
+    {
+        glm::vec2 worldPos =
+            GridSystem::gridToWorld({static_cast<int>(data.x), static_cast<int>(data.y)});
         instancedData.push_back(worldPos.x);
         instancedData.push_back(worldPos.y);
 
-        if (data.z == 0.0f)      instancedData.insert(instancedData.end(), { 0.0f, 0.0f, 1.0f, 1.0f });
-        else if (data.z == 1.0f) instancedData.insert(instancedData.end(), { 0.0f, 1.0f, 0.0f, 1.0f });
-        else                     instancedData.insert(instancedData.end(), { 1.0f, 0.0f, 0.0f, 1.0f });
+        if (data.z == 0.0f)
+            instancedData.insert(instancedData.end(), {0.0f, 0.0f, 1.0f, 1.0f});
+        else if (data.z == 1.0f)
+            instancedData.insert(instancedData.end(), {0.0f, 1.0f, 0.0f, 1.0f});
+        else
+            instancedData.insert(instancedData.end(), {1.0f, 0.0f, 0.0f, 1.0f});
     }
 
-    m_pointMesh->setInstanceData(instancedData, { 2, 4 }, 1);
+    m_pointMesh->setInstanceData(instancedData, {2, 4}, 1);
     m_pointMesh->drawInstanced(static_cast<int>(intersectionData.size()));
 }

@@ -1,0 +1,39 @@
+BasedOnStyle: LLVM
+Language: Cpp
+
+# Indentation & Braces
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+BreakBeforeBraces: Allman
+ColumnLimit: 100
+
+# Pointers
+PointerAlignment: Left
+
+# Vertical Spacing
+MaxEmptyLinesToKeep: 2
+KeepEmptyLinesAtTheStartOfBlocks: false
+EmptyLineBeforeAccessModifier: Always
+SeparateDefinitionBlocks: Always
+BinPackParameters: false
+BinPackArguments: false
+AlignAfterOpenBracket: BlockIndent
+
+
+# Includes
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+
+# Function & Control Spacing
+SpaceBeforeParens: ControlStatements
+SpacesInAngles: false
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerIndentWidth: 4
+AlwaysBreakTemplateDeclarations: Yes
+
+# Control Blocks (Safe values across all LLVM versions)
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline

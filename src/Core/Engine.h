@@ -1,35 +1,36 @@
 #pragma once
 
-#include "..\Logic\Circuit.h"
-#include "Input.h"
-#include "..\Logic\Wire.h"
-#include "..\Views\GridSystem.h"
 #include "..\Graphics\Renderer.h"
+#include "..\Logic\Circuit.h"
+#include "..\Logic\Wire.h"
 #include "..\Views\ComponentView.h"
 #include "..\Views\GateView.h"
+#include "..\Views\GridSystem.h"
 #include "..\Views\InputPinView.h"
+#include "Input.h"
 #include "Scene.h"
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
-#include <iostream>
 
 class Engine
 {
-private:
+  private:
     GLFWwindow* window = nullptr; // starts null so shutdown() is safe before init()
     std::string m_windowName;
     int m_windowWidth = 0;
     int m_windowHeight = 0;
     bool m_glfwInitialized = false;
 
-    // Last simulation status printed to the console, so a persistent condition (e.g. a
-    // combinational loop) is reported on the transition only, not once per frame.
+    // Last simulation status printed to the console, so a persistent condition
+    // (e.g. a combinational loop) is reported on the transition only, not once
+    // per frame.
     EvalOrderResult m_lastOrderResult = EvalOrderResult::OK;
 
     Input input;
@@ -43,28 +44,22 @@ private:
     }
 
     /**
-    * @brief GLFW error sink, registered before glfwInit().
-    * Without it, GLFW failures are silent: a context that cannot be created just
-    * returns a null window with no explanation of why.
+    @brief GLFW error sink, registered before glfwInit().
     */
     static void errorCallback(int error, const char* description)
     {
         std::cerr << "[GLFW] Error " << error << ": " << description << std::endl;
     }
 
-public:
+  public:
     Engine(std::string windowName, int windowWidth, int windowHeight);
     ~Engine();
 
     int init();
     void run();
 
-    /**
-    * @brief Releases the renderer's GL objects, the window and GLFW, in that order.
-    * GL objects can only be deleted while their context is still current, so this
-    * must run before glfwTerminate(). It is idempotent, which also makes it usable
-    * from the failure paths of init() and from the destructor.
+    /*
+    @brief Releases the renderer's GL objects, the window and GLFW, in that order.
     */
     void shutdown();
-
 };

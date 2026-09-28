@@ -1,18 +1,18 @@
 #pragma once
-#include "..\Views\GridSystem.h"
-#include "..\Views\GateView.h"
 #include "..\Logic\Wire.h"
+#include "..\Views\GateView.h"
+#include "..\Views\GridSystem.h"
 #include "Scene.h"
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <iostream>
 #include <unordered_set>
 #include <vector>
 
-
-enum class InteractionState {
+enum class InteractionState
+{
     IDLE,
     PANNING,
     DRAGGING_GATE,
@@ -21,32 +21,31 @@ enum class InteractionState {
 
 class Input
 {
-private:
-
+  private:
     Scene* m_scene = nullptr;
-
 
     float m_zoom = 1.0f;
     InteractionState m_state = InteractionState::IDLE;
 
     double lastMouseX = 0.0f;
     double lastMouseY = 0.0f;
-    GridCoords mouseGridCoords = { 0, 0 };
+    GridCoords mouseGridCoords = {0, 0};
     glm::vec2 panOffset = glm::vec2(0.0f, 0.0f);
 
     ComponentView* m_draggedComponent = nullptr;
-    GridCoords m_dragStartPos = { 0, 0 };
+    GridCoords m_dragStartPos = {0, 0};
 
     // Wire control
     Wire activeWire;
     int m_wireOriginComponentId = -1;
-    // Pin the wire being drawn started from. The wire carries no electrical identity until
-    // it is committed and the scene derives its net, so this is what the preview colour is
-    // read from - and it is the component a wire may never loop back to.
+    // Pin the wire being drawn started from. The wire carries no electrical
+    // identity until it is committed and the scene derives its net, so this is
+    // what the preview colour is read from - and it is the component a wire may
+    // never loop back to.
     PinRef m_wireOriginPin;
     PinType m_wireOriginType = PinType::INPUT;
     std::vector<GridCoords> baseWirePath;
-    GridCoords wireStartPos = { 0, 0 };
+    GridCoords wireStartPos = {0, 0};
     bool wireAxisLocked = false;
     bool wireAxisXFirst = true;
     bool isMidWireBranchPending = false; // Deferred split tracking
@@ -60,17 +59,19 @@ private:
     WireId m_selectedWireId = INVALID_WIRE_ID;
 
     bool m_hoveredSegmentValid = false;
-    GridCoords m_hoveredSegmentStart = { 0, 0 };
-    GridCoords m_hoveredSegmentEnd = { 0, 0 };
+    GridCoords m_hoveredSegmentStart = {0, 0};
+    GridCoords m_hoveredSegmentEnd = {0, 0};
 
-    GridCoords m_selectedSegmentStart = { 0, 0 };
-    GridCoords m_selectedSegmentEnd = { 0, 0 };
+    GridCoords m_selectedSegmentStart = {0, 0};
+    GridCoords m_selectedSegmentEnd = {0, 0};
     bool m_hasSelectedSegment = false;
     int m_selectedComponentId = -1;
 
-    // Keys whose GLFW_PRESS event has arrived but has not been drained by process() yet.
+    // Keys whose GLFW_PRESS event has arrived but has not been drained by
+    // process() yet.
     std::unordered_set<int> m_pendingKeyPresses;
-public:
+
+  public:
     void process(GLFWwindow* window);
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos);
@@ -81,50 +82,68 @@ public:
     void handleKey(int key, int action);
 
     /*
-    * @brief Drains the recorded press edge of a key.
-    * @param key A GLFW key code.
-    * @return true exactly once per physical press, so auto-repeat cannot fire twice.
-    */
+     * @brief Drains the recorded press edge of a key.
+     * @param key A GLFW key code.
+     * @return true exactly once per physical press, so auto-repeat cannot fire
+     * twice.
+     */
     bool consumeKeyPress(int key);
     void handleCursorPos(GLFWwindow* window, double xpos, double ypos);
     void handleScroll(GLFWwindow* window, double xoffset, double yoffset);
 
     void updateHoverState(GLFWwindow* window);
     void cancelCurrentAction();
+
     bool isIdle() const { return m_state == InteractionState::IDLE; }
 
     glm::vec2 getMouseWorldCoord(GLFWwindow* window, float zoom) const;
+
     glm::vec2 getPanOffset() const { return panOffset; }
-    glm::vec2 getLastMouse() const { return glm::vec2(static_cast<float>(lastMouseX), static_cast<float>(lastMouseY)); }
+
+    glm::vec2 getLastMouse() const
+    {
+        return glm::vec2(static_cast<float>(lastMouseX), static_cast<float>(lastMouseY));
+    }
+
     GridCoords getCurrentGridCoords() const { return mouseGridCoords; }
+
     float getZoom() const { return m_zoom; }
 
     void setZoom(float zoom) { m_zoom = zoom; }
 
     bool isCurrentlyDrawingWire() const { return m_state == InteractionState::DRAWING_WIRE; }
+
     const Wire& getActiveWire() const { return activeWire; }
 
     PinRef getWireOriginPin() const { return m_wireOriginPin; }
+
     PinType getWireOriginType() const { return m_wireOriginType; }
 
     void setScene(Scene* scene) { m_scene = scene; }
 
     int getHoveredComponentId() const { return hoveredComponentId; }
+
     int getHoveredPinIndex() const { return hoveredPinIndex; }
+
     WireId getHoveredWireId() const { return hoveredWireId; }
 
     int getHoveredPinComponentId() const { return hoveredPinComponentId; }
+
     PinType getHoveredPinType() const { return hoveredPinType; }
 
-
     int getSelectedComponentId() const { return m_selectedComponentId; }
+
     WireId getSelectedWireId() const { return m_selectedWireId; }
 
     bool hasSelectedSegment() const { return m_hasSelectedSegment; }
+
     GridCoords getSelectedSegmentStart() const { return m_selectedSegmentStart; }
+
     GridCoords getSelectedSegmentEnd() const { return m_selectedSegmentEnd; }
 
     bool hasHoveredSegment() const { return m_hoveredSegmentValid; }
+
     GridCoords getHoveredSegmentStart() const { return m_hoveredSegmentStart; }
+
     GridCoords getHoveredSegmentEnd() const { return m_hoveredSegmentEnd; }
 };

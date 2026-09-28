@@ -2,17 +2,21 @@
 
 #include "..\Views\GridSystem.h"
 #include "Net.h"
-#include <vector>
-#include <glm/glm.hpp>
 
-class Wire {
-public:
+#include <glm/glm.hpp>
+#include <vector>
+
+class Wire
+{
+  public:
     Wire();
 
     NetId getNet() const { return m_net; }
+
     void setNet(NetId net) { m_net = net; }
 
     void setState(PinState newState);
+
     PinState getState() const { return m_state; }
 
     void setPath(const std::vector<GridCoords>& newPath);
@@ -26,7 +30,7 @@ public:
 
     std::vector<float> getBatchedVertexData() const;
 
-private:
+  private:
     NetId m_net = INVALID_NET_ID;
     PinState m_state = PinState::DISCONNECTED;
     std::vector<GridCoords> m_path;

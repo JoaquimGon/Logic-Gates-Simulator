@@ -1,4 +1,5 @@
-#include "Engine.h"
+﻿#include "Engine.h"
+
 #include <iostream>
 
 Engine::Engine(std::string windowName, int windowWidth, int windowHeight)
@@ -8,21 +9,23 @@ Engine::Engine(std::string windowName, int windowWidth, int windowHeight)
     m_windowHeight = windowHeight;
 }
 
+
 Engine::~Engine()
 {
-    // Safety net for the paths that never reach the end of run(): a failed init(),
-    // or run() returning early. shutdown() is idempotent, so this is a no-op when
-    // run() already tore everything down.
+    // Safety net for the paths that never reach the end of run(): a failed
+    // init(), or run() returning early. shutdown() is idempotent, so this is a
+    // no-op when run() already tore everything down.
     shutdown();
 }
+
 
 int Engine::init()
 {
     // ==========================================
     // glfw Configuration
     // ==========================================
-    // Registered before glfwInit() so failures raised during initialization itself
-    // (an unsupported context version, for instance) are reported too.
+    // Registered before glfwInit() so failures raised during initialization
+    // itself (an unsupported context version, for instance) are reported too.
     glfwSetErrorCallback(Engine::errorCallback);
 
     if (!glfwInit())
@@ -40,22 +43,24 @@ int Engine::init()
     if (window == NULL)
     {
         std::cerr << "Failed to create GLFW window" << std::endl;
-        shutdown(); // nothing to delete yet, but the window and GLFW must not leak
+        shutdown(); // nothing to delete yet, but the window and GLFW must not
+                    // leak
         return -1;
     }
 
     glfwMakeContextCurrent(window);
 
-    // Cap the frame rate at the display's refresh rate. Without this the loop runs
-    // unthrottled, which pegs the GPU (and a CPU core) even on a static scene, and it
-    // would make any future time-based simulation frame-rate dependent.
+    // Cap the frame rate at the display's refresh rate. Without this the loop
+    // runs unthrottled, which pegs the GPU (and a CPU core) even on a static
+    // scene, and it would make any future time-based simulation frame-rate
+    // dependent.
     glfwSwapInterval(1);
 
     glfwSetFramebufferSizeCallback(window, Engine::resizeWindow);
     glfwSetWindowUserPointer(window, &input);
 
-    // Mouse and keyboard callbacks. Keys are handled as events rather than polled
-    // for consistent and responsive behaviour
+    // Mouse and keyboard callbacks. Keys are handled as events rather than
+    // polled for consistent and responsive behaviour
     glfwSetMouseButtonCallback(window, Input::mouseButtonCallback);
     glfwSetCursorPosCallback(window, Input::cursorPositionCallback);
     glfwSetScrollCallback(window, Input::scrollCallback);
@@ -79,10 +84,11 @@ int Engine::init()
     return 0;
 }
 
+
 void Engine::run()
 {
-    // The loop below needs the window and GL context created by init(). Without them
-    // every GLFW call in here would be running on a null window.
+    // The loop below needs the window and GL context created by init(). Without
+    // them every GLFW call in here would be running on a null window.
     if (!window)
     {
         std::cerr << "[Engine] run() called without a successful init(); aborting.\n";
@@ -96,20 +102,16 @@ void Engine::run()
         {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
         {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
     };
-    std::vector<PinUI> outPins{
-        {PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}
-    };
+    std::vector<PinUI> outPins{{PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}};
 
-    std::vector<PinUI> notOutPins{
-        {PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 0}}
-    };
+    std::vector<PinUI> notOutPins{{PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 0}}};
 
-    scene.addGate(GateType::AND, { 0, 0 }, { 0.2f, 0.2f }, "ANDgate", inPins, outPins);
-    scene.addGate(GateType::NAND, { 0, 10 }, { 0.3f, 0.2f }, "NANDgate", inPins, notOutPins);
-    scene.addGate(GateType::OR, { 10, 0 }, { 0.2f, 0.2f }, "ORgate", inPins, outPins);
-    scene.addGate(GateType::NOR, { 10, 10 }, { 0.3f, 0.2f }, "NORgate", inPins, notOutPins);
-    scene.addGate(GateType::XOR, { -10, 0 }, { 0.2f, 0.2f }, "XORgate", inPins, outPins);
-    scene.addGate(GateType::NXOR, { -10, 10 }, { 0.3f, 0.2f }, "NXORgate", inPins, notOutPins);
+    scene.addGate(GateType::AND, {0, 0}, {0.2f, 0.2f}, "ANDgate", inPins, outPins);
+    scene.addGate(GateType::NAND, {0, 10}, {0.3f, 0.2f}, "NANDgate", inPins, notOutPins);
+    scene.addGate(GateType::OR, {10, 0}, {0.2f, 0.2f}, "ORgate", inPins, outPins);
+    scene.addGate(GateType::NOR, {10, 10}, {0.3f, 0.2f}, "NORgate", inPins, notOutPins);
+    scene.addGate(GateType::XOR, {-10, 0}, {0.2f, 0.2f}, "XORgate", inPins, outPins);
+    scene.addGate(GateType::NXOR, {-10, 10}, {0.3f, 0.2f}, "NXORgate", inPins, notOutPins);
 
     input.setScene(&scene);
 
@@ -128,17 +130,26 @@ void Engine::run()
         bool clockEdgeFlipped = scene.updateClocks(deltaTime);
 
         // 3. EVENT-DRIVEN SIMULATION:
-        // Only run DFS/propagation when an edge flipped or a component/wire was touched
-        if (clockEdgeFlipped || scene.isSimulationDirty()) {
+        // Only run DFS/propagation when an edge flipped or a component/wire was
+        // touched
+        if (clockEdgeFlipped || scene.isSimulationDirty())
+        {
             EvalOrderResult orderResult = scene.propagate();
-            if (orderResult != m_lastOrderResult) {
+            if (orderResult != m_lastOrderResult)
+            {
                 m_lastOrderResult = orderResult;
 
-                if (orderResult == EvalOrderResult::CYCLE_DETECTED) {
-                    std::cerr << "[Simulation] Combinational loop detected: the last valid evaluation "
-                        "order is kept and nothing is evaluated until the loop is broken.\n";
-                } else {
-                std::cerr << "[Simulation] Evaluation order rebuilt, simulation resumed.\n";
+                if (orderResult == EvalOrderResult::CYCLE_DETECTED)
+                {
+                    std::cerr << "[Simulation] Combinational loop detected: "
+                                 "the last valid evaluation "
+                                 "order is kept and nothing is evaluated until "
+                                 "the loop is broken.\n";
+                }
+                else
+                {
+                    std::cerr << "[Simulation] Evaluation order rebuilt, "
+                                 "simulation resumed.\n";
                 }
             }
             scene.syncVisuals();
@@ -147,7 +158,8 @@ void Engine::run()
         // 4. Render graphics as normal
         int width, height;
         glfwGetWindowSize(window, &width, &height);
-        float aspectRatio = (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
+        float aspectRatio =
+            (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
 
         CameraState cam;
         cam.panOffset = input.getPanOffset();
@@ -158,21 +170,24 @@ void Engine::run()
 
         m_renderer.beginFrame(cam);
         m_renderer.drawGrid();
-        m_renderer.drawComponents(scene.getComponentViewMap());   // was drawGates
-
+        m_renderer.drawComponents(scene.getComponentViewMap()); // was drawGates
 
         // ==========================================
         // Highlight Component
         // ==========================================
-        if (input.getSelectedComponentId() != -1) {
+        if (input.getSelectedComponentId() != -1)
+        {
             // Selected: 100% Opacity
-            if (ComponentView* cv = scene.getComponentView(input.getSelectedComponentId())) {
+            if (ComponentView* cv = scene.getComponentView(input.getSelectedComponentId()))
+            {
                 m_renderer.drawComponentBoundingBox(*cv, 0.01f, 1.0f);
             }
         }
-        else if (input.getHoveredComponentId() != -1) {
+        else if (input.getHoveredComponentId() != -1)
+        {
             // Hovered: 40% Opacity
-            if (ComponentView* cv = scene.getComponentView(input.getHoveredComponentId())) {
+            if (ComponentView* cv = scene.getComponentView(input.getHoveredComponentId()))
+            {
                 m_renderer.drawComponentBoundingBox(*cv, 0.01f, 0.4f);
             }
         }
@@ -180,43 +195,60 @@ void Engine::run()
         // ==========================================
         // Highlight Wire Segment
         // ==========================================
-        if (!input.isCurrentlyDrawingWire()) {
-            if (input.hasSelectedSegment()) {
+        if (!input.isCurrentlyDrawingWire())
+        {
+            if (input.hasSelectedSegment())
+            {
                 // Selected: 100% Opacity
-                m_renderer.drawWireSegmentBoundingBox(input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 0.01f, 1.0f);
+                m_renderer.drawWireSegmentBoundingBox(
+                    input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 0.01f, 1.0f
+                );
             }
-            else if (input.hasHoveredSegment()) {
+            else if (input.hasHoveredSegment())
+            {
                 // Hovered: 40% Opacity
-                m_renderer.drawWireSegmentBoundingBox(input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.01f, 0.4f);
+                m_renderer.drawWireSegmentBoundingBox(
+                    input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.01f, 0.4f
+                );
             }
         }
 
-        if (input.isCurrentlyDrawingWire()) {
+        if (input.isCurrentlyDrawingWire())
+        {
             Wire active = input.getActiveWire();
-            if (input.getWireOriginPin().isConnected()) {
-                active.setState(scene.pinState(input.getWireOriginPin(), input.getWireOriginType()));
+            if (input.getWireOriginPin().isConnected())
+            {
+                active.setState(
+                    scene.pinState(input.getWireOriginPin(), input.getWireOriginType())
+                );
             }
             m_renderer.drawWires(scene.getWires(), &active);
         }
-        else {
+        else
+        {
             m_renderer.drawWires(scene.getWires(), nullptr);
         }
 
         m_renderer.drawIntersections(scene.getWireIntersections());
 
         // Point highligh (for wire creation and mouse position)
-        bool overEmptyOrWire = (input.getHoveredComponentId() == -1 && input.getHoveredPinComponentId() == -1);
-        if (input.isCurrentlyDrawingWire()) {
+        bool overEmptyOrWire =
+            (input.getHoveredComponentId() == -1 && input.getHoveredPinComponentId() == -1);
+        if (input.isCurrentlyDrawingWire())
+        {
             m_renderer.drawGridPointHighlight(input.getCurrentGridCoords(), 1.0f);
         }
-        else if (input.isIdle() && overEmptyOrWire) {
+        else if (input.isIdle() && overEmptyOrWire)
+        {
             m_renderer.drawGridPointHighlight(input.getCurrentGridCoords(), 0.4f);
         }
 
-        m_renderer.drawPins(scene.getComponentViewMap(),
+        m_renderer.drawPins(
+            scene.getComponentViewMap(),
             input.getHoveredPinComponentId(),
             input.getHoveredPinIndex(),
-            input.getHoveredPinType());
+            input.getHoveredPinType()
+        );
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -229,10 +261,12 @@ void Engine::run()
 void Engine::shutdown()
 {
     // 1. Delete the GL objects while the window's context is still current:
-    //    programs, VAOs and VBOs must not outlive the context they were created in.
+    //    programs, VAOs and VBOs must not outlive the context they were created
+    //    in.
     m_renderer.shutdown();
 
-    // 2. Destroy the window explicitly. glfwTerminate() would do this as well, but
+    // 2. Destroy the window explicitly. glfwTerminate() would do this as well,
+    // but
     //    doing it here keeps the teardown order unambiguous.
     if (window)
     {

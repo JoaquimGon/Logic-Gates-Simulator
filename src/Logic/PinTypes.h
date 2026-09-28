@@ -1,11 +1,22 @@
 #pragma once
 #include "..\Views\GridSystem.h"
+
 #include <cstdint>
 
-enum PinState { DISCONNECTED, OFF, ON };
-enum class PinType { INPUT, OUTPUT };
+enum PinState
+{
+    DISCONNECTED,
+    OFF,
+    ON
+};
+enum class PinType
+{
+    INPUT,
+    OUTPUT
+};
 
-struct PinUI {
+struct PinUI
+{
     PinType type;
     uint32_t pin_index;
     PinState state;
