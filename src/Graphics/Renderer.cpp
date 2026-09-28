@@ -262,7 +262,10 @@ void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentV
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
     shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
-    shader->setFloat("uPointSize", 8.0f);
+    shader->setFloat("uWindowHeight", static_cast<float>(m_currentCamera.windowHeight));
+
+    // World-space diameter: ~half a grid cell (0.05 * 0.48 = 0.024f)
+    shader->setFloat("uPointSize", 0.024f);
 
     std::vector<float> pinInstanceData;
     int totalPins = 0;
@@ -274,8 +277,8 @@ void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentV
             pinInstanceData.push_back(pinWorldPos.y);
 
             if (id == hoveredCompId && pin.pin_index == hoveredPinIdx && pin.type == hoveredPinType) {
-                float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = 1;
-                pinInstanceData.insert(pinInstanceData.end(), { r, g, b, a }); // Same colour as the bounding box
+                float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = 1.0f;
+                pinInstanceData.insert(pinInstanceData.end(), { r, g, b, a });
             }
             else {
                 if (pin.state == PinState::DISCONNECTED)  pinInstanceData.insert(pinInstanceData.end(), { 0.0f, 0.0f, 1.0f, 1.0f });
@@ -294,7 +297,6 @@ void Renderer::drawPins(const std::unordered_map<int, std::unique_ptr<ComponentV
         m_pointMesh->drawInstanced(totalPins);
     }
 }
-
 void Renderer::drawComponentBoundingBox(const ComponentView& component, float padding, float alpha)
 {
     auto* shader = acquireShader("wire"); // reused: a bounding box is just 4 colored lines
@@ -343,16 +345,14 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
     shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
-    shader->setFloat("uPointSize", 8.0f); // Slightly smaller than standard pins (10.0f)
+    shader->setFloat("uWindowHeight", static_cast<float>(m_currentCamera.windowHeight));
+
+    // Scale guide point with world space as well
+    shader->setFloat("uPointSize", 0.018f);
 
     glm::vec2 worldPos = GridSystem::gridToWorld(gridPos);
+    float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f;
 
-    // Orange color matching your bounding boxes
-    float r = 255.0f / 255.0f;
-    float g = 159.0f / 255.0f;
-    float b = 28.0f / 255.0f;
-
-    // Send the single point to the instanced mesh
     std::vector<float> data = { worldPos.x, worldPos.y, r, g, b, opacity };
     m_pointMesh->setInstanceData(data, { 2, 4 }, 1);
     m_pointMesh->drawInstanced(1);
@@ -369,17 +369,19 @@ void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
     shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
-    shader->setFloat("uPointSize", 9.0f); // 0.9 ratio relative to standard 10.0f pins
+    shader->setFloat("uWindowHeight", static_cast<float>(m_currentCamera.windowHeight));
+
+    // Increased size so the outer dark rim extends past the wire boundaries
+    shader->setFloat("uPointSize", 0.028f);
 
     std::vector<float> instancedData;
-    instancedData.reserve(intersectionData.size() * 6); // 2 pos + 4 color
+    instancedData.reserve(intersectionData.size() * 6);
 
     for (const auto& data : intersectionData) {
         glm::vec2 worldPos = GridSystem::gridToWorld({ static_cast<int>(data.x), static_cast<int>(data.y) });
         instancedData.push_back(worldPos.x);
         instancedData.push_back(worldPos.y);
 
-        // Map the state back to colors (0=DISCONNECTED(Blue), 1=ON(Green), 2=OFF(Red))
         if (data.z == 0.0f)      instancedData.insert(instancedData.end(), { 0.0f, 0.0f, 1.0f, 1.0f });
         else if (data.z == 1.0f) instancedData.insert(instancedData.end(), { 0.0f, 1.0f, 0.0f, 1.0f });
         else                     instancedData.insert(instancedData.end(), { 1.0f, 0.0f, 0.0f, 1.0f });
