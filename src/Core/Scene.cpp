@@ -1050,7 +1050,7 @@ bool Scene::checkOverlap(int draggedComponentId) const
 int Scene::addLatch(LatchType type, GridCoords gridPos)
 {
     int id = m_circuit.addLatch(type);
-    glm::vec2 size = {0.35f, 0.25f}; // 7 x 5 grid cells
+    glm::vec2 size = {0.30f, 0.20f}; // 6 x 4 grid cells, the footprint the pins span
 
     if (type == LatchType::SR_LATCH)
     {

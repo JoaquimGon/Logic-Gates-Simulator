@@ -481,61 +481,86 @@ void Renderer::drawLabels(
 )
 {
     std::vector<TextVertex> vertices;
-    const float labelScale = 0.0016f;
+
+    // World units per font pixel; the atlas is baked at 48 px. 0.0012 puts a
+    // capital letter at ~0.037 world units (~3/4 of a grid cell): legible at the
+    // default zoom without crowding a 4-cell-tall body.
+    const float maxLabelScale = 0.0012f;
     const float pinLabelScale = 0.0010f;
+
+    // A body label may occupy at most this fraction of the body's width, so it can
+    // never reach the pins on either side.
+    const float labelWidthFraction = 0.8f;
+    // How far pin names sit inwards of their pins, i.e. just inside the body edge
+    // (~0.2 of a grid cell).
+    const float pinLabelInset = 0.01f;
+
+    const float pinCapHeight = getCapHeight(pinLabelScale, m_font);
 
     for (const auto& [id, view] : componentViews)
     {
-        // 1. If it's a latch, draw centered body label and pin identifiers
-        if (auto* lv = dynamic_cast<LatchView*>(view.get()))
-        {
-            glm::vec2 pos = lv->getPosition();
+        // 1. Latches are the only components carrying labels so far.
+        auto* lv = dynamic_cast<LatchView*>(view.get());
+        if (!lv)
+            continue;
 
-            // Draw center name
-            float textW = getTextWidth(lv->getLabel(), labelScale, m_font);
+        const glm::vec2 pos = lv->getPosition();
+        const glm::vec2 size = lv->getSize();
+
+        // 2. Body label, centred on the body. The scale is capped and then shrunk
+        // to fit, so a long name such as "SR LATCH" still stays inside a 6-cell-wide
+        // body while it and "D LATCH" render at the same size.
+        const std::string& label = lv->getLabel();
+        float labelScale = maxLabelScale;
+        const float naturalWidth = getTextWidth(label, 1.0f, m_font);
+        if (naturalWidth > 0.0f)
+            labelScale = std::min(maxLabelScale, (size.x * labelWidthFraction) / naturalWidth);
+
+        const float labelWidth = getTextWidth(label, labelScale, m_font);
+        buildTextGeometry(
+            label,
+            pos.x - labelWidth * 0.5f,
+            pos.y - getCapHeight(labelScale, m_font) * 0.5f, // centres the caps on the body
+            labelScale,
+            glm::vec4(1.0f, 1.0f, 1.0f, 0.95f),
+            m_font,
+            vertices
+        );
+
+        // 3. Pin names: inwards of their pin, and centred on the pin's row.
+        const auto& inLabels = lv->getInputLabels();
+        const auto& inPins = lv->getInputPins();
+        for (size_t i = 0; i < inPins.size() && i < inLabels.size(); ++i)
+        {
+            const glm::vec2 pinPos = lv->getAbsolutePinWorldPos(inPins[i]);
             buildTextGeometry(
-                lv->getLabel(),
-                pos.x - textW * 0.5f,
-                pos.y + 0.015f,
-                labelScale,
-                glm::vec4(1.0f, 1.0f, 1.0f, 0.95f),
+                inLabels[i],
+                pinPos.x + pinLabelInset,
+                pinPos.y - pinCapHeight * 0.5f,
+                pinLabelScale,
+                glm::vec4(0.75f, 0.85f, 0.95f, 0.85f),
                 m_font,
                 vertices
             );
+        }
 
-            // Draw pin names next to their locations
-            const auto& inLabels = lv->getInputLabels();
-            const auto& inPins = lv->getInputPins();
-            for (size_t i = 0; i < inPins.size() && i < inLabels.size(); ++i)
-            {
-                glm::vec2 pPos = lv->getAbsolutePinWorldPos(inPins[i]);
-                buildTextGeometry(
-                    inLabels[i],
-                    pPos.x + 0.015f,
-                    pPos.y + 0.008f,
-                    pinLabelScale,
-                    glm::vec4(0.75f, 0.85f, 0.95f, 0.85f),
-                    m_font,
-                    vertices
-                );
-            }
-
-            const auto& outLabels = lv->getOutputLabels();
-            const auto& outPins = lv->getOutputPins();
-            for (size_t i = 0; i < outPins.size() && i < outLabels.size(); ++i)
-            {
-                glm::vec2 pPos = lv->getAbsolutePinWorldPos(outPins[i]);
-                float w = getTextWidth(outLabels[i], pinLabelScale, m_font);
-                buildTextGeometry(
-                    outLabels[i],
-                    pPos.x - w - 0.015f,
-                    pPos.y + 0.008f,
-                    pinLabelScale,
-                    glm::vec4(0.75f, 0.85f, 0.95f, 0.85f),
-                    m_font,
-                    vertices
-                );
-            }
+        const auto& outLabels = lv->getOutputLabels();
+        const auto& outPins = lv->getOutputPins();
+        for (size_t i = 0; i < outPins.size() && i < outLabels.size(); ++i)
+        {
+            const glm::vec2 pinPos = lv->getAbsolutePinWorldPos(outPins[i]);
+            // Output names run leftwards from their pin, so the box is anchored on
+            // its right edge instead.
+            const float pinLabelWidth = getTextWidth(outLabels[i], pinLabelScale, m_font);
+            buildTextGeometry(
+                outLabels[i],
+                pinPos.x - pinLabelInset - pinLabelWidth,
+                pinPos.y - pinCapHeight * 0.5f,
+                pinLabelScale,
+                glm::vec4(0.75f, 0.85f, 0.95f, 0.85f),
+                m_font,
+                vertices
+            );
         }
     }
 

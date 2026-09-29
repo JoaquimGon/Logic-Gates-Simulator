@@ -10,8 +10,10 @@ float sdRoundBox(vec2 p, vec2 b, float r)
 
 void main()
 {
-    // localPos is -0.5 to 0.5
-    vec2 halfSize = vec2(0.48, 0.45);
+    // localPos is -0.5 to 0.5. The half extents are equal on both axes and sit
+    // just inside the quad, so the body fills the component's 6 x 4 cell footprint
+    // while the outermost pixels stay available for the anti-aliased edge.
+    vec2 halfSize = vec2(0.48, 0.48);
     float d = sdRoundBox(localPos, halfSize, 0.05);
 
     float aa = fwidth(d);
