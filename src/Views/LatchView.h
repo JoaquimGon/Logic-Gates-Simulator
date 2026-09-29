@@ -1,0 +1,47 @@
+#pragma once
+#include "ComponentView.h"
+
+#include <string>
+#include <vector>
+
+class LatchView : public ComponentView
+{
+  public:
+    LatchView(
+        GridCoords gridPos,
+        int id,
+        glm::vec2 size,
+        std::string shaderName,
+        std::string label,
+        std::vector<PinUI> inputs,
+        std::vector<PinUI> outputs,
+        std::vector<std::string> inputLabels,
+        std::vector<std::string> outputLabels
+    )
+        : ComponentView(gridPos, id, size, std::move(shaderName)), m_label(std::move(label)),
+          m_inputs(std::move(inputs)), m_outputs(std::move(outputs)),
+          m_inputLabels(std::move(inputLabels)), m_outputLabels(std::move(outputLabels))
+    {
+    }
+
+    std::vector<PinUI>& getInputPins() override { return m_inputs; }
+
+    const std::vector<PinUI>& getInputPins() const override { return m_inputs; }
+
+    std::vector<PinUI>& getOutputPins() override { return m_outputs; }
+
+    const std::vector<PinUI>& getOutputPins() const override { return m_outputs; }
+
+    const std::string& getLabel() const { return m_label; }
+
+    const std::vector<std::string>& getInputLabels() const { return m_inputLabels; }
+
+    const std::vector<std::string>& getOutputLabels() const { return m_outputLabels; }
+
+  private:
+    std::string m_label;
+    std::vector<PinUI> m_inputs;
+    std::vector<PinUI> m_outputs;
+    std::vector<std::string> m_inputLabels;
+    std::vector<std::string> m_outputLabels;
+};

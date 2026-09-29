@@ -6,6 +6,7 @@
 #include "..\Views\GateView.h"
 #include "..\Views\GridSystem.h"
 #include "..\Views\InputPinView.h"
+#include "..\Views\LatchView.h"
 
 #include <algorithm>
 #include <cmath>
@@ -53,6 +54,8 @@ class Scene
     int addInputPin(
         GridCoords gridPos, glm::vec2 size, const std::string& shaderName, bool initialState = false
     );
+
+    int addLatch(LatchType type, GridCoords gridPos);
 
     void removeComponent(int componentId);
     ComponentView* getComponentView(int componentId);

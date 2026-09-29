@@ -250,6 +250,8 @@ void Engine::run()
             input.getHoveredPinType()
         );
 
+        m_renderer.drawLabels(scene.getComponentViewMap());
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

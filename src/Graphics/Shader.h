@@ -1,10 +1,10 @@
 #pragma once
 
-#include <GLFW/glfw3.h>
+#include <glad/glad.h>    // MUST BE FIRST
+#include <GLFW/glfw3.h>   // MUST BE SECOND
 #include <chrono>
 #include <filesystem>
 #include <fstream>
-#include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <iostream>
 #include <sstream>

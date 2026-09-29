@@ -1045,3 +1045,64 @@ bool Scene::checkOverlap(int draggedComponentId) const
 
     return false; // No overlaps found
 }
+
+
+int Scene::addLatch(LatchType type, GridCoords gridPos)
+{
+    int id = m_circuit.addLatch(type);
+    glm::vec2 size = {0.35f, 0.25f}; // 7 x 5 grid cells
+
+    if (type == LatchType::SR_LATCH)
+    {
+        std::vector<PinUI> inPins = {
+            {PinType::INPUT, 0, PinState::DISCONNECTED, {-3, 1}}, // S
+            {PinType::INPUT, 1, PinState::DISCONNECTED, {-3, -1}} // R
+        };
+        std::vector<PinUI> outPins = {
+            {PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 1}}, // Q
+            {PinType::OUTPUT, 1, PinState::DISCONNECTED, {3, -1}} // ~Q
+        };
+        m_componentViews.emplace(
+            id,
+            std::make_unique<LatchView>(
+                gridPos,
+                id,
+                size,
+                "latch",
+                "SR LATCH",
+                inPins,
+                outPins,
+                std::vector<std::string>{"S", "R"},
+                std::vector<std::string>{"Q", "~Q"}
+            )
+        );
+    }
+    else
+    {
+        std::vector<PinUI> inPins = {
+            {PinType::INPUT, 0, PinState::DISCONNECTED, {-3, 1}}, // D
+            {PinType::INPUT, 1, PinState::DISCONNECTED, {-3, -1}} // E
+        };
+        std::vector<PinUI> outPins = {
+            {PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 1}}, // Q
+            {PinType::OUTPUT, 1, PinState::DISCONNECTED, {3, -1}} // ~Q
+        };
+        m_componentViews.emplace(
+            id,
+            std::make_unique<LatchView>(
+                gridPos,
+                id,
+                size,
+                "latch",
+                "D LATCH",
+                inPins,
+                outPins,
+                std::vector<std::string>{"D", "E"},
+                std::vector<std::string>{"Q", "~Q"}
+            )
+        );
+    }
+
+    rebuildNets();
+    return id;
+}

@@ -1,6 +1,8 @@
 ﻿#include "Renderer.h"
+#include "..\Views\LatchView.h"
 
 #include <glad/glad.h>
+#include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 
 Renderer::Renderer() {}
@@ -21,6 +23,8 @@ void Renderer::shutdown()
     m_pointMesh.reset();
     m_wireMesh.reset();
     m_boundsMesh.reset();
+    m_font.destroy();
+    m_textMesh.reset();
 
     // Runs every Shader destructor, i.e. glDeleteProgram(), before the context
     // dies.
@@ -59,39 +63,45 @@ void Renderer::init()
     // ==========================================
     // Shaders
     // ==========================================
-    //
-    // .load will attempt to use the shaders in the build folder, which is
-    // corrected by cmake rebuilding them in said folder by copying the
-    // "assets/shaders" folder Always start path with the "shaders" folder cmake
-    // will do the rest
-
     // Gates
-    m_sm.load("ANDgate", "shaders/gates/gate.vert", "shaders/gates/andGate.frag");
-    m_sm.load("NANDgate", "shaders/gates/gate.vert", "shaders/gates/nandGate.frag");
+    m_sm.load(
+        "ANDgate", "shaders/components/gates/gate.vert", "shaders/components/gates/andGate.frag"
+    );
+    m_sm.load(
+        "NANDgate", "shaders/components/gates/gate.vert", "shaders/components/gates/nandGate.frag"
+    );
+    m_sm.load(
+        "ORgate", "shaders/components/gates/gate.vert", "shaders/components/gates/orGate.frag"
+    );
+    m_sm.load(
+        "NORgate", "shaders/components/gates/gate.vert", "shaders/components/gates/norGate.frag"
+    );
+    m_sm.load(
+        "XORgate", "shaders/components/gates/gate.vert", "shaders/components/gates/xorGate.frag"
+    );
+    m_sm.load(
+        "NXORgate", "shaders/components/gates/gate.vert", "shaders/components/gates/nxorGate.frag"
+    );
+    m_sm.load(
+        "NOTgate", "shaders/components/gates/gate.vert", "shaders/components/gates/notGate.frag"
+    );
 
-    m_sm.load("ORgate", "shaders/gates/gate.vert", "shaders/gates/orGate.frag");
-    m_sm.load("NORgate", "shaders/gates/gate.vert", "shaders/gates/norGate.frag");
-
-    m_sm.load("XORgate", "shaders/gates/gate.vert", "shaders/gates/xorGate.frag");
-    m_sm.load("NXORgate", "shaders/gates/gate.vert", "shaders/gates/nxorGate.frag");
-
-    m_sm.load("NOTgate", "shaders/gates/gate.vert", "shaders/gates/notGate.frag");
-
-    // Manual input switch (InputPinView). Shares the gate vertex shader so the
-    // SDF body receives localPos in the same -0.5..0.5 space as the gates.
-    m_sm.load("inputPin", "shaders/gates/gate.vert", "shaders/gates/inputPin.frag");
-
-    // Grid
-    m_sm.load("grid", "shaders/vec3Shader.vert", "shaders/grid.frag");
+    // Latch & Clock & InputPin
+    m_sm.load(
+        "latch", "shaders/components/gates/gate.vert", "shaders/components/latches/latch.frag"
+    );
+    m_sm.load("clock", "shaders/components/gates/gate.vert", "shaders/components/clock.frag");
+    m_sm.load("inputPin", "shaders/components/gates/gate.vert", "shaders/components/inputPin.frag");
 
     // Pins
-    m_sm.load("pin", "shaders/pins/pins.vert", "shaders/pins/pins.frag");
+    m_sm.load("pin", "shaders/components/pins.vert", "shaders/components/pins.frag");
 
-    // Wires
+    // Text
+    m_sm.load("text", "shaders/text/text.vert", "shaders/text/text.frag");
+
+    // Grid & Wires
+    m_sm.load("grid", "shaders/vec3Shader.vert", "shaders/grid.frag");
     m_sm.load("wire", "shaders/wires/wires.vert", "shaders/wires/wires.frag");
-
-    // Clock
-    m_sm.load("clock", "shaders/gates/gate.vert", "shaders/gates/clock.frag");
 
     // ==========================================
     // Meshes
@@ -133,14 +143,33 @@ void Renderer::init()
     // ==========================================
     // Bounding Box Mesh
     // ==========================================
-    // We use GL_LINES so we can draw crisp edges, reusing the exact same layout
-    // as wires!
     VertexLayout boundsLayout;
     boundsLayout.addAttribute(3); // Position
     boundsLayout.addAttribute(4); // Color
     m_boundsMesh = std::make_unique<Mesh>(
         std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_LINES
     );
+
+    // ==========================================
+    // Text
+    // ==========================================
+    // Initialize Font Atlas (Uses Windows Consolas as default, or any TTF in assets)
+    std::string fontPath = "C:/Windows/Fonts/consola.ttf";
+    if (!m_font.init(fontPath, 48.0f))
+    {
+        // Fallback to Arial if Consolas isn't present
+        m_font.init("C:/Windows/Fonts/arial.ttf", 48.0f);
+    }
+
+    // Text Mesh Dynamic Layout: Pos(2) + UV(2) + Color(4) = 8 floats
+    VertexLayout textLayout;
+    textLayout.addAttribute(2); // aPos
+    textLayout.addAttribute(2); // aTexCoord
+    textLayout.addAttribute(4); // aColor
+    m_textMesh = std::make_unique<Mesh>(
+        std::vector<float>{}, std::vector<unsigned int>{}, textLayout, GL_TRIANGLES
+    );
+
 }
 
 
@@ -444,4 +473,111 @@ void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
 
     m_pointMesh->setInstanceData(instancedData, {2, 4}, 1);
     m_pointMesh->drawInstanced(static_cast<int>(intersectionData.size()));
+}
+
+
+void Renderer::drawLabels(
+    const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews
+)
+{
+    std::vector<TextVertex> vertices;
+    const float labelScale = 0.0016f;
+    const float pinLabelScale = 0.0010f;
+
+    for (const auto& [id, view] : componentViews)
+    {
+        // 1. If it's a latch, draw centered body label and pin identifiers
+        if (auto* lv = dynamic_cast<LatchView*>(view.get()))
+        {
+            glm::vec2 pos = lv->getPosition();
+
+            // Draw center name
+            float textW = getTextWidth(lv->getLabel(), labelScale, m_font);
+            buildTextGeometry(
+                lv->getLabel(),
+                pos.x - textW * 0.5f,
+                pos.y + 0.015f,
+                labelScale,
+                glm::vec4(1.0f, 1.0f, 1.0f, 0.95f),
+                m_font,
+                vertices
+            );
+
+            // Draw pin names next to their locations
+            const auto& inLabels = lv->getInputLabels();
+            const auto& inPins = lv->getInputPins();
+            for (size_t i = 0; i < inPins.size() && i < inLabels.size(); ++i)
+            {
+                glm::vec2 pPos = lv->getAbsolutePinWorldPos(inPins[i]);
+                buildTextGeometry(
+                    inLabels[i],
+                    pPos.x + 0.015f,
+                    pPos.y + 0.008f,
+                    pinLabelScale,
+                    glm::vec4(0.75f, 0.85f, 0.95f, 0.85f),
+                    m_font,
+                    vertices
+                );
+            }
+
+            const auto& outLabels = lv->getOutputLabels();
+            const auto& outPins = lv->getOutputPins();
+            for (size_t i = 0; i < outPins.size() && i < outLabels.size(); ++i)
+            {
+                glm::vec2 pPos = lv->getAbsolutePinWorldPos(outPins[i]);
+                float w = getTextWidth(outLabels[i], pinLabelScale, m_font);
+                buildTextGeometry(
+                    outLabels[i],
+                    pPos.x - w - 0.015f,
+                    pPos.y + 0.008f,
+                    pinLabelScale,
+                    glm::vec4(0.75f, 0.85f, 0.95f, 0.85f),
+                    m_font,
+                    vertices
+                );
+            }
+        }
+    }
+
+    if (vertices.empty())
+        return;
+
+    // Flatten data for VBO
+    std::vector<float> data;
+    data.reserve(vertices.size() * 8);
+    for (const auto& v : vertices)
+    {
+        data.push_back(v.pos.x);
+        data.push_back(v.pos.y);
+        data.push_back(v.uv.x);
+        data.push_back(v.uv.y);
+        data.push_back(v.color.r);
+        data.push_back(v.color.g);
+        data.push_back(v.color.b);
+        data.push_back(v.color.a);
+    }
+
+    auto* shader = acquireShader("text");
+    if (!shader)
+        return;
+
+    shader->use();
+
+    // Map camera view to ortho matrix
+    glm::mat4 proj = glm::ortho(
+        (m_currentCamera.panOffset.x - m_currentCamera.aspectRatio / m_currentCamera.zoom),
+        (m_currentCamera.panOffset.x + m_currentCamera.aspectRatio / m_currentCamera.zoom),
+        (m_currentCamera.panOffset.y - 1.0f / m_currentCamera.zoom),
+        (m_currentCamera.panOffset.y + 1.0f / m_currentCamera.zoom),
+        -1.0f,
+        1.0f
+    );
+    shader->setMat4("uProjectionView", proj);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_font.textureId);
+    shader->setBool("uFontTexture", 0);
+
+    m_textMesh->updateData(data, 8);
+    m_textMesh->draw();
 }

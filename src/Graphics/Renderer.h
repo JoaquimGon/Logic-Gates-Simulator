@@ -3,6 +3,8 @@
 #include "..\Views\ComponentView.h"
 #include "Mesh.h"
 #include "ShaderManager.h"
+#include "Text/FontRenderer.h"
+
 
 #include <glm/glm.hpp>
 #include <map>
@@ -66,6 +68,11 @@ class Renderer
     void drawGridPointHighlight(GridCoords gridPos, float opacity);
     void drawIntersections(const std::vector<glm::vec3>& intersectionData);
 
+    void drawText(
+        const std::string& text, float worldX, float worldY, float size, const glm::vec4& color
+    );
+    void drawLabels(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews);
+
   private:
     /**
      * @brief Looks a shader up by name, logging (at most once per name) the
@@ -87,6 +94,9 @@ class Renderer
     std::unique_ptr<Mesh> m_pointMesh;
     std::unique_ptr<Mesh> m_wireMesh;
     std::unique_ptr<Mesh> m_boundsMesh;
+
+    FontAtlas m_font;
+    std::unique_ptr<Mesh> m_textMesh;
 
     CameraState m_currentCamera;
 };

@@ -80,6 +80,7 @@ set(PROJECT_SOURCES
     src/Graphics/Shader.cpp
     src/Graphics/ShaderManager.cpp
     src/Graphics/VertexLayout.cpp
+    src/Graphics/Text/FontRenderer.cpp
 )
 
 # ============================================================
@@ -95,6 +96,7 @@ add_executable(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/
 )
 
 # ============================================================
@@ -115,6 +117,12 @@ target_link_libraries(${PROJECT_NAME}
 target_compile_definitions(${PROJECT_NAME}
     PRIVATE
         PROJECT_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
+)
+
+target_compile_definitions(${PROJECT_NAME}
+    PRIVATE
+        PROJECT_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        GLFW_INCLUDE_NONE
 )
 
 # ============================================================

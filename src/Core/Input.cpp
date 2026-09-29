@@ -492,6 +492,39 @@ void Input::process(GLFWwindow* window)
         }
     }
 
+    if (consumeKeyPress(GLFW_KEY_U) && canSpawn)
+    {
+        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
+        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
+        int newId = m_scene->addLatch(LatchType::SR_LATCH, gridPos);
+        if (ComponentView* cv = m_scene->getComponentView(newId))
+        {
+            while (m_scene->checkOverlap(newId))
+            {
+                gridPos.x += 1;
+                gridPos.y -= 1;
+                cv->setGridPosition(gridPos);
+            }
+        }
+    }
+
+    // Spawn Gated D Latch (Key 'I')
+    if (consumeKeyPress(GLFW_KEY_I) && canSpawn)
+    {
+        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
+        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
+        int newId = m_scene->addLatch(LatchType::D_LATCH, gridPos);
+        if (ComponentView* cv = m_scene->getComponentView(newId))
+        {
+            while (m_scene->checkOverlap(newId))
+            {
+                gridPos.x += 1;
+                gridPos.y -= 1;
+                cv->setGridPosition(gridPos);
+            }
+        }
+    }
+
     // Toggle clock(s) pause on Space
     if (consumeKeyPress(GLFW_KEY_SPACE) && m_scene)
     {

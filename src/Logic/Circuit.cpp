@@ -269,3 +269,13 @@ EvalOrderResult Circuit::propagate()
     m_stateDirty = false;
     return EvalOrderResult::OK;
 }
+
+
+int Circuit::addLatch(LatchType type)
+{
+    int id = m_currentId++;
+    m_components.emplace(id, std::make_unique<Latch>(id, type));
+    m_evalOrderDirty = true;
+    m_stateDirty = true;
+    return id;
+}

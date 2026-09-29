@@ -2,6 +2,7 @@
 #include "Clock.h"
 #include "Gate.h"
 #include "InputPin.h"
+#include "Latch.h"
 
 #include <iostream>
 #include <memory>
@@ -37,6 +38,7 @@ class Circuit
     int addGate(GateType type);
     int addInputPin(bool initialState = false);
     int addClock(float frequencyHz = 1.0f); // NEW
+    int addLatch(LatchType type);
 
     Component* getComponent(int id);
     void delComponent(int id);
