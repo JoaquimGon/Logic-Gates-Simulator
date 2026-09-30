@@ -1,11 +1,11 @@
 ﻿#include "Renderer.h"
-#include "..\Views\LatchView.h"
+
 #include "..\Logic\Circuit.h"
+#include "..\Views\LatchView.h"
 
 #include <glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
-
 
 Renderer::Renderer() {}
 
@@ -15,7 +15,6 @@ Renderer::~Renderer()
     // alive, since deleting GL objects after glfwTerminate() is invalid.
     shutdown();
 }
-
 
 void Renderer::shutdown()
 {
@@ -33,7 +32,6 @@ void Renderer::shutdown()
     m_sm.release();
 }
 
-
 Shader* Renderer::acquireShader(const std::string& name)
 {
     if (Shader* shader = m_sm.get(name))
@@ -50,7 +48,6 @@ Shader* Renderer::acquireShader(const std::string& name)
     }
     return nullptr;
 }
-
 
 void Renderer::init()
 {
@@ -171,9 +168,7 @@ void Renderer::init()
     m_textMesh = std::make_unique<Mesh>(
         std::vector<float>{}, std::vector<unsigned int>{}, textLayout, GL_TRIANGLES
     );
-
 }
-
 
 void Renderer::beginFrame(const CameraState& camera)
 {
@@ -182,7 +177,6 @@ void Renderer::beginFrame(const CameraState& camera)
     m_drawCallCount = 0; // Reset at the beginning of each frame
     glClear(GL_COLOR_BUFFER_BIT);
 }
-
 
 void Renderer::drawGrid()
 {
@@ -202,7 +196,6 @@ void Renderer::drawGrid()
     m_gridMesh->draw();
     m_drawCallCount++;
 }
-
 
 void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire)
 {
@@ -235,7 +228,6 @@ void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* active
         m_drawCallCount++;
     }
 }
-
 
 void Renderer::drawWireSegmentBoundingBox(
     const GridCoords& start, const GridCoords& end, float padding, float alpha
@@ -274,7 +266,6 @@ void Renderer::drawWireSegmentBoundingBox(
     m_boundsMesh->draw();
     m_drawCallCount++;
 }
-
 
 void Renderer::drawComponents(
     const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews
@@ -316,7 +307,6 @@ void Renderer::drawComponents(
     }
     m_drawCallCount++;
 }
-
 
 void Renderer::drawPins(
     const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews,
@@ -380,7 +370,6 @@ void Renderer::drawPins(
     }
 }
 
-
 void Renderer::drawComponentBoundingBox(const ComponentView& component, float padding, float alpha)
 {
     auto* shader = acquireShader("wire"); // reused: a bounding box is just 4 colored lines
@@ -421,7 +410,6 @@ void Renderer::drawComponentBoundingBox(const ComponentView& component, float pa
     m_drawCallCount++;
 }
 
-
 void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
 {
     auto* shader = acquireShader("pin");
@@ -444,7 +432,6 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
     m_pointMesh->drawInstanced(1);
     m_drawCallCount++;
 }
-
 
 void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
 {
@@ -485,7 +472,6 @@ void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
     m_pointMesh->drawInstanced(static_cast<int>(intersectionData.size()));
     m_drawCallCount++;
 }
-
 
 void Renderer::drawLabels(
     const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews
@@ -541,11 +527,13 @@ void Renderer::drawLabels(
         // 3. Pin names: inwards of their pin, and centred on the pin's row.
         const auto& inLabels = lv->getInputLabels();
         const auto& inPins = lv->getInputPins();
-        for (size_t i = 0; i < inPins.size() && i < inLabels.size(); ++i)
+        for (const auto& pin : inPins)
         {
-            const glm::vec2 pinPos = lv->getAbsolutePinWorldPos(inPins[i]);
+            if (pin.pin_index >= inLabels.size())
+                continue;
+            const glm::vec2 pinPos = lv->getAbsolutePinWorldPos(pin);
             buildTextGeometry(
-                inLabels[i],
+                lv->getInputLabel(static_cast<int>(pin.pin_index)),
                 pinPos.x + pinLabelInset,
                 pinPos.y - pinCapHeight * 0.5f,
                 pinLabelScale,
@@ -557,14 +545,17 @@ void Renderer::drawLabels(
 
         const auto& outLabels = lv->getOutputLabels();
         const auto& outPins = lv->getOutputPins();
-        for (size_t i = 0; i < outPins.size() && i < outLabels.size(); ++i)
+        for (const auto& pin : outPins)
         {
-            const glm::vec2 pinPos = lv->getAbsolutePinWorldPos(outPins[i]);
+            if (pin.pin_index >= outLabels.size())
+                continue;
+            const glm::vec2 pinPos = lv->getAbsolutePinWorldPos(pin);
+            const auto& pinLabel = lv->getOutputLabel(static_cast<int>(pin.pin_index));
             // Output names run leftwards from their pin, so the box is anchored on
             // its right edge instead.
-            const float pinLabelWidth = getTextWidth(outLabels[i], pinLabelScale, m_font);
+            const float pinLabelWidth = getTextWidth(pinLabel, pinLabelScale, m_font);
             buildTextGeometry(
-                outLabels[i],
+                pinLabel,
                 pinPos.x - pinLabelInset - pinLabelWidth,
                 pinPos.y - pinCapHeight * 0.5f,
                 pinLabelScale,
@@ -618,7 +609,6 @@ void Renderer::drawLabels(
     m_textMesh->draw();
     m_drawCallCount++;
 }
-
 
 void Renderer::drawDebugOverlay(const DebugMetrics& metrics)
 {

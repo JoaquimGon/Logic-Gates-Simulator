@@ -36,7 +36,11 @@ class LatchView : public ComponentView
 
     const std::vector<std::string>& getInputLabels() const { return m_inputLabels; }
 
+    const std::string& getInputLabel(int pinIndex) const { return m_inputLabels.at(pinIndex); }
+
     const std::vector<std::string>& getOutputLabels() const { return m_outputLabels; }
+
+    const std::string& getOutputLabel(int pinIndex) const { return m_outputLabels.at(pinIndex); }
 
   private:
     std::string m_label;
