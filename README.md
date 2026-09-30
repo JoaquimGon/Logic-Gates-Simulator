@@ -75,6 +75,8 @@ C++ Standard: C++20
 
     GLM (1.0.1): Fetched automatically via FetchContent
 
+    stb_truetype (1.26): Vendored in external/stb_truetype.h for text rendering; its license notice is included in the header.
+
     OpenGL: System driver
 
     GLAD (OpenGL 3.3 Core): Vendored directly in the repository under external/glad/. No external generator or local package manager required on clone.

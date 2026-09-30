@@ -56,8 +56,9 @@ Testing/
 # Package managers
 vcpkg_installed/
 
-# Vendored libraries (ignore all of external except external/glad)
+# Vendored libraries (GLAD and stb_truetype)
 external/*
 !external/glad/
+!external/stb_truetype.h
 # Local contributor notes and planning
 /.local/
