@@ -6,19 +6,9 @@
 class Clock : public Component
 {
   public:
-    Clock(int id, float frequencyHz = 1.0f) : Component(id) { setFrequency(frequencyHz); }
+    Clock(int id, float frequencyHz = 1.0f) : Component(id, 0, 1) { setFrequency(frequencyHz); }
 
     void evaluate() override { /* Driven by timer, not inputs */ }
-
-    bool getStateOutPin(int /*outIndex*/ = 0) const override { return m_state; }
-
-    void setStateInPin(int, bool) override {}
-
-    std::vector<bool> getStateInPins() const override { return {}; }
-
-    int getInputPinCount() const override { return 0; }
-
-    int getOutputPinCount() const override { return 1; }
 
     bool isClocked() const override { return true; }
 
@@ -47,7 +37,7 @@ class Clock : public Component
     // -------------------------------------------------------------
     bool step()
     {
-        m_state = !m_state;
+        setStateOutPin(0, !getStateOutPin(0));
 
         // Pause the clock otherwise it will instantly overwrite
         setPaused(true);
@@ -66,7 +56,7 @@ class Clock : public Component
         if (m_timer >= m_halfPeriod)
         {
             m_timer -= m_halfPeriod;
-            m_state = !m_state;
+            setStateOutPin(0, !getStateOutPin(0));
             return true; // Edge transition
         }
         return false;
@@ -76,6 +66,5 @@ class Clock : public Component
     float m_frequencyHz = 1.0f;
     float m_halfPeriod = 0.5f;
     float m_timer = 0.0f;
-    bool m_state = false;
     bool m_paused = false;
 };

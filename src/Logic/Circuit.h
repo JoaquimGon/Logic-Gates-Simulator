@@ -39,6 +39,7 @@ class Circuit
 
   public:
     int addGate(GateType type);
+    int addGate(GateType type, int inputPinCount);
     int addInputPin(bool initialState = false);
     int addClock(float frequencyHz = 1.0f); // NEW
     int addLatch(LatchType type);
@@ -46,8 +47,20 @@ class Circuit
     Component* getComponent(int id);
     void delComponent(int id);
 
-    bool connectComponents(int srcComponentId, int destComponentId, int destPinIndex);
-    void disconnectComponents(int srcComponentId, int destComponentId, int destPinIndex);
+    /**
+     * @brief Connects an output to an input, preserving both endpoint indices.
+     * @param srcComponentId Source component.
+     * @param srcPinIndex Source output index.
+     * @param destComponentId Destination component.
+     * @param destPinIndex Destination input index.
+     * @return True for a new or identical edge; false for invalid pins, an occupied input, or a
+     * cycle.
+     */
+    bool
+    connectComponents(int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex);
+    void disconnectComponents(
+        int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex
+    );
     void clearConnections();
 
     void markStateDirty() { m_stateDirty = true; }
@@ -64,8 +77,10 @@ class Circuit
 
     // Debugging:
     float getLastPropagateTimeMs() const { return m_lastPropagateDurationMs; }
-    EvalOrderResult getLastEvalResult() const { return m_lastEvalResult; }
-    size_t getEvalOrderSize() const { return m_evaluationOrder.size(); }
-    size_t getComponentCount() const { return m_components.size(); }
 
+    EvalOrderResult getLastEvalResult() const { return m_lastEvalResult; }
+
+    size_t getEvalOrderSize() const { return m_evaluationOrder.size(); }
+
+    size_t getComponentCount() const { return m_components.size(); }
 };

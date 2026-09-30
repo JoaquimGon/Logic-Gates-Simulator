@@ -1,8 +1,6 @@
 #pragma once
 #include "Component.h"
 
-#include <vector>
-
 enum GateType
 {
     NOT,
@@ -18,23 +16,16 @@ class Gate : public Component
 {
   public:
     Gate(int id, GateType gateType);
+    Gate(int id, GateType gateType, int inputPinCount);
 
+    /** @brief NOT takes one input; all other gates require at least two. */
+    static bool isValidInputPinCount(GateType type, int inputPinCount);
+
+    /** @brief XOR computes odd parity across all inputs; NXOR computes its inverse. */
     void evaluate() override;
-
-    bool getStateOutPin(int outIndex = 0) const override { return m_stateOutPin; }
-
-    void setStateInPin(int pinIndex, bool state) override;
-
-    std::vector<bool> getStateInPins() const override { return m_stateInPins; }
-
-    int getInputPinCount() const override { return static_cast<int>(m_stateInPins.size()); }
-
-    int getOutputPinCount() const override { return 1; }
 
     GateType getType() const { return m_gateType; }
 
   private:
     GateType m_gateType;
-    std::vector<bool> m_stateInPins;
-    bool m_stateOutPin = false;
 };

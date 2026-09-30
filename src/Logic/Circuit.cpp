@@ -2,13 +2,17 @@
 
 int Circuit::addGate(GateType type)
 {
+    return addGate(type, type == NOT ? 1 : 2);
+}
+
+int Circuit::addGate(GateType type, int inputPinCount)
+{
     int id = m_currentId++;
-    m_components.emplace(id, std::make_unique<Gate>(id, type));
+    m_components.emplace(id, std::make_unique<Gate>(id, type, inputPinCount));
     m_evalOrderDirty = true;
     m_stateDirty = true;
     return id;
 }
-
 
 int Circuit::addInputPin(bool initialState)
 {
@@ -19,13 +23,11 @@ int Circuit::addInputPin(bool initialState)
     return id;
 }
 
-
 Component* Circuit::getComponent(int id)
 {
     auto it = m_components.find(id);
     return it != m_components.end() ? it->second.get() : nullptr;
 }
-
 
 void Circuit::delComponent(int id)
 {
@@ -33,16 +35,16 @@ void Circuit::delComponent(int id)
     if (!comp)
         return;
 
-    for (const auto& c : comp->getInConnections())
-        if (Component* src = getComponent(c.gateId))
-            src->delOutConnection(id, c.pinIndex);
+    for (const auto& connection : comp->getInConnections())
+        if (Component* src = getComponent(connection.srcComponentId))
+            src->delOutConnection(connection);
 
-    for (const auto& c : comp->getOutConnections())
+    for (const auto& connection : comp->getOutConnections())
     {
-        if (Component* dest = getComponent(c.gateId))
+        if (Component* dest = getComponent(connection.destComponentId))
         {
-            dest->delInConnection(id, c.pinIndex);
-            dest->setStateInPin(c.pinIndex, false);
+            dest->delInConnection(connection);
+            dest->setStateInPin(connection.destPinIndex, false);
         }
     }
 
@@ -51,8 +53,9 @@ void Circuit::delComponent(int id)
     m_stateDirty = true;
 }
 
-
-bool Circuit::connectComponents(int srcComponentId, int destComponentId, int destPinIndex)
+bool Circuit::connectComponents(
+    int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex
+)
 {
     if (srcComponentId == destComponentId)
         return false;
@@ -62,20 +65,17 @@ bool Circuit::connectComponents(int srcComponentId, int destComponentId, int des
     if (!src || !dest)
         return false;
 
-    if (src->getOutputPinCount() <= 0 || destPinIndex < 0 ||
+    if (srcPinIndex < 0 || srcPinIndex >= src->getOutputPinCount() || destPinIndex < 0 ||
         destPinIndex >= dest->getInputPinCount())
     {
         return false;
     }
 
-    for (const auto& c : dest->getInConnections())
+    const Connection connection{srcComponentId, srcPinIndex, destComponentId, destPinIndex};
+    for (const auto& existing : dest->getInConnections())
     {
-        if (c.pinIndex == destPinIndex)
-        {
-            if (c.gateId == srcComponentId)
-                return true;
-            return false;
-        }
+        if (existing.destPinIndex == destPinIndex)
+            return existing == connection;
     }
 
     if (wouldCreateCycle(srcComponentId, destComponentId))
@@ -83,29 +83,34 @@ bool Circuit::connectComponents(int srcComponentId, int destComponentId, int des
         return false;
     }
 
-    src->addOutConnection(destComponentId, destPinIndex);
-    dest->addInConnection(srcComponentId, destPinIndex);
+    src->addOutConnection(connection);
+    dest->addInConnection(connection);
     m_evalOrderDirty = true;
     m_stateDirty = true;
     return true;
 }
 
-
-void Circuit::disconnectComponents(int srcComponentId, int destComponentId, int destPinIndex)
+void Circuit::disconnectComponents(
+    int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex
+)
 {
     Component* src = getComponent(srcComponentId);
     Component* dest = getComponent(destComponentId);
     if (!src || !dest)
         return;
 
-    src->delOutConnection(destComponentId, destPinIndex);
-    dest->delInConnection(srcComponentId, destPinIndex);
+    const Connection connection{srcComponentId, srcPinIndex, destComponentId, destPinIndex};
+    const auto& outgoing = src->getOutConnections();
+    if (std::find(outgoing.begin(), outgoing.end(), connection) == outgoing.end())
+        return;
+
+    src->delOutConnection(connection);
+    dest->delInConnection(connection);
     dest->setStateInPin(destPinIndex, false);
 
     m_evalOrderDirty = true;
     m_stateDirty = true;
 }
-
 
 void Circuit::clearConnections()
 {
@@ -119,7 +124,6 @@ void Circuit::clearConnections()
     m_evalOrderDirty = true;
     m_stateDirty = true;
 }
-
 
 bool Circuit::wouldCreateCycle(int srcComponentId, int destComponentId)
 {
@@ -138,12 +142,11 @@ bool Circuit::wouldCreateCycle(int srcComponentId, int destComponentId)
 
         if (Component* comp = getComponent(currentId))
             for (const auto& conn : comp->getOutConnections())
-                stack.push_back(conn.gateId);
+                stack.push_back(conn.destComponentId);
     }
 
     return false;
 }
-
 
 EvalOrderResult Circuit::evaluateOrder()
 {
@@ -168,7 +171,6 @@ EvalOrderResult Circuit::evaluateOrder()
     return EvalOrderResult::OK;
 }
 
-
 bool Circuit::dfsSort(
     int componentId,
     std::unordered_set<int>& visited,
@@ -187,7 +189,7 @@ bool Circuit::dfsSort(
     {
         for (const auto& conn : comp->getOutConnections())
         {
-            if (!dfsSort(conn.gateId, visited, scheduled, order))
+            if (!dfsSort(conn.destComponentId, visited, scheduled, order))
             {
                 scheduled.erase(componentId);
                 return false;
@@ -201,7 +203,6 @@ bool Circuit::dfsSort(
     return true;
 }
 
-
 int Circuit::addClock(float frequencyHz)
 {
     int id = m_currentId++;
@@ -210,7 +211,6 @@ int Circuit::addClock(float frequencyHz)
     m_stateDirty = true;
     return id;
 }
-
 
 bool Circuit::updateClocks(float deltaTime)
 {
@@ -232,7 +232,6 @@ bool Circuit::updateClocks(float deltaTime)
     }
     return clockEdgeOccurred;
 }
-
 
 #include <chrono>
 
@@ -263,13 +262,14 @@ EvalOrderResult Circuit::propagate()
             continue;
 
         comp->evaluate();
-        bool out = comp->getStateOutPin();
 
         for (const auto& connection : comp->getOutConnections())
         {
-            if (Component* child = getComponent(connection.gateId))
+            if (Component* child = getComponent(connection.destComponentId))
             {
-                child->setStateInPin(connection.pinIndex, out);
+                child->setStateInPin(
+                    connection.destPinIndex, comp->getStateOutPin(connection.srcPinIndex)
+                );
             }
         }
     }

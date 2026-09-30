@@ -1,67 +1,72 @@
 ﻿#include "Gate.h"
 
-#include <iostream>
+#include <algorithm>
+#include <stdexcept>
 
-Gate::Gate(int id, GateType gateType) : Component(id), m_gateType(gateType)
+namespace
 {
-    int inPinsCount = 0;
-    switch (m_gateType)
+int checkedInputPinCount(GateType type, int inputPinCount)
+{
+    if (!Gate::isValidInputPinCount(type, inputPinCount))
+        throw std::invalid_argument("Invalid gate type or input pin count.");
+    return inputPinCount;
+}
+} // namespace
+
+Gate::Gate(int id, GateType gateType) : Gate(id, gateType, gateType == NOT ? 1 : 2) {}
+
+Gate::Gate(int id, GateType gateType, int inputPinCount)
+    : Component(id, checkedInputPinCount(gateType, inputPinCount), 1), m_gateType(gateType)
+{
+}
+
+bool Gate::isValidInputPinCount(GateType type, int inputPinCount)
+{
+    switch (type)
     {
     case NOT:
-        inPinsCount = 1;
-        break;
+        return inputPinCount == 1;
     case AND:
-    case OR:
-    case XOR:
     case NAND:
+    case OR:
     case NOR:
+    case XOR:
     case NXOR:
-        inPinsCount = 2;
-        break;
+        return inputPinCount >= 2;
     default:
-        std::cerr << "Gate type unspecified\n";
-        break;
+        return false;
     }
-    m_stateInPins.resize(inPinsCount, false);
 }
-
-
-void Gate::setStateInPin(int pinIndex, bool state)
-{
-    if (pinIndex >= 0 && pinIndex < static_cast<int>(m_stateInPins.size()))
-        m_stateInPins[pinIndex] = state;
-    else
-        std::cerr << "[Gate Error]: Invalid pin index " << pinIndex << "\n";
-}
-
 
 void Gate::evaluate()
 {
+    const auto& inputs = getStateInPins();
+    bool output = false;
+
     switch (m_gateType)
     {
     case NOT:
-        m_stateOutPin = !m_stateInPins[0];
+        output = !inputs[0];
         break;
     case AND:
-        m_stateOutPin = m_stateInPins[0] && m_stateInPins[1];
-        break;
     case NAND:
-        m_stateOutPin = !(m_stateInPins[0] && m_stateInPins[1]);
+        output = std::all_of(inputs.begin(), inputs.end(), [](bool state) { return state; });
+        if (m_gateType == NAND)
+            output = !output;
         break;
     case OR:
-        m_stateOutPin = m_stateInPins[0] || m_stateInPins[1];
-        break;
     case NOR:
-        m_stateOutPin = !(m_stateInPins[0] || m_stateInPins[1]);
+        output = std::any_of(inputs.begin(), inputs.end(), [](bool state) { return state; });
+        if (m_gateType == NOR)
+            output = !output;
         break;
     case XOR:
-        m_stateOutPin = m_stateInPins[0] ^ m_stateInPins[1];
-        break;
     case NXOR:
-        m_stateOutPin = !(m_stateInPins[0] ^ m_stateInPins[1]);
-        break;
-    default:
-        m_stateOutPin = false;
+        output = (std::count(inputs.begin(), inputs.end(), true) % 2) != 0;
+        if (m_gateType == NXOR)
+            output = !output;
         break;
     }
+
+    setStateOutPin(0, output);
 }

@@ -41,7 +41,16 @@ struct HitResult
 class Scene
 {
   public:
-    // ----- Gates (the only concrete component type today) -----
+    /**
+     * @brief Creates a gate whose logical input count matches the supplied visual pins.
+     * @param type Gate operation; NOT requires one input, other gates at least two.
+     * @param gridPos Component origin on the grid.
+     * @param size Visual footprint in world units.
+     * @param shaderName Registered shader for the gate.
+     * @param inputs Unique input indices from zero to input count minus one, in any order.
+     * @param outputs Exactly one output, with index zero.
+     * @return Created component ID. Invalid layouts throw std::invalid_argument.
+     */
     int addGate(
         GateType type,
         GridCoords gridPos,
@@ -156,8 +165,11 @@ class Scene
 
     // Debugging
     float getLastPropagateTimeMs() const { return m_circuit.getLastPropagateTimeMs(); }
+
     EvalOrderResult getLastEvalResult() const { return m_circuit.getLastEvalResult(); }
+
     size_t getEvalOrderSize() const { return m_circuit.getEvalOrderSize(); }
+
     size_t getComponentCount() const { return m_circuit.getComponentCount(); }
 
     size_t getShortedNetCount() const

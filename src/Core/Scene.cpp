@@ -1,7 +1,25 @@
 ﻿#include "Scene.h"
 
+#include <stdexcept>
+
 namespace
 {
+/** @brief Checks that visual pins map bijectively to the component's logical pins. */
+void validatePins(const std::vector<PinUI>& pins, PinType type, int pinCount)
+{
+    if (pins.size() != static_cast<size_t>(pinCount))
+        throw std::invalid_argument("View and component pin counts must match.");
+
+    std::vector<bool> seen(pinCount, false);
+    for (const auto& pin : pins)
+    {
+        if (pin.type != type || pin.pin_index >= static_cast<size_t>(pinCount) ||
+            seen[pin.pin_index])
+            throw std::invalid_argument("View pin indices must be unique, valid, and directional.");
+        seen[pin.pin_index] = true;
+    }
+}
+
 /*
  * @brief Union-find over wire ids.
  * Two wires that share an endpoint coordinate are the same net, transitively.
@@ -45,7 +63,9 @@ int Scene::addGate(
     std::vector<PinUI> outputs
 )
 {
-    int id = m_circuit.addGate(type);
+    validatePins(inputs, PinType::INPUT, static_cast<int>(inputs.size()));
+    validatePins(outputs, PinType::OUTPUT, 1);
+    int id = m_circuit.addGate(type, static_cast<int>(inputs.size()));
     m_componentViews.emplace(
         id,
         std::make_unique<GateView>(
@@ -59,7 +79,6 @@ int Scene::addGate(
     return id;
 }
 
-
 int Scene::addInputPin(
     GridCoords gridPos, glm::vec2 size, const std::string& shaderName, bool initialState
 )
@@ -70,7 +89,6 @@ int Scene::addInputPin(
     rebuildNets();
     return id;
 }
-
 
 void Scene::removeComponent(int componentId)
 {
@@ -83,19 +101,16 @@ void Scene::removeComponent(int componentId)
     rebuildNets();
 }
 
-
 ComponentView* Scene::getComponentView(int componentId)
 {
     auto it = m_componentViews.find(componentId);
     return it != m_componentViews.end() ? it->second.get() : nullptr;
 }
 
-
 Component* Scene::getLogicComponent(int componentId)
 {
     return m_circuit.getComponent(componentId);
 }
-
 
 WireId Scene::insertWire(Wire wire)
 {
@@ -107,20 +122,17 @@ WireId Scene::insertWire(Wire wire)
     return id;
 }
 
-
 Wire* Scene::getWire(WireId id)
 {
     auto it = m_wires.find(id);
     return it != m_wires.end() ? &it->second : nullptr;
 }
 
-
 const Wire* Scene::getWire(WireId id) const
 {
     auto it = m_wires.find(id);
     return it != m_wires.end() ? &it->second : nullptr;
 }
-
 
 std::vector<WireId> Scene::getWireIds() const
 {
@@ -130,7 +142,6 @@ std::vector<WireId> Scene::getWireIds() const
         ids.push_back(id);
     return ids;
 }
-
 
 std::optional<WireId> Scene::commitWire(Wire wire)
 {
@@ -155,7 +166,6 @@ std::optional<WireId> Scene::commitWire(Wire wire)
     return id;
 }
 
-
 std::optional<Wire> Scene::extractWire(WireId id)
 {
     auto it = m_wires.find(id);
@@ -169,7 +179,6 @@ std::optional<Wire> Scene::extractWire(WireId id)
     return wire;
 }
 
-
 bool Scene::splitWireGeometry(WireId id, GridCoords point, Wire& outA, Wire& outB)
 {
     Wire* wire = getWire(id);
@@ -182,7 +191,6 @@ bool Scene::splitWireGeometry(WireId id, GridCoords point, Wire& outA, Wire& out
     return true;
 }
 
-
 bool Scene::splitWireAt(WireId id, GridCoords point, Wire& outA, Wire& outB)
 {
     if (!splitWireGeometry(id, point, outA, outB))
@@ -192,12 +200,10 @@ bool Scene::splitWireAt(WireId id, GridCoords point, Wire& outA, Wire& outB)
     return true;
 }
 
-
 std::pair<WireId, WireId> Scene::insertWires(Wire a, Wire b)
 {
     return {insertWire(std::move(a)), insertWire(std::move(b))};
 }
-
 
 std::pair<WireId, WireId> Scene::addWires(Wire a, Wire b)
 {
@@ -207,7 +213,6 @@ std::pair<WireId, WireId> Scene::addWires(Wire a, Wire b)
     return ids;
 }
 
-
 bool Scene::removeWire(WireId id)
 {
     const bool removed = m_wires.erase(id) > 0;
@@ -216,9 +221,17 @@ bool Scene::removeWire(WireId id)
     return removed;
 }
 
-
 void Scene::rebuildNets()
 {
+    for (const auto& [id, view] : m_componentViews)
+    {
+        Component* component = m_circuit.getComponent(id);
+        if (!component)
+            throw std::logic_error("Component view has no logical component.");
+        validatePins(view->getInputPins(), PinType::INPUT, component->getInputPinCount());
+        validatePins(view->getOutputPins(), PinType::OUTPUT, component->getOutputPinCount());
+    }
+
     // Connectivity is a property of the geometry, but it is *derived* here and
     // only on an edit - never while rendering. settleGeometry() makes junctions
     // real path nodes first, after which the nets are a plain
@@ -228,7 +241,6 @@ void Scene::rebuildNets()
     collectNets();
     emitNetEdges();
 }
-
 
 namespace
 {
@@ -494,7 +506,6 @@ void Scene::settleGeometry()
     }
 }
 
-
 void Scene::dropDegenerateWires()
 {
     // A one-point fragment is neither drawable nor electrical, yet it used to
@@ -505,7 +516,6 @@ void Scene::dropDegenerateWires()
         [](const std::pair<const WireId, Wire>& entry) { return entry.second.getPath().size() < 2; }
     );
 }
-
 
 void Scene::collectNets()
 {
@@ -600,7 +610,6 @@ void Scene::collectNets()
     }
 }
 
-
 void Scene::emitNetEdges()
 {
     m_circuit.clearConnections();
@@ -616,11 +625,12 @@ void Scene::emitNetEdges()
         {
             if (sink.componentId == driver.componentId)
                 continue;
-            m_circuit.connectComponents(driver.componentId, sink.componentId, sink.pinIndex);
+            m_circuit.connectComponents(
+                driver.componentId, driver.pinIndex, sink.componentId, sink.pinIndex
+            );
         }
     }
 }
-
 
 const Net* Scene::getNet(NetId id) const
 {
@@ -628,20 +638,17 @@ const Net* Scene::getNet(NetId id) const
     return it != m_nets.end() ? &it->second : nullptr;
 }
 
-
 NetId Scene::netOfWire(WireId id) const
 {
     const Wire* wire = getWire(id);
     return wire ? wire->getNet() : INVALID_NET_ID;
 }
 
-
 NetId Scene::netOfPin(const PinRef& pin, PinType type) const
 {
     auto it = m_pinNet.find({pin.componentId, pin.pinIndex, type == PinType::OUTPUT});
     return it != m_pinNet.end() ? it->second : INVALID_NET_ID;
 }
-
 
 PinState Scene::pinState(const PinRef& pin, PinType type)
 {
@@ -666,7 +673,6 @@ PinState Scene::pinState(const PinRef& pin, PinType type)
 
     return net->getState() == PinState::ON ? PinState::ON : PinState::DISCONNECTED;
 }
-
 
 HitResult Scene::hitTest(glm::vec2 worldPos, GridCoords gridPos) const
 {
@@ -746,7 +752,6 @@ HitResult Scene::hitTest(glm::vec2 worldPos, GridCoords gridPos) const
     return {};
 }
 
-
 bool Scene::getCollinearOverlap(
     GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd
 ) const
@@ -797,18 +802,15 @@ bool Scene::getCollinearOverlap(
     return false;
 }
 
-
 bool Scene::updateClocks(float deltaTime)
 {
     return m_circuit.updateClocks(deltaTime);
 }
 
-
 EvalOrderResult Scene::propagate()
 {
     return m_circuit.propagate();
 }
-
 
 int Scene::addClock(
     GridCoords gridPos, glm::vec2 size, const std::string& shaderName, float frequencyHz
@@ -821,7 +823,6 @@ int Scene::addClock(
     return id;
 }
 
-
 void Scene::togglePauseAllClocks()
 {
     for (auto& [id, view] : m_componentViews)
@@ -832,7 +833,6 @@ void Scene::togglePauseAllClocks()
         }
     }
 }
-
 
 void Scene::stepAllClocks()
 {
@@ -850,7 +850,6 @@ void Scene::stepAllClocks()
     }
 }
 
-
 void Scene::setAllClocksFrequency(float hz)
 {
     for (auto& [id, view] : m_componentViews)
@@ -862,7 +861,6 @@ void Scene::setAllClocksFrequency(float hz)
     }
 }
 
-
 void Scene::syncVisuals()
 {
     for (auto& [id, view] : m_componentViews)
@@ -871,15 +869,13 @@ void Scene::syncVisuals()
         if (!comp)
             continue;
 
-        auto& outputs = view->getOutputPins();
-        for (size_t i = 0; i < outputs.size(); ++i)
-            outputs[i].state =
-                comp->getStateOutPin(static_cast<int>(i)) ? PinState::ON : PinState::OFF;
+        for (auto& pin : view->getOutputPins())
+            pin.state = comp->getStateOutPin(static_cast<int>(pin.pin_index)) ? PinState::ON
+                                                                              : PinState::OFF;
 
-        auto inSignals = comp->getStateInPins();
-        auto& inputs = view->getInputPins();
-        for (size_t i = 0; i < inSignals.size() && i < inputs.size(); ++i)
-            inputs[i].state = inSignals[i] ? PinState::ON : PinState::OFF;
+        for (auto& pin : view->getInputPins())
+            pin.state =
+                comp->getStateInPin(static_cast<int>(pin.pin_index)) ? PinState::ON : PinState::OFF;
     }
 
     // Refresh Net states from single driver
@@ -912,7 +908,6 @@ void Scene::syncVisuals()
     }
 }
 
-
 bool Scene::handleClick(int componentId)
 {
     ComponentView* view = getComponentView(componentId);
@@ -927,7 +922,6 @@ bool Scene::handleClick(int componentId)
     }
     return false;
 }
-
 
 std::vector<glm::vec3> Scene::getWireIntersections() const
 {
@@ -1000,7 +994,6 @@ std::vector<glm::vec3> Scene::getWireIntersections() const
     return intersections;
 }
 
-
 bool Scene::checkOverlap(int draggedComponentId) const
 {
     auto it = m_componentViews.find(draggedComponentId);
@@ -1045,7 +1038,6 @@ bool Scene::checkOverlap(int draggedComponentId) const
 
     return false; // No overlaps found
 }
-
 
 int Scene::addLatch(LatchType type, GridCoords gridPos)
 {
