@@ -59,3 +59,5 @@ vcpkg_installed/
 # Vendored libraries (ignore all of external except external/glad)
 external/*
 !external/glad/
+# Local contributor notes and planning
+/.local/
