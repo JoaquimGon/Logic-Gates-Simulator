@@ -186,6 +186,7 @@ if(BUILD_TESTING)
         latch_output_propagation
         connection_lifecycle
         scene_pin_layouts
+        scene_wire_overlaps
         source_components
     )
         add_test(NAME ${test_name} COMMAND LogicTests ${test_name})

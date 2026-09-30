@@ -3,9 +3,12 @@
 
 #include <algorithm>
 #include <iostream>
+#include <map>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
+#include <vector>
 
 namespace
 {
@@ -261,6 +264,81 @@ Wire route(GridCoords from, GridCoords to)
     return wire;
 }
 
+void sceneWireOverlaps()
+{
+    using Path = std::vector<GridCoords>;
+    using Segment = std::tuple<int, int, int, int>;
+    const std::pair<Path, Path> cases[] = {
+        {{{0, 0}, {6, 0}}, {{2, 0}, {8, 0}}},
+        {{{0, 0}, {8, 0}}, {{2, 0}, {6, 0}}},
+        {{{0, 0}, {6, 0}}, {{0, 0}, {6, 0}}},
+        {{{0, 0}, {0, 6}}, {{0, 2}, {0, 8}}},
+        {{{0, 0}, {6, 0}, {6, 4}}, {{2, 0}, {8, 0}, {8, -4}}},
+        {{{0, -4}, {0, 0}, {6, 0}}, {{8, 4}, {8, 0}, {2, 0}}}
+    };
+
+    auto collectSegments = [](const Path& path, std::map<Segment, int>& segments)
+    {
+        for (size_t i = 1; i < path.size(); ++i)
+        {
+            GridCoords point = path[i - 1];
+            const GridCoords end = path[i];
+            const int dx = (end.x > point.x) - (end.x < point.x);
+            const int dy = (end.y > point.y) - (end.y < point.y);
+            require(dx == 0 || dy == 0, "Overlap merge produced a diagonal segment.");
+            while (!(point == end))
+            {
+                GridCoords next{point.x + dx, point.y + dy};
+                segments[{
+                    std::min(point.x, next.x),
+                    std::min(point.y, next.y),
+                    std::max(point.x, next.x),
+                    std::max(point.y, next.y)
+                }]++;
+                point = next;
+            }
+        }
+    };
+
+    for (const auto& [firstPath, secondPath] : cases)
+    {
+        for (int variant = 0; variant < 8; ++variant)
+        {
+            Path first = firstPath;
+            Path second = secondPath;
+            if (variant & 1)
+                std::reverse(first.begin(), first.end());
+            if (variant & 2)
+                std::reverse(second.begin(), second.end());
+            if (variant & 4)
+                std::swap(first, second);
+
+            std::map<Segment, int> expected;
+            collectSegments(first, expected);
+            collectSegments(second, expected);
+            for (auto& [segment, count] : expected)
+                count = 1;
+
+            Scene scene;
+            Wire firstWire, secondWire;
+            firstWire.setPath(first);
+            secondWire.setPath(second);
+            scene.commitWire(std::move(firstWire));
+            scene.commitWire(std::move(secondWire));
+
+            std::map<Segment, int> actual;
+            for (const auto& [id, wire] : scene.getWires())
+                collectSegments(wire.getPath(), actual);
+            require(actual == expected, "Overlap merge lost geometry or left duplicate segments.");
+            require(scene.netCount() == 1, "Overlap merge disconnected the wire network.");
+
+            const auto settledIds = scene.getWireIds();
+            scene.rebuildNets();
+            require(scene.getWireIds() == settledIds, "Settled overlap geometry was not stable.");
+        }
+    }
+}
+
 void scenePinLayouts()
 {
     Scene scene;
@@ -409,6 +487,7 @@ int main(int argc, char** argv)
         {"latch_output_propagation", latchOutputPropagation},
         {"connection_lifecycle", connectionLifecycle},
         {"scene_pin_layouts", scenePinLayouts},
+        {"scene_wire_overlaps", sceneWireOverlaps},
         {"source_components", sourceComponents}
     };
 

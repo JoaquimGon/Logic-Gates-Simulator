@@ -289,9 +289,10 @@ void Scene::settleGeometry()
                     continue;
 
                 GridCoords oStart, oEnd;
-                for (size_t s1 = 0; s1 + 1 < p1.size() && !overlapMerged; ++s1)
+                // A merge erases both wires; check the flag before reading either path.
+                for (size_t s1 = 0; !overlapMerged && s1 + 1 < p1.size(); ++s1)
                 {
-                    for (size_t s2 = 0; s2 + 1 < p2.size() && !overlapMerged; ++s2)
+                    for (size_t s2 = 0; !overlapMerged && s2 + 1 < p2.size(); ++s2)
                     {
                         if (getCollinearOverlap(
                                 p1[s1], p1[s1 + 1], p2[s2], p2[s2 + 1], oStart, oEnd
