@@ -124,3 +124,35 @@ Shaders are resolved directly against the absolute repository path defined by CM
     [ ] Clock-driven components (Flip-Flops, Latches, Clocks)
 
     [ ] Sub-circuit modular packaging (Adders, Multiplexers, ALUs)
+
+## Component Pins and Regression Tests
+
+`Component` owns the input and output state arrays. Pin counts are fixed when a
+component is created; invalid pin access throws `std::out_of_range`.
+`Gate` keeps one output and supports configurable input counts: NOT requires
+one input, and AND/NAND/OR/NOR/XOR/NXOR accept two or more. XOR uses odd parity;
+NXOR uses its inverse. Existing spawn shortcuts retain their default counts.
+
+```cpp
+Circuit circuit;
+int latch = circuit.addLatch(LatchType::SR_LATCH);
+int gate = circuit.addGate(GateType::AND, 4);
+circuit.connectComponents(latch, 1, gate, 3); // ~Q -> fourth input
+circuit.disconnectComponents(latch, 1, gate, 3);
+```
+
+Connections always specify source component, source output index, destination
+component, and destination input index. Scene gate creation derives the logical
+arity from its supplied input layout. Visual pins must have valid, unique indices
+covering every logical pin; vector order does not determine pin identity.
+
+CTest builds a headless `LogicTests` executable by default. It covers gate truth
+tables, pin bounds, both latch outputs, connection lifecycle, and scene pin mapping:
+
+```powershell
+cmake --build out/build/x64-debug
+ctest --test-dir out/build/x64-debug --output-on-failure
+```
+
+For a generic build directory, substitute `build` and pass `-C Debug` to CTest
+when using a multi-configuration generator. Use `-DBUILD_TESTING=OFF` to omit tests.

@@ -165,3 +165,29 @@ source_group(
     PREFIX "Source Files"
     FILES ${PROJECT_SOURCES}
 )
+# Headless regression tests: no GLFW window or OpenGL context is needed.
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(LogicTests
+        tests/LogicTests.cpp
+        src/Logic/Circuit.cpp
+        src/Logic/Gate.cpp
+        src/Logic/Wire.cpp
+        src/Core/Scene.cpp
+    )
+    target_compile_features(LogicTests PRIVATE cxx_std_20)
+    target_include_directories(LogicTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(LogicTests PRIVATE glm::glm)
+
+    foreach(test_name IN ITEMS
+        gate_truth_tables
+        component_pin_bounds
+        connection_endpoints
+        latch_output_propagation
+        connection_lifecycle
+        scene_pin_layouts
+        source_components
+    )
+        add_test(NAME ${test_name} COMMAND LogicTests ${test_name})
+    endforeach()
+endif()
