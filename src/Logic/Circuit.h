@@ -34,6 +34,9 @@ class Circuit
     EvalOrderResult evaluateOrder();
     bool wouldCreateCycle(int srcComponentId, int destComponentId);
 
+    float m_lastPropagateDurationMs = 0.0f;
+    EvalOrderResult m_lastEvalResult = EvalOrderResult::OK;
+
   public:
     int addGate(GateType type);
     int addInputPin(bool initialState = false);
@@ -58,4 +61,11 @@ class Circuit
     bool updateClocks(float deltaTime);
 
     EvalOrderResult propagate();
+
+    // Debugging:
+    float getLastPropagateTimeMs() const { return m_lastPropagateDurationMs; }
+    EvalOrderResult getLastEvalResult() const { return m_lastEvalResult; }
+    size_t getEvalOrderSize() const { return m_evaluationOrder.size(); }
+    size_t getComponentCount() const { return m_components.size(); }
+
 };

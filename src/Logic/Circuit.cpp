@@ -234,14 +234,22 @@ bool Circuit::updateClocks(float deltaTime)
 }
 
 
+#include <chrono>
+
 EvalOrderResult Circuit::propagate()
 {
+    auto startTime = std::chrono::high_resolution_clock::now();
+
     // Step 1: Structural sort only when topology changed
     if (m_evalOrderDirty)
     {
         EvalOrderResult result = evaluateOrder();
+        m_lastEvalResult = result;
         if (result == EvalOrderResult::CYCLE_DETECTED)
         {
+            auto endTime = std::chrono::high_resolution_clock::now();
+            m_lastPropagateDurationMs =
+                std::chrono::duration<float, std::milli>(endTime - startTime).count();
             return result;
         }
         m_evalOrderDirty = false;
@@ -266,10 +274,13 @@ EvalOrderResult Circuit::propagate()
         }
     }
 
+    auto endTime = std::chrono::high_resolution_clock::now();
+    m_lastPropagateDurationMs =
+        std::chrono::duration<float, std::milli>(endTime - startTime).count();
+
     m_stateDirty = false;
     return EvalOrderResult::OK;
 }
-
 
 int Circuit::addLatch(LatchType type)
 {

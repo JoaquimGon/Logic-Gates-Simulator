@@ -123,11 +123,31 @@ void Engine::run()
         float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);
         lastFrameTime = currentFrameTime;
 
+        // Calculate rolling FPS
+        m_frameCount++;
+        m_frameTimeAccumulator += deltaTime;
+        if (m_frameTimeAccumulator >= 0.25f)
+        {
+            m_fps = static_cast<float>(m_frameCount) / m_frameTimeAccumulator;
+            m_frameCount = 0;
+            m_frameTimeAccumulator = 0.0f;
+        }
+
+        // Toggle Debug HUD with F3
+        if (input.consumeKeyPress(GLFW_KEY_F3))
+        {
+            m_showDebugOverlay = !m_showDebugOverlay;
+        }
+
         // 1. Process OS user inputs
         input.process(window);
 
         // 2. Advance time for any clocks in the circuit
         bool clockEdgeFlipped = scene.updateClocks(deltaTime);
+
+        // Debugging
+        m_timeSinceLastPropagateMs += (deltaTime * 1000.0f);
+
 
         // 3. EVENT-DRIVEN SIMULATION:
         // Only run DFS/propagation when an edge flipped or a component/wire was
@@ -135,6 +155,11 @@ void Engine::run()
         if (clockEdgeFlipped || scene.isSimulationDirty())
         {
             EvalOrderResult orderResult = scene.propagate();
+            
+            // Debugging
+            m_timeSinceLastPropagateMs = 0.0f;
+            
+            
             if (orderResult != m_lastOrderResult)
             {
                 m_lastOrderResult = orderResult;
@@ -251,6 +276,36 @@ void Engine::run()
         );
 
         m_renderer.drawLabels(scene.getComponentViewMap());
+
+        // Debugging
+        if (m_showDebugOverlay)
+        {
+            DebugMetrics metrics;
+            metrics.fps = m_fps;
+            metrics.frameTimeMs = (deltaTime > 0.0f) ? (deltaTime * 1000.0f) : 0.0f;
+            metrics.drawCalls = m_renderer.getDrawCallCount();
+            metrics.lastPropagateMs = scene.getLastPropagateTimeMs();
+            metrics.timeSinceLastPropagateMs = m_timeSinceLastPropagateMs;
+            metrics.evalOrderCount = scene.getEvalOrderSize();
+            metrics.totalComponents = scene.getComponentCount();
+            metrics.evalResult = scene.getLastEvalResult();
+
+            // Topology metrics
+            metrics.netCount = scene.netCount();
+            metrics.wireCount = scene.wireCount();
+            metrics.shortedNetCount = scene.getShortedNetCount();
+
+            // Interaction & Cursor metrics
+            metrics.hoveredCompId = input.getHoveredComponentId();
+            metrics.hoveredPinComponentId = input.getHoveredPinComponentId();
+            metrics.hoveredPinIdx = input.getHoveredPinIndex();
+            metrics.hoveredPinType = input.getHoveredPinType();
+            metrics.hoveredWireId = input.getHoveredWireId();
+            metrics.selectedCompId = input.getSelectedComponentId();
+            metrics.cursorGrid = input.getCurrentGridCoords();
+
+            m_renderer.drawDebugOverlay(metrics);
+        }
 
         glfwSwapBuffers(window);
         glfwPollEvents();

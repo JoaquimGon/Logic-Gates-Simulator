@@ -1,9 +1,11 @@
 ﻿#include "Renderer.h"
 #include "..\Views\LatchView.h"
+#include "..\Logic\Circuit.h"
 
 #include <glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
+
 
 Renderer::Renderer() {}
 
@@ -175,9 +177,9 @@ void Renderer::init()
 
 void Renderer::beginFrame(const CameraState& camera)
 {
-    m_sm.checkHotReload(); // Polls the loaded shaders
-
+    m_sm.checkHotReload();
     m_currentCamera = camera;
+    m_drawCallCount = 0; // Reset at the beginning of each frame
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
@@ -198,6 +200,7 @@ void Renderer::drawGrid()
     );
 
     m_gridMesh->draw();
+    m_drawCallCount++;
 }
 
 
@@ -229,6 +232,7 @@ void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* active
     {
         m_wireMesh->updateData(allWiresData, 7);
         m_wireMesh->draw();
+        m_drawCallCount++;
     }
 }
 
@@ -268,6 +272,7 @@ void Renderer::drawWireSegmentBoundingBox(
 
     m_boundsMesh->updateData(boxData, 7);
     m_boundsMesh->draw();
+    m_drawCallCount++;
 }
 
 
@@ -309,6 +314,7 @@ void Renderer::drawComponents(
         m_gateMesh->setInstanceData(flatPositions, {2}, 1);
         m_gateMesh->drawInstanced(static_cast<unsigned int>(positions.size()));
     }
+    m_drawCallCount++;
 }
 
 
@@ -342,7 +348,8 @@ void Renderer::drawPins(
             pinInstanceData.push_back(pinWorldPos.x);
             pinInstanceData.push_back(pinWorldPos.y);
 
-            if (id == hoveredCompId && pin.pin_index == hoveredPinIdx && pin.type == hoveredPinType)
+            if (id == hoveredCompId && pin.pin_index == static_cast<uint32_t>(hoveredPinIdx) &&
+                pin.type == hoveredPinType)
             {
                 float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = 1.0f;
                 pinInstanceData.insert(pinInstanceData.end(), {r, g, b, a});
@@ -369,6 +376,7 @@ void Renderer::drawPins(
     {
         m_pointMesh->setInstanceData(pinInstanceData, {2, 4}, 1);
         m_pointMesh->drawInstanced(totalPins);
+        m_drawCallCount++;
     }
 }
 
@@ -410,6 +418,7 @@ void Renderer::drawComponentBoundingBox(const ComponentView& component, float pa
 
     m_boundsMesh->updateData(boxData, 7);
     m_boundsMesh->draw();
+    m_drawCallCount++;
 }
 
 
@@ -433,6 +442,7 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
     std::vector<float> data = {worldPos.x, worldPos.y, r, g, b, opacity};
     m_pointMesh->setInstanceData(data, {2, 4}, 1);
     m_pointMesh->drawInstanced(1);
+    m_drawCallCount++;
 }
 
 
@@ -473,6 +483,7 @@ void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
 
     m_pointMesh->setInstanceData(instancedData, {2, 4}, 1);
     m_pointMesh->drawInstanced(static_cast<int>(intersectionData.size()));
+    m_drawCallCount++;
 }
 
 
@@ -605,4 +616,162 @@ void Renderer::drawLabels(
 
     m_textMesh->updateData(data, 8);
     m_textMesh->draw();
+    m_drawCallCount++;
+}
+
+
+void Renderer::drawDebugOverlay(const DebugMetrics& metrics)
+{
+    if (m_currentCamera.windowWidth <= 0 || m_currentCamera.windowHeight <= 0)
+        return;
+
+    std::vector<TextVertex> vertices;
+
+    // Line 1: FPS, Frame Time, and Draw Calls
+    std::ostringstream ssL1;
+    ssL1 << std::fixed << std::setprecision(1) << "FPS: " << metrics.fps << " ("
+         << metrics.frameTimeMs << " ms) | Draw Calls: " << metrics.drawCalls;
+
+    // Line 2: Propagation Duration & Latency
+    std::ostringstream ssL2;
+    ssL2 << std::fixed << std::setprecision(3) << "Propagate Exec: " << metrics.lastPropagateMs
+         << " ms (Last Call: ";
+    if (metrics.timeSinceLastPropagateMs >= 999.0f)
+        ssL2 << ">999 ms ago)";
+    else
+        ssL2 << std::fixed << std::setprecision(0) << metrics.timeSinceLastPropagateMs
+             << " ms ago)";
+
+    // Line 3: Evaluation Order & Topological Status
+    std::ostringstream ssL3;
+    ssL3 << "Eval Order: " << metrics.evalOrderCount << "/" << metrics.totalComponents
+         << " components";
+    if (metrics.evalResult == EvalOrderResult::CYCLE_DETECTED)
+        ssL3 << " [CYCLE DETECTED]";
+    else
+        ssL3 << " [OK]";
+
+    // Line 4: Electrical Topology & Short Contention
+    std::ostringstream ssL4;
+    ssL4 << "Topology: " << metrics.netCount << " Nets | " << metrics.wireCount << " Wires | "
+         << metrics.shortedNetCount << " Shorts";
+
+    // Line 5: Interaction / Selection & Cursor Position
+    std::ostringstream ssL5;
+    if (metrics.selectedCompId != -1)
+        ssL5 << "Selected: Comp #" << metrics.selectedCompId;
+    else if (metrics.hoveredPinComponentId != -1)
+        ssL5 << "Hover: Comp #" << metrics.hoveredPinComponentId << " Pin "
+             << (metrics.hoveredPinType == PinType::INPUT ? "In[" : "Out[") << metrics.hoveredPinIdx
+             << "]";
+    else if (metrics.hoveredCompId != -1)
+        ssL5 << "Hover: Comp #" << metrics.hoveredCompId;
+    else if (metrics.hoveredWireId != INVALID_WIRE_ID)
+        ssL5 << "Hover: Wire #" << metrics.hoveredWireId;
+    else
+        ssL5 << "Hover: None";
+
+    ssL5 << " | Grid: (" << metrics.cursorGrid.x << ", " << metrics.cursorGrid.y << ")";
+
+    std::vector<std::pair<std::string, glm::vec4>> lines = {
+        {"[DEBUG HUD] (F3)", glm::vec4(1.0f, 0.62f, 0.11f, 1.0f)}, // Orange Header
+        {ssL1.str(), glm::vec4(0.85f, 0.85f, 0.85f, 0.95f)},
+        {ssL2.str(),
+         (metrics.timeSinceLastPropagateMs < 50.0f) ? glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)
+                                                    : glm::vec4(0.70f, 0.70f, 0.75f, 0.85f)},
+        {ssL3.str(),
+         (metrics.evalResult == EvalOrderResult::CYCLE_DETECTED)
+             ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f)
+             : glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)},
+        {ssL4.str(),
+         (metrics.shortedNetCount > 0)
+             ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f) // Highlight shorts in red
+             : glm::vec4(0.85f, 0.85f, 0.85f, 0.95f)},
+        {ssL5.str(), glm::vec4(0.75f, 0.85f, 0.95f, 0.90f)}
+    };
+
+    const float screenScale = 0.35f;
+    const float lineSpacing = 20.0f;
+    const float rightMargin = 16.0f;
+    const float startY = 24.0f;
+
+    for (size_t i = 0; i < lines.size(); ++i)
+    {
+        // 1. Calculate the exact pixel width of this line
+        float lineWidthPixels = getTextWidth(lines[i].first, screenScale, m_font);
+
+        // 2. Align to the right screen boundary
+        float startX =
+            static_cast<float>(m_currentCamera.windowWidth) - rightMargin - lineWidthPixels;
+
+        float curX = startX / screenScale;
+        float curY = (startY + i * lineSpacing) / screenScale;
+
+        for (char c : lines[i].first)
+        {
+            if (c < 32 || c >= 128)
+                continue;
+
+            stbtt_aligned_quad q;
+            stbtt_GetBakedQuad(
+                m_font.cdata, m_font.atlasWidth, m_font.atlasHeight, c - 32, &curX, &curY, &q, 1
+            );
+
+            float x0 = q.x0 * screenScale;
+            float x1 = q.x1 * screenScale;
+            float y0 = q.y0 * screenScale;
+            float y1 = q.y1 * screenScale;
+
+            const auto& col = lines[i].second;
+
+            vertices.push_back({{x0, y0}, {q.s0, q.t0}, col});
+            vertices.push_back({{x1, y0}, {q.s1, q.t0}, col});
+            vertices.push_back({{x1, y1}, {q.s1, q.t1}, col});
+
+            vertices.push_back({{x0, y0}, {q.s0, q.t0}, col});
+            vertices.push_back({{x1, y1}, {q.s1, q.t1}, col});
+            vertices.push_back({{x0, y1}, {q.s0, q.t1}, col});
+        }
+    }
+
+    if (vertices.empty())
+        return;
+
+    std::vector<float> data;
+    data.reserve(vertices.size() * 8);
+    for (const auto& v : vertices)
+    {
+        data.push_back(v.pos.x);
+        data.push_back(v.pos.y);
+        data.push_back(v.uv.x);
+        data.push_back(v.uv.y);
+        data.push_back(v.color.r);
+        data.push_back(v.color.g);
+        data.push_back(v.color.b);
+        data.push_back(v.color.a);
+    }
+
+    auto* shader = acquireShader("text");
+    if (!shader)
+        return;
+
+    shader->use();
+
+    glm::mat4 screenProj = glm::ortho(
+        0.0f,
+        static_cast<float>(m_currentCamera.windowWidth),
+        static_cast<float>(m_currentCamera.windowHeight),
+        0.0f,
+        -1.0f,
+        1.0f
+    );
+    shader->setMat4("uProjectionView", screenProj);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_font.textureId);
+    shader->setBool("uFontTexture", 0);
+
+    m_textMesh->updateData(data, 8);
+    m_textMesh->draw();
+    m_drawCallCount++;
 }

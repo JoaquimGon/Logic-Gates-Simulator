@@ -154,6 +154,23 @@ class Scene
         GridCoords gridPos, glm::vec2 size, const std::string& shaderName, float frequencyHz = 1.0f
     );
 
+    // Debugging
+    float getLastPropagateTimeMs() const { return m_circuit.getLastPropagateTimeMs(); }
+    EvalOrderResult getLastEvalResult() const { return m_circuit.getLastEvalResult(); }
+    size_t getEvalOrderSize() const { return m_circuit.getEvalOrderSize(); }
+    size_t getComponentCount() const { return m_circuit.getComponentCount(); }
+
+    size_t getShortedNetCount() const
+    {
+        size_t count = 0;
+        for (const auto& [id, net] : m_nets)
+        {
+            if (net.shorted())
+                count++;
+        }
+        return count;
+    }
+
   private:
     Circuit m_circuit;
     std::unordered_map<int, std::unique_ptr<ComponentView>> m_componentViews;

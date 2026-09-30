@@ -1,14 +1,17 @@
 #pragma once
+
+#include "..\Logic\Circuit.h" // Provides EvalOrderResult
 #include "..\Logic\Wire.h"
 #include "..\Views\ComponentView.h"
 #include "Mesh.h"
 #include "ShaderManager.h"
 #include "Text/FontRenderer.h"
 
-
 #include <glm/glm.hpp>
+#include <iomanip>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -22,6 +25,29 @@ struct CameraState
     float aspectRatio;
     int windowWidth;
     int windowHeight;
+};
+
+// Debugging metrics passed to HUD
+struct DebugMetrics
+{
+    float fps;
+    float frameTimeMs;
+    int drawCalls;
+    float lastPropagateMs;
+    float timeSinceLastPropagateMs;
+    size_t evalOrderCount;
+    size_t totalComponents;
+    EvalOrderResult evalResult;
+    size_t netCount;
+    size_t wireCount;
+    size_t shortedNetCount;
+    int hoveredCompId;
+    int hoveredPinComponentId;
+    int hoveredPinIdx;
+    PinType hoveredPinType;
+    WireId hoveredWireId;
+    int selectedCompId;
+    GridCoords cursorGrid;
 };
 
 class Renderer
@@ -48,6 +74,7 @@ class Renderer
     // so same-shader components can still be instance-drawn together.
     void
     drawComponents(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews);
+
     void drawPins(
         const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews,
         int hoveredCompId = -1,
@@ -58,28 +85,35 @@ class Renderer
     // Wires are keyed by their stable WireId; see Scene::getWires().
     void drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire = nullptr);
 
-    // Change these three lines in Renderer.h:
     void drawWireSegmentBoundingBox(
         const GridCoords& start, const GridCoords& end, float padding = 0.03f, float alpha = 1.0f
     );
+
     void drawComponentBoundingBox(
         const ComponentView& component, float padding = 0.3f, float alpha = 1.0f
     );
+
     void drawGridPointHighlight(GridCoords gridPos, float opacity);
+
     void drawIntersections(const std::vector<glm::vec3>& intersectionData);
 
     void drawText(
         const std::string& text, float worldX, float worldY, float size, const glm::vec4& color
     );
+
     void drawLabels(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews);
+
+    void drawDebugOverlay(const DebugMetrics& metrics);
+
+    int getDrawCallCount() const { return m_drawCallCount; }
+
 
   private:
     /**
      * @brief Looks a shader up by name, logging (at most once per name) the
      * ones that were never registered in init().
      * @param name Name the shader was registered under.
-     * @return The shader, or nullptr when nothing was registered under that
-     * name.
+     * @return The shader, or nullptr when nothing was registered under that name.
      */
     Shader* acquireShader(const std::string& name);
 
@@ -99,4 +133,6 @@ class Renderer
     std::unique_ptr<Mesh> m_textMesh;
 
     CameraState m_currentCamera;
+
+    int m_drawCallCount = 0;
 };
