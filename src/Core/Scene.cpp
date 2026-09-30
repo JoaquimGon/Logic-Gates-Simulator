@@ -611,7 +611,7 @@ void Scene::emitNetEdges()
         if (!net.hasDriver())
             continue;
 
-        const PinRef& driver = *net.getDriver();
+        const PinRef driver = *net.getDriver();
         for (const PinRef& sink : net.getSinks())
         {
             if (sink.componentId == driver.componentId)
