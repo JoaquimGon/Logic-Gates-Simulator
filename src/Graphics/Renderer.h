@@ -1,4 +1,5 @@
 #pragma once
+#include "Geometry/CanvasCamera.h"
 #include "Graphics/Mesh.h"
 #include "Graphics/Presentation/CanvasFrame.h"
 #include "Graphics/Presentation/OverlayPresentation.h"
@@ -20,7 +21,7 @@ class Renderer
     bool init();
     /** @brief Idempotently releases GPU resources; requires their context to remain current. */
     void shutdown();
-    void beginFrame(const CameraState& camera);
+    void beginFrame(const CanvasCameraFrame& camera);
     void drawCanvas(const CanvasFrame& frame);
     void drawComponents(std::span<const ComponentRenderData> components);
     void drawPinLeads(std::span<const ComponentRenderData> components);
@@ -44,6 +45,7 @@ class Renderer
     void drawText(std::span<const TextRun> runs, TextSpace space);
     void drawLabels(std::span<const ComponentRenderData> components);
     void drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics = true);
+
     int getDrawCallCount() const { return m_drawCallCount; }
 
   private:
@@ -52,6 +54,9 @@ class Renderer
     std::unordered_set<std::string> m_missingShaderWarned;
     std::unique_ptr<Mesh> m_gateMesh, m_gridMesh, m_pointMesh, m_wireMesh, m_boundsMesh;
     TextPainter m_text;
-    CameraState m_currentCamera{};
+    CanvasCameraFrame m_currentCamera{};
+    bool setCanvasViewport();
+    bool useCanvasShader(Shader& shader);
+    void setScreenViewport();
     int m_drawCallCount = 0;
 };

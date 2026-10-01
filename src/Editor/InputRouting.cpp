@@ -38,18 +38,12 @@ void Input::setCanvasFocused(bool focused)
         interruptCanvas();
 }
 
-void Input::setCanvasInputBounds(std::optional<CanvasInputBounds> bounds)
+void Input::setCanvasViewport(std::optional<CanvasViewport> bounds)
 {
-    if (bounds &&
-        (!std::isfinite(bounds->x) || !std::isfinite(bounds->y) || !std::isfinite(bounds->width) ||
-         !std::isfinite(bounds->height) || bounds->width < 0 || bounds->height < 0))
-        throw std::invalid_argument(
-            "Canvas input bounds must be finite with nonnegative dimensions."
-        );
-    if (m_canvasInputBounds == bounds)
-        return;
-    interruptCanvas();
-    m_canvasInputBounds = bounds;
+    const auto previous = m_camera.viewport();
+    m_camera.setViewport(bounds); // Validate before cancelling a preview.
+    if (previous != bounds)
+        interruptCanvas();
 }
 
 bool Input::canvasKeyboardAvailable() const
@@ -59,15 +53,8 @@ bool Input::canvasKeyboardAvailable() const
 
 bool Input::containsCanvasPoint(GLFWwindow* window, double x, double y) const
 {
-    int width, height;
-    glfwGetWindowSize(window, &width, &height);
-    if (width <= 0 || height <= 0)
-        return false;
-    const CanvasInputBounds fullWindow{
-        0, 0, static_cast<double>(width), static_cast<double>(height)
-    };
-    return fullWindow.contains(x, y) &&
-           (!m_canvasInputBounds || m_canvasInputBounds->contains(x, y));
+    const auto frame = getCameraFrame(window);
+    return frame.valid() && frame.viewport.contains(x, y);
 }
 
 bool Input::isCanvasPointerAvailable(GLFWwindow* window) const
@@ -131,4 +118,41 @@ void Input::handleFocus(bool focused)
         m_pressedKeys.clear();
         m_pressedMouseButtons.clear();
     }
+}
+
+CanvasSurface Input::surfaceFor(GLFWwindow* window)
+{
+    CanvasSurface surface;
+    glfwGetWindowSize(window, &surface.windowWidth, &surface.windowHeight);
+    glfwGetFramebufferSize(window, &surface.framebufferWidth, &surface.framebufferHeight);
+    return surface;
+}
+
+CanvasCameraFrame Input::getCameraFrame(GLFWwindow* window) const
+{
+    return m_camera.frame(surfaceFor(window));
+}
+
+void Input::synchronizeSurface(GLFWwindow* window)
+{
+    const auto surface = surfaceFor(window);
+    if (m_lastSurface && *m_lastSurface != surface)
+        interruptCanvas();
+    m_lastSurface = surface;
+}
+
+void Input::setZoom(float zoom)
+{
+    const auto previous = m_camera.zoom();
+    m_camera.setZoom(zoom);
+    if (previous != zoom)
+        interruptCanvas();
+}
+
+void Input::setPanOffset(glm::vec2 offset)
+{
+    const auto previous = m_camera.center();
+    m_camera.setCenter(offset);
+    if (previous != offset)
+        interruptCanvas();
 }

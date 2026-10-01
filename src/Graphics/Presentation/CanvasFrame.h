@@ -5,15 +5,6 @@
 #include <map>
 #include <optional>
 
-struct CameraState
-{
-    glm::vec2 panOffset{0};
-    float zoom = 1;
-    float aspectRatio = 1;
-    int windowWidth = 0;
-    int windowHeight = 0;
-};
-
 struct BodyHighlight
 {
     glm::vec2 position, size;

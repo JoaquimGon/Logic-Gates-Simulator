@@ -9,9 +9,7 @@ out vec4 instanceTint;
 out vec2 localPos;
 
 
-uniform vec2  uPanOffset;
-uniform float uZoom;
-uniform float uAspectRatio;
+uniform mat4 uViewProjection;
 
 void main()
 {
@@ -22,8 +20,5 @@ void main()
     // Instance math (same as before)
     vec2 worldPos = aInstancePos + (aPos.xy * aInstanceSize);
 
-    vec2 correctedPos = (worldPos - uPanOffset) * uZoom;
-    correctedPos.x /= uAspectRatio;
-
-    gl_Position = vec4(correctedPos, 0.0, 1.0);
+    gl_Position = uViewProjection * vec4(worldPos, 0.0, 1.0);
 }

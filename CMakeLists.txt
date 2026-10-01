@@ -24,11 +24,12 @@ add_library(simulator_simulation STATIC src/Simulation/Circuit.cpp)
 target_link_libraries(simulator_simulation PUBLIC simulator_components)
 
 add_library(simulator_geometry STATIC
+    src/Geometry/CanvasCamera.cpp
     src/Geometry/Wire.cpp
     src/Geometry/WireNormalization.cpp
     src/Geometry/GeometryQueries.cpp
 )
-target_link_libraries(simulator_geometry PUBLIC project_options)
+target_link_libraries(simulator_geometry PUBLIC project_options glm::glm)
 
 add_library(simulator_views INTERFACE)
 target_link_libraries(simulator_views INTERFACE simulator_simulation glm::glm)
@@ -102,6 +103,12 @@ if(BUILD_SIMULATOR_APP)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(CameraTests tests/CameraTests.cpp)
+    target_link_libraries(CameraTests PRIVATE simulator_geometry)
+    foreach(test_name IN ITEMS camera_transforms camera_viewport_layout)
+        add_test(NAME ${test_name} COMMAND CameraTests ${test_name})
+    endforeach()
+
     add_executable(LogicTests tests/LogicTests.cpp)
     target_link_libraries(LogicTests PRIVATE simulator_scene)
     foreach(test_name IN ITEMS
@@ -152,7 +159,7 @@ if(BUILD_TESTING)
     foreach(test_name IN ITEMS
         drag_cancellation drag_commit spawn_placement wire_segment_deletion
         interaction_modes mode_cancellation wire_and_pan_gestures
-        ui_input_routing ui_gesture_cancellation canvas_input_bounds
+        ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction
     )
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
     endforeach()

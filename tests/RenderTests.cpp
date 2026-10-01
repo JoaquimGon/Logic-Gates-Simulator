@@ -56,7 +56,7 @@ void saveImage(const char* name)
         file.write(reinterpret_cast<const char*>(image.data() + row * extent * 3), extent * 3);
 }
 
-void mixedInstances(Renderer& renderer, const CameraState& camera)
+void mixedInstances(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     ComponentRenderData a{{1, {-0.4f, 0}, {0.2f, 0.2f}, "box", {}}, "", false, {}};
     ComponentRenderData b = a;
@@ -113,7 +113,7 @@ void mixedInstances(Renderer& renderer, const CameraState& camera)
     require(renderer.getDrawCallCount() == 0, "Empty bodies counted a draw.");
 }
 
-void nativeContacts(Renderer& renderer, const CameraState& camera)
+void nativeContacts(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
     for (const auto& definition : nativeDefinitions())
@@ -176,7 +176,7 @@ void nativeContacts(Renderer& renderer, const CameraState& camera)
     }
 }
 
-void preview(Renderer& renderer, const CameraState& camera)
+void preview(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
     int index = 0;
@@ -219,6 +219,133 @@ void preview(Renderer& renderer, const CameraState& camera)
     renderer.drawDebugOverlay(metrics, false);
     require(glGetError() == GL_NO_ERROR, "Canvas/text pass produced an OpenGL error.");
     saveImage("component-presentations.ppm");
+}
+
+std::array<unsigned char, 4> cameraPixel(const CanvasCameraFrame& frame, glm::vec2 world)
+{
+    const auto point = frame.worldToWindow(world);
+    require(point.has_value(), "Cannot sample an inactive camera.");
+    const int x =
+        static_cast<int>(point->x * frame.surface.framebufferWidth / frame.surface.windowWidth);
+    const int y =
+        frame.surface.framebufferHeight - 1 -
+        static_cast<int>(point->y * frame.surface.framebufferHeight / frame.surface.windowHeight);
+    std::array<unsigned char, 4> result;
+    glReadPixels(x, y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, result.data());
+    return result;
+}
+
+void canvasViewport(Renderer& renderer)
+{
+    CanvasCamera camera;
+    camera.setViewport(CanvasViewport{100, 80, 350, 280});
+    camera.setCenter({0.25f, -0.15f});
+    camera.setZoom(2);
+    const auto frame = camera.frame({extent / 2, extent / 2, extent, extent});
+    renderer.beginFrame(frame);
+    renderer.drawGrid();
+    const auto line = cameraPixel(frame, camera.center());
+    const auto cell = cameraPixel(frame, camera.center() + glm::vec2{0.025f});
+    require(line[0] > cell[0] + 10, "Procedural grid does not follow the shared inverse matrix.");
+
+    ComponentRenderData component{
+        {1, camera.center(), {0.2f, 0.15f}, "box", {}},
+        "BOX",
+        false,
+        {{PinType::OUTPUT, 0, PinState::ON, {0.6f, -0.15f}, "", {{0.35f, -0.15f}, {0.6f, -0.15f}}}}
+    };
+    const std::vector<ComponentRenderData> components{component};
+    Wire wire;
+    wire.setPath({{-30, 2}, {30, 2}}); // Crosses both viewport edges.
+    wire.setState(PinState::ON);
+    const std::map<WireId, Wire> wires{{1, wire}};
+    const std::vector<glm::vec3> junctions{{0, 2, 0}};
+    CanvasFrame canvas{components, wires, junctions};
+    canvas.bodyHighlight = BodyHighlight{camera.center(), component.body.size, 1};
+    canvas.segmentHighlight = SegmentHighlight{{-30, 2}, {30, 2}, 1};
+    canvas.gridHighlight = GridHighlight{{0, -8}, 1};
+    renderer.beginFrame(frame);
+    renderer.drawCanvas(canvas);
+    GLint restored[4];
+    glGetIntegerv(GL_VIEWPORT, restored);
+    require(
+        glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE && restored[0] == 0 && restored[1] == 0 &&
+            restored[2] == extent && restored[3] == extent,
+        "Canvas pass did not restore UI viewport/scissor state."
+    );
+    require(
+        cameraPixel(frame, {0, 0.1f})[2] > 200, "Junction point did not follow the shared camera."
+    );
+    require(
+        cameraPixel(frame, {0.25f, -0.18f})[2] > 30,
+        "Component did not use the shared camera matrix."
+    );
+    require(
+        cameraPixel(frame, {0.5f, 0.1f})[1] > 200, "Wire did not align with the shared camera."
+    );
+    require(
+        cameraPixel(frame, {0.6f, -0.15f})[1] > 200,
+        "Pin did not align with the wire/component camera."
+    );
+    require(cameraPixel(frame, {0.5f, -0.15f})[2] > 150, "Pin lead used a different transform.");
+    require(cameraPixel(frame, {0, -0.4f})[0] > 150, "Grid highlight used a different transform.");
+    const std::vector<TextRun> labels{
+        {"CAMERA", {0, -0.5f}, 0.002f, {1, 1, 0, 1}},
+        {"CLIPPED", {-0.5f, 0.2f}, 0.003f, {1, 1, 0, 1}}
+    };
+    renderer.drawText(labels, TextSpace::World);
+    std::vector<unsigned char> image(extent * extent * 4);
+    glReadPixels(0, 0, extent, extent, GL_RGBA, GL_UNSIGNED_BYTE, image.data());
+    const auto& viewport = frame.framebufferViewport;
+    bool worldText = false;
+    for (int y = 0; y < extent; ++y)
+        for (int x = 0; x < extent; ++x)
+        {
+            const auto* p = image.data() + (y * extent + x) * 4;
+            const bool inside = x >= viewport.x && x < viewport.x + viewport.width &&
+                                y >= viewport.y && y < viewport.y + viewport.height;
+            if (!inside)
+                require(
+                    p[0] < 20 && p[1] < 20 && p[2] < 20,
+                    "Canvas grid, points, highlights, or world text leaked into UI space."
+                );
+            worldText |= inside && p[0] > 180 && p[1] > 180 && p[2] < 60;
+        }
+    require(worldText, "World text did not appear inside the canvas.");
+    saveImage("canvas-viewport.ppm");
+
+    const std::vector<TextRun> overlay{{"UI", {10, 25}, 0.4f, {0, 1, 1, 1}}};
+    renderer.drawText(overlay, TextSpace::Screen);
+    std::vector<unsigned char> before(180 * 90 * 4), after(before.size());
+    glReadPixels(0, extent - 90, 180, 90, GL_RGBA, GL_UNSIGNED_BYTE, before.data());
+    bool screenText = false;
+    for (std::size_t i = 0; i < before.size(); i += 4)
+        screenText |= before[i + 1] > 100 && before[i + 2] > 100;
+    require(
+        screenText,
+        "Screen text stayed clipped to the canvas or used framebuffer pixels as logical units."
+    );
+    saveImage("canvas-with-overlay.ppm");
+    camera.setCenter({-0.1f, 0.3f});
+    camera.setZoom(0.7f);
+    renderer.beginFrame(camera.frame(frame.surface));
+    renderer.drawText(overlay, TextSpace::Screen);
+    glReadPixels(0, extent - 90, 180, 90, GL_RGBA, GL_UNSIGNED_BYTE, after.data());
+    require(before == after, "Screen overlay moved with canvas pan/zoom.");
+    camera.setViewport(CanvasViewport{0, 0, 0, 0});
+    renderer.beginFrame(camera.frame(frame.surface));
+    renderer.drawCanvas(canvas);
+    require(
+        renderer.getDrawCallCount() == 0 && glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE,
+        "Inactive canvas drew content or left UI scissoring enabled."
+    );
+    GLint activeViewport[4];
+    glGetIntegerv(GL_VIEWPORT, activeViewport);
+    require(
+        activeViewport[0] == 0 && activeViewport[1] == 0 && activeViewport[2] == extent &&
+            activeViewport[3] == extent && glGetError() == GL_NO_ERROR,
+        "Canvas completion did not restore the full framebuffer viewport."
+    );
 }
 } // namespace
 
@@ -263,10 +390,11 @@ int main()
                 "Framebuffer incomplete."
             );
             require(renderer.init(), "Renderer could not initialize required resources.");
-            const CameraState camera{{0, 0}, 1, 1, extent, extent};
+            const auto camera = CanvasCamera{}.frame({extent, extent, extent, extent});
             mixedInstances(renderer, camera);
             nativeContacts(renderer, camera);
             preview(renderer, camera);
+            canvasViewport(renderer);
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";
         }
         catch (const std::exception& error)

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cmath>
 #include <cstdint>
 #include <functional>
 
@@ -33,21 +32,6 @@ struct UiInputCapture
     bool keyboard = false;
     bool pointer = false;
     bool operator==(const UiInputCapture&) const = default;
-};
-
-/** Input bounds in GLFW window coordinates, with top-left origin and exclusive right/bottom edges.
- */
-struct CanvasInputBounds
-{
-    double x, y, width, height;
-
-    bool contains(double px, double py) const
-    {
-        return std::isfinite(px) && std::isfinite(py) && px >= x && py >= y && px - x < width &&
-               py - y < height;
-    }
-
-    bool operator==(const CanvasInputBounds&) const = default;
 };
 
 /** Called before canvas handling; true consumes this event. Persistent ownership uses setUiCapture.

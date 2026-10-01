@@ -21,7 +21,7 @@ input.setUiInputHandler([&](const UiInputEvent& event) {
     input.setUiCapture({ui.wantsKeyboard(), ui.wantsPointer()});
     return ui.consumed(event);
 });
-input.setCanvasInputBounds(CanvasInputBounds{240, 48, 960, 720});
+input.setCanvasViewport(CanvasViewport{240, 48, 960, 720});
 ```
 
 Returning `true` consumes that event. Publish persistent keyboard/pointer capture
@@ -56,17 +56,20 @@ A release after cancellation cannot finish a gesture; held keys/buttons cannot
 restart one when capture ends. Releases still clear physical state while captured.
 OS focus loss also clears pressed state; unfocused windows cannot edit the canvas.
 
-## Bounds and remaining camera work
+## Canvas viewport
 
-Bounds use logical GLFW window coordinates, not framebuffer pixels. Left/top edges
-are inclusive; right/bottom edges are exclusive. `std::nullopt` selects the whole
-current window, while a zero dimension disables pointer input. Negative/non-finite
-bounds throw without changing active input. The window extent always clips input.
+`Input::setCanvasViewport()` now supplies the shared camera layout for both input
+and rendering. It replaces the RM-U1 input-only `setCanvasInputBounds()` name.
+Logical GLFW coordinates are clipped to the window and snapped to framebuffer
+pixel edges; those effective bounds gate input and scissor every world pass.
+Left/top edges are inclusive; right/bottom edges are exclusive. `std::nullopt`
+selects the whole current window; empty/minimized canvases accept no pointer input.
+Negative/non-finite bounds throw before changing active input. Window/framebuffer
+size changes cancel gestures before interpreting new coordinates.
 
-Bounds only gate input. **RM-U2 still owns camera transforms, viewport rendering,
-clipping, and mouse-to-world conversion for a smaller canvas.** Setting bounds
-alone does not reposition or resize the rendered circuit. UI widgets and property
-schemas remain separate roadmap tasks.
+See [CanvasCamera.md](CanvasCamera.md) for camera ownership, forward/inverse
+conversions, DPI handling, and screen-space overlay behavior. UI widgets and
+property schemas remain separate roadmap tasks.
 
 ## Verification
 

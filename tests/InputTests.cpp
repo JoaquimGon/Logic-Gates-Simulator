@@ -39,12 +39,10 @@ class Editor
 
     void cursor(GridCoords position)
     {
-        int width, height;
-        glfwGetWindowSize(window, &width, &height);
-        const glm::vec2 world = GridSystem::gridToWorld(position);
-        const double x = width * 0.5 + world.x * height * 0.5;
-        const double y = height * 0.5 - world.y * height * 0.5;
-        cursorPixels(x, y);
+        const auto point =
+            input.getCameraFrame(window).worldToWindow(GridSystem::gridToWorld(position));
+        require(point.has_value(), "Cursor helper received an inactive canvas.");
+        cursorPixels(point->x, point->y);
     }
 
     void mouse(int button, int action) { Input::mouseButtonCallback(window, button, action, 0); }
@@ -805,32 +803,32 @@ void canvasInputBounds(GLFWwindow* window)
 {
     Editor editor(window);
     const int component = editor.inverter({0, 0});
-    const CanvasInputBounds bounds{300, 300, 200, 200};
+    const CanvasViewport bounds{300, 300, 200, 200};
     require(
         bounds.contains(300, 300) && bounds.contains(499, 499) && !bounds.contains(500, 400) &&
             !bounds.contains(400, 500),
         "Canvas boundary inclusion is inconsistent."
     );
-    editor.input.setCanvasInputBounds(bounds);
+    editor.input.setCanvasViewport(bounds);
     editor.cursorPixels(400, 400);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     editor.cursorPixels(420, 420);
     const auto revision = editor.scene.getRevision();
     for (const auto& invalid :
-         {CanvasInputBounds{0, 0, -1, 20},
-          CanvasInputBounds{0, 0, 20, std::numeric_limits<double>::infinity()}})
+         {CanvasViewport{0, 0, -1, 20},
+          CanvasViewport{0, 0, 20, std::numeric_limits<double>::infinity()}})
     {
         bool rejected = false;
         try
         {
-            editor.input.setCanvasInputBounds(invalid);
+            editor.input.setCanvasViewport(invalid);
         }
         catch (const std::invalid_argument&)
         {
             rejected = true;
         }
         require(
-            rejected && editor.input.getCanvasInputBounds() == bounds && !editor.input.isIdle(),
+            rejected && editor.input.getCanvasViewport() == bounds && !editor.input.isIdle(),
             "Invalid bounds mutated canvas ownership."
         );
     }
@@ -860,7 +858,7 @@ void canvasInputBounds(GLFWwindow* window)
     editor.cursorPixels(400, 400);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     require(!editor.input.isIdle(), "Layout-change fixture did not start dragging.");
-    editor.input.setCanvasInputBounds(CanvasInputBounds{0, 0, 800, 800});
+    editor.input.setCanvasViewport(CanvasViewport{0, 0, 800, 800});
     require(
         editor.input.isIdle() && editor.input.getSelectedComponentId() == component,
         "Canvas layout change did not cancel while preserving inspector selection."
@@ -870,15 +868,83 @@ void canvasInputBounds(GLFWwindow* window)
     Input::scrollCallback(window, 0, 1);
     editor.input.handleKey(GLFW_KEY_LEFT_CONTROL, GLFW_RELEASE);
     require(editor.input.getZoom() > 1, "Eligible canvas scroll did not zoom.");
-    editor.input.setCanvasInputBounds(CanvasInputBounds{0, 0, 0, 800});
+    editor.input.setCanvasViewport(CanvasViewport{0, 0, 0, 800});
     editor.cursorPixels(400, 400);
     require(!editor.input.isCanvasPointerAvailable(window), "Zero-size canvas accepted input.");
-    editor.input.setCanvasInputBounds(std::nullopt);
+    editor.input.setCanvasViewport(std::nullopt);
     require(editor.input.isCanvasPointerAvailable(window), "Full-window fallback rejected input.");
     editor.cursorPixels(800, 400);
     require(
         !editor.input.isCanvasPointerAvailable(window), "Full-window right edge accepted input."
     );
+}
+
+void canvasCameraInteraction(GLFWwindow* window)
+{
+    Editor editor(window);
+    editor.input.setCanvasViewport(CanvasViewport{120, 100, 560, 400});
+    editor.input.setZoom(2);
+    editor.input.setPanOffset({0.25f, 0.1f});
+    const int source = editor.scene.addInputPin({0, 0}, {0.15f, 0.15f}, "inputPin", true);
+    const int sink = editor.inverter({12, 2});
+    editor.cursor({0, 0});
+    editor.input.process(window);
+    require(
+        editor.input.getHoveredComponentId() == source,
+        "Offset canvas did not hit the rendered component."
+    );
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({4, 2});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getCommittedComponentView(source)->getGridPosition() == GridCoords{4, 2},
+        "Panned/zoomed subcanvas drag used full-window coordinates."
+    );
+    editor.cursor({8, 4});
+    editor.key(GLFW_KEY_1);
+    bool spawned = false;
+    for (const auto& [id, view] : editor.scene.getComponentViewMap())
+        spawned |= id != source && id != sink && view->getGridPosition() == GridCoords{8, 4};
+    require(spawned, "Subcanvas spawn shortcut used a different camera than picking.");
+    editor.cursor({5, 2});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({10, 2});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    editor.scene.propagate();
+    require(
+        editor.scene.getLogicComponent(sink)->getStateInPin(0),
+        "Subcanvas wire gesture missed the visible pin locations."
+    );
+    editor.cursorPixels(400, 300);
+    const auto anchor = *editor.input.getCameraFrame(window).windowToWorld({400, 300});
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+    editor.cursorPixels(428, 320);
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+    require(
+        glm::length(*editor.input.getCameraFrame(window).windowToWorld({428, 320}) - anchor) <
+            0.00001f,
+        "Panning did not keep the grabbed world point under the cursor."
+    );
+    editor.cursor({4, 2});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({6, 6});
+    const auto revision = editor.scene.getRevision();
+    glfwSetWindowSize(window, 1000, 700);
+    editor.input.process(window);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.input.isIdle() && editor.scene.getRevision() == revision &&
+            editor.input.getSelectedComponentId() == source &&
+            editor.scene.getCommittedComponentView(source)->getGridPosition() == GridCoords{4, 2},
+        "Surface resize committed or retained a stale gesture."
+    );
+    editor.input.setCanvasViewport(std::nullopt);
+    const auto resized = editor.input.getCameraFrame(window);
+    require(
+        resized.viewport == CanvasViewport{0, 0, 1000, 700},
+        "Full-window canvas did not follow a resize."
+    );
+    glfwSetWindowSize(window, 800, 800);
 }
 
 } // namespace
@@ -913,7 +979,8 @@ int main(int argc, char** argv)
             {"wire_and_pan_gestures", wireAndPanGestures},
             {"ui_input_routing", uiInputRouting},
             {"ui_gesture_cancellation", uiGestureCancellation},
-            {"canvas_input_bounds", canvasInputBounds}
+            {"canvas_input_bounds", canvasInputBounds},
+            {"canvas_camera_interaction", canvasCameraInteraction}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)

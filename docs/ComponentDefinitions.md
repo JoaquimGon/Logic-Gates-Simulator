@@ -113,6 +113,6 @@ applicable options, instance/default isolation, working custom behavior, atomic
 rollback, and catalog/identity restoration. Input tests verify all eleven shortcuts
 against catalog identities and sizes. Presentation tests cover leads, instance
 sizes, stable ordering, and text layout; pixel tests verify native attachment and
-mixed-size rendering. Current validation passes 35 Debug groups and 34 headless
+mixed-size rendering. Current validation passes 38 Debug groups and 37 headless
 AddressSanitizer groups. Neutral descriptor/catalog headers require no graphics
 include paths.

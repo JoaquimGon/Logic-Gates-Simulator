@@ -6,6 +6,7 @@
 #include "Scene.h"
 
 #include <GLFW/glfw3.h>
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -136,6 +137,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     event.modifiers = mods;
     glfwGetCursorPos(window, &event.x, &event.y);
     const bool consumed = dispatchUi(event);
+    synchronizeSurface(window);
     if (action == GLFW_PRESS)
     {
         const bool freshPress = m_pressedMouseButtons.insert(button).second;
@@ -190,7 +192,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         if (!isIdle())
             return;
         updateHoverState(window);
-        const auto hit = m_scene->hitTest(getMouseWorldCoord(window, m_zoom), mouseGridCoords);
+        const auto hit = m_scene->hitTest(getMouseWorldCoord(window), mouseGridCoords);
         if (m_mode == EditorMode::Interaction)
         {
             if (hit.type == HitType::COMPONENT_BODY)
@@ -226,7 +228,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         {
             updateHoverState(window);
             const bool drawing = m_wire.active();
-            const auto hit = m_scene->hitTest(getMouseWorldCoord(window, m_zoom), mouseGridCoords);
+            const auto hit = m_scene->hitTest(getMouseWorldCoord(window), mouseGridCoords);
             if (auto command = m_wire.finish(hit))
                 applyEdit(std::move(*command));
             if (drawing)
@@ -242,6 +244,7 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
     event.x = x;
     event.y = y;
     const bool consumed = dispatchUi(event);
+    synchronizeSurface(window);
     if (consumed || !m_windowFocused || m_uiCapture.pointer || !containsCanvasPoint(window, x, y))
     {
         interruptCanvas();
@@ -249,7 +252,7 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
         lastMouseY = y;
         return;
     }
-    mouseGridCoords = GridSystem::worldToGrid(getMouseWorldCoord(window, m_zoom));
+    mouseGridCoords = GridSystem::worldToGrid(getMouseWorldCoord(window));
     if (m_drag.active())
     {
         if (!m_scene || !m_drag.update(*m_scene, mouseGridCoords))
@@ -264,14 +267,10 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
     }
     else if (m_pan.active())
     {
-        int width, height;
-        glfwGetWindowSize(window, &width, &height);
         m_pan.update(
-            {static_cast<float>(x), static_cast<float>(y)},
-            static_cast<float>(height),
-            m_zoom,
-            panOffset
+            {static_cast<float>(x), static_cast<float>(y)}, getCameraFrame(window), m_camera
         );
+        mouseGridCoords = GridSystem::worldToGrid(getMouseWorldCoord(window));
     }
     lastMouseX = x;
     lastMouseY = y;
@@ -279,6 +278,7 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
 
 void Input::process(GLFWwindow* window)
 {
+    synchronizeSurface(window);
     if (!isCanvasPointerAvailable(window))
     {
         cancelGestures();
@@ -304,9 +304,8 @@ void Input::process(GLFWwindow* window)
           GLFW_KEY_U,
           GLFW_KEY_I})
         if (consumeKeyPress(key) && canEdit)
-            if (auto command = componentShortcut(
-                    key, GridSystem::worldToGrid(getMouseWorldCoord(window, m_zoom))
-                ))
+            if (auto command =
+                    componentShortcut(key, GridSystem::worldToGrid(getMouseWorldCoord(window))))
                 applyEdit(std::move(*command));
 
     const bool pause = consumeKeyPress(GLFW_KEY_SPACE);
@@ -322,7 +321,7 @@ void Input::process(GLFWwindow* window)
     const bool backspace = consumeKeyPress(GLFW_KEY_BACKSPACE);
     if (canEdit && (remove || backspace))
     {
-        const auto hit = m_scene->hitTest(getMouseWorldCoord(window, m_zoom), mouseGridCoords);
+        const auto hit = m_scene->hitTest(getMouseWorldCoord(window), mouseGridCoords);
         std::optional<SelectedSegment> hovered;
         if (const Wire* wire = m_scene->getWire(hit.wireId))
         {
@@ -342,7 +341,9 @@ void Input::handleScroll(GLFWwindow* window, double x, double y)
     UiInputEvent event{UiInputKind::Scroll};
     event.x = x;
     event.y = y;
-    if (dispatchUi(event) || !isCanvasPointerAvailable(window) || !canvasKeyboardAvailable())
+    const bool consumed = dispatchUi(event);
+    synchronizeSurface(window);
+    if (consumed || !isCanvasPointerAvailable(window) || !canvasKeyboardAvailable())
     {
         interruptCanvas();
         return;
@@ -350,11 +351,8 @@ void Input::handleScroll(GLFWwindow* window, double x, double y)
     if (m_pressedKeys.contains(GLFW_KEY_LEFT_CONTROL) ||
         m_pressedKeys.contains(GLFW_KEY_RIGHT_CONTROL))
     {
-        m_zoom += static_cast<float>(y) * 0.15f;
-        if (m_zoom < 0.2f)
-            m_zoom = 0.2f;
-        if (m_zoom > 5.0f)
-            m_zoom = 5.0f;
+        if (std::isfinite(y))
+            setZoom(std::clamp(m_camera.zoom() + static_cast<float>(y) * 0.15f, 0.2f, 5.0f));
     }
 }
 
@@ -370,7 +368,7 @@ void Input::updateHoverState(GLFWwindow* window)
     if (!m_scene)
         return;
 
-    glm::vec2 currentWorldCoords = getMouseWorldCoord(window, m_zoom);
+    glm::vec2 currentWorldCoords = getMouseWorldCoord(window);
     mouseGridCoords = GridSystem::worldToGrid(currentWorldCoords);
 
     clearHover();
@@ -410,26 +408,9 @@ void Input::updateHoverState(GLFWwindow* window)
         hoveredWire->getSegmentAt(mouseGridCoords, m_hoveredSegmentStart, m_hoveredSegmentEnd);
 }
 
-glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom) const
+glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window) const
 {
-    double mouseX, mouseY;
-    glfwGetCursorPos(window, &mouseX, &mouseY);
-    int width, height;
-    glfwGetWindowSize(window, &width, &height);
-
-    if (width <= 0 || height <= 0 || !std::isfinite(zoom) || zoom <= 0)
-        return panOffset;
-
-    float ndcX = (2.0f * static_cast<float>(mouseX)) / width - 1.0f;
-    float ndcY = 1.0f - (2.0f * static_cast<float>(mouseY)) / height;
-
-    float aspectRatio =
-        (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
-    float correctedX = ndcX * aspectRatio;
-    float correctedY = ndcY;
-
-    float worldX = (correctedX / zoom) + panOffset.x;
-    float worldY = (correctedY / zoom) + panOffset.y;
-
-    return glm::vec2(worldX, worldY);
+    double x, y;
+    glfwGetCursorPos(window, &x, &y);
+    return getCameraFrame(window).windowToWorld({x, y}).value_or(m_camera.center());
 }

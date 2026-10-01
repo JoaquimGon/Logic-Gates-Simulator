@@ -102,7 +102,7 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 35 groups with the application (34 headlessly), including six `EditorActionsTests` groups for atomic batches,
+CTest runs 38 groups with the application (37 headlessly), including six `EditorActionsTests` groups for atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery,
 snapshot restoration, and body-placement rollback. `InputTests` additionally verifies actual keyboard spawning,
 drag commit/cancellation, scene switching, and middle-segment deletion:
@@ -131,4 +131,5 @@ focus loss and scene changes likewise discard unfinished gestures and queued key
 UI mode controls can call `Input::setMode()`. UI-first event routing and capture
 are implemented; see [InputRouting.md](InputRouting.md). Capture/focus transfers
 cancel previews while retaining selection. Publish ownership before applying a UI
-edit so active previews do not reject it. Camera/viewport transforms remain RM-U2.
+edit so active previews do not reject it. Shared picking/rendering transforms and DPI-aware clipping are complete under RM-U2;
+see [CanvasCamera.md](CanvasCamera.md).

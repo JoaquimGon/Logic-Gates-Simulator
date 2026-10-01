@@ -3,6 +3,7 @@
 #include "Components/PinTypes.h"
 #include "Editor/UiInput.h"
 #include "EditorMode.h"
+#include "Geometry/CanvasCamera.h"
 #include "Geometry/GridCoords.h"
 #include "Geometry/Wire.h"
 #include "Gestures/DragGesture.h"
@@ -25,7 +26,10 @@ class Input
     Scene* m_scene = nullptr;
     UiInputHandler m_uiInputHandler;
     UiInputCapture m_uiCapture;
-    std::optional<CanvasInputBounds> m_canvasInputBounds;
+    CanvasCamera m_camera;
+    std::optional<CanvasSurface> m_lastSurface;
+    static CanvasSurface surfaceFor(GLFWwindow* window);
+    void synchronizeSurface(GLFWwindow* window);
     bool m_canvasFocused = true;
     bool m_windowFocused = true;
     std::unordered_set<int> m_pressedMouseButtons;
@@ -37,7 +41,6 @@ class Input
     void interruptCanvas();
     void clearHover();
 
-    float m_zoom = 1.0f;
     EditorMode m_mode = EditorMode::Selection;
     DragGesture m_drag;
     WireGesture m_wire;
@@ -47,7 +50,6 @@ class Input
     double lastMouseX = 0.0f;
     double lastMouseY = 0.0f;
     GridCoords mouseGridCoords = {0, 0};
-    glm::vec2 panOffset = glm::vec2(0.0f, 0.0f);
 
     EditError m_lastEditError = EditError::None;
     std::string m_lastEditMessage;
@@ -83,14 +85,11 @@ class Input
 
     bool isCanvasFocused() const { return m_canvasFocused; }
 
-    /** @brief Sets window-space input bounds; nullopt uses the full window, zero dimensions disable
-     * it. */
-    void setCanvasInputBounds(std::optional<CanvasInputBounds> bounds);
+    /** @brief Sets the shared logical canvas viewport; nullopt uses the full window, zero
+     * dimensions disable it. */
+    void setCanvasViewport(std::optional<CanvasViewport> bounds);
 
-    const std::optional<CanvasInputBounds>& getCanvasInputBounds() const
-    {
-        return m_canvasInputBounds;
-    }
+    const std::optional<CanvasViewport>& getCanvasViewport() const { return m_camera.viewport(); }
 
     bool isCanvasPointerAvailable(GLFWwindow* window) const;
     void process(GLFWwindow* window);
@@ -126,9 +125,12 @@ class Input
 
     bool isIdle() const { return !m_drag.active() && !m_wire.ownsPointer() && !m_pan.active(); }
 
-    glm::vec2 getMouseWorldCoord(GLFWwindow* window, float zoom) const;
+    glm::vec2 getMouseWorldCoord(GLFWwindow* window) const;
+    CanvasCameraFrame getCameraFrame(GLFWwindow* window) const;
 
-    glm::vec2 getPanOffset() const { return panOffset; }
+    glm::vec2 getPanOffset() const { return m_camera.center(); }
+
+    void setPanOffset(glm::vec2 offset);
 
     glm::vec2 getLastMouse() const
     {
@@ -137,9 +139,9 @@ class Input
 
     GridCoords getCurrentGridCoords() const { return mouseGridCoords; }
 
-    float getZoom() const { return m_zoom; }
+    float getZoom() const { return m_camera.zoom(); }
 
-    void setZoom(float zoom) { m_zoom = zoom; }
+    void setZoom(float zoom);
 
     bool isCurrentlyDrawingWire() const { return m_wire.active(); }
 

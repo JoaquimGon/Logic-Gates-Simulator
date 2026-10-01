@@ -27,8 +27,6 @@ class Engine
     // NEW: The Renderer now owns all meshes, shaders, and OpenGL state
     Renderer m_renderer;
 
-    static void resizeWindow(GLFWwindow* window, int width, int height);
-
     /**
     @brief GLFW error sink, registered before glfwInit().
     */

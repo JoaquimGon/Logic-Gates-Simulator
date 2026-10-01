@@ -150,12 +150,44 @@ bool Renderer::init()
     return ready;
 }
 
-void Renderer::beginFrame(const CameraState& camera)
+void Renderer::beginFrame(const CanvasCameraFrame& camera)
 {
     m_sm.checkHotReload();
     m_currentCamera = camera;
     m_drawCallCount = 0; // Reset at the beginning of each frame
+    setScreenViewport();
     glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void Renderer::setScreenViewport()
+{
+    glDisable(GL_SCISSOR_TEST);
+    glViewport(
+        0,
+        0,
+        std::max(0, m_currentCamera.surface.framebufferWidth),
+        std::max(0, m_currentCamera.surface.framebufferHeight)
+    );
+}
+
+bool Renderer::setCanvasViewport()
+{
+    if (!m_currentCamera.valid())
+        return false;
+    const auto& viewport = m_currentCamera.framebufferViewport;
+    glViewport(viewport.x, viewport.y, viewport.width, viewport.height);
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(viewport.x, viewport.y, viewport.width, viewport.height);
+    return true;
+}
+
+bool Renderer::useCanvasShader(Shader& shader)
+{
+    if (!setCanvasViewport())
+        return false;
+    shader.use();
+    shader.setMat4("uViewProjection", m_currentCamera.viewProjection);
+    return true;
 }
 
 void Renderer::drawGrid()
@@ -163,15 +195,10 @@ void Renderer::drawGrid()
     auto* shader = acquireShader("grid");
     if (!shader)
         return;
-    shader->use();
-    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
-    shader->setFloat("uZoom", m_currentCamera.zoom);
+    if (!useCanvasShader(*shader))
+        return;
+    shader->setMat4("uInverseViewProjection", m_currentCamera.inverseViewProjection);
     shader->setFloat("uGridSpacing", GridSystem::GRID_SPACING);
-    shader->setVec2(
-        "uResolution",
-        static_cast<float>(m_currentCamera.windowWidth),
-        static_cast<float>(m_currentCamera.windowHeight)
-    );
 
     m_gridMesh->draw();
     m_drawCallCount++;
@@ -182,10 +209,8 @@ void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* active
     auto* shader = acquireShader("wire");
     if (!shader)
         return;
-    shader->use();
-    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
-    shader->setFloat("uZoom", m_currentCamera.zoom);
-    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
+    if (!useCanvasShader(*shader))
+        return;
 
     std::vector<float> allWiresData;
 
@@ -216,10 +241,8 @@ void Renderer::drawWireSegmentBoundingBox(
     auto* shader = acquireShader("wire");
     if (!shader)
         return;
-    shader->use();
-    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
-    shader->setFloat("uZoom", m_currentCamera.zoom);
-    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
+    if (!useCanvasShader(*shader))
+        return;
 
     glm::vec2 p1 = GridSystem::gridToWorld(start);
     glm::vec2 p2 = GridSystem::gridToWorld(end);
@@ -254,10 +277,8 @@ void Renderer::drawComponents(std::span<const ComponentRenderData> components)
         auto* shader = acquireShader(batch.shader);
         if (!shader)
             continue;
-        shader->use();
-        shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
-        shader->setFloat("uZoom", m_currentCamera.zoom);
-        shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
+        if (!useCanvasShader(*shader))
+            continue;
         m_gateMesh->setInstanceData(packComponentInstances(batch.instances), {2, 2, 4}, 1);
         m_gateMesh->drawInstanced(static_cast<int>(batch.instances.size()));
         ++m_drawCallCount;
@@ -291,10 +312,8 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components)
             }
     if (data.empty())
         return;
-    shader->use();
-    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
-    shader->setFloat("uZoom", m_currentCamera.zoom);
-    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
+    if (!useCanvasShader(*shader))
+        return;
     m_wireMesh->updateData(data, 7);
     m_wireMesh->draw();
     ++m_drawCallCount;
@@ -310,11 +329,9 @@ void Renderer::drawPins(
     auto* shader = acquireShader("pin");
     if (!shader)
         return;
-    shader->use();
-    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
-    shader->setFloat("uZoom", m_currentCamera.zoom);
-    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
-    shader->setFloat("uWindowHeight", static_cast<float>(m_currentCamera.windowHeight));
+    if (!useCanvasShader(*shader))
+        return;
+    shader->setFloat("uPixelsPerWorldUnit", m_currentCamera.pixelsPerWorldUnit);
 
     // World-space diameter: ~half a grid cell (0.05 * 0.48 = 0.024f)
     shader->setFloat("uPointSize", 0.024f);
@@ -352,10 +369,8 @@ void Renderer::drawComponentBoundingBox(glm::vec2 pos, glm::vec2 size, float pad
     auto* shader = acquireShader("wire"); // reused: a bounding box is just 4 colored lines
     if (!shader)
         return;
-    shader->use();
-    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
-    shader->setFloat("uZoom", m_currentCamera.zoom);
-    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
+    if (!useCanvasShader(*shader))
+        return;
 
 
     float halfW = (size.x * 0.5f) + padding;
@@ -390,11 +405,9 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
     auto* shader = acquireShader("pin");
     if (!shader)
         return;
-    shader->use();
-    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
-    shader->setFloat("uZoom", m_currentCamera.zoom);
-    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
-    shader->setFloat("uWindowHeight", static_cast<float>(m_currentCamera.windowHeight));
+    if (!useCanvasShader(*shader))
+        return;
+    shader->setFloat("uPixelsPerWorldUnit", m_currentCamera.pixelsPerWorldUnit);
 
     // Scale guide point with world space as well
     shader->setFloat("uPointSize", 0.018f);
@@ -416,11 +429,9 @@ void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
     auto* shader = acquireShader("pin");
     if (!shader)
         return;
-    shader->use();
-    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
-    shader->setFloat("uZoom", m_currentCamera.zoom);
-    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
-    shader->setFloat("uWindowHeight", static_cast<float>(m_currentCamera.windowHeight));
+    if (!useCanvasShader(*shader))
+        return;
+    shader->setFloat("uPixelsPerWorldUnit", m_currentCamera.pixelsPerWorldUnit);
 
     // Increased size so the outer dark rim extends past the wire boundaries
     shader->setFloat("uPointSize", 0.028f);
@@ -451,26 +462,29 @@ void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
 void Renderer::drawText(std::span<const TextRun> runs, TextSpace space)
 {
     auto* shader = acquireShader("text");
-    if (!shader || m_currentCamera.windowWidth <= 0 || m_currentCamera.windowHeight <= 0)
+    const auto& surface = m_currentCamera.surface;
+    if (!shader || surface.windowWidth <= 0 || surface.windowHeight <= 0 ||
+        surface.framebufferWidth <= 0 || surface.framebufferHeight <= 0)
         return;
-    const auto& camera = m_currentCamera;
-    const auto projection = space == TextSpace::World
-                                ? glm::ortho(
-                                      camera.panOffset.x - camera.aspectRatio / camera.zoom,
-                                      camera.panOffset.x + camera.aspectRatio / camera.zoom,
-                                      camera.panOffset.y - 1 / camera.zoom,
-                                      camera.panOffset.y + 1 / camera.zoom,
-                                      -1.0f,
-                                      1.0f
-                                  )
-                                : glm::ortho(
-                                      0.0f,
-                                      static_cast<float>(camera.windowWidth),
-                                      static_cast<float>(camera.windowHeight),
-                                      0.0f,
-                                      -1.0f,
-                                      1.0f
-                                  );
+    glm::mat4 projection;
+    if (space == TextSpace::World)
+    {
+        if (!setCanvasViewport())
+            return;
+        projection = m_currentCamera.viewProjection;
+    }
+    else
+    {
+        setScreenViewport();
+        projection = glm::ortho(
+            0.0f,
+            static_cast<float>(surface.windowWidth),
+            static_cast<float>(surface.windowHeight),
+            0.0f,
+            -1.0f,
+            1.0f
+        );
+    }
     m_drawCallCount += m_text.draw(runs, space, projection, *shader);
 }
 
@@ -485,8 +499,8 @@ void Renderer::drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics)
         layoutDebugOverlay(
             metrics,
             showMetrics,
-            m_currentCamera.windowWidth,
-            m_currentCamera.windowHeight,
+            m_currentCamera.surface.windowWidth,
+            m_currentCamera.surface.windowHeight,
             m_text.metrics()
         ),
         TextSpace::Screen
@@ -519,4 +533,5 @@ void Renderer::drawCanvas(const CanvasFrame& frame)
         drawGridPointHighlight(frame.gridHighlight->position, frame.gridHighlight->opacity);
     drawPins(frame.components, frame.hoveredComponent, frame.hoveredPin, frame.hoveredDirection);
     drawLabels(frame.components);
+    setScreenViewport();
 }

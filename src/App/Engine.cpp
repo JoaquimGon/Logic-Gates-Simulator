@@ -10,11 +10,6 @@
 #include <iostream>
 #include <vector>
 
-void Engine::resizeWindow(GLFWwindow* window, int width, int height)
-{
-    glViewport(0, 0, width, height);
-}
-
 void Engine::errorCallback(int error, const char* description)
 {
     std::cerr << "[GLFW] Error " << error << ": " << description << std::endl;
@@ -74,7 +69,6 @@ int Engine::init()
     // dependent.
     glfwSwapInterval(1);
 
-    glfwSetFramebufferSizeCallback(window, Engine::resizeWindow);
     glfwSetWindowUserPointer(window, &input);
 
     // Mouse and keyboard callbacks. Keys are handled as events rather than
@@ -216,19 +210,7 @@ void Engine::run()
         }
 
         // 4. Render graphics as normal
-        int width, height;
-        glfwGetWindowSize(window, &width, &height);
-        float aspectRatio =
-            (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
-
-        CameraState cam;
-        cam.panOffset = input.getPanOffset();
-        cam.zoom = input.getZoom();
-        cam.aspectRatio = aspectRatio;
-        cam.windowWidth = width;
-        cam.windowHeight = height;
-
-        m_renderer.beginFrame(cam);
+        m_renderer.beginFrame(input.getCameraFrame(window));
         const auto components = buildComponentPresentation(scene.getComponentViewMap());
         const auto junctions = scene.getWireIntersections();
         CanvasFrame frame{components, scene.getWires(), junctions};

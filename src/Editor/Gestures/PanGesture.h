@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm/glm.hpp>
+#include "Geometry/CanvasCamera.h"
 
 /** @brief Tracks camera movement in screen pixels independently of GLFW. */
 class PanGesture
@@ -12,12 +12,15 @@ class PanGesture
         m_active = true;
     }
 
-    void update(glm::vec2 cursor, float viewportHeight, float zoom, glm::vec2& offset)
+    void update(glm::vec2 cursor, const CanvasCameraFrame& frame, CanvasCamera& camera)
     {
-        if (!m_active || viewportHeight <= 0 || zoom <= 0)
+        if (!m_active)
             return;
-        const auto delta = (cursor - m_previous) * (2.0f / viewportHeight / zoom);
-        offset += glm::vec2{-delta.x, delta.y};
+        const auto previous = frame.windowToWorld(m_previous);
+        const auto current = frame.windowToWorld(cursor);
+        if (!previous || !current)
+            return;
+        camera.setCenter(camera.center() + *previous - *current);
         m_previous = cursor;
     }
 
