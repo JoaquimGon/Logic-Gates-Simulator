@@ -108,7 +108,7 @@ class Editor
 
 void dragCancellation(GLFWwindow* window)
 {
-    for (int cancelMethod = 0; cancelMethod < 3; ++cancelMethod)
+    for (int cancelMethod = 0; cancelMethod < 4; ++cancelMethod)
     {
         Editor editor(window);
         editor.scene.addInputPin({-8, 0}, {0.15f, 0.15f}, "inputPin", true);
@@ -116,6 +116,7 @@ void dragCancellation(GLFWwindow* window)
         editor.wire({{-7, 0}, {-2, 0}});
         editor.scene.propagate();
         const auto wireIds = editor.scene.getWireIds();
+        const auto builds = editor.scene.getTopologyBuildCount();
 
         editor.cursor({0, 0});
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
@@ -126,13 +127,22 @@ void dragCancellation(GLFWwindow* window)
             "Drag did not preview the new position."
         );
 
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        require(!editor.input.isIdle(), "Repeated mouse press abandoned the owned preview.");
+        require(
+            editor.scene.getCommittedComponentView(sink)->getGridPosition() == GridCoords{0, 0},
+            "Drag preview changed model placement."
+        );
         if (cancelMethod == 0)
             editor.key(GLFW_KEY_ESCAPE);
         else if (cancelMethod == 1)
             editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
-        else
+        else if (cancelMethod == 2)
             editor.input.cancelCurrentAction();
+        else
+            editor.input.setScene(nullptr);
 
+        require(editor.scene.getTopologyBuildCount() == builds, "Cancellation rebuilt topology.");
         require(editor.input.isIdle(), "Cancellation left an active gesture.");
         require(
             editor.scene.getComponentView(sink)->getGridPosition() == GridCoords{0, 0},
@@ -171,9 +181,14 @@ void dragCommit(GLFWwindow* window)
 
         editor.cursor({0, 0});
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        const auto builds = editor.scene.getTopologyBuildCount();
         editor.cursor(target);
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
 
+        require(
+            editor.scene.getTopologyBuildCount() == builds + (target == GridCoords{12, 0} ? 0 : 1),
+            "Drop rebuilt topology for rollback or more than once for commit."
+        );
         const GridCoords expected = target == GridCoords{12, 0} ? GridCoords{0, 0} : target;
         require(editor.input.isIdle(), "Mouse release left an active drag.");
         require(
@@ -222,7 +237,11 @@ void spawnPlacement(GLFWwindow* window)
         editor.wire({{outputX + 1, outputY - 1}, {outputX + 6, outputY - 1}});
 
         editor.cursor({0, 0});
+        const auto builds = editor.scene.getTopologyBuildCount();
         editor.key(key);
+        require(
+            editor.scene.getTopologyBuildCount() == builds + 1, "Spawn rebuilt before placement."
+        );
         require(editor.scene.getComponentCount() == 3, "Spawn shortcut did not add one component.");
 
         int spawned = -1;
@@ -254,6 +273,24 @@ void spawnPlacement(GLFWwindow* window)
         );
     }
 }
+
+void wireSegmentDeletion(GLFWwindow* window)
+{
+    Editor editor(window);
+    editor.wire({{0, 0}, {4, 0}, {4, 4}, {8, 4}});
+    const auto builds = editor.scene.getTopologyBuildCount();
+    editor.cursor({4, 2});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(editor.input.hasSelectedSegment(), "Wire segment selection failed.");
+    editor.key(GLFW_KEY_DELETE);
+    require(
+        editor.scene.getTopologyBuildCount() == builds + 1 && editor.scene.wireCount() == 2 &&
+            editor.scene.netCount() == 2,
+        "Keyboard middle-segment deletion rebuilt multiple times or lost remainders."
+    );
+    require(!editor.input.hasSelectedSegment(), "Deletion retained a stale selected segment.");
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -279,7 +316,8 @@ int main(int argc, char** argv)
         const std::pair<const char*, void (*)(GLFWwindow*)> tests[] = {
             {"drag_cancellation", dragCancellation},
             {"drag_commit", dragCommit},
-            {"spawn_placement", spawnPlacement}
+            {"spawn_placement", spawnPlacement},
+            {"wire_segment_deletion", wireSegmentDeletion}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)

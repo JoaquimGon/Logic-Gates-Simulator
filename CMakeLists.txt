@@ -23,7 +23,11 @@ target_link_libraries(simulator_geometry PUBLIC project_options)
 add_library(simulator_views INTERFACE)
 target_link_libraries(simulator_views INTERFACE simulator_simulation glm::glm)
 
-add_library(simulator_scene STATIC src/Editor/Scene.cpp)
+add_library(simulator_scene STATIC
+    src/Editor/Scene.cpp
+    src/Editor/SceneEditing.cpp
+    src/Editor/Actions/EditorActions.cpp
+)
 target_link_libraries(simulator_scene PUBLIC
     simulator_simulation simulator_geometry simulator_views
 )
@@ -75,10 +79,19 @@ if(BUILD_TESTING)
         add_test(NAME ${test_name} COMMAND LogicTests ${test_name})
     endforeach()
 
+    add_executable(EditorActionsTests tests/EditorActionsTests.cpp)
+    target_link_libraries(EditorActionsTests PRIVATE simulator_scene)
+    foreach(test_name IN ITEMS
+        editor_atomic_batches editor_move_previews editor_configuration
+        editor_wire_edits editor_restore_snapshots
+    )
+        add_test(NAME ${test_name} COMMAND EditorActionsTests ${test_name})
+    endforeach()
+
     add_executable(InputTests tests/InputTests.cpp)
     target_link_libraries(InputTests PRIVATE simulator_input glfw)
     target_compile_definitions(InputTests PRIVATE GLFW_INCLUDE_NONE)
-    foreach(test_name IN ITEMS drag_cancellation drag_commit spawn_placement)
+    foreach(test_name IN ITEMS drag_cancellation drag_commit spawn_placement wire_segment_deletion)
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
     endforeach()
 endif()

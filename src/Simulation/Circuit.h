@@ -48,6 +48,18 @@ class Circuit
     EvalOrderResult m_lastEvalResult = EvalOrderResult::OK;
 
   public:
+    Circuit() = default;
+    Circuit(const Circuit& other);
+    Circuit& operator=(const Circuit& other);
+    Circuit(Circuit&&) noexcept = default;
+    Circuit& operator=(Circuit&&) noexcept = default;
+
+    /** @brief Resizes a native gate, retaining surviving indexed states and pruning removed edges.
+     */
+    void resizeGateInputs(int componentId, int inputPinCount);
+    /** @brief Prevents snapshot restoration from recycling previously allocated component IDs. */
+    void preserveAllocatedIds(const Circuit& other);
+
     int addGate(GateType type);
     int addGate(GateType type, int inputPinCount);
     int addInputPin(bool initialState = false);

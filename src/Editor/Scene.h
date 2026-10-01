@@ -1,4 +1,5 @@
 #pragma once
+#include "Actions/EditTypes.h"
 #include "Components/Gate.h"
 #include "Components/Latch.h"
 #include "Components/Views/ComponentView.h"
@@ -44,9 +45,24 @@ struct RejectedConnection
     ConnectionResult reason;
 };
 
+class EditorActions;
+
 class Scene
 {
   public:
+    Scene() = default;
+    Scene(const Scene& other);
+    Scene& operator=(const Scene& other);
+    Scene(Scene&&) noexcept = default;
+    Scene& operator=(Scene&&) noexcept = default;
+
+    std::uint64_t getRevision() const { return m_revision; }
+
+    std::uint64_t getTopologyBuildCount() const { return m_topologyBuildCount; }
+
+    /** @brief Reads model placement independently of a presentation-only move preview. */
+    const ComponentView* getCommittedComponentView(int componentId) const;
+
     /**
      * @brief Creates a gate whose logical input count matches the supplied visual pins.
      * @param type Gate operation; NOT requires one input, other gates at least two.
@@ -73,12 +89,13 @@ class Scene
     int addLatch(LatchType type, GridCoords gridPos);
 
     void removeComponent(int componentId);
+    // Borrowed views expire on committed edits or preview transitions; reacquire by ID.
     ComponentView* getComponentView(int componentId);
     Component* getLogicComponent(int componentId);
 
     const std::unordered_map<int, std::unique_ptr<ComponentView>>& getComponentViewMap() const
     {
-        return m_componentViews;
+        return m_previewToken != 0 ? m_previewViews : m_componentViews;
     }
 
     // ----- Wires: pure geometry (the electrical side lives in Net) -----
@@ -88,7 +105,6 @@ class Scene
     // at all.
     size_t wireCount() const { return m_wires.size(); }
 
-    Wire* getWire(WireId id);
     const Wire* getWire(WireId id) const;
 
     // Ordered by id, i.e. by creation order, which also keeps the draw order
@@ -207,6 +223,30 @@ class Scene
     }
 
   private:
+    friend class EditorActions;
+
+    std::uint64_t m_revision = 0;
+    std::uint64_t m_topologyBuildCount = 0;
+    std::uint64_t m_nextPreviewToken = 0;
+    std::uint64_t m_previewToken = 0;
+    std::uint64_t m_previewBaseRevision = 0;
+    int m_previewComponentId = -1;
+    std::unordered_map<int, std::unique_ptr<ComponentView>> m_previewViews;
+
+    // Only the action service calls these while constructing an isolated candidate.
+    int addGateRaw(
+        GateType type,
+        GridCoords position,
+        glm::vec2 size,
+        const std::string& shader,
+        std::vector<PinUI> inputs,
+        std::vector<PinUI> outputs
+    );
+    int addInputPinRaw(GridCoords position, glm::vec2 size, const std::string& shader, bool state);
+    int
+    addClockRaw(GridCoords position, glm::vec2 size, const std::string& shader, float frequency);
+    int addLatchRaw(LatchType type, GridCoords position);
+
     Circuit m_circuit;
     // Invalid geometry remains editable, but never runs as a partial simulation graph.
     std::vector<RejectedConnection> m_rejectedConnections;
@@ -236,6 +276,7 @@ class Scene
      * @return The id the wire was stored under.
      */
     WireId insertWire(Wire wire);
+    Wire* editWire(WireId id);
 
     // Geometry surgery that deliberately leaves the nets untouched, so that the
     // steps of rebuildNets() can reshape the container while they collect. The

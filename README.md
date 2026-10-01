@@ -47,6 +47,7 @@ A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 C
 src/
   App/                 Entry point, GLFW lifecycle, and application loop
   Editor/              Input gestures and Scene coordination
+    Actions/           Typed edits, preview lifecycle, and reversible changes
   Components/          Native behavior classes and logical pin types
     Views/             Component presentation and PinUI data
   Simulation/          Circuit propagation, nets, and endpoint identities
@@ -55,11 +56,13 @@ src/
     Text/              Font atlas and text geometry
 cmake/                 Dependencies, compiler options, and font discovery
 assets/shaders/        GLSL presentations and live-reload sources
-tests/                 Logic/scene and input regression runners
+tests/                 Logic, editor action, and input regression runners
+docs/                  Editor action contracts and integration examples
 external/              Vendored GLAD and stb_truetype
 ```
 
-Input edits Scene; Scene derives electrical nets and Circuit connections from
+Input and startup submit batches through EditorActions; Scene derives electrical
+nets and Circuit connections from
 component layouts and wire geometry. Circuit evaluates the supported DAG, and
 Scene synchronizes signal states for rendering. Invalid feedback pauses the
 scene until the wiring is repaired.
@@ -77,11 +80,11 @@ Headers include their own requirements; implementation-only headers belong in
 `.cpp` files. Native behavior and simulation must not include views, Graphics,
 GLFW, or GLAD. Wire vertex generation belongs in Graphics, not the wire model.
 
-This layout prepares further extraction: editor actions, gesture handlers, and
-connectivity building belong under `Editor/`; geometry normalization belongs
+Editor actions are implemented under `Editor/Actions/`. Further extraction of
+gesture handlers and connectivity building belong under `Editor/`; geometry normalization belongs
 under `Geometry/`; reusable component definitions and their catalog belong
-under `Components/`. Those systems are still pending; moving Input and Scene
-does not separate all of their current responsibilities.
+under `Components/`. Those extractions remain pending; Scene still owns
+geometry normalization and net building, and Input still owns gestures/defaults.
 
 ## Dependencies & Vendoring
 
@@ -161,8 +164,9 @@ remains separate work.
 
 ## Component Pins and Regression Tests
 
-`Component` owns the input and output state arrays. Pin counts are fixed when a
-component is created; invalid pin access throws `std::out_of_range`.
+`Component` owns input and output state arrays; invalid pin access throws
+`std::out_of_range`. Native counts are validated at creation. Gate input counts
+can also change through a coherent editor configuration action.
 `Gate` keeps one output and supports configurable input counts: NOT requires
 one input, and AND/NAND/OR/NOR/XOR/NXOR accept two or more. XOR uses odd parity;
 NXOR uses its inverse. Existing spawn shortcuts retain their default counts.
@@ -194,9 +198,26 @@ when using a multi-configuration generator. Use `-DBUILD_TESTING=OFF` to omit te
 Input regression tests run in a separate `InputTests` executable using GLFW's
 null platform, so they require no display, native window, or OpenGL context.
 They cover Escape/right-click drag cancellation, movement and overlap rollback,
-and connectivity after every component spawn shortcut. CTest runs both suites;
-use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_" --output-on-failure`
+connectivity after every component spawn shortcut, and middle-segment deletion.
+CTest runs all three runners (18 groups); use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion" --output-on-failure`
 to run only the input tests.
+
+## Shared Editor Actions
+
+`EditorActions::apply()` stages typed create/move/configure/delete/wire operations
+as one batch. Structural edits validate final placement and rebuild connectivity
+once; failures leave the committed scene unchanged. Drag previews affect only
+presentation, so cancellation needs no topology rebuild.
+
+`ConfigureComponent` updates layouts and gate arity together. Surviving pin indices
+retain identity; removing wired inputs requires an explicit attachment policy or
+wire removal in the same batch. Pin layouts and committed wires are read-only to
+callers. Complete before/after records preserve normalized wire IDs and runtime
+state for future undo/redo; history controls and persistence remain pending.
+
+See [Editor action contracts and examples](docs/EditorActions.md) for API use,
+pointer lifetimes, migration rules, and snapshot-restoration semantics.
+`EditorActionsTests` covers these boundaries without a window or OpenGL context.
 
 ### Rejected Connections
 

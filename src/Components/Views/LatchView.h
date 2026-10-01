@@ -8,6 +8,11 @@
 class LatchView : public ComponentView
 {
   public:
+    std::unique_ptr<ComponentView> clone() const override
+    {
+        return std::make_unique<LatchView>(*this);
+    }
+
     LatchView(
         GridCoords gridPos,
         int id,
@@ -25,11 +30,7 @@ class LatchView : public ComponentView
     {
     }
 
-    std::vector<PinUI>& getInputPins() override { return m_inputs; }
-
     const std::vector<PinUI>& getInputPins() const override { return m_inputs; }
-
-    std::vector<PinUI>& getOutputPins() override { return m_outputs; }
 
     const std::vector<PinUI>& getOutputPins() const override { return m_outputs; }
 
@@ -44,6 +45,11 @@ class LatchView : public ComponentView
     const std::string& getOutputLabel(int pinIndex) const { return m_outputLabels.at(pinIndex); }
 
   private:
+    std::vector<PinUI>& editInputPins() override { return m_inputs; }
+
+    std::vector<PinUI>& editOutputPins() override { return m_outputs; }
+
+
     std::string m_label;
     std::vector<PinUI> m_inputs;
     std::vector<PinUI> m_outputs;

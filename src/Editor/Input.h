@@ -1,16 +1,18 @@
 #pragma once
+#include "Actions/EditTypes.h"
 #include "Components/PinTypes.h"
 #include "Geometry/GridCoords.h"
 #include "Geometry/Wire.h"
 #include "Simulation/NetTypes.h"
 
 #include <glm/glm.hpp>
+#include <optional>
+#include <string>
 #include <unordered_set>
 #include <vector>
 
 struct GLFWwindow;
 class Scene;
-class ComponentView;
 
 enum class InteractionState
 {
@@ -33,8 +35,10 @@ class Input
     GridCoords mouseGridCoords = {0, 0};
     glm::vec2 panOffset = glm::vec2(0.0f, 0.0f);
 
-    ComponentView* m_draggedComponent = nullptr;
-    GridCoords m_dragStartPos = {0, 0};
+    std::optional<MovePreviewHandle> m_movePreview;
+    EditError m_lastEditError = EditError::None;
+    std::string m_lastEditMessage;
+    bool applyEdit(EditOperation operation);
 
     // Wire control
     Wire activeWire;
@@ -120,7 +124,11 @@ class Input
 
     PinType getWireOriginType() const { return m_wireOriginType; }
 
-    void setScene(Scene* scene) { m_scene = scene; }
+    void setScene(Scene* scene);
+
+    EditError getLastEditError() const { return m_lastEditError; }
+
+    const std::string& getLastEditMessage() const { return m_lastEditMessage; }
 
     int getHoveredComponentId() const { return hoveredComponentId; }
 

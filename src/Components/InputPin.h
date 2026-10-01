@@ -5,6 +5,8 @@
 class InputPin : public Component
 {
   public:
+    std::unique_ptr<Component> clone() const override { return std::make_unique<InputPin>(*this); }
+
     InputPin(int id, bool initialState = false) : Component(id, 0, 1) { setState(initialState); }
 
     void evaluate() override {}

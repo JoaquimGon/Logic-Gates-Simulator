@@ -2,7 +2,49 @@
 
 #include <algorithm>
 #include <chrono>
+#include <stdexcept>
 #include <utility>
+
+Circuit::Circuit(const Circuit& other)
+    : m_evaluationOrder(other.m_evaluationOrder), m_currentId(other.m_currentId),
+      m_evalOrderDirty(other.m_evalOrderDirty), m_stateDirty(other.m_stateDirty),
+      m_lastPropagateDurationMs(other.m_lastPropagateDurationMs),
+      m_lastEvalResult(other.m_lastEvalResult)
+{
+    for (const auto& [id, component] : other.m_components)
+        m_components.emplace(id, component->clone());
+}
+
+Circuit& Circuit::operator=(const Circuit& other)
+{
+    if (this != &other)
+    {
+        Circuit copy(other);
+        *this = std::move(copy);
+    }
+    return *this;
+}
+
+void Circuit::preserveAllocatedIds(const Circuit& other)
+{
+    m_currentId = std::max(m_currentId, other.m_currentId);
+}
+
+void Circuit::resizeGateInputs(int componentId, int inputPinCount)
+{
+    auto* gate = dynamic_cast<Gate*>(getComponent(componentId));
+    if (!gate || !Gate::isValidInputPinCount(gate->getType(), inputPinCount))
+        throw std::invalid_argument("Invalid native gate input count.");
+    const auto connections = gate->getInConnections();
+    for (const auto& edge : connections)
+        if (edge.destPinIndex >= inputPinCount)
+            disconnectComponents(
+                edge.srcComponentId, edge.srcPinIndex, componentId, edge.destPinIndex
+            );
+    gate->m_stateInPins.resize(inputPinCount, false);
+    m_evalOrderDirty = true;
+    m_stateDirty = true;
+}
 
 int Circuit::addGate(GateType type)
 {

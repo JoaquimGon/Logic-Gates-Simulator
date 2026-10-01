@@ -15,6 +15,8 @@ enum GateType
 class Gate : public Component
 {
   public:
+    std::unique_ptr<Component> clone() const override { return std::make_unique<Gate>(*this); }
+
     Gate(int id, GateType gateType);
     Gate(int id, GateType gateType, int inputPinCount);
 

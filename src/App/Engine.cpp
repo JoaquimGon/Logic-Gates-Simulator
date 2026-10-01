@@ -1,8 +1,10 @@
 ﻿#include "Engine.h"
+
+#include "Editor/Actions/EditorActions.h"
 #include "Editor/Scene.h"
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glad/glad.h>
 #include <iostream>
 #include <vector>
 
@@ -120,12 +122,20 @@ void Engine::run()
 
     std::vector<PinUI> notOutPins{{PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 0}}};
 
-    scene.addGate(GateType::AND, {0, 0}, {0.2f, 0.2f}, "ANDgate", inPins, outPins);
-    scene.addGate(GateType::NAND, {0, 10}, {0.3f, 0.2f}, "NANDgate", inPins, notOutPins);
-    scene.addGate(GateType::OR, {10, 0}, {0.2f, 0.2f}, "ORgate", inPins, outPins);
-    scene.addGate(GateType::NOR, {10, 10}, {0.3f, 0.2f}, "NORgate", inPins, notOutPins);
-    scene.addGate(GateType::XOR, {-10, 0}, {0.2f, 0.2f}, "XORgate", inPins, outPins);
-    scene.addGate(GateType::NXOR, {-10, 10}, {0.3f, 0.2f}, "NXORgate", inPins, notOutPins);
+    const auto initialScene = EditorActions(scene).apply(
+        {CreateGate{AND, {0, 0}, {{0.2f, 0.2f}, "ANDgate", inPins, outPins}},
+         CreateGate{NAND, {0, 10}, {{0.3f, 0.2f}, "NANDgate", inPins, notOutPins}},
+         CreateGate{OR, {10, 0}, {{0.2f, 0.2f}, "ORgate", inPins, outPins}},
+         CreateGate{NOR, {10, 10}, {{0.3f, 0.2f}, "NORgate", inPins, notOutPins}},
+         CreateGate{XOR, {-10, 0}, {{0.2f, 0.2f}, "XORgate", inPins, outPins}},
+         CreateGate{NXOR, {-10, 10}, {{0.3f, 0.2f}, "NXORgate", inPins, notOutPins}}}
+    );
+    if (!initialScene)
+    {
+        std::cerr << "[Editor] Initial scene could not be created: " << initialScene.message
+                  << '\n';
+        return;
+    }
 
     input.setScene(&scene);
 
@@ -329,6 +339,7 @@ void Engine::run()
         glfwPollEvents();
     }
 
+    input.setScene(nullptr);
     shutdown();
 }
 

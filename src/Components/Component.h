@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -35,6 +36,9 @@ class Component
     virtual ~Component() = default;
 
     int getId() const { return m_id; }
+
+    /** @brief Copies behavior and retained state for an isolated editor transaction. */
+    virtual std::unique_ptr<Component> clone() const = 0;
 
     virtual void evaluate() = 0;
 

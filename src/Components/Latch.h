@@ -12,6 +12,8 @@ enum class LatchType
 class Latch : public Component
 {
   public:
+    std::unique_ptr<Component> clone() const override { return std::make_unique<Latch>(*this); }
+
     Latch(int id, LatchType type) : Component(id, 2, 2), m_type(type)
     {
         if (type != LatchType::SR_LATCH && type != LatchType::D_LATCH)

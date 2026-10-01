@@ -1,9 +1,38 @@
 ﻿#include "Input.h"
-#include "Scene.h"
+
+#include "Actions/EditorActions.h"
 #include "Geometry/GridSystem.h"
+#include "Scene.h"
 
 #include <GLFW/glfw3.h>
 #include <cmath>
+#include <utility>
+
+bool Input::applyEdit(EditOperation operation)
+{
+    if (!m_scene)
+        return false;
+    const auto result = EditorActions(*m_scene).apply({std::move(operation)});
+    m_lastEditError = result.error;
+    m_lastEditMessage = result.message;
+    return static_cast<bool>(result);
+}
+
+void Input::setScene(Scene* scene)
+{
+    if (m_scene == scene)
+        return;
+    cancelCurrentAction();
+    m_pendingKeyPresses.clear();
+    m_scene = scene;
+    hoveredComponentId = hoveredPinComponentId = hoveredPinIndex = -1;
+    hoveredWireId = INVALID_WIRE_ID;
+    m_hoveredSegmentValid = false;
+    m_wireOriginComponentId = -1;
+    m_wireOriginPin = {};
+    m_lastEditError = EditError::None;
+    m_lastEditMessage.clear();
+}
 
 void Input::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
@@ -52,13 +81,9 @@ bool Input::consumeKeyPress(int key)
 
 void Input::cancelCurrentAction()
 {
-    if (m_state == InteractionState::DRAGGING_GATE && m_draggedComponent &&
-        m_draggedComponent->getGridPosition() != m_dragStartPos)
-    {
-        m_draggedComponent->setGridPosition(m_dragStartPos);
-        if (m_scene)
-            m_scene->rebuildNets();
-    }
+    if (m_movePreview && m_scene)
+        EditorActions(*m_scene).cancelMove(*m_movePreview);
+    m_movePreview.reset();
 
     if (m_state == InteractionState::DRAWING_WIRE)
     {
@@ -68,7 +93,6 @@ void Input::cancelCurrentAction()
         isMidWireBranchPending = false;
     }
 
-    m_draggedComponent = nullptr;
     m_selectedComponentId = -1;
     m_selectedWireId = INVALID_WIRE_ID;
     m_hasSelectedSegment = false;
@@ -107,6 +131,10 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     if (m_state == InteractionState::PANNING)
         return;
 
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS &&
+        m_state == InteractionState::DRAGGING_GATE)
+        return;
+
     if (button == GLFW_MOUSE_BUTTON_LEFT && m_scene)
     {
         if (action == GLFW_PRESS)
@@ -117,23 +145,14 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             const int clickedComponentId =
                 hoveredPinComponentId != -1 ? hoveredPinComponentId : hoveredComponentId;
 
-            // A second click on an already-selected gate is a deselection, not
-            // the start of another drag or connection pass. In particular, do
-            // not call reconnectWiresToComponent()/healWires() for a gate that
-            // has not moved, as that used to create duplicate wire topology.
+            // Clicking an already-selected gate deselects without creating an edit.
             const bool clickedSelectedGate =
                 m_selectedComponentId != -1 && clickedComponentId == m_selectedComponentId &&
                 dynamic_cast<InputPin*>(m_scene->getLogicComponent(clickedComponentId)) == nullptr;
 
             if (clickedSelectedGate)
             {
-                m_selectedComponentId = -1;
-                m_selectedWireId = INVALID_WIRE_ID;
-                m_hasSelectedSegment = false;
-                isMidWireBranchPending = false;
-                m_wireOriginComponentId = -1;
-                m_draggedComponent = nullptr;
-                m_state = InteractionState::IDLE;
+                cancelCurrentAction();
                 return;
             }
 
@@ -185,9 +204,9 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
 
                 if (!m_scene->handleClick(hoveredComponentId))
                 {
-                    m_draggedComponent = m_scene->getComponentView(hoveredComponentId);
-                    m_dragStartPos = m_draggedComponent->getGridPosition();
-                    m_state = InteractionState::DRAGGING_GATE;
+                    m_movePreview = EditorActions(*m_scene).beginMove(hoveredComponentId);
+                    if (m_movePreview)
+                        m_state = InteractionState::DRAGGING_GATE;
                 }
             }
             else
@@ -209,18 +228,12 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 return;
             }
 
-            if (m_state == InteractionState::DRAGGING_GATE && m_draggedComponent)
+            if (m_state == InteractionState::DRAGGING_GATE && m_movePreview)
             {
-                const bool componentMoved = m_draggedComponent->getGridPosition() != m_dragStartPos;
-                if (componentMoved)
-                {
-                    if (m_scene->checkOverlap(m_draggedComponent->getComponentId()))
-                    {
-                        m_draggedComponent->setGridPosition(m_dragStartPos);
-                    }
-                    m_scene->rebuildNets();
-                }
-                m_draggedComponent = nullptr;
+                const auto result = EditorActions(*m_scene).commitMove(*m_movePreview);
+                m_lastEditError = result.error;
+                m_lastEditMessage = result.message;
+                m_movePreview.reset();
                 m_state = InteractionState::IDLE;
             }
             else if (m_state == InteractionState::DRAWING_WIRE)
@@ -250,7 +263,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 // place.
                 if (activeWire.getPath().size() >= 2)
                 {
-                    m_scene->commitWire(activeWire);
+                    applyEdit(AddWire{activeWire.getPath()});
                 }
 
                 cancelCurrentAction();
@@ -267,9 +280,9 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
 
     if (isMidWireBranchPending && snappedGridPos != wireStartPos && m_scene)
     {
-        if (Wire* selectedWire = m_scene->getWire(m_selectedWireId))
+        if (const Wire* selectedWire = m_scene->getWire(m_selectedWireId))
         {
-            Wire& target = *selectedWire;
+            const Wire& target = *selectedWire;
 
             m_wireOriginPin = PinRef();
             m_wireOriginType = PinType::INPUT;
@@ -307,9 +320,10 @@ void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
         isMidWireBranchPending = false;
     }
 
-    if (m_state == InteractionState::DRAGGING_GATE && m_draggedComponent)
+    if (m_state == InteractionState::DRAGGING_GATE && m_movePreview)
     {
-        m_draggedComponent->setGridPosition(snappedGridPos);
+        if (!m_scene || !EditorActions(*m_scene).previewMove(*m_movePreview, snappedGridPos))
+            cancelCurrentAction();
         lastMouseX = xpos;
         lastMouseY = ypos;
         return;
@@ -376,24 +390,6 @@ void Input::process(GLFWwindow* window)
     // cannot fire later, out of context.
     const bool canSpawn = (m_scene != nullptr) && isIdle();
 
-    auto settleSpawnedComponent = [&](int componentId)
-    {
-        ComponentView* view = m_scene->getComponentView(componentId);
-        if (!view)
-            return;
-
-        const GridCoords initialPosition = view->getGridPosition();
-        GridCoords position = initialPosition;
-        while (m_scene->checkOverlap(componentId))
-        {
-            position.x += 1;
-            position.y -= 1;
-            view->setGridPosition(position);
-        }
-        if (position != initialPosition)
-            m_scene->rebuildNets();
-    };
-
     auto trySpawnGate = [&](GateType type, const std::string& shaderName)
     {
         if (!canSpawn)
@@ -419,9 +415,11 @@ void Input::process(GLFWwindow* window)
         glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
         GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-        int newId = m_scene->addGate(type, gridPos, size, shaderName, inPins, outPins);
-
-        settleSpawnedComponent(newId);
+        applyEdit(
+            CreateGate{
+                type, gridPos, {size, shaderName, inPins, outPins}, PlacementPolicy::FindFree
+            }
+        );
     };
 
     // 1. SPAWN INPUT PIN (Key '1')
@@ -430,9 +428,9 @@ void Input::process(GLFWwindow* window)
         glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
         GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-        int newId = m_scene->addInputPin(gridPos, {0.15f, 0.15f}, "inputPin", false);
-
-        settleSpawnedComponent(newId);
+        applyEdit(
+            CreateInput{gridPos, {0.15f, 0.15f}, "inputPin", false, PlacementPolicy::FindFree}
+        );
     }
 
     // 2. SPAWN NOT GATE (Key '2')
@@ -447,10 +445,11 @@ void Input::process(GLFWwindow* window)
 
         // Bounding box must be 4 cells wide (0.2f) so edges land on integer
         // grid lines
-        int newId =
-            m_scene->addGate(GateType::NOT, gridPos, {0.2f, 0.1f}, "NOTgate", inPins, outPins);
-
-        settleSpawnedComponent(newId);
+        applyEdit(
+            CreateGate{
+                NOT, gridPos, {{0.2f, 0.1f}, "NOTgate", inPins, outPins}, PlacementPolicy::FindFree
+            }
+        );
     }
 
     // 3. SPAWN AND GATE (Key '3')
@@ -483,17 +482,14 @@ void Input::process(GLFWwindow* window)
         glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
         GridCoords gridPos = GridSystem::worldToGrid(worldPos);
 
-        int newId = m_scene->addClock(gridPos, {0.15f, 0.15f}, "clock", 1.0f);
-
-        settleSpawnedComponent(newId);
+        applyEdit(CreateClock{gridPos, {0.15f, 0.15f}, "clock", 1.0f, PlacementPolicy::FindFree});
     }
 
     if (consumeKeyPress(GLFW_KEY_U) && canSpawn)
     {
         glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
         GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-        int newId = m_scene->addLatch(LatchType::SR_LATCH, gridPos);
-        settleSpawnedComponent(newId);
+        applyEdit(CreateLatch{LatchType::SR_LATCH, gridPos, PlacementPolicy::FindFree});
     }
 
     // Spawn Gated D Latch (Key 'I')
@@ -501,8 +497,7 @@ void Input::process(GLFWwindow* window)
     {
         glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
         GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-        int newId = m_scene->addLatch(LatchType::D_LATCH, gridPos);
-        settleSpawnedComponent(newId);
+        applyEdit(CreateLatch{LatchType::D_LATCH, gridPos, PlacementPolicy::FindFree});
     }
 
     // Toggle clock(s) pause on Space
@@ -542,89 +537,27 @@ void Input::process(GLFWwindow* window)
 
             if (compToDelete != -1)
             {
-                m_scene->removeComponent(compToDelete);
-                if (m_selectedComponentId == compToDelete)
+                if (applyEdit(DeleteComponent{compToDelete}) &&
+                    m_selectedComponentId == compToDelete)
                     m_selectedComponentId = -1;
             }
-            else if (Wire* wireToRemove = m_scene->getWire(wireToDelete))
+            else if (m_scene->getWire(wireToDelete))
             {
-                Wire& w = *wireToRemove;
-
-                // Nothing is detached by hand: dropping or shortening this
-                // geometry is what takes its pins off the net, when the scene
-                // re-derives the nets below.
-
-                GridCoords segStart, segEnd;
-                bool hasSeg = false;
-
-                if (m_selectedWireId != INVALID_WIRE_ID && m_hasSelectedSegment)
-                {
-                    segStart = m_selectedSegmentStart;
-                    segEnd = m_selectedSegmentEnd;
-                    hasSeg = true;
-                }
-                else if (m_hoveredSegmentValid)
-                {
-                    segStart = m_hoveredSegmentStart;
-                    segEnd = m_hoveredSegmentEnd;
-                    hasSeg = true;
-                }
-
-                if (hasSeg)
-                {
-                    const auto& path = w.getPath();
-                    int cutIdx = -1;
-
-                    for (size_t i = 0; i < path.size() - 1; ++i)
-                    {
-                        if ((path[i] == segStart && path[i + 1] == segEnd) ||
-                            (path[i] == segEnd && path[i + 1] == segStart))
-                        {
-                            cutIdx = static_cast<int>(i);
-                            break;
+                bool removed;
+                if (m_selectedWireId == wireToDelete && m_hasSelectedSegment)
+                    removed = applyEdit(
+                        DeleteWireSegment{
+                            wireToDelete, m_selectedSegmentStart, m_selectedSegmentEnd
                         }
-                    }
-
-                    if (cutIdx != -1)
-                    {
-                        // The remainders are copied out before the wire is
-                        // dropped: the paths must not be read through 'w' once
-                        // it has been erased.
-                        std::vector<GridCoords> pathA(path.begin(), path.begin() + cutIdx + 1);
-                        std::vector<GridCoords> pathB(path.begin() + cutIdx + 1, path.end());
-
-                        m_scene->removeWire(wireToDelete);
-
-                        // Removing a segment is geometry-only surgery, and
-                        // dropping the middle of the wire is exactly what
-                        // splits its net: the two halves no longer share an
-                        // endpoint, so they are re-derived as separate nets,
-                        // each keeping whichever pins are still attached to it.
-                        if (pathA.size() >= 2)
-                        {
-                            Wire wa;
-                            wa.setPath(pathA);
-                            m_scene->commitWire(wa);
-                        }
-
-                        if (pathB.size() >= 2)
-                        {
-                            Wire wb;
-                            wb.setPath(pathB);
-                            m_scene->commitWire(wb);
-                        }
-                    }
-                    else
-                    {
-                        m_scene->removeWire(wireToDelete);
-                    }
-                }
+                    );
+                else if (wireToDelete == hoveredWireId && m_hoveredSegmentValid)
+                    removed = applyEdit(
+                        DeleteWireSegment{wireToDelete, m_hoveredSegmentStart, m_hoveredSegmentEnd}
+                    );
                 else
-                {
-                    m_scene->removeWire(wireToDelete);
-                }
+                    removed = applyEdit(DeleteWire{wireToDelete});
 
-                if (m_selectedWireId == wireToDelete)
+                if (removed && m_selectedWireId == wireToDelete)
                 {
                     m_selectedWireId = INVALID_WIRE_ID;
                     m_hasSelectedSegment = false;

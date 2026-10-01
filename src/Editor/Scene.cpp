@@ -1,8 +1,4 @@
 ﻿#include "Scene.h"
-#include "Components/Views/ClockView.h"
-#include "Components/Views/GateView.h"
-#include "Components/Views/InputPinView.h"
-#include "Components/Views/LatchView.h"
 #include "Geometry/GridSystem.h"
 
 #include <algorithm>
@@ -63,57 +59,12 @@ struct WireUnion
 };
 } // namespace
 
-int Scene::addGate(
-    GateType type,
-    GridCoords gridPos,
-    glm::vec2 size,
-    const std::string& shaderName,
-    std::vector<PinUI> inputs,
-    std::vector<PinUI> outputs
-)
-{
-    validatePins(inputs, PinType::INPUT, static_cast<int>(inputs.size()));
-    validatePins(outputs, PinType::OUTPUT, 1);
-    int id = m_circuit.addGate(type, static_cast<int>(inputs.size()));
-    m_componentViews.emplace(
-        id,
-        std::make_unique<GateView>(
-            gridPos, id, size, shaderName, std::move(inputs), std::move(outputs)
-        )
-    );
-
-    // The new pins may have landed on geometry that is already drawn, so the
-    // nets are re-derived rather than assumed.
-    rebuildNets();
-    return id;
-}
-
-int Scene::addInputPin(
-    GridCoords gridPos, glm::vec2 size, const std::string& shaderName, bool initialState
-)
-{
-    int id = m_circuit.addInputPin(initialState);
-    m_componentViews.emplace(id, std::make_unique<InputPinView>(gridPos, id, size, shaderName));
-
-    rebuildNets();
-    return id;
-}
-
-void Scene::removeComponent(int componentId)
-{
-    m_circuit.delComponent(componentId);
-    m_componentViews.erase(componentId);
-
-    // The wires are left exactly where they were drawn: the rebuild below
-    // simply stops attaching pins whose component no longer exists, so nothing
-    // has to be walked here to detach them by hand.
-    rebuildNets();
-}
 
 ComponentView* Scene::getComponentView(int componentId)
 {
-    auto it = m_componentViews.find(componentId);
-    return it != m_componentViews.end() ? it->second.get() : nullptr;
+    const auto& views = getComponentViewMap();
+    auto it = views.find(componentId);
+    return it != views.end() ? it->second.get() : nullptr;
 }
 
 Component* Scene::getLogicComponent(int componentId)
@@ -131,7 +82,7 @@ WireId Scene::insertWire(Wire wire)
     return id;
 }
 
-Wire* Scene::getWire(WireId id)
+Wire* Scene::editWire(WireId id)
 {
     auto it = m_wires.find(id);
     return it != m_wires.end() ? &it->second : nullptr;
@@ -152,45 +103,10 @@ std::vector<WireId> Scene::getWireIds() const
     return ids;
 }
 
-std::optional<WireId> Scene::commitWire(Wire wire)
-{
-    wire.simplifyPath();
-    if (wire.getPath().size() < 2)
-    {
-        // A one-point wire is neither drawable nor electrical, so it is never
-        // stored.
-        return std::nullopt;
-    }
-
-    // No orientation handling is needed here any more. Direction used to be
-    // encoded in front()/back() because Wire carried the driver and the sinks
-    // itself, which meant a wire drawn sink-to-source had to be flipped before
-    // it could be split correctly. A wire is now geometry plus a net, so either
-    // direction is equally valid.
-    WireId id = insertWire(std::move(wire));
-
-    // The new geometry may join pins, wires, or nothing at all; the nets are
-    // re-derived from it either way, and they are what feeds the Circuit.
-    rebuildNets();
-    return id;
-}
-
-std::optional<Wire> Scene::extractWire(WireId id)
-{
-    auto it = m_wires.find(id);
-    if (it == m_wires.end())
-        return std::nullopt;
-
-    Wire wire = std::move(it->second);
-    m_wires.erase(it);
-
-    rebuildNets();
-    return wire;
-}
 
 bool Scene::splitWireGeometry(WireId id, GridCoords point, Wire& outA, Wire& outB)
 {
-    Wire* wire = getWire(id);
+    Wire* wire = editWire(id);
     if (!wire)
         return false;
     if (!wire->splitAt(point, outA, outB))
@@ -200,35 +116,12 @@ bool Scene::splitWireGeometry(WireId id, GridCoords point, Wire& outA, Wire& out
     return true;
 }
 
-bool Scene::splitWireAt(WireId id, GridCoords point, Wire& outA, Wire& outB)
-{
-    if (!splitWireGeometry(id, point, outA, outB))
-        return false;
-
-    rebuildNets();
-    return true;
-}
 
 std::pair<WireId, WireId> Scene::insertWires(Wire a, Wire b)
 {
     return {insertWire(std::move(a)), insertWire(std::move(b))};
 }
 
-std::pair<WireId, WireId> Scene::addWires(Wire a, Wire b)
-{
-    std::pair<WireId, WireId> ids = insertWires(std::move(a), std::move(b));
-
-    rebuildNets();
-    return ids;
-}
-
-bool Scene::removeWire(WireId id)
-{
-    const bool removed = m_wires.erase(id) > 0;
-    if (removed)
-        rebuildNets();
-    return removed;
-}
 
 void Scene::rebuildNets()
 {
@@ -240,6 +133,12 @@ void Scene::rebuildNets()
         validatePins(view->getInputPins(), PinType::INPUT, component->getInputPinCount());
         validatePins(view->getOutputPins(), PinType::OUTPUT, component->getOutputPinCount());
     }
+
+    m_previewViews.clear();
+    m_previewToken = 0;
+    m_previewComponentId = -1;
+    ++m_revision;
+    ++m_topologyBuildCount;
 
     // Connectivity is a property of the geometry, but it is *derived* here and
     // only on an edit - never while rendering. settleGeometry() makes junctions
@@ -287,8 +186,8 @@ void Scene::settleGeometry()
         {
             for (size_t j = i + 1; j < wireIds.size() && !overlapMerged; ++j)
             {
-                Wire* w1 = getWire(wireIds[i]);
-                Wire* w2 = getWire(wireIds[j]);
+                Wire* w1 = editWire(wireIds[i]);
+                Wire* w2 = editWire(wireIds[j]);
                 if (!w1 || !w2)
                     continue;
 
@@ -410,7 +309,7 @@ void Scene::settleGeometry()
     {
         for (WireId id : getWireIds())
         {
-            Wire* wire = getWire(id);
+            Wire* wire = editWire(id);
             if (!wire || wire->getPath().size() < 2)
                 continue;
             if (wire->getPath().front() == point || wire->getPath().back() == point)
@@ -481,8 +380,8 @@ void Scene::settleGeometry()
             if (id1 == id2)
                 continue; // Loop onto itself
 
-            Wire* w1 = getWire(id1);
-            Wire* w2 = getWire(id2);
+            Wire* w1 = editWire(id1);
+            Wire* w2 = editWire(id2);
             if (!w1 || !w2)
                 continue;
 
@@ -868,16 +767,6 @@ EvalOrderResult Scene::propagate()
     return m_circuit.propagate();
 }
 
-int Scene::addClock(
-    GridCoords gridPos, glm::vec2 size, const std::string& shaderName, float frequencyHz
-)
-{
-    int id = m_circuit.addClock(frequencyHz);
-    m_componentViews.emplace(id, std::make_unique<ClockView>(gridPos, id, size, shaderName));
-
-    rebuildNets();
-    return id;
-}
 
 void Scene::togglePauseAllClocks()
 {
@@ -920,24 +809,29 @@ void Scene::setAllClocksFrequency(float hz)
 void Scene::syncVisuals()
 {
     const bool blocked = m_topologyResult != EvalOrderResult::OK;
-    for (auto& [id, view] : m_componentViews)
+    auto syncViews = [&](auto& views)
     {
-        Component* comp = m_circuit.getComponent(id);
-        if (!comp)
-            continue;
+        for (auto& [id, view] : views)
+        {
+            Component* comp = m_circuit.getComponent(id);
+            if (!comp)
+                continue;
 
-        for (auto& pin : view->getOutputPins())
-            pin.state =
-                blocked ? PinState::DISCONNECTED
-                        : (comp->getStateOutPin(static_cast<int>(pin.pin_index)) ? PinState::ON
-                                                                                 : PinState::OFF);
+            for (auto& pin : view->editOutputPins())
+                pin.state = blocked ? PinState::DISCONNECTED
+                                    : (comp->getStateOutPin(static_cast<int>(pin.pin_index))
+                                           ? PinState::ON
+                                           : PinState::OFF);
 
-        for (auto& pin : view->getInputPins())
-            pin.state =
-                blocked ? PinState::DISCONNECTED
-                        : (comp->getStateInPin(static_cast<int>(pin.pin_index)) ? PinState::ON
-                                                                                : PinState::OFF);
-    }
+            for (auto& pin : view->editInputPins())
+                pin.state = blocked ? PinState::DISCONNECTED
+                                    : (comp->getStateInPin(static_cast<int>(pin.pin_index))
+                                           ? PinState::ON
+                                           : PinState::OFF);
+        }
+    };
+    syncViews(m_componentViews);
+    syncViews(m_previewViews);
 
     // Refresh Net states from single driver
     for (auto& [netId, net] : m_nets)
@@ -1098,64 +992,4 @@ bool Scene::checkOverlap(int draggedComponentId) const
     }
 
     return false; // No overlaps found
-}
-
-int Scene::addLatch(LatchType type, GridCoords gridPos)
-{
-    int id = m_circuit.addLatch(type);
-    glm::vec2 size = {0.30f, 0.20f}; // 6 x 4 grid cells, the footprint the pins span
-
-    if (type == LatchType::SR_LATCH)
-    {
-        std::vector<PinUI> inPins = {
-            {PinType::INPUT, 0, PinState::DISCONNECTED, {-3, 1}}, // S
-            {PinType::INPUT, 1, PinState::DISCONNECTED, {-3, -1}} // R
-        };
-        std::vector<PinUI> outPins = {
-            {PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 1}}, // Q
-            {PinType::OUTPUT, 1, PinState::DISCONNECTED, {3, -1}} // ~Q
-        };
-        m_componentViews.emplace(
-            id,
-            std::make_unique<LatchView>(
-                gridPos,
-                id,
-                size,
-                "latch",
-                "SR LATCH",
-                inPins,
-                outPins,
-                std::vector<std::string>{"S", "R"},
-                std::vector<std::string>{"Q", "~Q"}
-            )
-        );
-    }
-    else
-    {
-        std::vector<PinUI> inPins = {
-            {PinType::INPUT, 0, PinState::DISCONNECTED, {-3, 1}}, // D
-            {PinType::INPUT, 1, PinState::DISCONNECTED, {-3, -1}} // E
-        };
-        std::vector<PinUI> outPins = {
-            {PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 1}}, // Q
-            {PinType::OUTPUT, 1, PinState::DISCONNECTED, {3, -1}} // ~Q
-        };
-        m_componentViews.emplace(
-            id,
-            std::make_unique<LatchView>(
-                gridPos,
-                id,
-                size,
-                "latch",
-                "D LATCH",
-                inPins,
-                outPins,
-                std::vector<std::string>{"D", "E"},
-                std::vector<std::string>{"Q", "~Q"}
-            )
-        );
-    }
-
-    rebuildNets();
-    return id;
 }

@@ -1,13 +1,16 @@
 #pragma once
-#include "PinUI.h"
 #include "Geometry/GridSystem.h"
+#include "PinUI.h"
 
 #include <glm/glm.hpp>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 class Circuit; // forward declare, defined in Simulation/Circuit.h
+
+class EditorActions;
 
 class ComponentView
 {
@@ -20,6 +23,8 @@ class ComponentView
 
     virtual ~ComponentView() = default;
 
+    virtual std::unique_ptr<ComponentView> clone() const = 0;
+
     int getComponentId() const
     {
         return m_logicId;
@@ -30,12 +35,6 @@ class ComponentView
     glm::vec2 getSize() const { return m_size; }
 
     const std::string& getShaderName() const { return m_shaderName; }
-
-    void setGridPosition(GridCoords newGridPos)
-    {
-        m_grid_pos = newGridPos;
-        m_position = GridSystem::gridToWorld(newGridPos);
-    }
 
     GridCoords getGridPosition() const { return m_grid_pos; }
 
@@ -50,9 +49,7 @@ class ComponentView
     }
 
     // ----- Data-driven pin access every component must provide -----
-    virtual std::vector<PinUI>& getInputPins() = 0;
     virtual const std::vector<PinUI>& getInputPins() const = 0;
-    virtual std::vector<PinUI>& getOutputPins() = 0;
     virtual const std::vector<PinUI>& getOutputPins() const = 0;
 
     // ----- Delegated interaction -----
@@ -62,6 +59,18 @@ class ComponentView
     virtual bool onClick(Circuit& /*circuit*/) { return false; }
 
   protected:
+    friend class EditorActions;
+    friend class Scene;
+
+    void setGridPosition(GridCoords newGridPos)
+    {
+        m_grid_pos = newGridPos;
+        m_position = GridSystem::gridToWorld(newGridPos);
+    }
+
+    virtual std::vector<PinUI>& editInputPins() = 0;
+    virtual std::vector<PinUI>& editOutputPins() = 0;
+
     glm::vec2 m_position;
     glm::vec2 m_size;
     std::string m_shaderName;

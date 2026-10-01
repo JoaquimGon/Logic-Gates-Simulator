@@ -6,6 +6,8 @@
 class Clock : public Component
 {
   public:
+    std::unique_ptr<Component> clone() const override { return std::make_unique<Clock>(*this); }
+
     Clock(int id, float frequencyHz = 1.0f) : Component(id, 0, 1) { setFrequency(frequencyHz); }
 
     void evaluate() override { /* Driven by timer, not inputs */ }

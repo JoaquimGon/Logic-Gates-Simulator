@@ -1,5 +1,6 @@
-#include "Editor/Scene.h"
 #include "Components/Views/LatchView.h"
+#include "Editor/Actions/EditorActions.h"
+#include "Editor/Scene.h"
 #include "Simulation/Circuit.h"
 
 #include <algorithm>
@@ -101,6 +102,8 @@ class PinProbe : public Component
 {
   public:
     using Component::Component;
+
+    std::unique_ptr<Component> clone() const override { return std::make_unique<PinProbe>(*this); }
 
     void evaluate() override
     {
@@ -383,11 +386,22 @@ void scenePinLayouts()
     require(scene.getLogicComponent(qSink)->getStateOutPin(), "Scene Q wiring mismatch.");
     require(!scene.getLogicComponent(notQSink)->getStateOutPin(), "Scene ~Q wiring mismatch.");
 
-    auto& latchOutputs = scene.getComponentView(latch)->getOutputPins();
-    std::reverse(latchOutputs.begin(), latchOutputs.end());
-    scene.rebuildNets();
+    const auto* originalLatch = scene.getComponentView(latch);
+    ComponentLayout latchLayout{
+        originalLatch->getSize(),
+        originalLatch->getShaderName(),
+        originalLatch->getInputPins(),
+        originalLatch->getOutputPins()
+    };
+    std::reverse(latchLayout.outputs.begin(), latchLayout.outputs.end());
+    std::reverse(latchLayout.inputs.begin(), latchLayout.inputs.end());
+    require(
+        static_cast<bool>(EditorActions(scene).apply({ConfigureComponent{latch, latchLayout}})),
+        "Reordered latch layout configuration failed."
+    );
     scene.propagate();
     scene.syncVisuals();
+    const auto& latchOutputs = scene.getComponentView(latch)->getOutputPins();
     require(latchOutputs[0].state == PinState::ON, "Reordered ~Q visual read Q.");
     require(latchOutputs[1].state == PinState::OFF, "Reordered Q visual read ~Q.");
     auto* latchView = static_cast<LatchView*>(scene.getComponentView(latch));
@@ -398,8 +412,7 @@ void scenePinLayouts()
     require(
         latchView->getOutputLabel(latchOutputs[1].pin_index) == "Q", "Q label lost pin identity."
     );
-    auto& latchInputs = latchView->getInputPins();
-    std::reverse(latchInputs.begin(), latchInputs.end());
+    const auto& latchInputs = latchView->getInputPins();
     require(
         latchView->getInputLabel(latchInputs[0].pin_index) == "R",
         "Reordered input label lost pin identity."
@@ -474,8 +487,16 @@ void scenePinLayouts()
     );
     require(multi.getComponentCount() == before, "Invalid layout created a component.");
 
-    multi.getComponentView(gate)->getInputPins().pop_back();
-    expectThrows<std::invalid_argument>([&] { multi.rebuildNets(); });
+    auto invalidLayout = GateLayout{{0.2f, 0.3f}, "ANDgate", inputs, outputs};
+    invalidLayout.inputs.pop_back(); // Leaves noncontiguous indices: 2 and 0.
+    const auto rejected = EditorActions(multi).apply({ConfigureComponent{gate, invalidLayout}});
+    require(
+        rejected.error == EditError::InvalidConfiguration, "Invalid configuration was accepted."
+    );
+    require(
+        multi.getLogicComponent(gate)->getInputPinCount() == 3,
+        "Rejected configuration changed logical arity."
+    );
 }
 
 void sceneConnectionRejections()
