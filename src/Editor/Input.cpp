@@ -1,6 +1,8 @@
 ﻿#include "Input.h"
+#include "Scene.h"
+#include "Geometry/GridSystem.h"
 
-#include <algorithm>
+#include <GLFW/glfw3.h>
 #include <cmath>
 
 void Input::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)

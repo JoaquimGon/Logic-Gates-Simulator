@@ -1,17 +1,16 @@
 #pragma once
 
-#include "..\Logic\Circuit.h" // Provides EvalOrderResult
-#include "..\Logic\Wire.h"
-#include "..\Views\ComponentView.h"
+#include "Components/Views/ComponentView.h"
+#include "Geometry/Wire.h"
+#include "Simulation/Circuit.h"
 #include "Mesh.h"
 #include "ShaderManager.h"
 #include "Text/FontRenderer.h"
 
+#include <cstddef>
 #include <glm/glm.hpp>
-#include <iomanip>
 #include <map>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>

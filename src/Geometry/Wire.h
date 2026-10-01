@@ -1,9 +1,10 @@
 #pragma once
 
-#include "..\Views\GridSystem.h"
-#include "Net.h"
+#include "GridCoords.h"
+#include "Components/PinTypes.h"
+#include "Simulation/NetTypes.h"
 
-#include <glm/glm.hpp>
+#include <cstddef>
 #include <vector>
 
 class Wire
@@ -28,13 +29,10 @@ class Wire
     void simplifyPath();
     bool getSegmentAt(const GridCoords& point, GridCoords& outStart, GridCoords& outEnd) const;
 
-    std::vector<float> getBatchedVertexData() const;
-
   private:
     NetId m_net = INVALID_NET_ID;
     PinState m_state = PinState::DISCONNECTED;
     std::vector<GridCoords> m_path;
 
-    glm::vec4 getColorFromState() const;
     static bool isPointOnSegment(const GridCoords& p, const GridCoords& a, const GridCoords& b);
 };

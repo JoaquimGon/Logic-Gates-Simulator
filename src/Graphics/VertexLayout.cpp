@@ -1,5 +1,8 @@
 ﻿#include "VertexLayout.h"
 
+#include <glad/glad.h>
+#include <cstdint>
+
 void VertexLayout::addAttribute(int floatCount)
 {
     attributes.push_back({floatCount, strideBytes});

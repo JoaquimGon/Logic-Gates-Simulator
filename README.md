@@ -43,77 +43,109 @@ A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 C
 
 ## Project Structure & Architecture
 
-The simulator bridges geometric layout with directed graph simulation:
-
 ```text
-  User Input / View (Input.cpp, ComponentView, Wire)
-         │
-         ▼
-  Geometry Layer (Scene.cpp)
-  ├── Grid Snapping & Hit Testing
-  ├── Wire Path Splitting & Healing
-  └── Pin-to-Pin Topology Mappings
-         │
-         ▼
-  Logical Circuit (Circuit.cpp)
-  ├── Directed Acyclic Graph (DAG) validation
-  ├── Cycle Detection (DFS recursion stack)
-  ├── Topological Sort (Evaluation Order)
-  └── Forward State Propagation
-         │
-         ▼
-  Renderer (Renderer.cpp & SDF Shaders)
-  └── Instanced Quad & Point Draws + Live GLSL Hot-Reload
-  ```
+src/
+  App/                 Entry point, GLFW lifecycle, and application loop
+  Editor/              Input gestures and Scene coordination
+  Components/          Native behavior classes and logical pin types
+    Views/             Component presentation and PinUI data
+  Simulation/          Circuit propagation, nets, and endpoint identities
+  Geometry/            Grid coordinates, snapping, and wire paths
+  Graphics/            OpenGL drawing, meshes, shaders, and wire vertices
+    Text/              Font atlas and text geometry
+cmake/                 Dependencies, compiler options, and font discovery
+assets/shaders/        GLSL presentations and live-reload sources
+tests/                 Logic/scene and input regression runners
+external/              Vendored GLAD and stb_truetype
+```
+
+Input edits Scene; Scene derives electrical nets and Circuit connections from
+component layouts and wire geometry. Circuit evaluates the supported DAG, and
+Scene synchronizes signal states for rendering. Invalid feedback pauses the
+scene until the wiring is repaired.
+
+CMake compiles shared `simulator_components`, `simulator_simulation`,
+`simulator_geometry`, `simulator_scene`, and `simulator_input` libraries.
+The application and tests link these libraries instead of recompiling separate
+copies of their sources. Views form an interface target; the application also
+links `simulator_graphics`.
+
+Register new implementation files in their owning target in `CMakeLists.txt`.
+Use forward-slash, source-root includes between modules, such as
+`"Simulation/Circuit.h"`; same-directory includes can use `"Circuit.h"`.
+Headers include their own requirements; implementation-only headers belong in
+`.cpp` files. Native behavior and simulation must not include views, Graphics,
+GLFW, or GLAD. Wire vertex generation belongs in Graphics, not the wire model.
+
+This layout prepares further extraction: editor actions, gesture handlers, and
+connectivity building belong under `Editor/`; geometry normalization belongs
+under `Geometry/`; reusable component definitions and their catalog belong
+under `Components/`. Those systems are still pending; moving Input and Scene
+does not separate all of their current responsibilities.
 
 ## Dependencies & Vendoring
-C++ Standard: C++20
 
-  CMake: Version 3.20 or newer
-
-    GLFW (3.4): Fetched automatically via FetchContent (requires internet on first configure)
-
-    GLM (1.0.1): Fetched automatically via FetchContent
-
-    stb_truetype (1.26): Vendored in external/stb_truetype.h for text rendering; its license notice is included in the header.
-
-    OpenGL: System driver
-
-    GLAD (OpenGL 3.3 Core): Vendored directly in the repository under external/glad/. No external generator or local package manager required on clone.
-
+- C++20 and CMake 3.20+ (3.21+ for the version-3 presets).
+- GLFW 3.4 and GLM 1.0.1: fetched by CMake; the first configure needs network
+  access unless local sources are supplied through `FETCHCONTENT_SOURCE_DIR_GLFW`
+  and `FETCHCONTENT_SOURCE_DIR_GLM`.
+- GLAD: vendored in `external/glad/` for OpenGL 3.3 Core.
+- stb_truetype 1.26: vendored in `external/stb_truetype.h`, including its license.
+- OpenGL: supplied by the system driver for the application.
+- A TrueType font: discovered at configure time or selected explicitly below.
+  Fonts are not bundled.
 
 ## Building the Project
-Command Line (All Platforms)
 
-Ensure a C++20-compliant compiler (MSVC 19.29+, GCC 11+, or Clang 13+) and CMake 3.20+ are available on your path:
+With a C++20 compiler and Ninja available, use the portable presets:
 
+```sh
+cmake --preset debug
+cmake --build --preset debug
+ctest --preset debug
 ```
-# 1. Clone repository
-git clone [https://github.com/](https://github.com/)<your-username>/Logic-Gates-Simulator.git
-cd Logic-Gates-Simulator
 
-# 2. Configure build system (requires network for GLFW/GLM FetchContent)
-cmake -B build -DCMAKE_BUILD_TYPE=Debug
+Run `out/build/debug/bin/Debug/LogicGateSimulator` (append `.exe` on Windows).
+Use the `release` presets for a Release build. On Windows, run these commands
+from an appropriate compiler environment, such as the Visual Studio Developer
+Command Prompt.
 
-# 3. Compile executable
+For another generator or a custom build directory:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --config Debug
-
-# 4. Run binary
-# On Windows:
-./build/bin/Debug/LogicGateSimulator.exe
-# On Linux/macOS:
-./build/bin/LogicGateSimulator
+ctest --test-dir build -C Debug --output-on-failure
 ```
 
-## Visual Studio / VS Code CMake Presets
+The Debug application is in `build/bin/Debug/`. Use `-DBUILD_TESTING=OFF` to omit
+test executables. Use `-DBUILD_SIMULATOR_APP=OFF` for model/editor tests without
+OpenGL, GLAD, stb_truetype, or font discovery; input tests still require GLFW's
+null platform.
 
-If using Visual Studio or VS Code with CMakePresets.json:
+### Font Configuration
 
-Launch from the Developer Command Prompt for VS if using command-line MSVC toolchains.
+CMake searches common Windows, Linux, and macOS font locations and
+`assets/fonts/`. Override the selection with an existing TrueType font:
 
-Select the x64-Debug or x64-Release preset.
+```sh
+cmake --preset debug -DLOGIC_SIMULATOR_FONT=/absolute/path/to/font.ttf
+```
 
-Shaders are resolved directly against the absolute repository path defined by CMake (PROJECT_ASSETS_DIR), allowing live edits to save and reload without copying artifacts.
+An unavailable font produces a configure error with the override instructions.
+The selected path is cached per build directory; reconfigure to change it.
+The application reads the selected font at runtime.
+
+### Visual Studio Presets and Assets
+
+The `x64-debug`, `x64-release`, `x86-debug`, and `x86-release` presets retain
+MSVC configurations. Use a matching developer environment on the command line.
+They no longer depend on a Visual Studio installation-specific CMake script.
+Each configure preset has a matching build and test preset.
+
+Shaders resolve against `PROJECT_ASSETS_DIR`, the source checkout's asset
+directory, for live editing. Shader and font packaging for standalone releases
+remains separate work.
 
 ## Roadmap
 

@@ -1,6 +1,20 @@
 ﻿#include "Engine.h"
+#include "Editor/Scene.h"
 
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <iostream>
+#include <vector>
+
+void Engine::resizeWindow(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+}
+
+void Engine::errorCallback(int error, const char* description)
+{
+    std::cerr << "[GLFW] Error " << error << ": " << description << std::endl;
+}
 
 Engine::Engine(std::string windowName, int windowWidth, int windowHeight)
 {

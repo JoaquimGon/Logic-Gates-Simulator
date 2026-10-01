@@ -2,6 +2,7 @@
 #include "ComponentView.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 
 class LatchView : public ComponentView

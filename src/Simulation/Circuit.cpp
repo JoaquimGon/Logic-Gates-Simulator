@@ -1,5 +1,9 @@
 ﻿#include "Circuit.h"
 
+#include <algorithm>
+#include <chrono>
+#include <utility>
+
 int Circuit::addGate(GateType type)
 {
     return addGate(type, type == NOT ? 1 : 2);
@@ -240,7 +244,6 @@ bool Circuit::updateClocks(float deltaTime)
     return clockEdgeOccurred;
 }
 
-#include <chrono>
 
 EvalOrderResult Circuit::propagate()
 {

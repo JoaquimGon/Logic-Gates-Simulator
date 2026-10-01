@@ -1,18 +1,17 @@
 #pragma once
-#include "../Logic/Circuit.h"
-#include "..\Logic\Net.h"
-#include "..\Logic\Wire.h"
-#include "..\Views\ClockView.h"
-#include "..\Views\GateView.h"
-#include "..\Views\GridSystem.h"
-#include "..\Views\InputPinView.h"
-#include "..\Views\LatchView.h"
+#include "Components/Gate.h"
+#include "Components/Latch.h"
+#include "Components/Views/ComponentView.h"
+#include "Geometry/Wire.h"
+#include "Simulation/Circuit.h"
+#include "Simulation/Net.h"
 
-#include <algorithm>
-#include <cmath>
+#include <cstddef>
 #include <glm/glm.hpp>
 #include <map>
+#include <memory>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <utility>

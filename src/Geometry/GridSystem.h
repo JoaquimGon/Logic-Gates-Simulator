@@ -1,15 +1,9 @@
 #pragma once
 
+#include "GridCoords.h"
+
 #include <cmath>
 #include <glm/glm.hpp>
-
-struct GridCoords
-{
-    int x;
-    int y;
-
-    bool operator==(const GridCoords& other) const { return x == other.x && y == other.y; }
-};
 
 class GridSystem
 {

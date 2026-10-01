@@ -1,15 +1,16 @@
 #pragma once
-#include "..\Logic\Wire.h"
-#include "..\Views\GateView.h"
-#include "..\Views\GridSystem.h"
-#include "Scene.h"
+#include "Components/PinTypes.h"
+#include "Geometry/GridCoords.h"
+#include "Geometry/Wire.h"
+#include "Simulation/NetTypes.h"
 
-#include <GLFW/glfw3.h>
-#include <glad/glad.h>
 #include <glm/glm.hpp>
-#include <iostream>
 #include <unordered_set>
 #include <vector>
+
+struct GLFWwindow;
+class Scene;
+class ComponentView;
 
 enum class InteractionState
 {

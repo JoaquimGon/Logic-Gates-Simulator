@@ -1,6 +1,15 @@
 ﻿#include "Scene.h"
+#include "Components/Views/ClockView.h"
+#include "Components/Views/GateView.h"
+#include "Components/Views/InputPinView.h"
+#include "Components/Views/LatchView.h"
+#include "Geometry/GridSystem.h"
 
+#include <algorithm>
+#include <cmath>
+#include <iostream>
 #include <stdexcept>
+#include <utility>
 
 namespace
 {

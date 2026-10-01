@@ -1,11 +1,13 @@
 #pragma once
-#include "..\Logic\PinTypes.h"
+#include "PinUI.h"
+#include "Geometry/GridSystem.h"
 
 #include <glm/glm.hpp>
 #include <string>
+#include <utility>
 #include <vector>
 
-class Circuit; // forward declare, defined in Logic/Circuit.h
+class Circuit; // forward declare, defined in Simulation/Circuit.h
 
 class ComponentView
 {

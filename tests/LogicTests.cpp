@@ -1,5 +1,6 @@
-#include "Core/Scene.h"
-#include "Logic/Circuit.h"
+#include "Editor/Scene.h"
+#include "Components/Views/LatchView.h"
+#include "Simulation/Circuit.h"
 
 #include <algorithm>
 #include <iostream>

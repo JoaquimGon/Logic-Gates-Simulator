@@ -1,4 +1,8 @@
-#include "Core/Input.h"
+#include "Editor/Input.h"
+#include "Editor/Scene.h"
+#include "Geometry/GridSystem.h"
+
+#include <GLFW/glfw3.h>
 
 #include <iostream>
 #include <stdexcept>

@@ -1,23 +1,12 @@
 #pragma once
 
-#include "..\Graphics\Renderer.h"
-#include "..\Logic\Circuit.h"
-#include "..\Logic\Wire.h"
-#include "..\Views\ComponentView.h"
-#include "..\Views\GateView.h"
-#include "..\Views\GridSystem.h"
-#include "..\Views\InputPinView.h"
-#include "Input.h"
-#include "Scene.h"
+#include "Editor/Input.h"
+#include "Graphics/Renderer.h"
+#include "Simulation/Circuit.h"
 
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <iostream>
-#include <memory>
 #include <string>
-#include <vector>
+
+struct GLFWwindow;
 
 class Engine
 {
@@ -38,18 +27,12 @@ class Engine
     // NEW: The Renderer now owns all meshes, shaders, and OpenGL state
     Renderer m_renderer;
 
-    static void resizeWindow(GLFWwindow* window, int width, int height)
-    {
-        glViewport(0, 0, width, height);
-    }
+    static void resizeWindow(GLFWwindow* window, int width, int height);
 
     /**
     @brief GLFW error sink, registered before glfwInit().
     */
-    static void errorCallback(int error, const char* description)
-    {
-        std::cerr << "[GLFW] Error " << error << ": " << description << std::endl;
-    }
+    static void errorCallback(int error, const char* description);
 
     // Debugging
     bool m_showDebugOverlay = true;

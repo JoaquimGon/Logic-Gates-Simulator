@@ -1,6 +1,8 @@
 #pragma once
 #include "Component.h"
 
+#include <stdexcept>
+
 enum class LatchType
 {
     SR_LATCH, // Inputs: S, R. Outputs: Q, ~Q.

@@ -1,7 +1,9 @@
 #pragma once
-#include "../Logic/Circuit.h"
-#include "../Logic/InputPin.h"
+#include "Simulation/Circuit.h"
+#include "Components/InputPin.h"
 #include "ComponentView.h"
+
+#include <utility>
 
 // A manual input switch. One output pin, no inputs. Clicking its body toggles
 // the underlying logic InputPin instead of starting a wire-drag on the gate

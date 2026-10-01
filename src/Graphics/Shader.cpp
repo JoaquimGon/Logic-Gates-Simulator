@@ -1,5 +1,9 @@
 ﻿#include "Shader.h"
 
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <system_error>
 #include <vector>
 
 #ifndef PROJECT_ASSETS_DIR

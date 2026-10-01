@@ -1,7 +1,9 @@
 #pragma once
-#include "../Logic/Circuit.h"
-#include "../Logic/Clock.h"
+#include "Simulation/Circuit.h"
+#include "Components/Clock.h"
 #include "ComponentView.h"
+
+#include <utility>
 
 class ClockView : public ComponentView
 {

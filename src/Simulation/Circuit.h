@@ -1,10 +1,10 @@
 #pragma once
-#include "Clock.h"
-#include "Gate.h"
-#include "InputPin.h"
-#include "Latch.h"
+#include "Components/Clock.h"
+#include "Components/Gate.h"
+#include "Components/InputPin.h"
+#include "Components/Latch.h"
 
-#include <iostream>
+#include <cstddef>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>

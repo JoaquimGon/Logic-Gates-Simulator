@@ -4,7 +4,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 /**
  * @brief Singleton Manager class of the shader class, safely loads and gets

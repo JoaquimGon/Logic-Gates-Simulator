@@ -1,11 +1,15 @@
 ﻿#include "Renderer.h"
-
-#include "..\Logic\Circuit.h"
-#include "..\Views\LatchView.h"
+#include "Components/Views/LatchView.h"
+#include "Geometry/GridSystem.h"
+#include "WireGeometry.h"
 
 #include <glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <utility>
 
 Renderer::Renderer() {}
 
@@ -152,13 +156,8 @@ void Renderer::init()
     // ==========================================
     // Text
     // ==========================================
-    // Initialize Font Atlas (Uses Windows Consolas as default, or any TTF in assets)
-    std::string fontPath = "C:/Windows/Fonts/consola.ttf";
-    if (!m_font.init(fontPath, 48.0f))
-    {
-        // Fallback to Arial if Consolas isn't present
-        m_font.init("C:/Windows/Fonts/arial.ttf", 48.0f);
-    }
+    // CMake discovers a platform font or accepts LOGIC_SIMULATOR_FONT.
+    m_font.init(PROJECT_FONT_PATH, 48.0f);
 
     // Text Mesh Dynamic Layout: Pos(2) + UV(2) + Color(4) = 8 floats
     VertexLayout textLayout;
@@ -211,13 +210,13 @@ void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* active
 
     for (const auto& [id, wire] : wires)
     {
-        std::vector<float> singleWireData = wire.getBatchedVertexData();
+        std::vector<float> singleWireData = buildWireVertices(wire);
         allWiresData.insert(allWiresData.end(), singleWireData.begin(), singleWireData.end());
     }
 
     if (activeWire != nullptr)
     {
-        std::vector<float> singleWireData = activeWire->getBatchedVertexData();
+        std::vector<float> singleWireData = buildWireVertices(*activeWire);
         allWiresData.insert(allWiresData.end(), singleWireData.begin(), singleWireData.end());
     }
 
