@@ -71,6 +71,7 @@ src/
     Gestures/          Component dragging, wire drawing, panning, and selection
     Connectivity/      Derived nets, pin/wire indexes, and edge rejection diagnostics
   Components/          Native behavior classes and logical pin types
+    Definitions/       Built-in declarations, validated descriptors, and catalog
     Views/             Component presentation and PinUI data
   Simulation/          Circuit propagation, nets, and endpoint identities
   Geometry/            Coordinates, wire normalization, hit/placement queries, and paths
@@ -78,7 +79,7 @@ src/
     Text/              Font atlas and text geometry
 cmake/                 Dependencies, compiler options, and font discovery
 assets/shaders/        GLSL presentations and live-reload sources
-tests/                 Logic, editor action, and input regression runners
+tests/                 Logic, editor action, catalog, and input regression runners
 docs/                  Editor action contracts and integration examples
 external/              Vendored GLAD and stb_truetype
 ```
@@ -90,7 +91,7 @@ Scene synchronizes signal states for rendering. Invalid feedback pauses the
 scene until the wiring is repaired.
 
 CMake compiles shared `simulator_components`, `simulator_simulation`,
-`simulator_geometry`, `simulator_scene`, and `simulator_input` libraries.
+`simulator_geometry`, `simulator_component_factory`, `simulator_scene`, and `simulator_input` libraries.
 The application and tests link these libraries instead of recompiling separate
 copies of their sources. Views form an interface target; the application also
 links `simulator_graphics`.
@@ -104,13 +105,16 @@ GLFW, or GLAD. Wire vertex generation belongs in Graphics, not the wire model.
 
 Editor actions live under `Editor/Actions/`; concrete gesture handlers live under
 `Editor/Gestures/` and require no GLFW. Input adapts events, applies the mode policy,
-and dispatches shortcuts; native keyboard creation presets are in
-`Editor/ComponentShortcuts.cpp` pending the component catalog. Geometry services
+and dispatches shortcuts. `Editor/ComponentShortcuts.cpp` maps keys to definition IDs;
+`Components/Definitions/NativeDefinitions.cpp` owns all built-in defaults, pins,
+labels, and shader resources. `Components/ComponentFactory` creates matching logic
+and views through the catalog. See [component definitions](docs/ComponentDefinitions.md)
+for validated options, custom registration, and adding native declarations. Geometry services
 consume plain bounds/anchors without view or graphics dependencies. The builder
 under `Editor/Connectivity/` consumes normalized routes and pin interfaces without
 accessing Scene or healing geometry. Scene owns and publishes derived topology.
-Reusable component definitions and catalog/default consolidation under
-`Components/` remain pending. See [geometry and connectivity contracts](docs/SceneTopology.md).
+Definition file import/export, property schemas, and palette/inspector UI remain
+pending. See [geometry and connectivity contracts](docs/SceneTopology.md).
 
 ## Dependencies & Vendoring
 
@@ -206,9 +210,10 @@ circuit.disconnectComponents(latch, 1, gate, 3);
 ```
 
 Connections always specify source component, source output index, destination
-component, and destination input index. Scene gate creation derives the logical
-arity from its supplied input layout. Visual pins must have valid, unique indices
-covering every logical pin; vector order does not determine pin identity.
+component, and destination input index. Catalog creation resolves gate arity and
+pin layout together; compatibility APIs validate supplied layouts through the same
+factory. Visual pins carry stable definition IDs and valid directional indices;
+vector order does not determine pin identity.
 
 CTest builds a headless `LogicTests` executable by default. It covers gate truth
 tables, pin bounds, both latch outputs, connection lifecycle, and scene pin mapping:
@@ -226,7 +231,9 @@ null platform, so they require no display, native window, or OpenGL context.
 They cover Escape/right-click drag cancellation, movement and overlap rollback,
 connectivity after every component spawn shortcut, middle-segment deletion,
 mode isolation, immediate mode/focus cancellation, wire branching, and panning.
-CTest runs all three runners (25 groups); use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion" --output-on-failure`
+Catalog regressions validate built-in defaults/assets, custom box/native behavior,
+registration rollback, applicable options, and catalog/identity restoration.
+CTest runs all four runners (28 groups); use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion" --output-on-failure`
 to run only the input tests.
 
 ## Shared Editor Actions

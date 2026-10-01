@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GridCoords.h"
+#include "GridMetrics.h"
 
 #include <cmath>
 #include <glm/glm.hpp>
@@ -8,7 +9,7 @@
 class GridSystem
 {
   public:
-    static constexpr float GRID_SPACING = 0.05f;
+    static constexpr float GRID_SPACING = GridMetrics::Spacing;
 
     // Converts continuous world space (e.g. {0.103f, -0.048f}) to discrete grid
     // integer cells ({2, -1})

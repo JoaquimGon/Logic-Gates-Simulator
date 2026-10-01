@@ -1,14 +1,16 @@
 #pragma once
 
+#include "Components/Definitions/ComponentDefinition.h"
 #include "Components/Gate.h"
 #include "Components/Latch.h"
-#include "Components/Views/PinUI.h"
+#include "Components/Views/ComponentLayout.h"
 #include "Geometry/GridCoords.h"
 #include "Simulation/NetTypes.h"
 
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <memory>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -27,16 +29,21 @@ enum class RemovedPinPolicy
     LeaveWires
 };
 
-struct ComponentLayout
+struct RegisterComponentDefinition
 {
-    glm::vec2 size;
-    std::string shader;
-    std::vector<PinUI> inputs;
-    std::vector<PinUI> outputs;
+    ComponentDefinition definition;
 };
 
-using GateLayout = ComponentLayout;
+struct CreateComponent
+{
+    std::string definitionId;
+    GridCoords position;
+    ComponentOverrides overrides;
+    PlacementPolicy placement = PlacementPolicy::RejectOverlap;
+    std::uint32_t version = 0;
+};
 
+// Compatibility requests adapt explicit legacy geometry into the same catalog/factory path.
 struct CreateGate
 {
     GateType type;
@@ -50,7 +57,7 @@ struct CreateInput
     GridCoords position;
     glm::vec2 size;
     std::string shader;
-    bool state = false;
+    std::optional<bool> state;
     PlacementPolicy placement = PlacementPolicy::RejectOverlap;
 };
 
@@ -59,7 +66,7 @@ struct CreateClock
     GridCoords position;
     glm::vec2 size;
     std::string shader;
-    float frequency = 1.0f;
+    std::optional<float> frequency;
     PlacementPolicy placement = PlacementPolicy::RejectOverlap;
 };
 
@@ -124,6 +131,8 @@ struct DeleteWireSegment
 };
 
 using EditOperation = std::variant<
+    RegisterComponentDefinition,
+    CreateComponent,
     CreateGate,
     CreateInput,
     CreateClock,

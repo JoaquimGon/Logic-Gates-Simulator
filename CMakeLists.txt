@@ -11,7 +11,12 @@ include(CTest)
 include(cmake/ProjectOptions.cmake)
 include(cmake/Dependencies.cmake)
 
-add_library(simulator_components STATIC src/Components/Gate.cpp)
+add_library(simulator_components STATIC
+    src/Components/Gate.cpp
+    src/Components/Definitions/ComponentDefinition.cpp
+    src/Components/Definitions/ComponentCatalog.cpp
+    src/Components/Definitions/NativeDefinitions.cpp
+)
 target_link_libraries(simulator_components PUBLIC project_options)
 
 add_library(simulator_simulation STATIC src/Simulation/Circuit.cpp)
@@ -27,6 +32,9 @@ target_link_libraries(simulator_geometry PUBLIC project_options)
 add_library(simulator_views INTERFACE)
 target_link_libraries(simulator_views INTERFACE simulator_simulation glm::glm)
 
+add_library(simulator_component_factory STATIC src/Components/ComponentFactory.cpp)
+target_link_libraries(simulator_component_factory PUBLIC simulator_views)
+
 add_library(simulator_scene STATIC
     src/Editor/Scene.cpp
     src/Editor/SceneEditing.cpp
@@ -34,7 +42,7 @@ add_library(simulator_scene STATIC
     src/Editor/Actions/EditorActions.cpp
 )
 target_link_libraries(simulator_scene PUBLIC
-    simulator_simulation simulator_geometry simulator_views
+    simulator_simulation simulator_geometry simulator_views simulator_component_factory
 )
 
 if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
@@ -98,6 +106,15 @@ if(BUILD_TESTING)
         editor_wire_edits editor_restore_snapshots editor_body_placement
     )
         add_test(NAME ${test_name} COMMAND EditorActionsTests ${test_name})
+    endforeach()
+
+    add_executable(ComponentCatalogTests tests/ComponentCatalogTests.cpp)
+    target_link_libraries(ComponentCatalogTests PRIVATE simulator_scene)
+    target_compile_definitions(ComponentCatalogTests PRIVATE CATALOG_ASSETS_DIR="${PROJECT_SOURCE_DIR}/assets")
+    foreach(test_name IN ITEMS
+        component_catalog_defaults component_definition_validation component_catalog_edits
+    )
+        add_test(NAME ${test_name} COMMAND ComponentCatalogTests ${test_name})
     endforeach()
 
     add_executable(InputTests tests/InputTests.cpp)

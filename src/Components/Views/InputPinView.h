@@ -16,10 +16,16 @@ class InputPinView : public ComponentView
         return std::make_unique<InputPinView>(*this);
     }
 
-    InputPinView(GridCoords gridPos, int logicId, glm::vec2 size, std::string shaderName)
-        : ComponentView(gridPos, logicId, size, std::move(shaderName))
+    InputPinView(
+        GridCoords gridPos,
+        int logicId,
+        glm::vec2 size,
+        std::string shaderName,
+        std::vector<PinUI> outputs
+    )
+        : ComponentView(gridPos, logicId, size, std::move(shaderName)),
+          m_outputs(std::move(outputs))
     {
-        m_outputs.push_back(PinUI{PinType::OUTPUT, 0, PinState::OFF, GridCoords{1, 0}});
     }
 
     const std::vector<PinUI>& getInputPins() const override { return m_empty; }

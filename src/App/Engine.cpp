@@ -1,5 +1,6 @@
-﻿#include "Engine.h"
+#include "Engine.h"
 
+#include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/Scene.h"
 
@@ -114,22 +115,13 @@ void Engine::run()
 
     Scene scene;
 
-    // Example gates
-    std::vector<PinUI> inPins{
-        {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
-        {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
-    };
-    std::vector<PinUI> outPins{{PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}};
-
-    std::vector<PinUI> notOutPins{{PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 0}}};
-
     const auto initialScene = EditorActions(scene).apply(
-        {CreateGate{AND, {0, 0}, {{0.2f, 0.2f}, "ANDgate", inPins, outPins}},
-         CreateGate{NAND, {0, 10}, {{0.3f, 0.2f}, "NANDgate", inPins, notOutPins}},
-         CreateGate{OR, {10, 0}, {{0.2f, 0.2f}, "ORgate", inPins, outPins}},
-         CreateGate{NOR, {10, 10}, {{0.3f, 0.2f}, "NORgate", inPins, notOutPins}},
-         CreateGate{XOR, {-10, 0}, {{0.2f, 0.2f}, "XORgate", inPins, outPins}},
-         CreateGate{NXOR, {-10, 10}, {{0.3f, 0.2f}, "NXORgate", inPins, notOutPins}}}
+        {CreateComponent{BuiltinComponentIds::And, {0, 0}, {}},
+         CreateComponent{BuiltinComponentIds::Nand, {0, 10}, {}},
+         CreateComponent{BuiltinComponentIds::Or, {10, 0}, {}},
+         CreateComponent{BuiltinComponentIds::Nor, {10, 10}, {}},
+         CreateComponent{BuiltinComponentIds::Xor, {-10, 0}, {}},
+         CreateComponent{BuiltinComponentIds::Nxor, {-10, 10}, {}}}
     );
     if (!initialScene)
     {

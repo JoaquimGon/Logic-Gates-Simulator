@@ -4,6 +4,7 @@
 #include "Geometry/GridCoords.h"
 
 #include <cstdint>
+#include <string>
 
 struct PinUI
 {
@@ -11,4 +12,6 @@ struct PinUI
     uint32_t pin_index;
     PinState state;
     GridCoords relative_pos;
+    std::string id = {};
+    std::string label = {};
 };

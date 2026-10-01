@@ -1,5 +1,7 @@
 #include "EditorActions.h"
 
+#include "Components/ComponentFactory.h"
+#include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Scene.h"
 
 #include <algorithm>
@@ -28,60 +30,14 @@ EditResult failure(EditError reason, const std::string& message)
     return result;
 }
 
-void validateSize(glm::vec2 size, const std::string& shader)
-{
-    if (!std::isfinite(size.x) || !std::isfinite(size.y) || size.x <= 0 || size.y <= 0 ||
-        shader.empty())
-        throw EditFailure(
-            EditError::InvalidConfiguration,
-            "Dimensions must be positive and finite; shader must be named."
-        );
-}
-
-void validateFrequency(float frequency)
-{
-    if (!std::isfinite(frequency) || frequency < 0.1f)
-        throw EditFailure(
-            EditError::InvalidConfiguration, "Clock frequency must be finite and at least 0.1 Hz."
-        );
-}
-
-void validatePins(const std::vector<PinUI>& pins, PinType direction, int count)
-{
-    if (pins.size() != static_cast<std::size_t>(count))
-        throw EditFailure(
-            EditError::InvalidConfiguration, "Pin counts must match the native behavior."
-        );
-    std::vector<bool> seen(count, false);
-    for (const auto& pin : pins)
-    {
-        if (pin.type != direction || pin.pin_index >= seen.size() || seen[pin.pin_index])
-            throw EditFailure(
-                EditError::InvalidConfiguration,
-                "Pin indices must be unique, contiguous, and directional."
-            );
-        seen[pin.pin_index] = true;
-    }
-}
-
-void validateLayout(GateType type, const GateLayout& layout)
-{
-    validateSize(layout.size, layout.shader);
-    if (layout.inputs.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
-        throw EditFailure(EditError::InvalidConfiguration, "Too many gate inputs.");
-    const int count = static_cast<int>(layout.inputs.size());
-    Gate validation(-1, type, count);
-    validatePins(layout.inputs, PinType::INPUT, count);
-    validatePins(layout.outputs, PinType::OUTPUT, 1);
-}
-
 bool samePins(const std::vector<PinUI>& a, const std::vector<PinUI>& b)
 {
     if (a.size() != b.size())
         return false;
     for (std::size_t i = 0; i < a.size(); ++i)
         if (a[i].type != b[i].type || a[i].pin_index != b[i].pin_index ||
-            a[i].relative_pos != b[i].relative_pos)
+            a[i].relative_pos != b[i].relative_pos || a[i].id != b[i].id ||
+            a[i].label != b[i].label)
             return false;
     return true;
 }
@@ -147,6 +103,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
         std::vector<int> components;
         std::vector<WireId> wires;
         std::map<int, PlacementPolicy> placement;
+        std::shared_ptr<ComponentCatalog> stagedCatalog;
 
         struct RemovedPin
         {
@@ -173,53 +130,77 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             changed = topologyChanged = true;
         };
 
+        auto create = [&](const CreateComponent& request)
+        {
+            const int id = candidate.addComponentRaw(request);
+            components.push_back(id);
+            placement[id] = request.placement;
+            changed = topologyChanged = true;
+        };
+        auto sourceOverrides =
+            [&](const char* definitionId, glm::vec2 size, const std::string& shader)
+        {
+            auto resolved = candidate.m_catalog->resolve(definitionId);
+            if (shader != resolved.presentation.shader.key)
+                throw EditFailure(
+                    EditError::InvalidConfiguration, "Source shader must match its definition."
+                );
+            resolved.layout.width = size.x;
+            resolved.layout.height = size.y;
+            ComponentOverrides options;
+            options.layout = std::move(resolved.layout);
+            return options;
+        };
+
         for (const auto& operation : batch)
         {
             std::visit(
                 [&](const auto& op)
                 {
                     using T = std::decay_t<decltype(op)>;
-                    if constexpr (std::is_same_v<T, CreateGate>)
+                    if constexpr (std::is_same_v<T, RegisterComponentDefinition>)
                     {
-                        validateLayout(op.type, op.layout);
-                        int id = candidate.addGateRaw(
-                            op.type,
-                            op.position,
-                            op.layout.size,
-                            op.layout.shader,
-                            op.layout.inputs,
-                            op.layout.outputs
+                        if (!stagedCatalog)
+                            stagedCatalog =
+                                std::make_shared<ComponentCatalog>(*candidate.m_catalog);
+                        stagedCatalog->registerDefinition(op.definition);
+                        candidate.m_catalog = stagedCatalog;
+                        changed = true;
+                    }
+                    else if constexpr (std::is_same_v<T, CreateComponent>)
+                        create(op);
+                    else if constexpr (std::is_same_v<T, CreateGate>)
+                    {
+                        const auto& definitionId = builtinDefinitionId(op.type);
+                        if (op.layout.shader !=
+                            candidate.m_catalog->find(definitionId)->presentation.shader.key)
+                            throw EditFailure(
+                                EditError::InvalidConfiguration,
+                                "Gate shader must match its definition."
+                            );
+                        create(
+                            {definitionId,
+                             op.position,
+                             ComponentFactory::layoutOverrides(op.layout),
+                             op.placement}
                         );
-                        components.push_back(id);
-                        placement[id] = op.placement;
-                        changed = topologyChanged = true;
                     }
                     else if constexpr (std::is_same_v<T, CreateInput>)
                     {
-                        validateSize(op.size, op.shader);
-                        int id =
-                            candidate.addInputPinRaw(op.position, op.size, op.shader, op.state);
-                        components.push_back(id);
-                        placement[id] = op.placement;
-                        changed = topologyChanged = true;
+                        auto options =
+                            sourceOverrides(BuiltinComponentIds::Input, op.size, op.shader);
+                        options.inputState = op.state;
+                        create({BuiltinComponentIds::Input, op.position, options, op.placement});
                     }
                     else if constexpr (std::is_same_v<T, CreateClock>)
                     {
-                        validateSize(op.size, op.shader);
-                        validateFrequency(op.frequency);
-                        int id =
-                            candidate.addClockRaw(op.position, op.size, op.shader, op.frequency);
-                        components.push_back(id);
-                        placement[id] = op.placement;
-                        changed = topologyChanged = true;
+                        auto options =
+                            sourceOverrides(BuiltinComponentIds::Clock, op.size, op.shader);
+                        options.clockFrequency = op.frequency;
+                        create({BuiltinComponentIds::Clock, op.position, options, op.placement});
                     }
                     else if constexpr (std::is_same_v<T, CreateLatch>)
-                    {
-                        int id = candidate.addLatchRaw(op.type, op.position);
-                        components.push_back(id);
-                        placement[id] = op.placement;
-                        changed = topologyChanged = true;
-                    }
+                        create({builtinDefinitionId(op.type), op.position, {}, op.placement});
                     else if constexpr (std::is_same_v<T, MoveComponent>)
                     {
                         auto& view = getView(op.componentId);
@@ -242,27 +223,15 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                         auto& view = getView(op.componentId);
                         auto* gate =
                             dynamic_cast<Gate*>(candidate.m_circuit.getComponent(op.componentId));
-                        if (gate)
-                            validateLayout(gate->getType(), op.layout);
-                        else
-                        {
-                            const auto* component =
-                                candidate.m_circuit.getComponent(op.componentId);
-                            validateSize(op.layout.size, op.layout.shader);
-                            validatePins(
-                                op.layout.inputs, PinType::INPUT, component->getInputPinCount()
-                            );
-                            validatePins(
-                                op.layout.outputs, PinType::OUTPUT, component->getOutputPinCount()
-                            );
-                        }
-                        if (view.getSize() == op.layout.size &&
-                            view.getShaderName() == op.layout.shader &&
-                            samePins(view.getInputPins(), op.layout.inputs) &&
-                            samePins(view.getOutputPins(), op.layout.outputs))
+                        const auto layout =
+                            ComponentFactory::validateLayout(*candidate.m_catalog, view, op.layout);
+                        if (view.getSize() == layout.size &&
+                            view.getShaderName() == layout.shader &&
+                            samePins(view.getInputPins(), layout.inputs) &&
+                            samePins(view.getOutputPins(), layout.outputs))
                             return;
                         for (const auto& pin : view.getInputPins())
-                            if (pin.pin_index >= op.layout.inputs.size())
+                            if (pin.pin_index >= layout.inputs.size())
                                 removedPins.push_back(
                                     {op.componentId,
                                      static_cast<int>(pin.pin_index),
@@ -271,12 +240,12 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                 );
                         if (gate)
                             candidate.m_circuit.resizeGateInputs(
-                                op.componentId, static_cast<int>(op.layout.inputs.size())
+                                op.componentId, static_cast<int>(layout.inputs.size())
                             );
-                        view.editInputPins() = op.layout.inputs;
-                        view.editOutputPins() = op.layout.outputs;
-                        view.m_size = op.layout.size;
-                        view.m_shaderName = op.layout.shader;
+                        view.editInputPins() = layout.inputs;
+                        view.editOutputPins() = layout.outputs;
+                        view.m_size = layout.size;
+                        view.m_shaderName = layout.shader;
                         placement[op.componentId] = PlacementPolicy::RejectOverlap;
                         changed = topologyChanged = true;
                     }
@@ -308,7 +277,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                 EditError::InvalidConfiguration,
                                 "Clock configuration requires a clock."
                             );
-                        validateFrequency(op.frequency);
+                        validateClockFrequency(op.frequency);
                         if (clock->getFrequency() != op.frequency || clock->isPaused() != op.paused)
                         {
                             clock->setFrequency(op.frequency);
@@ -361,6 +330,8 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             );
         }
 
+        for (const auto& [id, view] : candidate.m_componentViews)
+            ComponentFactory::validatePosition(*view, view->getGridPosition());
         for (const auto& [id, policy] : placement)
         {
             if (!candidate.m_componentViews.contains(id) || policy == PlacementPolicy::AllowOverlap)
@@ -380,6 +351,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                         EditError::Overlap, "Placement would exceed the grid coordinate range."
                     );
                 view.setGridPosition({position.x + 1, position.y - 1});
+                ComponentFactory::validatePosition(view, view.getGridPosition());
             }
         }
         for (const auto& removed : removedPins)
@@ -447,7 +419,16 @@ bool EditorActions::previewMove(MovePreviewHandle handle, GridCoords position)
     if (handle.token == 0 || handle.token != m_scene.m_previewToken ||
         m_scene.m_previewBaseRevision != m_scene.m_revision)
         return false;
-    m_scene.m_previewViews.at(m_scene.m_previewComponentId)->setGridPosition(position);
+    auto& view = *m_scene.m_previewViews.at(m_scene.m_previewComponentId);
+    try
+    {
+        ComponentFactory::validatePosition(view, position);
+    }
+    catch (const std::invalid_argument&)
+    {
+        return false;
+    }
+    view.setGridPosition(position);
     return true;
 }
 

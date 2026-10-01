@@ -3,7 +3,8 @@
 Use `EditorActions` (`src/Editor/Actions/`) for structural edits and editable
 properties. Keyboard input and application startup already use this service;
 future palettes, inspectors, and loaders should submit the same typed operations.
-Component catalogs and configurable-property schemas remain separate work.
+Definitions/catalog creation are described in [ComponentDefinitions.md](ComponentDefinitions.md).
+Configurable-property schemas remain separate work.
 
 ## Applying a complete edit
 
@@ -25,6 +26,12 @@ if (!result) {
     // Present result.message; result.error is a typed EditError.
 }
 ```
+
+`CreateComponent` selects a definition ID/version and typed instance options;
+`RegisterComponentDefinition` can atomically register a validated custom box type
+before creating it in the same batch. Snapshots share immutable catalog storage;
+definition-only edits rebuild no topology. Native creation requests remain thin
+compatibility adapters to the same factory.
 
 Supported operations create native gates/inputs/clocks/latches, move/delete
 components, configure layouts/input states/clock properties, and add/delete wires
@@ -95,7 +102,7 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 25 groups, including six `EditorActionsTests` groups for atomic batches,
+CTest runs 28 groups, including six `EditorActionsTests` groups for atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery,
 snapshot restoration, and body-placement rollback. `InputTests` additionally verifies actual keyboard spawning,
 drag commit/cancellation, scene switching, and middle-segment deletion:
@@ -112,8 +119,8 @@ GLFW events are adapted by Input and dispatched to the concrete handlers in
 `Editor/Gestures/`: DragGesture owns the move token, WireGesture owns provisional
 routing/deferred branching, PanGesture updates camera offsets, and Selection owns
 selected identities and deletion requests. Gesture handlers do not depend on GLFW.
-Native creation shortcut presets live in `Editor/ComponentShortcuts.cpp` until
-RM-C1/RM-C2 consolidate the catalog/defaults.
+Creation shortcuts in `Editor/ComponentShortcuts.cpp` map keys to catalog IDs and
+use `CreateComponent` with `FindFree`; defaults live in NativeDefinitions.cpp.
 
 Selection mode edits layout and routes without operating component bodies.
 Interaction mode delegates runtime clicks through `Scene::handleClick()`, with no

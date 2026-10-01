@@ -13,11 +13,16 @@ class ClockView : public ComponentView
         return std::make_unique<ClockView>(*this);
     }
 
-    ClockView(GridCoords gridPos, int logicId, glm::vec2 size, std::string shaderName)
-        : ComponentView(gridPos, logicId, size, std::move(shaderName))
+    ClockView(
+        GridCoords gridPos,
+        int logicId,
+        glm::vec2 size,
+        std::string shaderName,
+        std::vector<PinUI> outputs
+    )
+        : ComponentView(gridPos, logicId, size, std::move(shaderName)),
+          m_outputs(std::move(outputs))
     {
-        // 1 output pin sitting 1 cell to the right
-        m_outputs.push_back(PinUI{PinType::OUTPUT, 0, PinState::OFF, GridCoords{1, 0}});
     }
 
     const std::vector<PinUI>& getInputPins() const override { return m_empty; }

@@ -1,4 +1,5 @@
 #pragma once
+#include "Components/Definitions/ComponentDefinition.h"
 #include "Geometry/GridSystem.h"
 #include "PinUI.h"
 
@@ -11,6 +12,7 @@
 class Circuit; // forward declare, defined in Simulation/Circuit.h
 
 class EditorActions;
+class ComponentFactory;
 
 class ComponentView
 {
@@ -36,6 +38,12 @@ class ComponentView
 
     const std::string& getShaderName() const { return m_shaderName; }
 
+    const DefinitionIdentity& getDefinitionIdentity() const { return m_definition; }
+
+    const std::string& getBodyLabel() const { return m_bodyLabel; }
+
+    bool showsPinLabels() const { return m_showPinLabels; }
+
     GridCoords getGridPosition() const { return m_grid_pos; }
 
     GridCoords getAbsolutePinGridPos(const PinUI& pin) const
@@ -60,6 +68,7 @@ class ComponentView
 
   protected:
     friend class EditorActions;
+    friend class ComponentFactory;
     friend class Scene;
 
     void setGridPosition(GridCoords newGridPos)
@@ -71,6 +80,9 @@ class ComponentView
     virtual std::vector<PinUI>& editInputPins() = 0;
     virtual std::vector<PinUI>& editOutputPins() = 0;
 
+    DefinitionIdentity m_definition;
+    std::string m_bodyLabel;
+    bool m_showPinLabels = false;
     glm::vec2 m_position;
     glm::vec2 m_size;
     std::string m_shaderName;

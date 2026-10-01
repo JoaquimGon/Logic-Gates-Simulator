@@ -1,3 +1,4 @@
+#include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Input.h"
 #include "Editor/Scene.h"
 #include "Geometry/GridSystem.h"
@@ -258,6 +259,19 @@ void spawnPlacement(GLFWwindow* window)
             "Spawn did not resolve the occupied position."
         );
         require(!editor.scene.checkOverlap(spawned), "Spawn left an overlapping component.");
+        const std::string expectedDefinition =
+            latch
+                ? builtinDefinitionId(key == GLFW_KEY_U ? LatchType::SR_LATCH : LatchType::D_LATCH)
+            : key == GLFW_KEY_1 ? BuiltinComponentIds::Input
+            : key == GLFW_KEY_9 ? BuiltinComponentIds::Clock
+                                : builtinDefinitionId(static_cast<GateType>(key - GLFW_KEY_2));
+        const auto* declaration = editor.scene.getComponentCatalog().find(expectedDefinition);
+        const auto* view = editor.scene.getCommittedComponentView(spawned);
+        require(
+            declaration && view->getDefinitionIdentity().id == expectedDefinition &&
+                view->getSize() == glm::vec2(declaration->layout.width, declaration->layout.height),
+            "Shortcut bypassed catalog identity or default sizing."
+        );
         editor.verifyPinLocations();
 
         const auto& connections = editor.scene.getLogicComponent(sink)->getInConnections();

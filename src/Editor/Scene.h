@@ -1,5 +1,6 @@
 #pragma once
 #include "Actions/EditTypes.h"
+#include "Components/Definitions/ComponentCatalog.h"
 #include "Components/Gate.h"
 #include "Components/Latch.h"
 #include "Components/Views/ComponentView.h"
@@ -24,7 +25,17 @@ class EditorActions;
 class Scene
 {
   public:
-    Scene() = default;
+    Scene();
+
+    const ComponentCatalog& getComponentCatalog() const { return *m_catalog; }
+
+    int addComponent(
+        const std::string& definitionId,
+        GridCoords position,
+        const ComponentOverrides& overrides = {},
+        PlacementPolicy placement = PlacementPolicy::RejectOverlap,
+        std::uint32_t version = 0
+    );
     Scene(const Scene& other);
     Scene& operator=(const Scene& other);
     Scene(Scene&&) noexcept = default;
@@ -57,7 +68,10 @@ class Scene
     );
 
     int addInputPin(
-        GridCoords gridPos, glm::vec2 size, const std::string& shaderName, bool initialState = false
+        GridCoords gridPos,
+        glm::vec2 size,
+        const std::string& shaderName,
+        std::optional<bool> initialState = std::nullopt
     );
 
     int addLatch(LatchType type, GridCoords gridPos);
@@ -165,7 +179,10 @@ class Scene
     void setAllClocksFrequency(float hz);
 
     int addClock(
-        GridCoords gridPos, glm::vec2 size, const std::string& shaderName, float frequencyHz = 1.0f
+        GridCoords gridPos,
+        glm::vec2 size,
+        const std::string& shaderName,
+        std::optional<float> frequencyHz = std::nullopt
     );
 
     // Debugging
@@ -207,18 +224,8 @@ class Scene
     std::unordered_map<int, std::unique_ptr<ComponentView>> m_previewViews;
 
     // Only the action service calls these while constructing an isolated candidate.
-    int addGateRaw(
-        GateType type,
-        GridCoords position,
-        glm::vec2 size,
-        const std::string& shader,
-        std::vector<PinUI> inputs,
-        std::vector<PinUI> outputs
-    );
-    int addInputPinRaw(GridCoords position, glm::vec2 size, const std::string& shader, bool state);
-    int
-    addClockRaw(GridCoords position, glm::vec2 size, const std::string& shader, float frequency);
-    int addLatchRaw(LatchType type, GridCoords position);
+    int addComponentRaw(const CreateComponent& request);
+    std::shared_ptr<const ComponentCatalog> m_catalog;
 
     Circuit m_circuit;
     // Invalid geometry remains editable, but never runs as a partial simulation graph.

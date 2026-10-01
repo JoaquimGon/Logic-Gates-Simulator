@@ -1,73 +1,49 @@
 #include "ComponentShortcuts.h"
 
+#include "Components/Definitions/NativeDefinitions.h"
+
 #include <GLFW/glfw3.h>
-#include <utility>
 
 std::optional<EditOperation> componentShortcut(int key, GridCoords position)
 {
-    if (key == GLFW_KEY_1)
-        return CreateInput{position, {0.15f, 0.15f}, "inputPin", false, PlacementPolicy::FindFree};
-    if (key == GLFW_KEY_9)
-        return CreateClock{position, {0.15f, 0.15f}, "clock", 1, PlacementPolicy::FindFree};
-    if (key == GLFW_KEY_U || key == GLFW_KEY_I)
-        return CreateLatch{
-            key == GLFW_KEY_U ? LatchType::SR_LATCH : LatchType::D_LATCH,
-            position,
-            PlacementPolicy::FindFree
-        };
-
-    GateType type;
-    const char* shader;
+    const char* definitionId;
     switch (key)
     {
+    case GLFW_KEY_1:
+        definitionId = BuiltinComponentIds::Input;
+        break;
     case GLFW_KEY_2:
-        type = NOT;
-        shader = "NOTgate";
+        definitionId = BuiltinComponentIds::Not;
         break;
     case GLFW_KEY_3:
-        type = AND;
-        shader = "ANDgate";
+        definitionId = BuiltinComponentIds::And;
         break;
     case GLFW_KEY_4:
-        type = NAND;
-        shader = "NANDgate";
+        definitionId = BuiltinComponentIds::Nand;
         break;
     case GLFW_KEY_5:
-        type = OR;
-        shader = "ORgate";
+        definitionId = BuiltinComponentIds::Or;
         break;
     case GLFW_KEY_6:
-        type = NOR;
-        shader = "NORgate";
+        definitionId = BuiltinComponentIds::Nor;
         break;
     case GLFW_KEY_7:
-        type = XOR;
-        shader = "XORgate";
+        definitionId = BuiltinComponentIds::Xor;
         break;
     case GLFW_KEY_8:
-        type = NXOR;
-        shader = "NXORgate";
+        definitionId = BuiltinComponentIds::Nxor;
+        break;
+    case GLFW_KEY_9:
+        definitionId = BuiltinComponentIds::Clock;
+        break;
+    case GLFW_KEY_U:
+        definitionId = BuiltinComponentIds::SrLatch;
+        break;
+    case GLFW_KEY_I:
+        definitionId = BuiltinComponentIds::DLatch;
         break;
     default:
         return std::nullopt;
     }
-    const bool inverted = type == NAND || type == NOR || type == NXOR;
-    ComponentLayout layout;
-    layout.shader = shader;
-    if (type == NOT)
-    {
-        layout.size = {0.2f, 0.1f};
-        layout.inputs = {{PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 0}}};
-        layout.outputs = {{PinType::OUTPUT, 0, PinState::DISCONNECTED, {1, 0}}};
-    }
-    else
-    {
-        layout.size = {inverted ? 0.3f : 0.2f, 0.2f};
-        layout.inputs = {
-            {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
-            {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
-        };
-        layout.outputs = {{PinType::OUTPUT, 0, PinState::DISCONNECTED, {inverted ? 3 : 2, 0}}};
-    }
-    return CreateGate{type, position, std::move(layout), PlacementPolicy::FindFree};
+    return CreateComponent{definitionId, position, {}, PlacementPolicy::FindFree};
 }

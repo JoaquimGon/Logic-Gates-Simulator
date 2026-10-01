@@ -1,14 +1,16 @@
-﻿#include "Renderer.h"
-#include "Components/Views/LatchView.h"
+#include "Renderer.h"
+
+#include "Components/Definitions/NativeDefinitions.h"
 #include "Geometry/GridSystem.h"
 #include "WireGeometry.h"
 
+#include <algorithm>
 #include <glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
-#include <algorithm>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <unordered_set>
 #include <utility>
 
 Renderer::Renderer() {}
@@ -66,35 +68,15 @@ void Renderer::init()
     // ==========================================
     // Shaders
     // ==========================================
-    // Gates
-    m_sm.load(
-        "ANDgate", "shaders/components/gates/gate.vert", "shaders/components/gates/andGate.frag"
-    );
-    m_sm.load(
-        "NANDgate", "shaders/components/gates/gate.vert", "shaders/components/gates/nandGate.frag"
-    );
-    m_sm.load(
-        "ORgate", "shaders/components/gates/gate.vert", "shaders/components/gates/orGate.frag"
-    );
-    m_sm.load(
-        "NORgate", "shaders/components/gates/gate.vert", "shaders/components/gates/norGate.frag"
-    );
-    m_sm.load(
-        "XORgate", "shaders/components/gates/gate.vert", "shaders/components/gates/xorGate.frag"
-    );
-    m_sm.load(
-        "NXORgate", "shaders/components/gates/gate.vert", "shaders/components/gates/nxorGate.frag"
-    );
-    m_sm.load(
-        "NOTgate", "shaders/components/gates/gate.vert", "shaders/components/gates/notGate.frag"
-    );
-
-    // Latch & Clock & InputPin
-    m_sm.load(
-        "latch", "shaders/components/gates/gate.vert", "shaders/components/latches/latch.frag"
-    );
-    m_sm.load("clock", "shaders/components/gates/gate.vert", "shaders/components/clock.frag");
-    m_sm.load("inputPin", "shaders/components/gates/gate.vert", "shaders/components/inputPin.frag");
+    std::unordered_set<std::string> loadedComponentShaders;
+    for (const auto& definition : nativeDefinitions())
+    {
+        const auto& resources = definition.presentation.shader;
+        if (loadedComponentShaders.insert(resources.key).second)
+            m_sm.load(resources.key, resources.vertexPath, resources.fragmentPath);
+    }
+    const auto& box = boxShaderResources();
+    m_sm.load(box.key, box.vertexPath, box.fragmentPath);
 
     // Pins
     m_sm.load("pin", "shaders/components/pins.vert", "shaders/components/pins.frag");
@@ -185,7 +167,7 @@ void Renderer::drawGrid()
     shader->use();
     shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
     shader->setFloat("uZoom", m_currentCamera.zoom);
-    shader->setFloat("uGridSpacing", 0.05f);
+    shader->setFloat("uGridSpacing", GridSystem::GRID_SPACING);
     shader->setVec2(
         "uResolution",
         static_cast<float>(m_currentCamera.windowWidth),
@@ -495,18 +477,16 @@ void Renderer::drawLabels(
 
     for (const auto& [id, view] : componentViews)
     {
-        // 1. Latches are the only components carrying labels so far.
-        auto* lv = dynamic_cast<LatchView*>(view.get());
-        if (!lv)
+        if (view->getBodyLabel().empty() && !view->showsPinLabels())
             continue;
 
-        const glm::vec2 pos = lv->getPosition();
-        const glm::vec2 size = lv->getSize();
+        const glm::vec2 pos = view->getPosition();
+        const glm::vec2 size = view->getSize();
 
         // 2. Body label, centred on the body. The scale is capped and then shrunk
         // to fit, so a long name such as "SR LATCH" still stays inside a 6-cell-wide
         // body while it and "D LATCH" render at the same size.
-        const std::string& label = lv->getLabel();
+        const std::string& label = view->getBodyLabel();
         float labelScale = maxLabelScale;
         const float naturalWidth = getTextWidth(label, 1.0f, m_font);
         if (naturalWidth > 0.0f)
@@ -524,15 +504,16 @@ void Renderer::drawLabels(
         );
 
         // 3. Pin names: inwards of their pin, and centred on the pin's row.
-        const auto& inLabels = lv->getInputLabels();
-        const auto& inPins = lv->getInputPins();
+        if (!view->showsPinLabels())
+            continue;
+        const auto& inPins = view->getInputPins();
         for (const auto& pin : inPins)
         {
-            if (pin.pin_index >= inLabels.size())
+            if (pin.label.empty())
                 continue;
-            const glm::vec2 pinPos = lv->getAbsolutePinWorldPos(pin);
+            const glm::vec2 pinPos = view->getAbsolutePinWorldPos(pin);
             buildTextGeometry(
-                lv->getInputLabel(static_cast<int>(pin.pin_index)),
+                pin.label,
                 pinPos.x + pinLabelInset,
                 pinPos.y - pinCapHeight * 0.5f,
                 pinLabelScale,
@@ -542,14 +523,13 @@ void Renderer::drawLabels(
             );
         }
 
-        const auto& outLabels = lv->getOutputLabels();
-        const auto& outPins = lv->getOutputPins();
+        const auto& outPins = view->getOutputPins();
         for (const auto& pin : outPins)
         {
-            if (pin.pin_index >= outLabels.size())
+            if (pin.label.empty())
                 continue;
-            const glm::vec2 pinPos = lv->getAbsolutePinWorldPos(pin);
-            const auto& pinLabel = lv->getOutputLabel(static_cast<int>(pin.pin_index));
+            const glm::vec2 pinPos = view->getAbsolutePinWorldPos(pin);
+            const auto& pinLabel = pin.label;
             // Output names run leftwards from their pin, so the box is anchored on
             // its right edge instead.
             const float pinLabelWidth = getTextWidth(pinLabel, pinLabelScale, m_font);

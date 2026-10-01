@@ -1,8 +1,5 @@
 #include "Actions/EditorActions.h"
-#include "Components/Views/ClockView.h"
-#include "Components/Views/GateView.h"
-#include "Components/Views/InputPinView.h"
-#include "Components/Views/LatchView.h"
+#include "Components/ComponentFactory.h"
 #include "Scene.h"
 
 #include <stdexcept>
@@ -18,10 +15,13 @@ int createdComponent(EditResult result)
 }
 } // namespace
 
+Scene::Scene() : m_catalog(std::make_shared<ComponentCatalog>()) {}
+
 Scene::Scene(const Scene& other)
     : m_revision(other.m_revision), m_topologyBuildCount(other.m_topologyBuildCount),
-      m_nextPreviewToken(other.m_nextPreviewToken), m_circuit(other.m_circuit),
-      m_rejectedConnections(other.m_rejectedConnections), m_topologyResult(other.m_topologyResult),
+      m_nextPreviewToken(other.m_nextPreviewToken), m_catalog(other.m_catalog),
+      m_circuit(other.m_circuit), m_rejectedConnections(other.m_rejectedConnections),
+      m_topologyResult(other.m_topologyResult),
       m_topologyInvalidNeedsUpdate(other.m_topologyInvalidNeedsUpdate), m_wires(other.m_wires),
       m_nextWireId(other.m_nextWireId), m_nets(other.m_nets), m_nextNetId(other.m_nextNetId),
       m_pinNet(other.m_pinNet)
@@ -63,14 +63,18 @@ int Scene::addGate(
     }}));
 }
 
-int Scene::addInputPin(GridCoords position, glm::vec2 size, const std::string& shader, bool state)
+int Scene::addInputPin(
+    GridCoords position, glm::vec2 size, const std::string& shader, std::optional<bool> state
+)
 {
     return createdComponent(EditorActions(*this).apply(
         {CreateInput{position, size, shader, state, PlacementPolicy::AllowOverlap}}
     ));
 }
 
-int Scene::addClock(GridCoords position, glm::vec2 size, const std::string& shader, float frequency)
+int Scene::addClock(
+    GridCoords position, glm::vec2 size, const std::string& shader, std::optional<float> frequency
+)
 {
     return createdComponent(EditorActions(*this).apply(
         {CreateClock{position, size, shader, frequency, PlacementPolicy::AllowOverlap}}
@@ -139,101 +143,30 @@ bool Scene::removeWire(WireId id)
     return static_cast<bool>(EditorActions(*this).apply({DeleteWire{id}}));
 }
 
-int Scene::addGateRaw(
-    GateType type,
-    GridCoords gridPos,
-    glm::vec2 size,
-    const std::string& shaderName,
-    std::vector<PinUI> inputs,
-    std::vector<PinUI> outputs
+int Scene::addComponent(
+    const std::string& definitionId,
+    GridCoords position,
+    const ComponentOverrides& overrides,
+    PlacementPolicy placement,
+    std::uint32_t version
 )
 {
-    int id = m_circuit.addGate(type, static_cast<int>(inputs.size()));
-    m_componentViews.emplace(
-        id,
-        std::make_unique<GateView>(
-            gridPos, id, size, shaderName, std::move(inputs), std::move(outputs)
-        )
+    return createdComponent(EditorActions(*this).apply(
+        {CreateComponent{definitionId, position, overrides, placement, version}}
+    ));
+}
+
+int Scene::addComponentRaw(const CreateComponent& request)
+{
+    auto created = ComponentFactory::create(
+        m_circuit,
+        *m_catalog,
+        request.definitionId,
+        request.position,
+        request.overrides,
+        request.version
     );
-
-    return id;
-}
-
-int Scene::addInputPinRaw(
-    GridCoords gridPos, glm::vec2 size, const std::string& shaderName, bool initialState
-)
-{
-    int id = m_circuit.addInputPin(initialState);
-    m_componentViews.emplace(id, std::make_unique<InputPinView>(gridPos, id, size, shaderName));
-
-    return id;
-}
-
-int Scene::addClockRaw(
-    GridCoords gridPos, glm::vec2 size, const std::string& shaderName, float frequencyHz
-)
-{
-    int id = m_circuit.addClock(frequencyHz);
-    m_componentViews.emplace(id, std::make_unique<ClockView>(gridPos, id, size, shaderName));
-
-    return id;
-}
-
-int Scene::addLatchRaw(LatchType type, GridCoords gridPos)
-{
-    int id = m_circuit.addLatch(type);
-    glm::vec2 size = {0.30f, 0.20f}; // 6 x 4 grid cells, the footprint the pins span
-
-    if (type == LatchType::SR_LATCH)
-    {
-        std::vector<PinUI> inPins = {
-            {PinType::INPUT, 0, PinState::DISCONNECTED, {-3, 1}}, // S
-            {PinType::INPUT, 1, PinState::DISCONNECTED, {-3, -1}} // R
-        };
-        std::vector<PinUI> outPins = {
-            {PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 1}}, // Q
-            {PinType::OUTPUT, 1, PinState::DISCONNECTED, {3, -1}} // ~Q
-        };
-        m_componentViews.emplace(
-            id,
-            std::make_unique<LatchView>(
-                gridPos,
-                id,
-                size,
-                "latch",
-                "SR LATCH",
-                inPins,
-                outPins,
-                std::vector<std::string>{"S", "R"},
-                std::vector<std::string>{"Q", "~Q"}
-            )
-        );
-    }
-    else
-    {
-        std::vector<PinUI> inPins = {
-            {PinType::INPUT, 0, PinState::DISCONNECTED, {-3, 1}}, // D
-            {PinType::INPUT, 1, PinState::DISCONNECTED, {-3, -1}} // E
-        };
-        std::vector<PinUI> outPins = {
-            {PinType::OUTPUT, 0, PinState::DISCONNECTED, {3, 1}}, // Q
-            {PinType::OUTPUT, 1, PinState::DISCONNECTED, {3, -1}} // ~Q
-        };
-        m_componentViews.emplace(
-            id,
-            std::make_unique<LatchView>(
-                gridPos,
-                id,
-                size,
-                "latch",
-                "D LATCH",
-                inPins,
-                outPins,
-                std::vector<std::string>{"D", "E"},
-                std::vector<std::string>{"Q", "~Q"}
-            )
-        );
-    }
-
+    const int id = created.id;
+    m_componentViews.emplace(id, std::move(created.view));
     return id;
 }
