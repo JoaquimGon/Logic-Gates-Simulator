@@ -87,9 +87,9 @@ OpenGL context current. Renderer initialization returns failure for missing
 required shaders/font resources; Engine aborts initialization and releases them.
 Shutdown is idempotent.
 
-This provides presentation boundaries, not UI widgets or input capture. Focus,
-canvas viewport/camera inversion, property schemas, and inspectors remain
-RM-U1/RM-U2/RM-C3/RM-U3. Per-frame presentation rebuilding/caching remains RM-R3;
+This provides presentation boundaries. UI-first capture/focus and input bounds are
+implemented separately; see [InputRouting.md](InputRouting.md). Canvas camera
+inversion/clipping, property schemas, and inspectors remain RM-U2/RM-C3/RM-U3. Per-frame presentation rebuilding/caching remains RM-R3;
 packed junction integration remains RM-A8.
 
 ## Verification
@@ -108,6 +108,6 @@ ctest --preset x64-debug -R "render_|component_pin_leads|text_presentation"
 
 The framebuffer test writes `mixed-sizes.ppm` and
 `component-presentations.ppm` under the build's `render-artifacts/` directory
-for visual review. The application build has 32 groups; the headless build has
-31. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
+for visual review. The application build has 35 groups; the headless build has
+34. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
 font choices have not been visually verified.

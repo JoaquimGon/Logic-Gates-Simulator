@@ -6,6 +6,7 @@
 #include "Scene.h"
 
 #include <GLFW/glfw3.h>
+#include <cmath>
 #include <utility>
 
 void Input::recordEdit(const EditResult& result)
@@ -68,29 +69,42 @@ void Input::scrollCallback(GLFWwindow* window, double x, double y)
 void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
-        input->handleKey(key, action, mods);
+        input->handleKey(key, action, mods, scancode);
 }
 
 void Input::focusCallback(GLFWwindow* window, int focused)
 {
-    if (!focused)
-        if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
-        {
-            input->cancelCurrentAction();
-            input->m_pendingKeyPresses.clear();
-            input->m_pressedKeys.clear();
-        }
+    if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
+        input->handleFocus(focused != GLFW_FALSE);
 }
 
-void Input::handleKey(int key, int action, int mods)
+void Input::handleKey(int key, int action, int mods, int scanCode)
 {
+    UiInputEvent event{UiInputKind::Key};
+    event.code = key;
+    event.action = action;
+    event.modifiers = mods;
+    event.scanCode = scanCode;
+    const bool consumed = dispatchUi(event);
     if (action == GLFW_RELEASE)
     {
         m_pressedKeys.erase(key);
         return;
     }
-    if (action != GLFW_PRESS || !m_pressedKeys.insert(key).second)
+    const bool freshPress = action == GLFW_PRESS && m_pressedKeys.insert(key).second;
+    if (consumed)
+    {
+        setCanvasFocused(false);
+        interruptCanvas();
         return;
+    }
+    if (!freshPress)
+        return;
+    if (!canvasKeyboardAvailable())
+    {
+        m_pendingKeyPresses.clear();
+        return;
+    }
     if (key == GLFW_KEY_F2)
     {
         if (!(mods & (GLFW_MOD_SHIFT | GLFW_MOD_CONTROL | GLFW_MOD_ALT | GLFW_MOD_SUPER)))
@@ -104,20 +118,53 @@ void Input::handleKey(int key, int action, int mods)
 
 bool Input::consumeKeyPress(int key)
 {
-    return m_pendingKeyPresses.erase(key) > 0;
+    const bool pressed = m_pendingKeyPresses.erase(key) > 0;
+    return pressed && canvasKeyboardAvailable();
 }
 
 void Input::cancelCurrentAction()
 {
-    if (m_scene)
-        m_drag.cancel(*m_scene);
-    m_wire.cancel();
-    m_pan.cancel();
+    cancelGestures();
     m_selection.clear();
 }
 
 void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mods)
 {
+    UiInputEvent event{UiInputKind::MouseButton};
+    event.code = button;
+    event.action = action;
+    event.modifiers = mods;
+    glfwGetCursorPos(window, &event.x, &event.y);
+    const bool consumed = dispatchUi(event);
+    if (action == GLFW_PRESS)
+    {
+        const bool freshPress = m_pressedMouseButtons.insert(button).second;
+        if (consumed || !isCanvasPointerAvailable(window))
+        {
+            setCanvasFocused(false);
+            interruptCanvas();
+            return;
+        }
+        if (!freshPress)
+            return;
+        setCanvasFocused(true);
+        m_canvasMouseButtons.insert(button);
+    }
+    else if (action == GLFW_RELEASE)
+    {
+        m_pressedMouseButtons.erase(button);
+        const bool owned = m_canvasMouseButtons.erase(button) > 0;
+        if (consumed || !isCanvasPointerAvailable(window))
+        {
+            interruptCanvas();
+            return;
+        }
+        if (!owned)
+            return;
+    }
+    else
+        return;
+
     if (button == GLFW_MOUSE_BUTTON_RIGHT)
     {
         if (action == GLFW_PRESS)
@@ -191,6 +238,17 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
 
 void Input::handleCursorPos(GLFWwindow* window, double x, double y)
 {
+    UiInputEvent event{UiInputKind::Cursor};
+    event.x = x;
+    event.y = y;
+    const bool consumed = dispatchUi(event);
+    if (consumed || !m_windowFocused || m_uiCapture.pointer || !containsCanvasPoint(window, x, y))
+    {
+        interruptCanvas();
+        lastMouseX = x;
+        lastMouseY = y;
+        return;
+    }
     mouseGridCoords = GridSystem::worldToGrid(getMouseWorldCoord(window, m_zoom));
     if (m_drag.active())
     {
@@ -221,10 +279,18 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
 
 void Input::process(GLFWwindow* window)
 {
+    if (!isCanvasPointerAvailable(window))
+    {
+        cancelGestures();
+        clearHover();
+    }
+    if (!canvasKeyboardAvailable())
+        m_pendingKeyPresses.clear();
     if (consumeKeyPress(GLFW_KEY_ESCAPE))
         cancelCurrentAction();
     updateHoverState(window);
-    const bool canEdit = m_scene && m_mode == EditorMode::Selection && isIdle();
+    const bool canEdit = m_scene && m_mode == EditorMode::Selection && isIdle() &&
+                         isCanvasPointerAvailable(window) && canvasKeyboardAvailable();
     for (int key :
          {GLFW_KEY_1,
           GLFW_KEY_2,
@@ -273,8 +339,16 @@ void Input::process(GLFWwindow* window)
 
 void Input::handleScroll(GLFWwindow* window, double x, double y)
 {
-    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
-        glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS)
+    UiInputEvent event{UiInputKind::Scroll};
+    event.x = x;
+    event.y = y;
+    if (dispatchUi(event) || !isCanvasPointerAvailable(window) || !canvasKeyboardAvailable())
+    {
+        interruptCanvas();
+        return;
+    }
+    if (m_pressedKeys.contains(GLFW_KEY_LEFT_CONTROL) ||
+        m_pressedKeys.contains(GLFW_KEY_RIGHT_CONTROL))
     {
         m_zoom += static_cast<float>(y) * 0.15f;
         if (m_zoom < 0.2f)
@@ -286,6 +360,11 @@ void Input::handleScroll(GLFWwindow* window, double x, double y)
 
 void Input::updateHoverState(GLFWwindow* window)
 {
+    if (!isCanvasPointerAvailable(window))
+    {
+        clearHover();
+        return;
+    }
     if (m_drag.active() || m_pan.active())
         return;
     if (!m_scene)
@@ -294,11 +373,7 @@ void Input::updateHoverState(GLFWwindow* window)
     glm::vec2 currentWorldCoords = getMouseWorldCoord(window, m_zoom);
     mouseGridCoords = GridSystem::worldToGrid(currentWorldCoords);
 
-    hoveredComponentId = -1;
-    hoveredPinIndex = -1;
-    hoveredPinComponentId = -1;
-    hoveredWireId = INVALID_WIRE_ID;
-    m_hoveredSegmentValid = false;
+    clearHover();
 
     HitResult hit = m_scene->hitTest(currentWorldCoords, mouseGridCoords);
     switch (hit.type)
@@ -341,6 +416,9 @@ glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom) const
     glfwGetCursorPos(window, &mouseX, &mouseY);
     int width, height;
     glfwGetWindowSize(window, &width, &height);
+
+    if (width <= 0 || height <= 0 || !std::isfinite(zoom) || zoom <= 0)
+        return panOffset;
 
     float ndcX = (2.0f * static_cast<float>(mouseX)) / width - 1.0f;
     float ndcY = 1.0f - (2.0f * static_cast<float>(mouseY)) / height;

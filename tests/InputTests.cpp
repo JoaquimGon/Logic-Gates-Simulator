@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -30,6 +31,12 @@ class Editor
 
     ~Editor() { glfwSetWindowUserPointer(window, nullptr); }
 
+    void cursorPixels(double x, double y)
+    {
+        glfwSetCursorPos(window, x, y);
+        Input::cursorPositionCallback(window, x, y);
+    }
+
     void cursor(GridCoords position)
     {
         int width, height;
@@ -37,8 +44,7 @@ class Editor
         const glm::vec2 world = GridSystem::gridToWorld(position);
         const double x = width * 0.5 + world.x * height * 0.5;
         const double y = height * 0.5 - world.y * height * 0.5;
-        glfwSetCursorPos(window, x, y);
-        Input::cursorPositionCallback(window, x, y);
+        cursorPixels(x, y);
     }
 
     void mouse(int button, int action) { Input::mouseButtonCallback(window, button, action, 0); }
@@ -313,7 +319,7 @@ void interactionModes(GLFWwindow* window)
     Editor editor(window);
     const int source = editor.scene.addInputPin({-8, 0}, {0.15f, 0.15f}, "inputPin", true);
     const int gate = editor.inverter({12, 0});
-    const int clock = editor.scene.addClock({20, 0}, {0.15f, 0.15f}, "clock");
+    const int clock = editor.scene.addClock({18, 0}, {0.15f, 0.15f}, "clock");
     editor.wire({{-7, 0}, {10, 0}});
     editor.scene.propagate();
     const auto builds = editor.scene.getTopologyBuildCount();
@@ -366,7 +372,7 @@ void interactionModes(GLFWwindow* window)
             editor.input.isIdle(),
         "Interaction mode did not toggle without dragging."
     );
-    for (GridCoords body : {GridCoords{12, 0}, GridCoords{20, 0}})
+    for (GridCoords body : {GridCoords{12, 0}, GridCoords{18, 0}})
     {
         editor.cursor(body);
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
@@ -375,7 +381,7 @@ void interactionModes(GLFWwindow* window)
     }
     require(
         editor.scene.getCommittedComponentView(gate)->getGridPosition() == GridCoords{12, 0} &&
-            editor.scene.getCommittedComponentView(clock)->getGridPosition() == GridCoords{20, 0},
+            editor.scene.getCommittedComponentView(clock)->getGridPosition() == GridCoords{18, 0},
         "Interaction mode fell back to dragging a nonactionable component."
     );
     for (GridCoords start : {GridCoords{-7, 4}, GridCoords{0, 0}, GridCoords{0, 8}})
@@ -576,6 +582,305 @@ void wireAndPanGestures(GLFWwindow* window)
     }
 }
 
+void uiInputRouting(GLFWwindow* window)
+{
+    Editor editor(window);
+    const int source = editor.scene.addInputPin({0, 0}, {0.15f, 0.15f}, "inputPin", true);
+    const int clock = editor.scene.addClock({10, 0}, {0.15f, 0.15f}, "clock");
+    editor.cursor({0, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(editor.input.getSelectedComponentId() == source, "Selection fixture failed.");
+    std::vector<UiInputEvent> events;
+    bool consume = false;
+    editor.input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        {
+            events.push_back(event);
+            return consume;
+        }
+    );
+    Input::keyCallback(window, GLFW_KEY_1, 27, GLFW_PRESS, GLFW_MOD_SHIFT);
+    editor.input.setUiCapture({true, true});
+    Input::keyCallback(window, GLFW_KEY_1, 27, GLFW_RELEASE, GLFW_MOD_SHIFT);
+    for (int key :
+         {GLFW_KEY_1,
+          GLFW_KEY_DELETE,
+          GLFW_KEY_BACKSPACE,
+          GLFW_KEY_ESCAPE,
+          GLFW_KEY_F2,
+          GLFW_KEY_F3})
+        editor.key(key);
+    Input::charCallback(window, 0x03A9);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({6, 4});
+    Input::scrollCallback(window, 1.5, 2.0);
+    editor.input.setUiCapture({});
+    editor.input.setCanvasFocused(true);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    editor.input.process(window);
+    require(
+        editor.scene.getComponentCount() == 2 && editor.input.isIdle() &&
+            editor.input.getSelectedComponentId() == source &&
+            editor.scene.getLogicComponent(source)->getStateOutPin() &&
+            editor.input.getMode() == EditorMode::Selection &&
+            !editor.input.consumeKeyPress(GLFW_KEY_F3),
+        "Captured events escaped into scene edits or replayed on release."
+    );
+    require(
+        events.front().scanCode == 27 && events.front().modifiers == GLFW_MOD_SHIFT,
+        "UI lost native key payload."
+    );
+    bool text = false, mouse = false, cursor = false, scroll = false;
+    for (const auto& event : events)
+    {
+        text |= event.kind == UiInputKind::Text && event.codepoint == 0x03A9;
+        mouse |= event.kind == UiInputKind::MouseButton;
+        cursor |= event.kind == UiInputKind::Cursor;
+        scroll |= event.kind == UiInputKind::Scroll && event.x == 1.5 && event.y == 2.0;
+    }
+    require(text && mouse && cursor && scroll, "UI missed an input category.");
+
+    editor.input.setUiCapture({true, false});
+    Input::keyCallback(window, GLFW_KEY_1, 0, GLFW_PRESS, 0);
+    editor.input.setUiCapture({});
+    editor.input.setCanvasFocused(true);
+    Input::keyCallback(window, GLFW_KEY_1, 0, GLFW_REPEAT, 0);
+    Input::keyCallback(window, GLFW_KEY_1, 0, GLFW_PRESS, 0);
+    editor.input.process(window);
+    require(editor.scene.getComponentCount() == 2, "Held UI key replayed when capture ended.");
+    Input::keyCallback(window, GLFW_KEY_1, 0, GLFW_RELEASE, 0);
+    editor.key(GLFW_KEY_1);
+    require(editor.scene.getComponentCount() == 3, "Fresh canvas key press remained blocked.");
+
+    consume = true;
+    editor.key(GLFW_KEY_F2);
+    require(
+        editor.input.getMode() == EditorMode::Selection && !editor.input.isCanvasFocused(),
+        "Consumed event reached the canvas without persistent capture."
+    );
+    consume = false;
+    editor.input.setCanvasFocused(true);
+    editor.key(GLFW_KEY_F2);
+    editor.cursor({0, 0});
+    editor.input.setUiCapture({false, true});
+    const bool sourceValue = editor.scene.getLogicComponent(source)->getStateOutPin();
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getLogicComponent(source)->getStateOutPin() == sourceValue,
+        "UI pointer capture operated a runtime input."
+    );
+    editor.input.setCanvasFocused(true);
+    editor.key(GLFW_KEY_SPACE);
+    require(
+        static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused(),
+        "Pointer capture also blocked an uncaptured focused keyboard."
+    );
+    editor.key(GLFW_KEY_SPACE);
+    editor.input.setUiCapture({true, false});
+    editor.key(GLFW_KEY_SPACE);
+    editor.key(GLFW_KEY_PERIOD);
+    require(
+        !static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused() &&
+            !editor.scene.getLogicComponent(clock)->getStateOutPin(),
+        "Typing operated the clocks."
+    );
+    editor.input.setUiCapture({});
+    editor.key(GLFW_KEY_SPACE);
+    require(
+        !static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused(),
+        "Releasing capture silently restored keyboard focus."
+    );
+    editor.cursor({0, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    editor.key(GLFW_KEY_SPACE);
+    require(
+        static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused(),
+        "Canvas click did not restore keyboard focus."
+    );
+    Input::focusCallback(window, GLFW_FALSE);
+    editor.key(GLFW_KEY_F2);
+    Input::focusCallback(window, GLFW_TRUE);
+    editor.key(GLFW_KEY_F2);
+    require(
+        editor.input.getMode() == EditorMode::Selection && events.back().kind == UiInputKind::Key,
+        "Focus loss leaked input or focus gain failed to recover."
+    );
+    bool focus = false;
+    for (const auto& event : events)
+        focus |= event.kind == UiInputKind::WindowFocus;
+    require(focus, "UI missed window focus callbacks.");
+}
+
+void uiGestureCancellation(GLFWwindow* window)
+{
+    // Exercise each ownership transfer against drag previews, wire branches, and panning.
+    for (int gesture = 0; gesture < 3; ++gesture)
+        for (int transfer = 0; transfer < 4; ++transfer)
+        {
+            Editor editor(window);
+            const int component = editor.inverter({0, 0});
+            editor.wire({{-8, -4}, {8, -4}});
+            bool consumeText = false;
+            editor.input.setUiInputHandler(
+                [&](const UiInputEvent& event)
+                { return consumeText && event.kind == UiInputKind::Text; }
+            );
+            editor.cursor(gesture == 0 ? GridCoords{0, 0} : GridCoords{0, -4});
+            const int button = gesture == 2 ? GLFW_MOUSE_BUTTON_RIGHT : GLFW_MOUSE_BUTTON_LEFT;
+            editor.mouse(button, GLFW_PRESS);
+            editor.cursor({6, 4});
+            require(!editor.input.isIdle(), "Gesture fixture did not become active.");
+            const auto revision = editor.scene.getRevision();
+            const auto builds = editor.scene.getTopologyBuildCount();
+            const auto wireIds = editor.scene.getWireIds();
+            const auto offset = editor.input.getPanOffset();
+            if (transfer == 0)
+                editor.input.setUiCapture({false, true});
+            else if (transfer == 1)
+                editor.input.setUiCapture({true, false});
+            else if (transfer == 2)
+                editor.input.setCanvasFocused(false);
+            else
+            {
+                consumeText = true;
+                Input::charCallback(window, 'x');
+            }
+            require(
+                editor.input.isIdle() &&
+                    editor.scene.getComponentView(component)->getGridPosition() == GridCoords{0, 0},
+                "UI ownership failed to cancel an unfinished gesture."
+            );
+            if (gesture == 0)
+                require(
+                    editor.input.getSelectedComponentId() == component,
+                    "Inspector focus discarded the selected component."
+                );
+            editor.input.setUiInputHandler({});
+            editor.input.setCanvasFocused(true);
+            editor.cursor({10, 8});
+            editor.mouse(button, GLFW_PRESS); // Still physically held; cannot restart.
+            editor.mouse(button, GLFW_RELEASE);
+            require(
+                editor.input.isIdle() && editor.scene.getRevision() == revision &&
+                    editor.scene.getTopologyBuildCount() == builds &&
+                    editor.scene.getWireIds() == wireIds && editor.input.getPanOffset() == offset,
+                "Cancelled input resumed or its release committed geometry."
+            );
+            editor.verifyPinLocations();
+        }
+
+    Editor editor(window);
+    const int component = editor.inverter({0, 0});
+    bool sawCancelled = false;
+    bool consume = false;
+    editor.input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        {
+            if (!consume || event.kind != UiInputKind::MouseButton)
+                return false;
+            editor.input.setUiCapture({false, true});
+            sawCancelled =
+                editor.input.isIdle() &&
+                editor.scene.getComponentView(component)->getGridPosition() == GridCoords{0, 0};
+            return true;
+        }
+    );
+    editor.cursor({0, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({6, 4});
+    consume = true;
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+    require(
+        sawCancelled && editor.input.getSelectedComponentId() == component,
+        "UI event handler did not precede canvas right-click cancellation."
+    );
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+}
+
+void canvasInputBounds(GLFWwindow* window)
+{
+    Editor editor(window);
+    const int component = editor.inverter({0, 0});
+    const CanvasInputBounds bounds{300, 300, 200, 200};
+    require(
+        bounds.contains(300, 300) && bounds.contains(499, 499) && !bounds.contains(500, 400) &&
+            !bounds.contains(400, 500),
+        "Canvas boundary inclusion is inconsistent."
+    );
+    editor.input.setCanvasInputBounds(bounds);
+    editor.cursorPixels(400, 400);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursorPixels(420, 420);
+    const auto revision = editor.scene.getRevision();
+    for (const auto& invalid :
+         {CanvasInputBounds{0, 0, -1, 20},
+          CanvasInputBounds{0, 0, 20, std::numeric_limits<double>::infinity()}})
+    {
+        bool rejected = false;
+        try
+        {
+            editor.input.setCanvasInputBounds(invalid);
+        }
+        catch (const std::invalid_argument&)
+        {
+            rejected = true;
+        }
+        require(
+            rejected && editor.input.getCanvasInputBounds() == bounds && !editor.input.isIdle(),
+            "Invalid bounds mutated canvas ownership."
+        );
+    }
+    editor.cursorPixels(500, 420);
+    require(
+        editor.input.isIdle() && editor.input.getHoveredComponentId() == -1 &&
+            editor.scene.getComponentView(component)->getGridPosition() == GridCoords{0, 0},
+        "Leaving canvas bounds did not discard preview and hover."
+    );
+    editor.cursorPixels(420, 420);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(editor.scene.getRevision() == revision, "Reentry committed a cancelled preview.");
+    editor.cursorPixels(500, 400);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    editor.key(GLFW_KEY_1);
+    editor.key(GLFW_KEY_DELETE);
+    editor.input.handleKey(GLFW_KEY_LEFT_CONTROL, GLFW_PRESS);
+    Input::scrollCallback(window, 0, 1);
+    editor.input.handleKey(GLFW_KEY_LEFT_CONTROL, GLFW_RELEASE);
+    require(
+        editor.scene.getComponentCount() == 1 && editor.input.getZoom() == 1 &&
+            !editor.input.isCanvasFocused(),
+        "Sidebar input modified the canvas."
+    );
+    editor.input.cancelCurrentAction(); // A second click on a selected component deselects it.
+    editor.cursorPixels(400, 400);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    require(!editor.input.isIdle(), "Layout-change fixture did not start dragging.");
+    editor.input.setCanvasInputBounds(CanvasInputBounds{0, 0, 800, 800});
+    require(
+        editor.input.isIdle() && editor.input.getSelectedComponentId() == component,
+        "Canvas layout change did not cancel while preserving inspector selection."
+    );
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    editor.input.handleKey(GLFW_KEY_LEFT_CONTROL, GLFW_PRESS);
+    Input::scrollCallback(window, 0, 1);
+    editor.input.handleKey(GLFW_KEY_LEFT_CONTROL, GLFW_RELEASE);
+    require(editor.input.getZoom() > 1, "Eligible canvas scroll did not zoom.");
+    editor.input.setCanvasInputBounds(CanvasInputBounds{0, 0, 0, 800});
+    editor.cursorPixels(400, 400);
+    require(!editor.input.isCanvasPointerAvailable(window), "Zero-size canvas accepted input.");
+    editor.input.setCanvasInputBounds(std::nullopt);
+    require(editor.input.isCanvasPointerAvailable(window), "Full-window fallback rejected input.");
+    editor.cursorPixels(800, 400);
+    require(
+        !editor.input.isCanvasPointerAvailable(window), "Full-window right edge accepted input."
+    );
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -605,7 +910,10 @@ int main(int argc, char** argv)
             {"wire_segment_deletion", wireSegmentDeletion},
             {"interaction_modes", interactionModes},
             {"mode_cancellation", modeCancellation},
-            {"wire_and_pan_gestures", wireAndPanGestures}
+            {"wire_and_pan_gestures", wireAndPanGestures},
+            {"ui_input_routing", uiInputRouting},
+            {"ui_gesture_cancellation", uiGestureCancellation},
+            {"canvas_input_bounds", canvasInputBounds}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)

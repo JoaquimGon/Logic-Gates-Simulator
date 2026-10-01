@@ -30,7 +30,10 @@ branching, and panning. Escape, right-click, focus loss, and scene switching als
 discard unfinished gestures; a later mouse release cannot commit them.
 Ctrl+Shift was avoided because Windows can reserve it for keyboard-layout changes.
 Pin/wire routing, Delete/Backspace, and component spawn shortcuts below apply only
-in Selection mode.
+in Selection mode. UI adapters receive events first and can capture keyboard/pointer
+input. Canvas bounds restrict gestures; UI focus cancels previews while retaining
+selection for an inspector. See [input routing](docs/InputRouting.md) for integration
+and the remaining camera/viewport work.
 
 
 | Input | Action |
@@ -238,14 +241,15 @@ Input regression tests run in a separate `InputTests` executable using GLFW's
 null platform, so they require no display, native window, or OpenGL context.
 They cover Escape/right-click drag cancellation, movement and overlap rollback,
 connectivity after every component spawn shortcut, middle-segment deletion,
-mode isolation, immediate mode/focus cancellation, wire branching, and panning.
+mode isolation, immediate mode/focus cancellation, wire branching, panning, UI
+capture, held-input cleanup, and canvas bounds.
 Catalog regressions validate built-in defaults/assets, custom box/native behavior,
 registration rollback, applicable options, and catalog/identity restoration.
 Presentation tests cover typed instances/batching, pin leads, label layout, and
 world/screen glyph geometry. The application build also runs an invisible-window
 framebuffer test; it skips when an OpenGL context is unavailable and writes PPM
 previews under the build's `render-artifacts/` directory when exercised.
-CTest runs 32 groups with the application, or 31 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion" --output-on-failure`
+CTest runs 35 groups with the application, or 34 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_input" --output-on-failure`
 to run only the input tests.
 
 ## Shared Editor Actions

@@ -102,7 +102,7 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 32 groups with the application (31 headlessly), including six `EditorActionsTests` groups for atomic batches,
+CTest runs 35 groups with the application (34 headlessly), including six `EditorActionsTests` groups for atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery,
 snapshot restoration, and body-placement rollback. `InputTests` additionally verifies actual keyboard spawning,
 drag commit/cancellation, scene switching, and middle-segment deletion:
@@ -128,4 +128,7 @@ fallback to dragging; creation, deletion, and wiring are blocked. Pan/zoom and
 simulation work in either mode. F2 toggles modes once per press. Switching mode
 cancels the active gesture immediately, before subsequent mouse-release callbacks;
 focus loss and scene changes likewise discard unfinished gestures and queued keys.
-Future UI mode controls can call `Input::setMode()`; focus capture remains RM-U1.
+UI mode controls can call `Input::setMode()`. UI-first event routing and capture
+are implemented; see [InputRouting.md](InputRouting.md). Capture/focus transfers
+cancel previews while retaining selection. Publish ownership before applying a UI
+edit so active previews do not reject it. Camera/viewport transforms remain RM-U2.

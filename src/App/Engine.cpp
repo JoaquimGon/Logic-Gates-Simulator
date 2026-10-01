@@ -83,6 +83,7 @@ int Engine::init()
     glfwSetCursorPosCallback(window, Input::cursorPositionCallback);
     glfwSetScrollCallback(window, Input::scrollCallback);
     glfwSetKeyCallback(window, Input::keyCallback);
+    glfwSetCharCallback(window, Input::charCallback);
     glfwSetWindowFocusCallback(window, Input::focusCallback);
 
     // ==========================================
@@ -259,8 +260,8 @@ void Engine::run()
             frame.gridHighlight = GridHighlight{input.getCurrentGridCoords(), 1};
         }
         else if (
-            input.isIdle() && input.getHoveredComponentId() == -1 &&
-            input.getHoveredPinComponentId() == -1
+            input.isCanvasPointerAvailable(window) && input.isIdle() &&
+            input.getHoveredComponentId() == -1 && input.getHoveredPinComponentId() == -1
         )
             frame.gridHighlight = GridHighlight{input.getCurrentGridCoords(), 0.4f};
         frame.hoveredComponent = input.getHoveredPinComponentId();

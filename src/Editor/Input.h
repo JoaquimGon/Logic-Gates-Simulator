@@ -1,6 +1,7 @@
 #pragma once
 #include "Actions/EditTypes.h"
 #include "Components/PinTypes.h"
+#include "Editor/UiInput.h"
 #include "EditorMode.h"
 #include "Geometry/GridCoords.h"
 #include "Geometry/Wire.h"
@@ -11,6 +12,7 @@
 #include "Simulation/NetTypes.h"
 
 #include <glm/glm.hpp>
+#include <optional>
 #include <string>
 #include <unordered_set>
 
@@ -21,6 +23,19 @@ class Input
 {
   private:
     Scene* m_scene = nullptr;
+    UiInputHandler m_uiInputHandler;
+    UiInputCapture m_uiCapture;
+    std::optional<CanvasInputBounds> m_canvasInputBounds;
+    bool m_canvasFocused = true;
+    bool m_windowFocused = true;
+    std::unordered_set<int> m_pressedMouseButtons;
+    std::unordered_set<int> m_canvasMouseButtons;
+    bool dispatchUi(const UiInputEvent& event);
+    bool canvasKeyboardAvailable() const;
+    bool containsCanvasPoint(GLFWwindow* window, double x, double y) const;
+    void cancelGestures();
+    void interruptCanvas();
+    void clearHover();
 
     float m_zoom = 1.0f;
     EditorMode m_mode = EditorMode::Selection;
@@ -55,6 +70,29 @@ class Input
     std::unordered_set<int> m_pressedKeys;
 
   public:
+    /** @brief Installs the UI-first event consumer; changing it discards unfinished canvas input.
+     */
+    void setUiInputHandler(UiInputHandler handler);
+    /** @brief Updates persistent UI ownership; gaining capture cancels previews without
+     * deselecting. */
+    void setUiCapture(UiInputCapture capture);
+
+    UiInputCapture getUiCapture() const { return m_uiCapture; }
+
+    void setCanvasFocused(bool focused);
+
+    bool isCanvasFocused() const { return m_canvasFocused; }
+
+    /** @brief Sets window-space input bounds; nullopt uses the full window, zero dimensions disable
+     * it. */
+    void setCanvasInputBounds(std::optional<CanvasInputBounds> bounds);
+
+    const std::optional<CanvasInputBounds>& getCanvasInputBounds() const
+    {
+        return m_canvasInputBounds;
+    }
+
+    bool isCanvasPointerAvailable(GLFWwindow* window) const;
     void process(GLFWwindow* window);
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos);
@@ -62,7 +100,10 @@ class Input
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     void handleMouseButton(GLFWwindow* window, int button, int action, int mods);
-    void handleKey(int key, int action, int mods = 0);
+    void handleKey(int key, int action, int mods = 0, int scanCode = 0);
+    static void charCallback(GLFWwindow* window, unsigned int codepoint);
+    void handleText(std::uint32_t codepoint);
+    void handleFocus(bool focused);
     static void focusCallback(GLFWwindow* window, int focused);
 
     EditorMode getMode() const { return m_mode; }
