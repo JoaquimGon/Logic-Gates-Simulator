@@ -1,5 +1,6 @@
 #version 330 core
 out vec4 FragColor;
+in vec4 instanceTint;
 in vec2 localPos; // Range: -0.5 .. 0.5
 
 // AND Gate SDF: Flat back at -halfSize.x, curved nose reaching +halfSize.x
@@ -44,6 +45,5 @@ void main()
     float aa = fwidth(d);
     float fillFactor = 1.0 - smoothstep(0.0, aa, d);
 
-    vec3 gateColor = vec3(0.2, 0.5, 0.9);
-    FragColor = vec4(gateColor, fillFactor);
+    FragColor = vec4(instanceTint.rgb, fillFactor * instanceTint.a);
 }

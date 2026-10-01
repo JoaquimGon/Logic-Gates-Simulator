@@ -5,8 +5,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <set>
 #include <stdexcept>
+#include <utility>
 
 namespace
 {
@@ -37,10 +39,21 @@ void validateLayout(
     {
         if ((requireIdentity && pin.id.empty()) ||
             (!pin.id.empty() && !identities.insert(pin.id).second) ||
-            !anchors.emplace(pin.anchor.x, pin.anchor.y).second || !pin.lead.empty())
-            throw std::invalid_argument(
-                "Pins require distinct IDs/anchors; lead rendering is not supported yet."
-            );
+            !anchors.emplace(pin.anchor.x, pin.anchor.y).second)
+            throw std::invalid_argument("Pins require distinct IDs and anchors.");
+        if (!pin.lead.empty())
+        {
+            if (pin.lead.size() < 2 || pin.lead.size() > 256 || pin.lead.back() != pin.anchor)
+                throw std::invalid_argument(
+                    "A lead needs 2-256 relative points ending at its pin anchor."
+                );
+            for (std::size_t i = 1; i < pin.lead.size(); ++i)
+            {
+                const auto a = pin.lead[i - 1], b = pin.lead[i];
+                if (a == b || (a.x != b.x && a.y != b.y))
+                    throw std::invalid_argument("Lead segments must be nonzero and orthogonal.");
+            }
+        }
         auto* indices = pin.direction == PinType::INPUT    ? &inputs
                         : pin.direction == PinType::OUTPUT ? &outputs
                                                            : nullptr;
@@ -100,8 +113,20 @@ void validateDefinition(const ComponentDefinition& definition)
             if (pin.direction == PinType::INPUT && pin.id != "in." + std::to_string(pin.index))
                 throw std::invalid_argument("Symmetric gate input IDs must use in.<index>.");
     }
+    const auto& body = definition.presentation.body;
+    if (body.contour < BodyContour::Box || body.contour > BodyContour::Clock ||
+        (body.inverted && body.contour != BodyContour::And && body.contour != BodyContour::Or &&
+         body.contour != BodyContour::Xor))
+        throw std::invalid_argument("Invalid body contour/inversion combination.");
+    for (float channel : body.tint)
+        if (!std::isfinite(channel) || channel < 0 || channel > 1)
+            throw std::invalid_argument(
+                "Body tint channels must be finite values from zero to one."
+            );
     if (definition.presentation.kind == PresentationKind::Box)
     {
+        if (body.contour != BodyContour::Box || body.inverted)
+            throw std::invalid_argument("Box presentation requires the box contour.");
         const auto& box = boxShaderResources();
         const auto& resources = definition.presentation.shader;
         if (resources.key != box.key || resources.vertexPath != box.vertexPath ||
@@ -174,15 +199,31 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
                            pin.index == static_cast<unsigned int>(index);
                 }
             );
-            result.layout.pins.push_back(
-                {"in." + std::to_string(index),
-                 original != definition.layout.pins.end() ? original->label
-                                                          : "In " + std::to_string(index),
-                 PinType::INPUT,
-                 static_cast<unsigned int>(index),
-                 {x, inputCount - 1 - 2 * index},
-                 {}}
-            );
+            PinDefinition generated{
+                "in." + std::to_string(index),
+                original != definition.layout.pins.end() ? original->label
+                                                         : "In " + std::to_string(index),
+                PinType::INPUT,
+                static_cast<unsigned int>(index),
+                {x, inputCount - 1 - 2 * index},
+                {}
+            };
+            if (original != definition.layout.pins.end())
+                for (const auto point : original->lead)
+                {
+                    const auto leadX = static_cast<std::int64_t>(point.x) + generated.anchor.x -
+                                       original->anchor.x;
+                    const auto leadY = static_cast<std::int64_t>(point.y) + generated.anchor.y -
+                                       original->anchor.y;
+                    for (const auto coordinate : {leadX, leadY})
+                        if (coordinate < std::numeric_limits<int>::min() ||
+                            coordinate > std::numeric_limits<int>::max())
+                            throw std::invalid_argument(
+                                "Generated lead exceeds the grid coordinate range."
+                            );
+                    generated.lead.push_back({static_cast<int>(leadX), static_cast<int>(leadY)});
+                }
+            result.layout.pins.push_back(std::move(generated));
         }
         result.layout.height =
             std::max(result.layout.height, 2 * GridMetrics::Spacing * inputCount);

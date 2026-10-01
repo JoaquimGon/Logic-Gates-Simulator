@@ -102,7 +102,7 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 28 groups, including six `EditorActionsTests` groups for atomic batches,
+CTest runs 32 groups with the application (31 headlessly), including six `EditorActionsTests` groups for atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery,
 snapshot restoration, and body-placement rollback. `InputTests` additionally verifies actual keyboard spawning,
 drag commit/cancellation, scene switching, and middle-segment deletion:

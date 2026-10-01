@@ -1,5 +1,6 @@
 #version 330 core
 out vec4 FragColor;
+in vec4 instanceTint;
 in vec2 localPos;
 
 void main()
@@ -29,6 +30,5 @@ void main()
     float aa = fwidth(d);
     float fillFactor = 1.0 - smoothstep(-aa, aa, d);
 
-    vec3 gateColor = vec3(0.1, 0.75, 0.75); // Cyan
-    FragColor = vec4(gateColor, fillFactor);
+    FragColor = vec4(instanceTint.rgb, fillFactor * instanceTint.a);
 }

@@ -1,4 +1,5 @@
 #pragma once
+#include "Components/Definitions/PresentationGeometry.h"
 #include "Components/Gate.h"
 #include "Components/Latch.h"
 #include "Components/PinTypes.h"
@@ -65,6 +66,7 @@ struct PresentationDefinition
     std::string bodyLabel;
     bool showPinLabels = false;
     bool allowResize = true;
+    BodyStyle body;
 };
 
 /** Reusable type metadata. Position and live signal/timer/latch state are instance data. */

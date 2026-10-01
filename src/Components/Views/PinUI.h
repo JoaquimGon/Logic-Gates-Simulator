@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 struct PinUI
 {
@@ -14,4 +15,5 @@ struct PinUI
     GridCoords relative_pos;
     std::string id = {};
     std::string label = {};
+    std::vector<GridCoords> lead = {};
 };

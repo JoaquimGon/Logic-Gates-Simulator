@@ -180,7 +180,13 @@ void definitionValidation()
     malformed.layout.width = std::numeric_limits<float>::quiet_NaN();
     invalid([&] { catalog.registerDefinition(malformed); });
     malformed = boxDefinition("custom.invalid");
-    malformed.layout.pins[0].lead = {{-4, 0}, {-3, 0}};
+    malformed.layout.pins[0].lead = {{-4, 0}, {-2, 0}};
+    invalid([&] { catalog.registerDefinition(malformed); });
+    malformed = boxDefinition("custom.invalid");
+    malformed.presentation.body.tint[3] = std::numeric_limits<float>::quiet_NaN();
+    invalid([&] { catalog.registerDefinition(malformed); });
+    malformed = boxDefinition("custom.invalid");
+    malformed.presentation.body.contour = BodyContour::And;
     invalid([&] { catalog.registerDefinition(malformed); });
     malformed = boxDefinition("custom.invalid");
     malformed.presentation.shader.key = "unknown";
@@ -232,8 +238,10 @@ void definitionValidation()
     auto expandable = *catalog.find(BuiltinComponentIds::And);
     expandable.identity = {"custom.expandable", 1};
     expandable.presentation.kind = PresentationKind::Box;
+    expandable.presentation.body = {};
     expandable.presentation.shader = boxShaderResources();
     expandable.layout.pins[0].label = "Enable";
+    expandable.layout.pins[0].lead = {{-3, 1}, {-2, 1}};
     catalog.registerDefinition(expandable);
     options = {};
     options.inputCount = 3;
@@ -242,9 +250,13 @@ void definitionValidation()
         std::any_of(
             expanded.layout.pins.begin(),
             expanded.layout.pins.end(),
-            [](const auto& pin) { return pin.id == "in.0" && pin.label == "Enable"; }
+            [](const auto& pin)
+            {
+                return pin.id == "in.0" && pin.label == "Enable" &&
+                       pin.lead == std::vector<GridCoords>{{-3, 2}, {-2, 2}};
+            }
         ),
-        "Arity expansion replaced a declared pin label."
+        "Arity expansion lost a declared label or translated lead route."
     );
 }
 

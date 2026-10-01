@@ -1,5 +1,6 @@
 #version 330 core
 out vec4 FragColor;
+in vec4 instanceTint;
 in vec2 localPos; // Range: -0.5 .. 0.5
 
 float sdCircle(vec2 p, vec2 center, float r)
@@ -50,6 +51,5 @@ void main()
     float aa = fwidth(d);
     float fillFactor = 1.0 - smoothstep(0.0, aa, d);
 
-    vec3 gateColor = vec3(0.7, 0.3, 0.85); // XOR Purple
-    FragColor = vec4(gateColor, fillFactor);
+    FragColor = vec4(instanceTint.rgb, fillFactor * instanceTint.a);
 }

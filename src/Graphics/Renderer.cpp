@@ -2,14 +2,13 @@
 
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Geometry/GridSystem.h"
+#include "Graphics/Presentation/LabelLayout.h"
 #include "WireGeometry.h"
 
 #include <algorithm>
 #include <glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
-#include <iomanip>
 #include <iostream>
-#include <sstream>
 #include <unordered_set>
 #include <utility>
 
@@ -30,8 +29,7 @@ void Renderer::shutdown()
     m_pointMesh.reset();
     m_wireMesh.reset();
     m_boundsMesh.reset();
-    m_font.destroy();
-    m_textMesh.reset();
+    m_text.shutdown();
 
     // Runs every Shader destructor, i.e. glDeleteProgram(), before the context
     // dies.
@@ -55,8 +53,16 @@ Shader* Renderer::acquireShader(const std::string& name)
     return nullptr;
 }
 
-void Renderer::init()
+bool Renderer::init()
 {
+    shutdown();
+    m_missingShaderWarned.clear();
+    bool ready = true;
+    auto load = [&](const auto& key, const auto& vertex, const auto& fragment)
+    {
+        if (!m_sm.load(key, vertex, fragment))
+            ready = false;
+    };
     // ==========================================
     // OpenGL State Configuration
     // ==========================================
@@ -73,20 +79,20 @@ void Renderer::init()
     {
         const auto& resources = definition.presentation.shader;
         if (loadedComponentShaders.insert(resources.key).second)
-            m_sm.load(resources.key, resources.vertexPath, resources.fragmentPath);
+            load(resources.key, resources.vertexPath, resources.fragmentPath);
     }
     const auto& box = boxShaderResources();
-    m_sm.load(box.key, box.vertexPath, box.fragmentPath);
+    load(box.key, box.vertexPath, box.fragmentPath);
 
     // Pins
-    m_sm.load("pin", "shaders/components/pins.vert", "shaders/components/pins.frag");
+    load("pin", "shaders/components/pins.vert", "shaders/components/pins.frag");
 
     // Text
-    m_sm.load("text", "shaders/text/text.vert", "shaders/text/text.frag");
+    load("text", "shaders/text/text.vert", "shaders/text/text.frag");
 
     // Grid & Wires
-    m_sm.load("grid", "shaders/vec3Shader.vert", "shaders/grid.frag");
-    m_sm.load("wire", "shaders/wires/wires.vert", "shaders/wires/wires.frag");
+    load("grid", "shaders/vec3Shader.vert", "shaders/grid.frag");
+    load("wire", "shaders/wires/wires.vert", "shaders/wires/wires.frag");
 
     // ==========================================
     // Meshes
@@ -135,20 +141,13 @@ void Renderer::init()
         std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_LINES
     );
 
-    // ==========================================
-    // Text
-    // ==========================================
-    // CMake discovers a platform font or accepts LOGIC_SIMULATOR_FONT.
-    m_font.init(PROJECT_FONT_PATH, 48.0f);
-
-    // Text Mesh Dynamic Layout: Pos(2) + UV(2) + Color(4) = 8 floats
-    VertexLayout textLayout;
-    textLayout.addAttribute(2); // aPos
-    textLayout.addAttribute(2); // aTexCoord
-    textLayout.addAttribute(4); // aColor
-    m_textMesh = std::make_unique<Mesh>(
-        std::vector<float>{}, std::vector<unsigned int>{}, textLayout, GL_TRIANGLES
-    );
+    ready = m_text.init(PROJECT_FONT_PATH) && ready;
+    if (!ready)
+    {
+        std::cerr << "[Renderer] Required shader/font initialization failed.\n";
+        shutdown();
+    }
+    return ready;
 }
 
 void Renderer::beginFrame(const CameraState& camera)
@@ -248,49 +247,61 @@ void Renderer::drawWireSegmentBoundingBox(
     m_drawCallCount++;
 }
 
-void Renderer::drawComponents(
-    const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews
-)
+void Renderer::drawComponents(std::span<const ComponentRenderData> components)
 {
-    // Group by shader so components sharing a shader still get instanced
-    // together.
-    std::unordered_map<std::string, std::vector<glm::vec2>> positionsByShader;
-    std::unordered_map<std::string, glm::vec2> sizeByShader;
-
-    for (const auto& [id, view] : componentViews)
+    for (const auto& batch : buildComponentBatches(components))
     {
-        positionsByShader[view->getShaderName()].push_back(view->getPosition());
-        sizeByShader[view->getShaderName()] = view->getSize();
-    }
-
-    for (auto& [shaderName, positions] : positionsByShader)
-    {
-        auto* shader = acquireShader(shaderName);
+        auto* shader = acquireShader(batch.shader);
         if (!shader)
-            continue; // acquireShader already logged the missing name
-
+            continue;
         shader->use();
         shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
         shader->setFloat("uZoom", m_currentCamera.zoom);
         shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
-        shader->setVec2("uGateSize", sizeByShader[shaderName].x, sizeByShader[shaderName].y);
-
-        std::vector<float> flatPositions;
-        flatPositions.reserve(positions.size() * 2);
-        for (const auto& p : positions)
-        {
-            flatPositions.push_back(p.x);
-            flatPositions.push_back(p.y);
-        }
-
-        m_gateMesh->setInstanceData(flatPositions, {2}, 1);
-        m_gateMesh->drawInstanced(static_cast<unsigned int>(positions.size()));
+        m_gateMesh->setInstanceData(packComponentInstances(batch.instances), {2, 2, 4}, 1);
+        m_gateMesh->drawInstanced(static_cast<int>(batch.instances.size()));
+        ++m_drawCallCount;
     }
-    m_drawCallCount++;
+}
+
+void Renderer::drawPinLeads(std::span<const ComponentRenderData> components)
+{
+    auto* shader = acquireShader("wire");
+    if (!shader)
+        return;
+    std::vector<float> data;
+    auto vertex = [&](glm::vec2 p)
+    { data.insert(data.end(), {p.x, p.y, 0, 0.75f, 0.85f, 0.95f, 1}); };
+    for (const auto& component : components)
+        for (const auto& pin : component.pins)
+            for (std::size_t i = 1; i < pin.lead.size(); ++i)
+            {
+                const auto a = pin.lead[i - 1], b = pin.lead[i];
+                const auto delta = b - a;
+                const float length = glm::length(delta);
+                if (length < 0.000001f)
+                    continue;
+                const glm::vec2 normal(-delta.y / length * 0.002f, delta.x / length * 0.002f);
+                vertex(a - normal);
+                vertex(b - normal);
+                vertex(b + normal);
+                vertex(a - normal);
+                vertex(b + normal);
+                vertex(a + normal);
+            }
+    if (data.empty())
+        return;
+    shader->use();
+    shader->setVec2("uPanOffset", m_currentCamera.panOffset.x, m_currentCamera.panOffset.y);
+    shader->setFloat("uZoom", m_currentCamera.zoom);
+    shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
+    m_wireMesh->updateData(data, 7);
+    m_wireMesh->draw();
+    ++m_drawCallCount;
 }
 
 void Renderer::drawPins(
-    const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews,
+    std::span<const ComponentRenderData> components,
     int hoveredCompId,
     int hoveredPinIdx,
     PinType hoveredPinType
@@ -311,37 +322,22 @@ void Renderer::drawPins(
     std::vector<float> pinInstanceData;
     int totalPins = 0;
 
-    for (const auto& [id, view] : componentViews)
-    {
-        auto processPin = [&](const PinUI& pin)
+    for (const auto& component : components)
+        for (const auto& pin : component.pins)
         {
-            glm::vec2 pinWorldPos = view->getAbsolutePinWorldPos(pin);
-            pinInstanceData.push_back(pinWorldPos.x);
-            pinInstanceData.push_back(pinWorldPos.y);
-
-            if (id == hoveredCompId && pin.pin_index == static_cast<uint32_t>(hoveredPinIdx) &&
-                pin.type == hoveredPinType)
-            {
-                float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = 1.0f;
-                pinInstanceData.insert(pinInstanceData.end(), {r, g, b, a});
-            }
+            pinInstanceData.insert(pinInstanceData.end(), {pin.position.x, pin.position.y});
+            if (component.body.id == hoveredCompId && hoveredPinIdx >= 0 &&
+                pin.index == static_cast<unsigned int>(hoveredPinIdx) &&
+                pin.direction == hoveredPinType)
+                pinInstanceData.insert(pinInstanceData.end(), {1, 159.0f / 255, 28.0f / 255, 1});
+            else if (pin.state == PinState::DISCONNECTED)
+                pinInstanceData.insert(pinInstanceData.end(), {0, 0, 1, 1});
+            else if (pin.state == PinState::ON)
+                pinInstanceData.insert(pinInstanceData.end(), {0, 1, 0, 1});
             else
-            {
-                if (pin.state == PinState::DISCONNECTED)
-                    pinInstanceData.insert(pinInstanceData.end(), {0.0f, 0.0f, 1.0f, 1.0f});
-                else if (pin.state == PinState::ON)
-                    pinInstanceData.insert(pinInstanceData.end(), {0.0f, 1.0f, 0.0f, 1.0f});
-                else
-                    pinInstanceData.insert(pinInstanceData.end(), {1.0f, 0.0f, 0.0f, 1.0f});
-            }
-            totalPins++;
-        };
-
-        for (const auto& pin : view->getInputPins())
-            processPin(pin);
-        for (const auto& pin : view->getOutputPins())
-            processPin(pin);
-    }
+                pinInstanceData.insert(pinInstanceData.end(), {1, 0, 0, 1});
+            ++totalPins;
+        }
 
     if (totalPins > 0)
     {
@@ -351,7 +347,7 @@ void Renderer::drawPins(
     }
 }
 
-void Renderer::drawComponentBoundingBox(const ComponentView& component, float padding, float alpha)
+void Renderer::drawComponentBoundingBox(glm::vec2 pos, glm::vec2 size, float padding, float alpha)
 {
     auto* shader = acquireShader("wire"); // reused: a bounding box is just 4 colored lines
     if (!shader)
@@ -361,8 +357,6 @@ void Renderer::drawComponentBoundingBox(const ComponentView& component, float pa
     shader->setFloat("uZoom", m_currentCamera.zoom);
     shader->setFloat("uAspectRatio", m_currentCamera.aspectRatio);
 
-    glm::vec2 pos = component.getPosition();
-    glm::vec2 size = component.getSize();
 
     float halfW = (size.x * 0.5f) + padding;
     float halfH = (size.y * 0.5f) + padding;
@@ -414,7 +408,7 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
     m_drawCallCount++;
 }
 
-void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
+void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
 {
     if (intersectionData.empty())
         return;
@@ -454,307 +448,75 @@ void Renderer::drawIntersections(const std::vector<glm::vec3>& intersectionData)
     m_drawCallCount++;
 }
 
-void Renderer::drawLabels(
-    const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews
-)
+void Renderer::drawText(std::span<const TextRun> runs, TextSpace space)
 {
-    std::vector<TextVertex> vertices;
-
-    // World units per font pixel; the atlas is baked at 48 px. 0.0012 puts a
-    // capital letter at ~0.037 world units (~3/4 of a grid cell): legible at the
-    // default zoom without crowding a 4-cell-tall body.
-    const float maxLabelScale = 0.0012f;
-    const float pinLabelScale = 0.0010f;
-
-    // A body label may occupy at most this fraction of the body's width, so it can
-    // never reach the pins on either side.
-    const float labelWidthFraction = 0.8f;
-    // How far pin names sit inwards of their pins, i.e. just inside the body edge
-    // (~0.2 of a grid cell).
-    const float pinLabelInset = 0.01f;
-
-    const float pinCapHeight = getCapHeight(pinLabelScale, m_font);
-
-    for (const auto& [id, view] : componentViews)
-    {
-        if (view->getBodyLabel().empty() && !view->showsPinLabels())
-            continue;
-
-        const glm::vec2 pos = view->getPosition();
-        const glm::vec2 size = view->getSize();
-
-        // 2. Body label, centred on the body. The scale is capped and then shrunk
-        // to fit, so a long name such as "SR LATCH" still stays inside a 6-cell-wide
-        // body while it and "D LATCH" render at the same size.
-        const std::string& label = view->getBodyLabel();
-        float labelScale = maxLabelScale;
-        const float naturalWidth = getTextWidth(label, 1.0f, m_font);
-        if (naturalWidth > 0.0f)
-            labelScale = std::min(maxLabelScale, (size.x * labelWidthFraction) / naturalWidth);
-
-        const float labelWidth = getTextWidth(label, labelScale, m_font);
-        buildTextGeometry(
-            label,
-            pos.x - labelWidth * 0.5f,
-            pos.y - getCapHeight(labelScale, m_font) * 0.5f, // centres the caps on the body
-            labelScale,
-            glm::vec4(1.0f, 1.0f, 1.0f, 0.95f),
-            m_font,
-            vertices
-        );
-
-        // 3. Pin names: inwards of their pin, and centred on the pin's row.
-        if (!view->showsPinLabels())
-            continue;
-        const auto& inPins = view->getInputPins();
-        for (const auto& pin : inPins)
-        {
-            if (pin.label.empty())
-                continue;
-            const glm::vec2 pinPos = view->getAbsolutePinWorldPos(pin);
-            buildTextGeometry(
-                pin.label,
-                pinPos.x + pinLabelInset,
-                pinPos.y - pinCapHeight * 0.5f,
-                pinLabelScale,
-                glm::vec4(0.75f, 0.85f, 0.95f, 0.85f),
-                m_font,
-                vertices
-            );
-        }
-
-        const auto& outPins = view->getOutputPins();
-        for (const auto& pin : outPins)
-        {
-            if (pin.label.empty())
-                continue;
-            const glm::vec2 pinPos = view->getAbsolutePinWorldPos(pin);
-            const auto& pinLabel = pin.label;
-            // Output names run leftwards from their pin, so the box is anchored on
-            // its right edge instead.
-            const float pinLabelWidth = getTextWidth(pinLabel, pinLabelScale, m_font);
-            buildTextGeometry(
-                pinLabel,
-                pinPos.x - pinLabelInset - pinLabelWidth,
-                pinPos.y - pinCapHeight * 0.5f,
-                pinLabelScale,
-                glm::vec4(0.75f, 0.85f, 0.95f, 0.85f),
-                m_font,
-                vertices
-            );
-        }
-    }
-
-    if (vertices.empty())
-        return;
-
-    // Flatten data for VBO
-    std::vector<float> data;
-    data.reserve(vertices.size() * 8);
-    for (const auto& v : vertices)
-    {
-        data.push_back(v.pos.x);
-        data.push_back(v.pos.y);
-        data.push_back(v.uv.x);
-        data.push_back(v.uv.y);
-        data.push_back(v.color.r);
-        data.push_back(v.color.g);
-        data.push_back(v.color.b);
-        data.push_back(v.color.a);
-    }
-
     auto* shader = acquireShader("text");
-    if (!shader)
+    if (!shader || m_currentCamera.windowWidth <= 0 || m_currentCamera.windowHeight <= 0)
         return;
+    const auto& camera = m_currentCamera;
+    const auto projection = space == TextSpace::World
+                                ? glm::ortho(
+                                      camera.panOffset.x - camera.aspectRatio / camera.zoom,
+                                      camera.panOffset.x + camera.aspectRatio / camera.zoom,
+                                      camera.panOffset.y - 1 / camera.zoom,
+                                      camera.panOffset.y + 1 / camera.zoom,
+                                      -1.0f,
+                                      1.0f
+                                  )
+                                : glm::ortho(
+                                      0.0f,
+                                      static_cast<float>(camera.windowWidth),
+                                      static_cast<float>(camera.windowHeight),
+                                      0.0f,
+                                      -1.0f,
+                                      1.0f
+                                  );
+    m_drawCallCount += m_text.draw(runs, space, projection, *shader);
+}
 
-    shader->use();
-
-    // Map camera view to ortho matrix
-    glm::mat4 proj = glm::ortho(
-        (m_currentCamera.panOffset.x - m_currentCamera.aspectRatio / m_currentCamera.zoom),
-        (m_currentCamera.panOffset.x + m_currentCamera.aspectRatio / m_currentCamera.zoom),
-        (m_currentCamera.panOffset.y - 1.0f / m_currentCamera.zoom),
-        (m_currentCamera.panOffset.y + 1.0f / m_currentCamera.zoom),
-        -1.0f,
-        1.0f
-    );
-    shader->setMat4("uProjectionView", proj);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_font.textureId);
-    shader->setBool("uFontTexture", 0);
-
-    m_textMesh->updateData(data, 8);
-    m_textMesh->draw();
-    m_drawCallCount++;
+void Renderer::drawLabels(std::span<const ComponentRenderData> components)
+{
+    drawText(layoutComponentLabels(components, m_text.metrics()), TextSpace::World);
 }
 
 void Renderer::drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics)
 {
-    if (m_currentCamera.windowWidth <= 0 || m_currentCamera.windowHeight <= 0)
-        return;
-
-    std::vector<TextVertex> vertices;
-
-    // Line 1: FPS, Frame Time, and Draw Calls
-    std::ostringstream ssL1;
-    ssL1 << std::fixed << std::setprecision(1) << "FPS: " << metrics.fps << " ("
-         << metrics.frameTimeMs << " ms) | Draw Calls: " << metrics.drawCalls;
-
-    // Line 2: Propagation Duration & Latency
-    std::ostringstream ssL2;
-    ssL2 << std::fixed << std::setprecision(3) << "Propagate Exec: " << metrics.lastPropagateMs
-         << " ms (Last Call: ";
-    if (metrics.timeSinceLastPropagateMs >= 999.0f)
-        ssL2 << ">999 ms ago)";
-    else
-        ssL2 << std::fixed << std::setprecision(0) << metrics.timeSinceLastPropagateMs
-             << " ms ago)";
-
-    // Line 3: Evaluation Order & Topological Status
-    std::ostringstream ssL3;
-    ssL3 << "Eval Order: " << metrics.evalOrderCount << "/" << metrics.totalComponents
-         << " components";
-    if (metrics.evalResult == EvalOrderResult::CYCLE_DETECTED)
-        ssL3 << " [CYCLE DETECTED]";
-    else if (metrics.evalResult == EvalOrderResult::CONNECTION_REJECTED)
-        ssL3 << " [CONNECTION REJECTED]";
-    else
-        ssL3 << " [OK]";
-
-    // Line 4: Electrical Topology & Short Contention
-    std::ostringstream ssL4;
-    ssL4 << "Topology: " << metrics.netCount << " Nets | " << metrics.wireCount << " Wires | "
-         << metrics.shortedNetCount << " Shorts | " << metrics.rejectedConnectionCount
-         << " Rejected";
-
-    // Line 5: Interaction / Selection & Cursor Position
-    std::ostringstream ssL5;
-    if (metrics.selectedCompId != -1)
-        ssL5 << "Selected: Comp #" << metrics.selectedCompId;
-    else if (metrics.hoveredPinComponentId != -1)
-        ssL5 << "Hover: Comp #" << metrics.hoveredPinComponentId << " Pin "
-             << (metrics.hoveredPinType == PinType::INPUT ? "In[" : "Out[") << metrics.hoveredPinIdx
-             << "]";
-    else if (metrics.hoveredCompId != -1)
-        ssL5 << "Hover: Comp #" << metrics.hoveredCompId;
-    else if (metrics.hoveredWireId != INVALID_WIRE_ID)
-        ssL5 << "Hover: Wire #" << metrics.hoveredWireId;
-    else
-        ssL5 << "Hover: None";
-
-    ssL5 << " | Grid: (" << metrics.cursorGrid.x << ", " << metrics.cursorGrid.y << ")";
-
-    std::vector<std::pair<std::string, glm::vec4>> lines = {
-        {"[DEBUG HUD] (F3)", glm::vec4(1.0f, 0.62f, 0.11f, 1.0f)}, // Orange Header
-        {ssL1.str(), glm::vec4(0.85f, 0.85f, 0.85f, 0.95f)},
-        {ssL2.str(),
-         (metrics.timeSinceLastPropagateMs < 50.0f) ? glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)
-                                                    : glm::vec4(0.70f, 0.70f, 0.75f, 0.85f)},
-        {ssL3.str(),
-         (metrics.evalResult != EvalOrderResult::OK) ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f)
-                                                     : glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)},
-        {ssL4.str(),
-         (metrics.shortedNetCount > 0)
-             ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f) // Highlight shorts in red
-             : glm::vec4(0.85f, 0.85f, 0.85f, 0.95f)},
-        {ssL5.str(), glm::vec4(0.75f, 0.85f, 0.95f, 0.90f)}
-    };
-
-    if (!showMetrics)
-        lines.clear();
-    if (metrics.evalResult != EvalOrderResult::OK)
-    {
-        const glm::vec4 errorColor(1.0f, 0.25f, 0.25f, 1.0f);
-        const std::string error = metrics.evalResult == EvalOrderResult::CYCLE_DETECTED
-                                      ? "[SIMULATION PAUSED] Feedback loop"
-                                      : "[SIMULATION PAUSED] Connection rejected";
-        lines.insert(lines.begin(), {error, errorColor});
-        lines.insert(lines.begin() + 1, {"Fix the wiring to resume.", errorColor});
-    }
-
-    const float screenScale = 0.35f;
-    const float lineSpacing = 20.0f;
-    const float rightMargin = 16.0f;
-    const float startY = 24.0f;
-
-    for (size_t i = 0; i < lines.size(); ++i)
-    {
-        // 1. Calculate the exact pixel width of this line
-        float lineWidthPixels = getTextWidth(lines[i].first, screenScale, m_font);
-
-        // 2. Align to the right screen boundary
-        float startX =
-            static_cast<float>(m_currentCamera.windowWidth) - rightMargin - lineWidthPixels;
-
-        float curX = startX / screenScale;
-        float curY = (startY + i * lineSpacing) / screenScale;
-
-        for (char c : lines[i].first)
-        {
-            if (c < 32 || c >= 128)
-                continue;
-
-            stbtt_aligned_quad q;
-            stbtt_GetBakedQuad(
-                m_font.cdata, m_font.atlasWidth, m_font.atlasHeight, c - 32, &curX, &curY, &q, 1
-            );
-
-            float x0 = q.x0 * screenScale;
-            float x1 = q.x1 * screenScale;
-            float y0 = q.y0 * screenScale;
-            float y1 = q.y1 * screenScale;
-
-            const auto& col = lines[i].second;
-
-            vertices.push_back({{x0, y0}, {q.s0, q.t0}, col});
-            vertices.push_back({{x1, y0}, {q.s1, q.t0}, col});
-            vertices.push_back({{x1, y1}, {q.s1, q.t1}, col});
-
-            vertices.push_back({{x0, y0}, {q.s0, q.t0}, col});
-            vertices.push_back({{x1, y1}, {q.s1, q.t1}, col});
-            vertices.push_back({{x0, y1}, {q.s0, q.t1}, col});
-        }
-    }
-
-    if (vertices.empty())
-        return;
-
-    std::vector<float> data;
-    data.reserve(vertices.size() * 8);
-    for (const auto& v : vertices)
-    {
-        data.push_back(v.pos.x);
-        data.push_back(v.pos.y);
-        data.push_back(v.uv.x);
-        data.push_back(v.uv.y);
-        data.push_back(v.color.r);
-        data.push_back(v.color.g);
-        data.push_back(v.color.b);
-        data.push_back(v.color.a);
-    }
-
-    auto* shader = acquireShader("text");
-    if (!shader)
-        return;
-
-    shader->use();
-
-    glm::mat4 screenProj = glm::ortho(
-        0.0f,
-        static_cast<float>(m_currentCamera.windowWidth),
-        static_cast<float>(m_currentCamera.windowHeight),
-        0.0f,
-        -1.0f,
-        1.0f
+    drawText(
+        layoutDebugOverlay(
+            metrics,
+            showMetrics,
+            m_currentCamera.windowWidth,
+            m_currentCamera.windowHeight,
+            m_text.metrics()
+        ),
+        TextSpace::Screen
     );
-    shader->setMat4("uProjectionView", screenProj);
+}
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_font.textureId);
-    shader->setBool("uFontTexture", 0);
-
-    m_textMesh->updateData(data, 8);
-    m_textMesh->draw();
-    m_drawCallCount++;
+void Renderer::drawCanvas(const CanvasFrame& frame)
+{
+    // Back-to-front canvas contract. Screen overlays/UI are submitted after this pass.
+    drawGrid();
+    drawPinLeads(frame.components);
+    drawComponents(frame.components);
+    drawWires(frame.wires, frame.activeWire);
+    drawIntersections(frame.junctions);
+    if (frame.bodyHighlight)
+        drawComponentBoundingBox(
+            frame.bodyHighlight->position,
+            frame.bodyHighlight->size,
+            0.01f,
+            frame.bodyHighlight->opacity
+        );
+    if (frame.segmentHighlight)
+        drawWireSegmentBoundingBox(
+            frame.segmentHighlight->start,
+            frame.segmentHighlight->end,
+            0.01f,
+            frame.segmentHighlight->opacity
+        );
+    if (frame.gridHighlight)
+        drawGridPointHighlight(frame.gridHighlight->position, frame.gridHighlight->opacity);
+    drawPins(frame.components, frame.hoveredComponent, frame.hoveredPin, frame.hoveredDirection);
+    drawLabels(frame.components);
 }

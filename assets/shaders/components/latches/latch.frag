@@ -1,5 +1,6 @@
 #version 330 core
 out vec4 FragColor;
+in vec4 instanceTint;
 in vec2 localPos;
 
 float sdRoundBox(vec2 p, vec2 b, float r)
@@ -27,5 +28,5 @@ void main()
     vec3 borderColor = vec3(0.35, 0.40, 0.50);
     vec3 finalColor = mix(bodyColor, borderColor, border);
 
-    FragColor = vec4(finalColor, fillFactor);
+    FragColor = vec4(finalColor * instanceTint.rgb, fillFactor * instanceTint.a);
 }

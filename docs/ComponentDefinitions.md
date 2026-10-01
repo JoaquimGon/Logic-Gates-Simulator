@@ -90,19 +90,29 @@ topology. Reacquire borrowed definition/view pointers by ID after committed edit
 
 ## Presentation and remaining work
 
-Renderer loads native shader resources from the same table and reads body/pin
-labels through ComponentView/PinUI. Custom boxes reuse the existing rounded-box
-fragment shader under the `box` key; behavior still comes from the native reference.
+Declarations provide body contours, tints, shader resources, and label policy.
+Custom boxes use the shared rounded-box presentation; copying a native descriptor
+into a box requires resetting `presentation.body` to its box defaults. Behavior
+still comes from the native reference. Common view metadata becomes typed instance
+values; each body has its own dimensions/tint, and no concrete component casts
+are used for labels.
 
-Nonempty pin leads are rejected until their geometry/rendering contract exists.
+Optional leads now accept 2–256 orthogonal relative grid points ending at the
+anchor. They are visual geometry and do not create electrical connections.
+Automatic stubs bridge native/box silhouettes to existing anchors without moving
+pins. Layout/configuration/snapshots retain explicit routes and validate overflow.
+See [rendering boundaries](Rendering.md) for shape/resize, label, layer, and GPU
+ownership contracts plus framebuffer validation.
+
 Property schemas/serialized override storage remain RM-C3; file formats and
-import/export are RM-C5; truth tables/subcircuits are RM-C6. Mixed-size batching
-(RM-A6/TD-R1) and native shape/anchor alignment (TD-R3) remain open. This change's
-headless tests validate metadata and behavior, rather than pixel appearance.
+import/export are RM-C5; truth tables/subcircuits are RM-C6. UI capture, viewport
+transforms, and inspectors remain separate items.
 
 `ComponentCatalogTests` covers defaults, assets, registration validation,
 applicable options, instance/default isolation, working custom behavior, atomic
 rollback, and catalog/identity restoration. Input tests verify all eleven shortcuts
-against catalog identities and sizes. Debug and headless AddressSanitizer builds
-pass all 28 groups; neutral descriptor/catalog headers compile without graphics
+against catalog identities and sizes. Presentation tests cover leads, instance
+sizes, stable ordering, and text layout; pixel tests verify native attachment and
+mixed-size rendering. Current validation passes 32 Debug groups and 31 headless
+AddressSanitizer groups. Neutral descriptor/catalog headers require no graphics
 include paths.

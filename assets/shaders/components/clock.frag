@@ -1,5 +1,6 @@
 #version 330 core
 out vec4 FragColor;
+in vec4 instanceTint;
 in vec2 localPos; // -0.5 .. 0.5
 
 // Box distance field
@@ -25,7 +26,7 @@ void main()
     const float halfSize = 0.42;
     float body = sdBox(p, vec2(halfSize)) - 0.05;
 
-    // 2. Square-wave clock symbol inside: _/‾\_
+    // 2. Square-wave clock symbol inside: _/â€¾\_
     float w1 = sdSegment(p, vec2(-0.25, -0.15), vec2(-0.10, -0.15));
     float w2 = sdSegment(p, vec2(-0.10, -0.15), vec2(-0.10,  0.15));
     float w3 = sdSegment(p, vec2(-0.10,  0.15), vec2( 0.10,  0.15));
@@ -40,6 +41,5 @@ void main()
     float fillFactor = 1.0 - smoothstep(0.0, aa, d);
 
     // Slate / Dark cyan tone for clocks
-    vec3 clockColor = vec3(0.18, 0.65, 0.60);
-    FragColor = vec4(clockColor, fillFactor);
+    FragColor = vec4(instanceTint.rgb, fillFactor * instanceTint.a);
 }

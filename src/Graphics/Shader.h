@@ -70,6 +70,9 @@ class Shader
     bool buildProgram(bool isReload = false);
 
   public:
+    Shader(const Shader&) = delete;
+    Shader& operator=(const Shader&) = delete;
+
     /**
      * @brief Shader initializer, resolves paths, loads file and compiles shader
      * @param vertexPath File path for the vertex shader

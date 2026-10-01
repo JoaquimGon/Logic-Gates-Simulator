@@ -37,7 +37,7 @@ bool samePins(const std::vector<PinUI>& a, const std::vector<PinUI>& b)
     for (std::size_t i = 0; i < a.size(); ++i)
         if (a[i].type != b[i].type || a[i].pin_index != b[i].pin_index ||
             a[i].relative_pos != b[i].relative_pos || a[i].id != b[i].id ||
-            a[i].label != b[i].label)
+            a[i].label != b[i].label || a[i].lead != b[i].lead)
             return false;
     return true;
 }

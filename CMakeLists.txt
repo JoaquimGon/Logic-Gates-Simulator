@@ -16,6 +16,7 @@ add_library(simulator_components STATIC
     src/Components/Definitions/ComponentDefinition.cpp
     src/Components/Definitions/ComponentCatalog.cpp
     src/Components/Definitions/NativeDefinitions.cpp
+    src/Components/Definitions/PresentationGeometry.cpp
 )
 target_link_libraries(simulator_components PUBLIC project_options)
 
@@ -57,6 +58,17 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
     target_compile_definitions(simulator_input PRIVATE GLFW_INCLUDE_NONE)
 endif()
 
+if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
+    add_library(simulator_presentation STATIC
+        src/Graphics/Presentation/ComponentRenderData.cpp
+        src/Graphics/Presentation/ComponentPresentation.cpp
+        src/Graphics/Presentation/LabelLayout.cpp
+        src/Graphics/Presentation/OverlayPresentation.cpp
+        src/Graphics/Text/TextGeometry.cpp
+    )
+    target_link_libraries(simulator_presentation PUBLIC simulator_views stb_truetype)
+endif()
+
 if(BUILD_SIMULATOR_APP)
     include(cmake/Font.cmake)
     add_library(simulator_graphics STATIC
@@ -67,9 +79,10 @@ if(BUILD_SIMULATOR_APP)
         src/Graphics/VertexLayout.cpp
         src/Graphics/WireGeometry.cpp
         src/Graphics/Text/FontRenderer.cpp
+        src/Graphics/Text/TextPainter.cpp
     )
     target_link_libraries(simulator_graphics PUBLIC
-        simulator_geometry simulator_views glad stb_truetype
+        simulator_geometry simulator_presentation glad stb_truetype
         PRIVATE OpenGL::GL
     )
     target_compile_definitions(simulator_graphics PRIVATE
@@ -115,6 +128,21 @@ if(BUILD_TESTING)
         component_catalog_defaults component_definition_validation component_catalog_edits
     )
         add_test(NAME ${test_name} COMMAND ComponentCatalogTests ${test_name})
+    endforeach()
+
+    if(BUILD_SIMULATOR_APP)
+        add_executable(RenderTests tests/RenderTests.cpp)
+        target_link_libraries(RenderTests PRIVATE simulator_graphics simulator_scene glfw)
+        target_compile_definitions(RenderTests PRIVATE GLFW_INCLUDE_NONE
+            RENDER_ARTIFACTS_DIR="${CMAKE_BINARY_DIR}/render-artifacts")
+        add_test(NAME render_pixels COMMAND RenderTests)
+        set_tests_properties(render_pixels PROPERTIES SKIP_RETURN_CODE 77)
+    endif()
+
+    add_executable(PresentationTests tests/PresentationTests.cpp)
+    target_link_libraries(PresentationTests PRIVATE simulator_scene simulator_presentation)
+    foreach(test_name IN ITEMS render_instance_contract component_pin_leads text_presentation)
+        add_test(NAME ${test_name} COMMAND PresentationTests ${test_name})
     endforeach()
 
     add_executable(InputTests tests/InputTests.cpp)

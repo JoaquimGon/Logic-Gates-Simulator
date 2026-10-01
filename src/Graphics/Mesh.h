@@ -21,6 +21,9 @@ class Mesh
     unsigned int instanceVBO = 0; // Holds the per-instance data
 
   public:
+    Mesh(const Mesh&) = delete;
+    Mesh& operator=(const Mesh&) = delete;
+
     /**
      * @brief Initializes a Mesh object with geometry data.
      * @param vertices Array of vertex coordinates.

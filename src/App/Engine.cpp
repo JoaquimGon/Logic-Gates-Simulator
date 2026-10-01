@@ -3,6 +3,7 @@
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/Scene.h"
+#include "Graphics/Presentation/ComponentPresentation.h"
 
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
@@ -97,7 +98,11 @@ int Engine::init()
     // ==========================================
     // Initialize Graphics/Renderer
     // ==========================================
-    m_renderer.init();
+    if (!m_renderer.init())
+    {
+        shutdown();
+        return -1;
+    }
 
     return 0;
 }
@@ -223,88 +228,45 @@ void Engine::run()
         cam.windowHeight = height;
 
         m_renderer.beginFrame(cam);
-        m_renderer.drawGrid();
-        m_renderer.drawComponents(scene.getComponentViewMap()); // was drawGates
-
-        // ==========================================
-        // Highlight Component
-        // ==========================================
-        if (input.getSelectedComponentId() != -1)
-        {
-            // Selected: 100% Opacity
-            if (ComponentView* cv = scene.getComponentView(input.getSelectedComponentId()))
-            {
-                m_renderer.drawComponentBoundingBox(*cv, 0.01f, 1.0f);
-            }
-        }
-        else if (input.getHoveredComponentId() != -1)
-        {
-            // Hovered: 40% Opacity
-            if (ComponentView* cv = scene.getComponentView(input.getHoveredComponentId()))
-            {
-                m_renderer.drawComponentBoundingBox(*cv, 0.01f, 0.4f);
-            }
-        }
-
-        // ==========================================
-        // Highlight Wire Segment
-        // ==========================================
+        const auto components = buildComponentPresentation(scene.getComponentViewMap());
+        const auto junctions = scene.getWireIntersections();
+        CanvasFrame frame{components, scene.getWires(), junctions};
+        const int selected = input.getSelectedComponentId();
+        const int highlighted = selected != -1 ? selected : input.getHoveredComponentId();
+        if (const auto* view = scene.getComponentView(highlighted))
+            frame.bodyHighlight =
+                BodyHighlight{view->getPosition(), view->getSize(), selected != -1 ? 1.0f : 0.4f};
         if (!input.isCurrentlyDrawingWire())
         {
             if (input.hasSelectedSegment())
-            {
-                // Selected: 100% Opacity
-                m_renderer.drawWireSegmentBoundingBox(
-                    input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 0.01f, 1.0f
-                );
-            }
+                frame.segmentHighlight = SegmentHighlight{
+                    input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 1
+                };
             else if (input.hasHoveredSegment())
-            {
-                // Hovered: 40% Opacity
-                m_renderer.drawWireSegmentBoundingBox(
-                    input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.01f, 0.4f
-                );
-            }
+                frame.segmentHighlight = SegmentHighlight{
+                    input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.4f
+                };
         }
-
+        std::optional<Wire> active;
         if (input.isCurrentlyDrawingWire())
         {
-            Wire active = input.getActiveWire();
+            active = input.getActiveWire();
             if (input.getWireOriginPin().isConnected())
-            {
-                active.setState(
+                active->setState(
                     scene.pinState(input.getWireOriginPin(), input.getWireOriginType())
                 );
-            }
-            m_renderer.drawWires(scene.getWires(), &active);
+            frame.activeWire = &*active;
+            frame.gridHighlight = GridHighlight{input.getCurrentGridCoords(), 1};
         }
-        else
-        {
-            m_renderer.drawWires(scene.getWires(), nullptr);
-        }
-
-        m_renderer.drawIntersections(scene.getWireIntersections());
-
-        // Point highligh (for wire creation and mouse position)
-        bool overEmptyOrWire =
-            (input.getHoveredComponentId() == -1 && input.getHoveredPinComponentId() == -1);
-        if (input.isCurrentlyDrawingWire())
-        {
-            m_renderer.drawGridPointHighlight(input.getCurrentGridCoords(), 1.0f);
-        }
-        else if (input.isIdle() && overEmptyOrWire)
-        {
-            m_renderer.drawGridPointHighlight(input.getCurrentGridCoords(), 0.4f);
-        }
-
-        m_renderer.drawPins(
-            scene.getComponentViewMap(),
-            input.getHoveredPinComponentId(),
-            input.getHoveredPinIndex(),
-            input.getHoveredPinType()
-        );
-
-        m_renderer.drawLabels(scene.getComponentViewMap());
+        else if (
+            input.isIdle() && input.getHoveredComponentId() == -1 &&
+            input.getHoveredPinComponentId() == -1
+        )
+            frame.gridHighlight = GridHighlight{input.getCurrentGridCoords(), 0.4f};
+        frame.hoveredComponent = input.getHoveredPinComponentId();
+        frame.hoveredPin = input.getHoveredPinIndex();
+        frame.hoveredDirection = input.getHoveredPinType();
+        m_renderer.drawCanvas(frame);
 
         // Debugging
         if (m_showDebugOverlay || scene.getLastEvalResult() != EvalOrderResult::OK)

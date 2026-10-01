@@ -44,6 +44,8 @@ class ComponentView
 
     bool showsPinLabels() const { return m_showPinLabels; }
 
+    const BodyStyle& getBodyStyle() const { return m_bodyStyle; }
+
     GridCoords getGridPosition() const { return m_grid_pos; }
 
     GridCoords getAbsolutePinGridPos(const PinUI& pin) const
@@ -83,6 +85,7 @@ class ComponentView
     DefinitionIdentity m_definition;
     std::string m_bodyLabel;
     bool m_showPinLabels = false;
+    BodyStyle m_bodyStyle;
     glm::vec2 m_position;
     glm::vec2 m_size;
     std::string m_shaderName;

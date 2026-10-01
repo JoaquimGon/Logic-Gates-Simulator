@@ -12,6 +12,15 @@
 
 namespace
 {
+void validateOffset(GridCoords position, GridCoords relative)
+{
+    for (const auto sum :
+         {static_cast<std::int64_t>(position.x) + relative.x,
+          static_cast<std::int64_t>(position.y) + relative.y})
+        if (sum < std::numeric_limits<int>::min() || sum > std::numeric_limits<int>::max())
+            throw std::invalid_argument("Component pin/lead exceeds the grid coordinate range.");
+}
+
 ComponentLayout viewLayout(const ResolvedComponent& resolved)
 {
     ComponentLayout layout{
@@ -20,7 +29,13 @@ ComponentLayout viewLayout(const ResolvedComponent& resolved)
     for (const auto& pin : resolved.layout.pins)
     {
         PinUI visual{
-            pin.direction, pin.index, PinState::DISCONNECTED, pin.anchor, pin.id, pin.label
+            pin.direction,
+            pin.index,
+            PinState::DISCONNECTED,
+            pin.anchor,
+            pin.id,
+            pin.label,
+            pin.lead
         };
         (pin.direction == PinType::INPUT ? layout.inputs : layout.outputs)
             .push_back(std::move(visual));
@@ -41,13 +56,11 @@ CreatedComponent ComponentFactory::create(
     const auto resolved = catalog.resolve(definitionId, overrides, version);
     auto layout = viewLayout(resolved);
     for (const auto& pin : resolved.layout.pins)
-        for (const auto sum :
-             {static_cast<std::int64_t>(position.x) + pin.anchor.x,
-              static_cast<std::int64_t>(position.y) + pin.anchor.y})
-            if (sum < std::numeric_limits<int>::min() || sum > std::numeric_limits<int>::max())
-                throw std::invalid_argument(
-                    "Component pin anchor exceeds the grid coordinate range."
-                );
+    {
+        validateOffset(position, pin.anchor);
+        for (const auto point : pin.lead)
+            validateOffset(position, point);
+    }
     int id;
     std::unique_ptr<ComponentView> view;
     if (const auto* gate = std::get_if<GateType>(&resolved.behavior))
@@ -81,6 +94,7 @@ CreatedComponent ComponentFactory::create(
     view->m_definition = resolved.identity;
     view->m_bodyLabel = resolved.presentation.bodyLabel;
     view->m_showPinLabels = resolved.presentation.showPinLabels;
+    view->m_bodyStyle = resolved.presentation.body;
     return {id, std::move(view)};
 }
 
@@ -96,7 +110,7 @@ ComponentOverrides ComponentFactory::layoutOverrides(const ComponentLayout& layo
                     "Visual pin lists must match their declared directions."
                 );
             geometry.pins.push_back(
-                {pin.id, pin.label, pin.type, pin.pin_index, pin.relative_pos, {}}
+                {pin.id, pin.label, pin.type, pin.pin_index, pin.relative_pos, pin.lead}
             );
         }
     overrides.layout = std::move(geometry);
@@ -121,11 +135,9 @@ void ComponentFactory::validatePosition(const ComponentView& view, GridCoords po
 {
     for (const auto* pins : {&view.getInputPins(), &view.getOutputPins()})
         for (const auto& pin : *pins)
-            for (const auto sum :
-                 {static_cast<std::int64_t>(position.x) + pin.relative_pos.x,
-                  static_cast<std::int64_t>(position.y) + pin.relative_pos.y})
-                if (sum < std::numeric_limits<int>::min() || sum > std::numeric_limits<int>::max())
-                    throw std::invalid_argument(
-                        "Component pin anchor exceeds the grid coordinate range."
-                    );
+        {
+            validateOffset(position, pin.relative_pos);
+            for (const auto point : pin.lead)
+                validateOffset(position, point);
+        }
 }

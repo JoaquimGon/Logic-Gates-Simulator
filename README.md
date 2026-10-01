@@ -76,10 +76,11 @@ src/
   Simulation/          Circuit propagation, nets, and endpoint identities
   Geometry/            Coordinates, wire normalization, hit/placement queries, and paths
   Graphics/            OpenGL drawing, meshes, shaders, and wire vertices
-    Text/              Font atlas and text geometry
+    Presentation/      Typed canvas instances, batching, labels, and HUD layout
+    Text/              CPU glyph geometry and context-owned atlas/text submission
 cmake/                 Dependencies, compiler options, and font discovery
 assets/shaders/        GLSL presentations and live-reload sources
-tests/                 Logic, editor action, catalog, and input regression runners
+tests/                 Logic, editor, catalog, input, presentation, and pixel regressions
 docs/                  Editor action contracts and integration examples
 external/              Vendored GLAD and stb_truetype
 ```
@@ -94,7 +95,7 @@ CMake compiles shared `simulator_components`, `simulator_simulation`,
 `simulator_geometry`, `simulator_component_factory`, `simulator_scene`, and `simulator_input` libraries.
 The application and tests link these libraries instead of recompiling separate
 copies of their sources. Views form an interface target; the application also
-links `simulator_graphics`.
+links `simulator_graphics`; CPU presentation functions form `simulator_presentation`.
 
 Register new implementation files in their owning target in `CMakeLists.txt`.
 Use forward-slash, source-root includes between modules, such as
@@ -115,6 +116,12 @@ under `Editor/Connectivity/` consumes normalized routes and pin interfaces witho
 accessing Scene or healing geometry. Scene owns and publishes derived topology.
 Definition file import/export, property schemas, and palette/inspector UI remain
 pending. See [geometry and connectivity contracts](docs/SceneTopology.md).
+
+Rendering adapts common view metadata into typed values once per frame. Bodies
+carry individual sizes/tints; stable component-ID ordering and adjacent shader
+batches preserve compositing. Renderer coordinates fixed canvas layers; separate
+CPU functions lay out labels/overlays, and TextPainter owns GPU text submission.
+See [rendering contracts and validation](docs/Rendering.md).
 
 ## Dependencies & Vendoring
 
@@ -153,7 +160,8 @@ ctest --test-dir build -C Debug --output-on-failure
 
 The Debug application is in `build/bin/Debug/`. Use `-DBUILD_TESTING=OFF` to omit
 test executables. Use `-DBUILD_SIMULATOR_APP=OFF` for model/editor tests without
-OpenGL, GLAD, stb_truetype, or font discovery; input tests still require GLFW's
+OpenGL, GLAD, or font discovery; presentation tests use vendored stb_truetype
+metrics, and input tests still require GLFW's
 null platform.
 
 ### Font Configuration
@@ -233,7 +241,11 @@ connectivity after every component spawn shortcut, middle-segment deletion,
 mode isolation, immediate mode/focus cancellation, wire branching, and panning.
 Catalog regressions validate built-in defaults/assets, custom box/native behavior,
 registration rollback, applicable options, and catalog/identity restoration.
-CTest runs all four runners (28 groups); use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion" --output-on-failure`
+Presentation tests cover typed instances/batching, pin leads, label layout, and
+world/screen glyph geometry. The application build also runs an invisible-window
+framebuffer test; it skips when an OpenGL context is unavailable and writes PPM
+previews under the build's `render-artifacts/` directory when exercised.
+CTest runs 32 groups with the application, or 31 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion" --output-on-failure`
 to run only the input tests.
 
 ## Shared Editor Actions

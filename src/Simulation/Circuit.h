@@ -3,19 +3,13 @@
 #include "Components/Gate.h"
 #include "Components/InputPin.h"
 #include "Components/Latch.h"
+#include "Simulation/SimulationStatus.h"
 
 #include <cstddef>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-enum class EvalOrderResult
-{
-    OK,
-    CYCLE_DETECTED,
-    CONNECTION_REJECTED
-};
 
 enum class ConnectionResult
 {

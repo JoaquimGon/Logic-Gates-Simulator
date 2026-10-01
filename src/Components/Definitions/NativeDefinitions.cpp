@@ -32,6 +32,17 @@ ComponentDefinition gate(
     definition.pinLayoutRule = unary ? PinLayoutRule::Fixed : PinLayoutRule::SymmetricGateInputs;
     definition.presentation.kind = PresentationKind::NativeSdf;
     definition.presentation.shader = {shader, "shaders/components/gates/gate.vert", fragment};
+    definition.presentation.body = {
+        unary ? BodyContour::Not
+              : (type == AND || type == NAND ? BodyContour::And
+                 : type == OR || type == NOR ? BodyContour::Or
+                                             : BodyContour::Xor),
+        inverted,
+        unary                         ? std::array<float, 4>{0.1f, 0.75f, 0.75f, 1}
+        : type == AND || type == NAND ? std::array<float, 4>{0.2f, 0.5f, 0.9f, 1}
+        : type == OR || type == NOR   ? std::array<float, 4>{0.9f, 0.55f, 0.2f, 1}
+                                      : std::array<float, 4>{0.7f, 0.3f, 0.85f, 1}
+    };
     return definition;
 }
 
@@ -54,6 +65,13 @@ ComponentDefinition source(
     };
     definition.presentation.kind = PresentationKind::NativeSdf;
     definition.presentation.shader = {shader, "shaders/components/gates/gate.vert", fragment};
+    const bool clock = std::holds_alternative<ClockBehavior>(behavior);
+    definition.presentation.body = {
+        clock ? BodyContour::Clock : BodyContour::Input,
+        false,
+        clock ? std::array<float, 4>{0.18f, 0.65f, 0.60f, 1}
+              : std::array<float, 4>{0.85f, 0.82f, 0.25f, 1}
+    };
     return definition;
 }
 
