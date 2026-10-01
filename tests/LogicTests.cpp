@@ -1,6 +1,8 @@
 #include "Components/Views/LatchView.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/Scene.h"
+#include "Geometry/GeometryQueries.h"
+#include "Geometry/WireNormalization.h"
 #include "Simulation/Circuit.h"
 
 #include <algorithm>
@@ -306,7 +308,9 @@ void sceneWireOverlaps()
         {{{0, 0}, {6, 0}}, {{0, 0}, {6, 0}}},
         {{{0, 0}, {0, 6}}, {{0, 2}, {0, 8}}},
         {{{0, 0}, {6, 0}, {6, 4}}, {{2, 0}, {8, 0}, {8, -4}}},
-        {{{0, -4}, {0, 0}, {6, 0}}, {{8, 4}, {8, 0}, {2, 0}}}
+        {{{0, -4}, {0, 0}, {6, 0}}, {{8, 4}, {8, 0}, {2, 0}}},
+        {{{0, 0}, {2, 0}, {2, 4}, {8, 4}, {8, 0}, {10, 0}},
+         {{0, 0}, {2, 0}, {2, -4}, {8, -4}, {8, 0}, {10, 0}}}
     };
 
     auto collectSegments = [](const Path& path, std::map<Segment, int>& segments)
@@ -369,6 +373,41 @@ void sceneWireOverlaps()
             require(scene.getWireIds() == settledIds, "Settled overlap geometry was not stable.");
         }
     }
+}
+
+void distinctRoutePins()
+{
+    Scene scene;
+    scene.addInputPin({-2, 0}, {0.1f, 0.1f}, "inputPin", true);
+    const int upper = scene.addGate(
+        NOT,
+        {3, 6},
+        {0.1f, 0.1f},
+        "NOTgate",
+        {{PinType::INPUT, 0, PinState::DISCONNECTED, {0, -2}}},
+        {{PinType::OUTPUT, 0, PinState::DISCONNECTED, {0, 1}}}
+    );
+    const int lower = scene.addGate(
+        NOT,
+        {3, -6},
+        {0.1f, 0.1f},
+        "NOTgate",
+        {{PinType::INPUT, 0, PinState::DISCONNECTED, {0, 2}}},
+        {{PinType::OUTPUT, 0, PinState::DISCONNECTED, {0, -1}}}
+    );
+    Wire top, bottom;
+    top.setPath({{0, 0}, {2, 0}, {2, 4}, {8, 4}, {8, 0}, {10, 0}});
+    bottom.setPath({{0, 0}, {2, 0}, {2, -4}, {8, -4}, {8, 0}, {10, 0}});
+    scene.addWires(top, bottom);
+    scene.commitWire(route({-1, 0}, {0, 0}));
+    require(
+        scene.propagate() == EvalOrderResult::OK &&
+            scene.getLogicComponent(upper)->getStateInPin(0) &&
+            scene.getLogicComponent(lower)->getStateInPin(0) &&
+            scene.netOfPin({upper, 0}, PinType::INPUT) ==
+                scene.netOfPin({lower, 0}, PinType::INPUT),
+        "Normalization disconnected a pin on one of the distinct bent routes."
+    );
 }
 
 void scenePinLayouts()
@@ -689,6 +728,133 @@ void sourceComponents()
     circuit.propagate();
     require(circuit.getComponent(sinkId)->getStateOutPin(), "Manual clock edge was lost.");
 }
+
+void geometryServices()
+{
+    std::map<WireId, Wire> wires{
+        {4, route({0, 0}, {4, 0})}, {8, route({4, 0}, {8, 0})}, {12, route({20, 0}, {24, 0})}
+    };
+    Wire degenerate;
+    degenerate.setPath({{30, 0}});
+    wires.emplace(15, degenerate);
+    WireId next = 16;
+    const auto changes = normalizeWires(wires, {}, next);
+    require(
+        changes.removed == std::vector<WireId>{4, 8, 15} &&
+            changes.added == std::vector<WireId>{16} && wires.contains(12) && next == 17,
+        "Normalization did not report final identity changes."
+    );
+    require(
+        wires.at(16).getPath() == std::vector<GridCoords>{{0, 0}, {8, 0}},
+        "Degree-two seam was not healed."
+    );
+    const auto unchanged = normalizeWires(wires, {}, next);
+    require(
+        unchanged.removed.empty() && unchanged.added.empty() && next == 17,
+        "Repeated normalization replaced settled identities."
+    );
+
+    const std::vector<PinAnchor> pins{{{2, 1}, PinType::OUTPUT, {4, 0}}};
+    const auto split = normalizeWires(wires, pins, next);
+    require(
+        split.removed == std::vector<WireId>{16} && split.added.size() == 2,
+        "Pin anchor did not protect a branch endpoint."
+    );
+    require(normalizeWires(wires, pins, next).added.empty(), "Pin seam was healed away.");
+    wires.emplace(next++, route({4, 0}, {4, 4}));
+    wires.begin()->second.setState(PinState::OFF);
+    wires.rbegin()->second.setState(PinState::ON);
+    auto junctions = wireJunctions(wires, {});
+    require(
+        junctions.size() == 1 && junctions[0].position == GridCoords{4, 0} &&
+            junctions[0].state == PinState::ON && wireJunctions(wires, pins).empty(),
+        "Junction geometry, state priority, or pin exclusion changed."
+    );
+    std::vector<ComponentGeometry> components{{2, {4, 0}, 0.2f, 0, 0.2f, 0.2f, pins}};
+    require(
+        hitGeometry(components, wires, 0.2f, 0, {4, 0}).type == HitType::COMPONENT_PIN,
+        "Pin hit did not take priority over a wire junction and body."
+    );
+    require(
+        hitGeometry({}, wires, 0.2f, 0, {4, 0}).type == HitType::WIRE_JUNCTION,
+        "Shared wire endpoint hit changed."
+    );
+    require(
+        hitGeometry({}, wires, 0.1f, 0, {2, 0}).type == HitType::WIRE_BODY,
+        "Wire interior hit changed."
+    );
+    const auto body = hitGeometry(components, {}, 0.2f, 0.05f, {4, 1});
+    require(
+        body.type == HitType::COMPONENT_BODY && body.componentId == 2,
+        "Component body hit lost its identity."
+    );
+    require(
+        hitGeometry(components, {}, 0.295f, 0, {6, 0}).type == HitType::NONE,
+        "Component body hit inset changed."
+    );
+    components.push_back({3, {20, 0}, 1, 0, 0.2f, 0.2f, pins});
+    require(
+        overlapsComponent(components, 2) && !overlapsComponent(components, 99),
+        "Coincident pins or missing component overlap queries changed."
+    );
+}
+
+void connectivityBuilder()
+{
+    Circuit circuit;
+    const int latch = circuit.addLatch(LatchType::SR_LATCH);
+    const int sink = circuit.addGate(NOT);
+    std::map<WireId, Wire> wires{{7, route({0, 0}, {5, 0})}};
+    std::vector<PinAnchor> pins{
+        {{latch, 1}, PinType::OUTPUT, {0, 0}}, {{sink, 0}, PinType::INPUT, {5, 0}}
+    };
+    auto topology = buildConnectivity(wires, pins, circuit, 40);
+    require(
+        topology.status == EvalOrderResult::OK && topology.nextNetId == 41 &&
+            topology.wireNets.at(7) == 40 && topology.pinNets.at({latch, 1, true}) == 40 &&
+            topology.pinNets.at({sink, 0, false}) == 40,
+        "Builder lost pin direction, output index, or allocator state."
+    );
+    require(
+        wires.at(7).getNet() == INVALID_NET_ID &&
+            wires.at(7).getPath() == std::vector<GridCoords>{{0, 0}, {5, 0}},
+        "Connectivity builder mutated its geometry input."
+    );
+    require(
+        circuit.propagate() == EvalOrderResult::OK && circuit.getComponent(sink)->getStateInPin(0),
+        "Builder propagated Q instead of ~Q."
+    );
+
+    pins.push_back({{latch, 1}, PinType::INPUT, {5, 0}});
+    topology = buildConnectivity(wires, pins, circuit, topology.nextNetId);
+    require(
+        topology.status == EvalOrderResult::CYCLE_DETECTED &&
+            topology.rejectedConnections.size() == 1 &&
+            topology.rejectedConnections[0].connection.srcPinIndex == 1 &&
+            circuit.getComponent(sink)->getInConnections().empty() &&
+            topology.pinNets.at({latch, 1, false}) == topology.pinNets.at({latch, 1, true}),
+        "Rejected topology left a partial graph or merged directional pin identities."
+    );
+    pins.pop_back();
+    topology = buildConnectivity(wires, pins, circuit, topology.nextNetId);
+    require(
+        topology.status == EvalOrderResult::OK && topology.rejectedConnections.empty() &&
+            circuit.getComponent(sink)->getInConnections().size() == 1,
+        "Repair did not rebuild the complete graph."
+    );
+    pins.push_back({{sink, 0}, PinType::OUTPUT, {0, 0}});
+    topology = buildConnectivity(wires, pins, circuit, topology.nextNetId);
+    require(
+        topology.nets.begin()->second.shorted() && !topology.nets.begin()->second.hasDriver() &&
+            circuit.getComponent(sink)->getInConnections().empty(),
+        "Shorted net received an arbitrary driver."
+    );
+
+    // A crossing without a pin/endpoint is visual geometry, not an electrical junction.
+    const std::map<WireId, Wire> crossing{{1, route({0, 0}, {8, 0})}, {2, route({4, -4}, {4, 4})}};
+    topology = buildConnectivity(crossing, {}, circuit, topology.nextNetId);
+    require(topology.nets.size() == 2, "Builder connected crossing interiors.");
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -701,8 +867,11 @@ int main(int argc, char** argv)
         {"connection_lifecycle", connectionLifecycle},
         {"scene_pin_layouts", scenePinLayouts},
         {"scene_wire_overlaps", sceneWireOverlaps},
+        {"distinct_route_pins", distinctRoutePins},
         {"scene_connection_rejections", sceneConnectionRejections},
-        {"source_components", sourceComponents}
+        {"source_components", sourceComponents},
+        {"geometry_services", geometryServices},
+        {"connectivity_builder", connectivityBuilder}
     };
 
     try

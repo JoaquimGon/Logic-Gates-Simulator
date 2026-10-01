@@ -124,7 +124,7 @@ void atomicBatches()
     ));
     require(
         scene.getCommittedComponentView(free.createdComponentIds[0])->getGridPosition() ==
-            GridCoords{1, -1},
+            GridCoords{3, -3},
         "Creation did not resolve placement before publication."
     );
 }
@@ -219,9 +219,9 @@ void configuration()
     EditorActions actions(scene);
     auto created = accepted(actions.apply(
         {CreateGate{AND, {0, 0}, layout(3)},
-         CreateInput{{-10, 2}, {0.15f, 0.15f}, "inputPin", true},
-         CreateInput{{-10, 0}, {0.15f, 0.15f}, "inputPin", true},
-         CreateInput{{-10, -2}, {0.15f, 0.15f}, "inputPin", true},
+         CreateInput{{-10, 2}, {0.1f, 0.1f}, "inputPin", true},
+         CreateInput{{-10, 0}, {0.1f, 0.1f}, "inputPin", true},
+         CreateInput{{-10, -2}, {0.1f, 0.1f}, "inputPin", true},
          CreateClock{{20, 0}, {0.15f, 0.15f}, "clock"},
          CreateLatch{LatchType::SR_LATCH, {30, 0}},
          AddWire{{{-9, 2}, {-2, 2}}},
@@ -485,6 +485,55 @@ void restoreSnapshots()
         "Restoring old images reused previously allocated identities."
     );
 }
+
+void bodyPlacement()
+{
+    Scene scene;
+    EditorActions actions(scene);
+    accepted(actions.apply({CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin"}}));
+    const auto revision = scene.getRevision();
+    auto overlap = actions.apply({CreateInput{{2, 0}, {0.15f, 0.15f}, "inputPin"}});
+    require(overlap.error == EditError::Overlap, "Intersecting component bodies were accepted.");
+    require(
+        scene.getRevision() == revision && scene.getComponentCount() == 1,
+        "Rejected body overlap changed the scene."
+    );
+    auto boundary = accepted(actions.apply({CreateInput{{3, 0}, {0.15f, 0.15f}, "inputPin"}}));
+    const int second = boundary.createdComponentIds[0];
+    const auto builds = scene.getTopologyBuildCount();
+    require(
+        actions.apply({MoveComponent{second, {2, 0}}}).error == EditError::Overlap &&
+            scene.getCommittedComponentView(second)->getGridPosition() == GridCoords{3, 0},
+        "Move accepted intersecting bodies or changed committed placement."
+    );
+    auto enlarged = currentLayout(scene, second);
+    enlarged.size.x = 0.25f;
+    require(
+        actions.apply({ConfigureComponent{second, enlarged}}).error == EditError::Overlap &&
+            scene.getCommittedComponentView(second)->getSize().x == 0.15f &&
+            scene.getTopologyBuildCount() == builds,
+        "Resize partially committed an overlapping body."
+    );
+    auto batch =
+        actions.apply({ConfigureInput{0, true}, CreateInput{{2, 0}, {0.15f, 0.15f}, "inputPin"}});
+    require(
+        batch.error == EditError::Overlap && !scene.getLogicComponent(0)->getStateOutPin(),
+        "Overlapping batch changed runtime state before failing."
+    );
+    Scene automatic;
+    automatic.addInputPin({0, 0}, {0.15f, 0.15f}, "inputPin");
+    auto free = accepted(EditorActions(automatic).apply(
+        {CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin", false, PlacementPolicy::FindFree}}
+    ));
+    require(
+        automatic.getCommittedComponentView(free.createdComponentIds[0])->getGridPosition() ==
+                GridCoords{3, -3} &&
+            !automatic.checkOverlap(free.createdComponentIds[0]),
+        "Automatic placement ignored the full body footprint."
+    );
+    automatic.addInputPin({2, 0}, {0.15f, 0.15f}, "inputPin");
+    require(automatic.checkOverlap(0), "Explicit legacy overlap policy changed.");
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -496,7 +545,8 @@ int main(int argc, char** argv)
             {"editor_move_previews", movePreviews},
             {"editor_configuration", configuration},
             {"editor_wire_edits", wireEdits},
-            {"editor_restore_snapshots", restoreSnapshots}
+            {"editor_restore_snapshots", restoreSnapshots},
+            {"editor_body_placement", bodyPlacement}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)

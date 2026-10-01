@@ -17,7 +17,11 @@ target_link_libraries(simulator_components PUBLIC project_options)
 add_library(simulator_simulation STATIC src/Simulation/Circuit.cpp)
 target_link_libraries(simulator_simulation PUBLIC simulator_components)
 
-add_library(simulator_geometry STATIC src/Geometry/Wire.cpp)
+add_library(simulator_geometry STATIC
+    src/Geometry/Wire.cpp
+    src/Geometry/WireNormalization.cpp
+    src/Geometry/GeometryQueries.cpp
+)
 target_link_libraries(simulator_geometry PUBLIC project_options)
 
 add_library(simulator_views INTERFACE)
@@ -26,6 +30,7 @@ target_link_libraries(simulator_views INTERFACE simulator_simulation glm::glm)
 add_library(simulator_scene STATIC
     src/Editor/Scene.cpp
     src/Editor/SceneEditing.cpp
+    src/Editor/Connectivity/ConnectivityBuilder.cpp
     src/Editor/Actions/EditorActions.cpp
 )
 target_link_libraries(simulator_scene PUBLIC
@@ -81,6 +86,7 @@ if(BUILD_TESTING)
         gate_truth_tables component_pin_bounds connection_endpoints
         latch_output_propagation connection_lifecycle scene_pin_layouts
         scene_wire_overlaps scene_connection_rejections source_components
+        geometry_services connectivity_builder distinct_route_pins
     )
         add_test(NAME ${test_name} COMMAND LogicTests ${test_name})
     endforeach()
@@ -89,7 +95,7 @@ if(BUILD_TESTING)
     target_link_libraries(EditorActionsTests PRIVATE simulator_scene)
     foreach(test_name IN ITEMS
         editor_atomic_batches editor_move_previews editor_configuration
-        editor_wire_edits editor_restore_snapshots
+        editor_wire_edits editor_restore_snapshots editor_body_placement
     )
         add_test(NAME ${test_name} COMMAND EditorActionsTests ${test_name})
     endforeach()

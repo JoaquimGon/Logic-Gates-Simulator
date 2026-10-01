@@ -69,10 +69,11 @@ src/
   Editor/              Input gestures and Scene coordination
     Actions/           Typed edits, preview lifecycle, and reversible changes
     Gestures/          Component dragging, wire drawing, panning, and selection
+    Connectivity/      Derived nets, pin/wire indexes, and edge rejection diagnostics
   Components/          Native behavior classes and logical pin types
     Views/             Component presentation and PinUI data
   Simulation/          Circuit propagation, nets, and endpoint identities
-  Geometry/            Grid coordinates, snapping, and wire paths
+  Geometry/            Coordinates, wire normalization, hit/placement queries, and paths
   Graphics/            OpenGL drawing, meshes, shaders, and wire vertices
     Text/              Font atlas and text geometry
 cmake/                 Dependencies, compiler options, and font discovery
@@ -82,9 +83,9 @@ docs/                  Editor action contracts and integration examples
 external/              Vendored GLAD and stb_truetype
 ```
 
-Input and startup submit batches through EditorActions; Scene derives electrical
-nets and Circuit connections from
-component layouts and wire geometry. Circuit evaluates the supported DAG, and
+Input and startup submit batches through EditorActions. Scene supplies committed
+bounds and indexed pin anchors to Geometry services, then uses ConnectivityBuilder
+to derive nets and Circuit edges from the normalized routes. Circuit evaluates the supported DAG, and
 Scene synchronizes signal states for rendering. Invalid feedback pauses the
 scene until the wiring is repaired.
 
@@ -104,11 +105,12 @@ GLFW, or GLAD. Wire vertex generation belongs in Graphics, not the wire model.
 Editor actions live under `Editor/Actions/`; concrete gesture handlers live under
 `Editor/Gestures/` and require no GLFW. Input adapts events, applies the mode policy,
 and dispatches shortcuts; native keyboard creation presets are in
-`Editor/ComponentShortcuts.cpp` pending the component catalog. Connectivity
-extraction remains under `Editor/`; geometry normalization belongs
-under `Geometry/`; reusable component definitions and their catalog belong
-under `Components/`. Those extractions remain pending; Scene still owns
-geometry normalization and net building. Catalog/default consolidation remains pending.
+`Editor/ComponentShortcuts.cpp` pending the component catalog. Geometry services
+consume plain bounds/anchors without view or graphics dependencies. The builder
+under `Editor/Connectivity/` consumes normalized routes and pin interfaces without
+accessing Scene or healing geometry. Scene owns and publishes derived topology.
+Reusable component definitions and catalog/default consolidation under
+`Components/` remain pending. See [geometry and connectivity contracts](docs/SceneTopology.md).
 
 ## Dependencies & Vendoring
 
@@ -224,7 +226,7 @@ null platform, so they require no display, native window, or OpenGL context.
 They cover Escape/right-click drag cancellation, movement and overlap rollback,
 connectivity after every component spawn shortcut, middle-segment deletion,
 mode isolation, immediate mode/focus cancellation, wire branching, and panning.
-CTest runs all three runners (21 groups); use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion" --output-on-failure`
+CTest runs all three runners (25 groups); use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion" --output-on-failure`
 to run only the input tests.
 
 ## Shared Editor Actions

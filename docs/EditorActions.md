@@ -32,8 +32,10 @@ or individual segments. Creation returns component IDs. Creation defaults to
 `RejectOverlap`; shortcuts use bounded, deterministic `FindFree` placement.
 Compatibility Scene creation methods explicitly allow overlaps, retaining direct
 pin-contact behavior; new callers should choose their placement policy deliberately.
-The existing origin/pin overlap test remains in use; body-overlap improvements
-are tracked separately by TD-G2.
+Placement also checks full rectangular body interiors. Edges/corners may touch
+(with a small float tolerance); identical origins and coincident pin anchors remain
+invalid. Wires and pin-to-body contacts impose no additional clearance. The same
+check applies to creation, movement, configuration, and future import batches.
 
 Invalid wire paths, stale segment endpoints, invalid layouts, and unsupported
 arity produce typed failures. Feedback geometry remains committed and editable,
@@ -93,9 +95,9 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 21 groups, including five `EditorActionsTests` groups for atomic batches,
-preview ownership, configuration/migration, wire surgery/rejection recovery, and
-snapshot restoration. `InputTests` additionally verifies actual keyboard spawning,
+CTest runs 25 groups, including six `EditorActionsTests` groups for atomic batches,
+preview ownership, configuration/migration, wire surgery/rejection recovery,
+snapshot restoration, and body-placement rollback. `InputTests` additionally verifies actual keyboard spawning,
 drag commit/cancellation, scene switching, and middle-segment deletion:
 
 ```sh

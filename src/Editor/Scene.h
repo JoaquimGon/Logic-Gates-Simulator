@@ -3,6 +3,8 @@
 #include "Components/Gate.h"
 #include "Components/Latch.h"
 #include "Components/Views/ComponentView.h"
+#include "Editor/Connectivity/ConnectivityBuilder.h"
+#include "Geometry/GeometryTypes.h"
 #include "Geometry/Wire.h"
 #include "Simulation/Circuit.h"
 #include "Simulation/Net.h"
@@ -13,37 +15,9 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-enum class HitType
-{
-    NONE,
-    COMPONENT_PIN,
-    COMPONENT_BODY,
-    WIRE_START,
-    WIRE_END,
-    WIRE_BODY,
-    WIRE_JUNCTION
-};
-
-struct HitResult
-{
-    HitType type = HitType::NONE;
-    int componentId = -1;             // valid for COMPONENT_PIN, COMPONENT_BODY
-    int pinIndex = -1;                // valid for COMPONENT_PIN
-    PinType pinType = PinType::INPUT; // valid for COMPONENT_PIN
-    int wireId = INVALID_WIRE_ID;     // valid for WIRE_*
-};
-
-struct RejectedConnection
-{
-    NetId netId;
-    Connection connection;
-    ConnectionResult reason;
-};
 
 class EditorActions;
 
@@ -160,9 +134,8 @@ class Scene
     /*
      * @brief Re-derives every net, and the Circuit edges that follow from them.
      * Run after every geometry or component edit, never per frame: a net is one
-     * connected component of the wires that share an endpoint, so this is a
-     * graph walk over the wires rather than the geometric fixpoint over every
-     * pair of segments the old code needed.
+     * connected component of normalized routes that share an endpoint. Geometry
+     * normalization precedes the connectivity builder; previews are never consumed.
      */
     void rebuildNets();
 
@@ -267,7 +240,7 @@ class Scene
     // (componentId, pinIndex, isOutput) -> net. The direction belongs in the
     // key because a component's input and output pins have separate index
     // spaces that overlap.
-    std::map<std::tuple<int, int, bool>, NetId> m_pinNet;
+    PinNetIndex m_pinNet;
 
     /*
      * @brief Stores a wire under a freshly allocated id, without validating its
@@ -276,17 +249,6 @@ class Scene
      * @return The id the wire was stored under.
      */
     WireId insertWire(Wire wire);
-    Wire* editWire(WireId id);
 
-    // Geometry surgery that deliberately leaves the nets untouched, so that the
-    // steps of rebuildNets() can reshape the container while they collect. The
-    // public mutators above wrap these and re-derive the nets afterwards.
-    std::pair<WireId, WireId> insertWires(Wire a, Wire b);
-    bool splitWireGeometry(WireId id, GridCoords point, Wire& outA, Wire& outB);
-    void dropDegenerateWires();
-
-    // The three steps of rebuildNets(), split apart so each one stays readable.
-    void settleGeometry();
-    void collectNets();
-    void emitNetEdges();
+    std::vector<ComponentGeometry> committedGeometry() const;
 };
