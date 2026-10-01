@@ -1,5 +1,6 @@
 #include "Components/Definitions/ComponentDefinition.h"
 
+#include "Components/Clock.h"
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Geometry/GridMetrics.h"
 
@@ -12,7 +13,7 @@
 
 namespace
 {
-constexpr int maxPins = 256;
+constexpr int maxPins = ComponentDefinitionLimits::MaxPins;
 
 int countPins(const DefinitionLayout& layout, PinType direction)
 {
@@ -88,7 +89,7 @@ void validateLayout(
 
 void validateClockFrequency(float hz)
 {
-    if (!std::isfinite(hz) || hz < 0.1f)
+    if (!std::isfinite(hz) || hz < Clock::MINIMUM_FREQUENCY_HZ)
         throw std::invalid_argument("Clock frequency must be finite and at least 0.1 Hz.");
 }
 
@@ -149,31 +150,42 @@ void validateDefinition(const ComponentDefinition& definition)
     if (!std::holds_alternative<ManualInputBehavior>(definition.behavior) &&
         definition.defaultInputState)
         throw std::invalid_argument("Manual input defaults require manual input behavior.");
+    propertyDescriptors(definition);
 }
 
-ResolvedComponent
-resolveDefinition(const ComponentDefinition& definition, const ComponentOverrides& overrides)
+ResolvedComponent resolveConfiguration(
+    const ComponentDefinition& definition, const ComponentConfiguration& configuration
+)
 {
     validateDefinition(definition);
-    const bool isGate = std::holds_alternative<GateType>(definition.behavior);
-    const bool isInput = std::holds_alternative<ManualInputBehavior>(definition.behavior);
-    const bool isClock = std::holds_alternative<ClockBehavior>(definition.behavior);
-    if ((overrides.inputCount && !isGate) || (overrides.inputState && !isInput) ||
-        ((overrides.clockFrequency || overrides.clockPaused) && !isClock))
-        throw std::invalid_argument("Override is not supported by this component behavior.");
+    validatePropertyOverrides(definition, configuration.overrides);
+    using namespace ComponentPropertyIds;
+    auto properties = defaultPropertyValues(definition);
+    for (const auto& [id, value] : configuration.overrides)
+        properties[id] = value;
     ResolvedComponent result{
         definition.identity,
         definition.behavior,
         definition.layout,
         definition.presentation,
-        overrides.inputState.value_or(definition.defaultInputState),
-        overrides.clockFrequency.value_or(definition.defaultClockFrequency),
-        overrides.clockPaused.value_or(definition.defaultClockPaused)
+        std::holds_alternative<ManualInputBehavior>(definition.behavior)
+            ? std::get<bool>(properties.at(InputState))
+            : false,
+        std::holds_alternative<ClockBehavior>(definition.behavior)
+            ? std::get<float>(properties.at(ClockFrequency))
+            : 1.0f,
+        std::holds_alternative<ClockBehavior>(definition.behavior)
+            ? std::get<bool>(properties.at(ClockPaused))
+            : false,
+        configuration,
+        properties
     };
+    result.presentation.bodyLabel = std::get<std::string>(properties.at(BodyLabel));
+    result.presentation.showPinLabels = std::get<bool>(properties.at(PinLabels));
     const int defaultInputs = countPins(definition.layout, PinType::INPUT);
-    int inputCount = overrides.inputCount.value_or(defaultInputs);
-    if (overrides.layout && !overrides.inputCount)
-        inputCount = countPins(*overrides.layout, PinType::INPUT);
+    const int inputCount = std::holds_alternative<GateType>(definition.behavior)
+                               ? std::get<int>(properties.at(InputCount))
+                               : defaultInputs;
     if (inputCount != defaultInputs)
     {
         if (definition.pinLayoutRule != PinLayoutRule::SymmetricGateInputs || inputCount < 2 ||
@@ -228,23 +240,28 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
         result.layout.height =
             std::max(result.layout.height, 2 * GridMetrics::Spacing * inputCount);
     }
+    if (configuration.overrides.contains(Width))
+        result.layout.width = std::get<float>(properties.at(Width));
+    if (configuration.overrides.contains(Height))
+        result.layout.height = std::get<float>(properties.at(Height));
     if (!definition.presentation.allowResize && (result.layout.width != definition.layout.width ||
                                                  result.layout.height != definition.layout.height))
         throw std::invalid_argument(
             "This definition cannot resize to fit the requested input count."
         );
-    if (overrides.layout)
+    if (configuration.pinLayout)
     {
-        validateLayout(definition.behavior, *overrides.layout, false);
-        if (!definition.presentation.allowResize &&
-            (overrides.layout->width != definition.layout.width ||
-             overrides.layout->height != definition.layout.height))
-            throw std::invalid_argument("This definition does not allow body resizing.");
-        if (countPins(*overrides.layout, PinType::INPUT) != inputCount ||
-            countPins(*overrides.layout, PinType::OUTPUT) !=
-                countPins(result.layout, PinType::OUTPUT))
-            throw std::invalid_argument("Layout and logical pin counts disagree.");
-        auto layout = *overrides.layout;
+        DefinitionLayout requested{
+            result.layout.width, result.layout.height, *configuration.pinLayout
+        };
+        validateLayout(definition.behavior, requested, false);
+        if (countPins(requested, PinType::INPUT) != inputCount ||
+            countPins(requested, PinType::OUTPUT) != countPins(result.layout, PinType::OUTPUT))
+            throw std::invalid_argument(
+                "Pin layout and logical counts disagree; reset the pin layout explicitly when "
+                "regenerating arity."
+            );
+        auto layout = std::move(requested);
         for (auto& pin : layout.pins)
         {
             const auto expected = std::find_if(
@@ -262,10 +279,125 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
             pin.id = expected->id;
             pin.label = expected->label;
         }
+        layout.width = result.layout.width;
+        layout.height = result.layout.height;
         result.layout = std::move(layout);
+        result.configuration.pinLayout = result.layout.pins;
     }
-    if (isClock)
+    if (std::holds_alternative<ClockBehavior>(definition.behavior))
         validateClockFrequency(result.clockFrequency);
     validateLayout(result.behavior, result.layout);
+    result.properties[Width] = result.layout.width;
+    result.properties[Height] = result.layout.height;
+    validatePropertyValues(definition, result.properties);
+    return result;
+}
+
+ResolvedComponent
+resolveDefinition(const ComponentDefinition& definition, const ComponentOverrides& overrides)
+{
+    using namespace ComponentPropertyIds;
+    validateDefinition(definition);
+    ComponentConfiguration configuration{overrides.properties, overrides.pinLayout};
+    const auto descriptors = propertyDescriptors(definition);
+    auto add = [&](const char* id, PropertyValue value)
+    {
+        const auto descriptor = std::find_if(
+            descriptors.begin(), descriptors.end(), [&](const auto& item) { return item.id == id; }
+        );
+        if (descriptor == descriptors.end())
+            throw std::invalid_argument("Unsupported typed override: " + std::string(id));
+        if (configuration.overrides.contains(id))
+            throw std::invalid_argument("Duplicate typed/generic override: " + std::string(id));
+        if (!descriptor->editable && value == descriptor->defaultValue)
+            return;
+        configuration.overrides.emplace(id, std::move(value));
+    };
+    if (overrides.inputCount)
+        add(InputCount, *overrides.inputCount);
+    if (overrides.inputState)
+        add(InputState, *overrides.inputState);
+    if (overrides.clockFrequency)
+        add(ClockFrequency, *overrides.clockFrequency);
+    if (overrides.clockPaused)
+        add(ClockPaused, *overrides.clockPaused);
+    if (overrides.layout)
+    {
+        if (overrides.pinLayout)
+            throw std::invalid_argument("Cannot supply both legacy and canonical pin layouts.");
+        configuration.pinLayout = overrides.layout->pins;
+        auto addGeometry = [&](const char* id, PropertyValue value, PropertyValue defaultValue)
+        {
+            if (const auto existing = configuration.overrides.find(id);
+                existing != configuration.overrides.end())
+            {
+                if (existing->second != value)
+                    throw std::invalid_argument(
+                        "Layout/property overrides disagree: " + std::string(id)
+                    );
+            }
+            else if (value != defaultValue)
+                add(id, std::move(value));
+        };
+        if (std::holds_alternative<GateType>(definition.behavior))
+            addGeometry(
+                InputCount,
+                countPins(*overrides.layout, PinType::INPUT),
+                countPins(definition.layout, PinType::INPUT)
+            );
+        for (const auto& item :
+             {std::pair{Width, overrides.layout->width},
+              std::pair{Height, overrides.layout->height}})
+        {
+            if (const auto existing = configuration.overrides.find(item.first);
+                existing != configuration.overrides.end())
+            {
+                if (existing->second != PropertyValue{item.second})
+                    throw std::invalid_argument(
+                        "Layout/property overrides disagree: " + std::string(item.first)
+                    );
+            }
+            else
+                add(item.first, item.second);
+        }
+    }
+    return resolveConfiguration(definition, configuration);
+}
+
+ResolvedComponent patchConfiguration(
+    const ComponentDefinition& definition,
+    const ComponentConfiguration& current,
+    const ComponentPropertyPatch& patch
+)
+{
+    auto updated = current;
+    const auto descriptors = propertyDescriptors(definition);
+    std::set<std::string> reset;
+    for (const auto& id : patch.reset)
+    {
+        const auto descriptor = std::find_if(
+            descriptors.begin(), descriptors.end(), [&](const auto& item) { return item.id == id; }
+        );
+        if (descriptor == descriptors.end() || !descriptor->editable || !reset.insert(id).second ||
+            patch.values.contains(id))
+            throw std::invalid_argument("Invalid/conflicting property reset: " + id);
+        updated.overrides.erase(id);
+    }
+    for (const auto& [id, value] : patch.values)
+        updated.overrides[id] = value;
+    if (patch.resetPinLayout && patch.pinLayout)
+        throw std::invalid_argument("Cannot set and reset layout together.");
+    if (patch.resetPinLayout)
+        updated.pinLayout.reset();
+    if (patch.pinLayout)
+        updated.pinLayout = patch.pinLayout;
+    return resolveConfiguration(definition, updated);
+}
+
+ComponentOverrides configurationOverrides(const ComponentConfiguration& configuration)
+{
+    ComponentOverrides result;
+    result.properties = configuration.overrides;
+    result.pinLayout = configuration.pinLayout;
     return result;
 }

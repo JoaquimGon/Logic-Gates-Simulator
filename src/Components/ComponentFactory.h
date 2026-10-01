@@ -16,6 +16,7 @@ struct CreatedComponent
 class ComponentFactory
 {
   public:
+    static ComponentLayout viewLayout(const ResolvedComponent& resolved);
     static void validatePosition(const ComponentView& view, GridCoords position);
     /** @brief Validates/resolves metadata before adding matching logic and presentation. */
     static CreatedComponent create(

@@ -100,6 +100,14 @@ struct ConfigureComponent
     RemovedPinPolicy removedPins = RemovedPinPolicy::RejectAttached;
 };
 
+/** Schema-based partial design edit; runtime source values change only for touched state fields. */
+struct ConfigureProperties
+{
+    int componentId;
+    ComponentPropertyPatch patch;
+    RemovedPinPolicy removedPins = RemovedPinPolicy::RejectAttached;
+};
+
 struct ConfigureInput
 {
     int componentId;
@@ -140,6 +148,7 @@ using EditOperation = std::variant<
     MoveComponent,
     DeleteComponent,
     ConfigureComponent,
+    ConfigureProperties,
     ConfigureInput,
     ConfigureClock,
     AddWire,

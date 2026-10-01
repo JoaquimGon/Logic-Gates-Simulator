@@ -24,8 +24,10 @@ Positions and live signal, timer, and latch state belong to instances.
 `ComponentOverrides` accepts gate input count, manual input state, clock
 frequency/pause, and explicit instance layout. Missing fields use catalog
 defaults. Resolution produces a copy; configuration cannot mutate the definition.
-Views retain definition ID/version and resolved pin IDs/labels through previews,
-copies, configuration, and snapshot restoration.
+Views retain definition ID/version, explicit property overrides, and resolved pin
+IDs/labels through previews, configuration, and snapshot restoration. Generic
+property descriptors, set/reset edits, and portable design-configuration records
+are described in [ComponentProperties.md](ComponentProperties.md).
 
 Fixed interfaces retain their counts and IDs. Multi-input native gates use
 `SymmetricGateInputs`: surviving IDs remain `in.<index>`, appended inputs receive
@@ -104,15 +106,17 @@ pins. Layout/configuration/snapshots retain explicit routes and validate overflo
 See [rendering boundaries](Rendering.md) for shape/resize, label, layer, and GPU
 ownership contracts plus framebuffer validation.
 
-Property schemas/serialized override storage remain RM-C3; file formats and
-import/export are RM-C5; truth tables/subcircuits are RM-C6. UI capture, viewport
-transforms, and inspectors remain separate items.
+Property schemas and retained/serialized instance overrides are complete (RM-C3).
+Definition file formats/import/export remain RM-C5; truth tables/subcircuits are
+RM-C6. UI capture and viewport transforms are complete; inspector widgets remain
+RM-U3, and whole-circuit persistence remains RM-F1.
 
 `ComponentCatalogTests` covers defaults, assets, registration validation,
 applicable options, instance/default isolation, working custom behavior, atomic
 rollback, and catalog/identity restoration. Input tests verify all eleven shortcuts
 against catalog identities and sizes. Presentation tests cover leads, instance
 sizes, stable ordering, and text layout; pixel tests verify native attachment and
-mixed-size rendering. Current validation passes 38 Debug groups and 37 headless
-AddressSanitizer groups. Neutral descriptor/catalog headers require no graphics
+mixed-size rendering. Property tests cover rules, set/reset, runtime isolation,
+pin migration, and configuration round trips. Current validation passes 41 Debug
+groups and 40 headless AddressSanitizer groups. Neutral descriptor/catalog headers require no graphics
 include paths.

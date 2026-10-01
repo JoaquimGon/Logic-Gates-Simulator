@@ -152,6 +152,75 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             return options;
         };
 
+        auto configure = [&](int id, const ComponentPropertyPatch& patch, RemovedPinPolicy policy)
+        {
+            using namespace ComponentPropertyIds;
+            auto& view = getView(id);
+            const auto* definition = candidate.m_catalog->find(view.getDefinitionIdentity().id);
+            const auto resolved = patchConfiguration(*definition, view.getConfiguration(), patch);
+            const auto layout = ComponentFactory::viewLayout(resolved);
+            const bool geometryChanged = view.getSize() != layout.size ||
+                                         !samePins(view.getInputPins(), layout.inputs) ||
+                                         !samePins(view.getOutputPins(), layout.outputs);
+            if (geometryChanged)
+            {
+                for (const auto& pin : view.getInputPins())
+                    if (pin.pin_index >= layout.inputs.size())
+                        removedPins.push_back(
+                            {id,
+                             static_cast<int>(pin.pin_index),
+                             view.getAbsolutePinGridPos(pin),
+                             policy}
+                        );
+                if (dynamic_cast<Gate*>(candidate.m_circuit.getComponent(id)))
+                    candidate.m_circuit.resizeGateInputs(
+                        id, static_cast<int>(layout.inputs.size())
+                    );
+                view.editInputPins() = layout.inputs;
+                view.editOutputPins() = layout.outputs;
+                view.m_size = layout.size;
+                placement[id] = PlacementPolicy::RejectOverlap;
+                changed = topologyChanged = true;
+            }
+            if (view.m_configuration != resolved.configuration ||
+                view.m_bodyLabel != resolved.presentation.bodyLabel ||
+                view.m_showPinLabels != resolved.presentation.showPinLabels)
+            {
+                view.m_configuration = resolved.configuration;
+                view.m_bodyLabel = resolved.presentation.bodyLabel;
+                view.m_showPinLabels = resolved.presentation.showPinLabels;
+                changed = true;
+            }
+            auto touched = [&](const char* key)
+            {
+                return patch.values.contains(key) ||
+                       std::find(patch.reset.begin(), patch.reset.end(), key) != patch.reset.end();
+            };
+            if (touched(InputState))
+            {
+                auto* input = dynamic_cast<InputPin*>(candidate.m_circuit.getComponent(id));
+                if (input->getState() != resolved.inputState)
+                {
+                    input->setState(resolved.inputState);
+                    candidate.m_circuit.markStateDirty();
+                    changed = true;
+                }
+            }
+            if (auto* clock = dynamic_cast<Clock*>(candidate.m_circuit.getComponent(id)))
+            {
+                if (touched(ClockFrequency) && clock->getFrequency() != resolved.clockFrequency)
+                {
+                    clock->setFrequency(resolved.clockFrequency);
+                    changed = true;
+                }
+                if (touched(ClockPaused) && clock->isPaused() != resolved.clockPaused)
+                {
+                    clock->setPaused(resolved.clockPaused);
+                    changed = true;
+                }
+            }
+        };
+
         for (const auto& operation : batch)
         {
             std::visit(
@@ -221,69 +290,54 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     else if constexpr (std::is_same_v<T, ConfigureComponent>)
                     {
                         auto& view = getView(op.componentId);
-                        auto* gate =
-                            dynamic_cast<Gate*>(candidate.m_circuit.getComponent(op.componentId));
-                        const auto layout =
-                            ComponentFactory::validateLayout(*candidate.m_catalog, view, op.layout);
+                        const auto* definition =
+                            candidate.m_catalog->find(view.getDefinitionIdentity().id);
+                        const auto resolved = candidate.m_catalog->resolve(
+                            definition->identity.id,
+                            ComponentFactory::layoutOverrides(op.layout),
+                            definition->identity.version
+                        );
+                        if (op.layout.shader != resolved.presentation.shader.key)
+                            throw EditFailure(
+                                EditError::InvalidConfiguration,
+                                "Layout edits cannot change the definition's presentation."
+                            );
+                        const auto layout = ComponentFactory::viewLayout(resolved);
                         if (view.getSize() == layout.size &&
-                            view.getShaderName() == layout.shader &&
                             samePins(view.getInputPins(), layout.inputs) &&
                             samePins(view.getOutputPins(), layout.outputs))
                             return;
-                        for (const auto& pin : view.getInputPins())
-                            if (pin.pin_index >= layout.inputs.size())
-                                removedPins.push_back(
-                                    {op.componentId,
-                                     static_cast<int>(pin.pin_index),
-                                     view.getAbsolutePinGridPos(pin),
-                                     op.removedPins}
-                                );
-                        if (gate)
-                            candidate.m_circuit.resizeGateInputs(
-                                op.componentId, static_cast<int>(layout.inputs.size())
-                            );
-                        view.editInputPins() = layout.inputs;
-                        view.editOutputPins() = layout.outputs;
-                        view.m_size = layout.size;
-                        view.m_shaderName = layout.shader;
-                        placement[op.componentId] = PlacementPolicy::RejectOverlap;
-                        changed = topologyChanged = true;
+                        ComponentPropertyPatch patch;
+                        patch.pinLayout = resolved.configuration.pinLayout;
+                        for (const auto& descriptor : propertyDescriptors(*definition))
+                            if (descriptor.editable &&
+                                (descriptor.id == ComponentPropertyIds::Width ||
+                                 descriptor.id == ComponentPropertyIds::Height ||
+                                 descriptor.id == ComponentPropertyIds::InputCount))
+                            {
+                                if (const auto value =
+                                        resolved.configuration.overrides.find(descriptor.id);
+                                    value != resolved.configuration.overrides.end())
+                                    patch.values.emplace(value->first, value->second);
+                                else
+                                    patch.reset.push_back(descriptor.id);
+                            }
+                        configure(op.componentId, patch, op.removedPins);
                     }
+                    else if constexpr (std::is_same_v<T, ConfigureProperties>)
+                        configure(op.componentId, op.patch, op.removedPins);
                     else if constexpr (std::is_same_v<T, ConfigureInput>)
                     {
-                        getView(op.componentId);
-                        auto* input = dynamic_cast<InputPin*>(
-                            candidate.m_circuit.getComponent(op.componentId)
-                        );
-                        if (!input)
-                            throw EditFailure(
-                                EditError::InvalidConfiguration,
-                                "Input configuration requires a manual input."
-                            );
-                        if (input->getState() != op.state)
-                        {
-                            input->setState(op.state);
-                            candidate.m_circuit.markStateDirty();
-                            changed = true;
-                        }
+                        ComponentPropertyPatch patch;
+                        patch.values.emplace(ComponentPropertyIds::InputState, op.state);
+                        configure(op.componentId, patch, RemovedPinPolicy::RejectAttached);
                     }
                     else if constexpr (std::is_same_v<T, ConfigureClock>)
                     {
-                        getView(op.componentId);
-                        auto* clock =
-                            dynamic_cast<Clock*>(candidate.m_circuit.getComponent(op.componentId));
-                        if (!clock)
-                            throw EditFailure(
-                                EditError::InvalidConfiguration,
-                                "Clock configuration requires a clock."
-                            );
-                        validateClockFrequency(op.frequency);
-                        if (clock->getFrequency() != op.frequency || clock->isPaused() != op.paused)
-                        {
-                            clock->setFrequency(op.frequency);
-                            clock->setPaused(op.paused);
-                            changed = true;
-                        }
+                        ComponentPropertyPatch patch;
+                        patch.values.emplace(ComponentPropertyIds::ClockFrequency, op.frequency);
+                        patch.values.emplace(ComponentPropertyIds::ClockPaused, op.paused);
+                        configure(op.componentId, patch, RemovedPinPolicy::RejectAttached);
                     }
                     else if constexpr (std::is_same_v<T, AddWire>)
                     {

@@ -4,7 +4,8 @@ Use `EditorActions` (`src/Editor/Actions/`) for structural edits and editable
 properties. Keyboard input and application startup already use this service;
 future palettes, inspectors, and loaders should submit the same typed operations.
 Definitions/catalog creation are described in [ComponentDefinitions.md](ComponentDefinitions.md).
-Configurable-property schemas remain separate work.
+Property schemas and instance overrides are described in
+[ComponentProperties.md](ComponentProperties.md).
 
 ## Applying a complete edit
 
@@ -13,7 +14,9 @@ valid; placement and removed-pin checks inspect the final candidate. Success
 publishes one change and rebuilds normalized geometry/nets once for structural
 edits. Input state and clock-property edits do not rebuild topology. Failed batches
 leave geometry, runtime state, allocation counters, and revision unchanged.
-Empty batches and unchanged properties/positions produce no change record.
+Empty batches and unchanged configuration/runtime values/positions produce no
+change record. Explicitly setting an inherited value to its default records an
+override; resetting removes it even when the effective value stays the same.
 
 ```cpp
 EditorActions actions(scene);
@@ -34,8 +37,9 @@ definition-only edits rebuild no topology. Native creation requests remain thin
 compatibility adapters to the same factory.
 
 Supported operations create native gates/inputs/clocks/latches, move/delete
-components, configure layouts/input states/clock properties, and add/delete wires
-or individual segments. Creation returns component IDs. Creation defaults to
+components, configure layouts/input states/clock properties, apply schema-based
+property patches, and add/delete wires or individual segments. Creation returns
+component IDs. Creation defaults to
 `RejectOverlap`; shortcuts use bounded, deterministic `FindFree` placement.
 Compatibility Scene creation methods explicitly allow overlaps, retaining direct
 pin-contact behavior; new callers should choose their placement policy deliberately.
@@ -64,6 +68,17 @@ its preview before switching scenes; keep the previous Scene alive until then.
 
 ## Configuration and pin migration
 
+`ConfigureProperties` applies a partial set/reset patch to retained design overrides.
+Read-only/unknown fields, type/bound/choice violations, and conflicting set/reset
+requests reject the complete batch. Definitions remain immutable. Labels and
+override provenance alone rebuild no topology; geometry changes use the existing
+placement and attachment checks. Input/clock runtime settings are applied only
+when touched; metadata edits preserve live signals, clock phase/pause, and latch
+state. Legacy configuration actions adapt to this same path.
+
+Explicit pin-layout overrides require compatible replacement pins or
+`resetPinLayout = true` when changing arity; they are never silently discarded.
+
 `ConfigureComponent` receives a complete layout, with logical pin identity carried
 by direction and index, independently of vector order. Gate input counts change
 together with their visual interface: NOT has one input, other gates require two
@@ -75,7 +90,7 @@ Removing an attached input defaults to `RejectAttached`: remove its wires in the
 same batch, or explicitly select `LeaveWires`. That policy leaves routes in place
 as dangling geometry and prevents retained pins reusing the removed attachment.
 Moved/resized pin anchors attach by their final grid coordinates. Automatic wire
-rerouting and versioned definition/interface migration remain RM-F5/RM-C1 work.
+rerouting and versioned definition/interface migration remain RM-F5/RM-C5 work.
 
 View pin lists and committed wires are read-only to callers; placement setters
 and pin editing are internal to Scene/action implementation. Runtime interactions
@@ -102,7 +117,9 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 38 groups with the application (37 headlessly), including six `EditorActionsTests` groups for atomic batches,
+CTest runs 41 groups with the application (40 headlessly), including three
+`PropertyTests` groups for schemas, coherent edits/runtime isolation, and design
+configuration round trips, plus six `EditorActionsTests` groups for atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery,
 snapshot restoration, and body-placement rollback. `InputTests` additionally verifies actual keyboard spawning,
 drag commit/cancellation, scene switching, and middle-segment deletion:

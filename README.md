@@ -249,11 +249,13 @@ capture, held-input cleanup, canvas bounds, and panned/zoomed subcanvas editing.
 resizing, invalid/minimized layouts, and uniform/nonuniform DPI.
 Catalog regressions validate built-in defaults/assets, custom box/native behavior,
 registration rollback, applicable options, and catalog/identity restoration.
+Property regressions verify descriptors/rules, retained overrides, set/reset
+rollback, runtime isolation/clock phase, and configuration round trips.
 Presentation tests cover typed instances/batching, pin leads, label layout, and
 world/screen glyph geometry. The application build also runs an invisible-window
 framebuffer test; it skips when an OpenGL context is unavailable and writes PPM
 previews under the build's `render-artifacts/` directory when exercised.
-CTest runs 38 groups with the application, or 37 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_" --output-on-failure`
+CTest runs 41 groups with the application, or 40 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_" --output-on-failure`
 to run only the input tests.
 
 ## Shared Editor Actions
@@ -267,7 +269,13 @@ presentation, so cancellation needs no topology rebuild.
 retain identity; removing wired inputs requires an explicit attachment policy or
 wire removal in the same batch. Pin layouts and committed wires are read-only to
 callers. Complete before/after records preserve normalized wire IDs and runtime
-state for future undo/redo; history controls and persistence remain pending.
+state for future undo/redo; history controls and whole-circuit persistence remain pending.
+
+`ConfigureProperties` sets/resets typed instance overrides against definition
+descriptors. Reusable defaults remain immutable; runtime interactions do not
+rewrite design settings. A validated versioned codec round-trips configuration
+records for future file adapters. See [component properties](docs/ComponentProperties.md);
+inspector widgets and definition/circuit file handling remain separate work.
 
 See [Editor action contracts and examples](docs/EditorActions.md) for API use,
 pointer lifetimes, migration rules, and snapshot-restoration semantics.

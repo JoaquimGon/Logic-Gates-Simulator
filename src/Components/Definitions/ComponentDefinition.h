@@ -1,5 +1,6 @@
 #pragma once
 #include "Components/Definitions/PresentationGeometry.h"
+#include "Components/Definitions/PropertySchema.h"
 #include "Components/Gate.h"
 #include "Components/Latch.h"
 #include "Components/PinTypes.h"
@@ -10,6 +11,11 @@
 #include <string>
 #include <variant>
 #include <vector>
+
+namespace ComponentDefinitionLimits
+{
+inline constexpr int MaxPins = 256;
+}
 
 struct ManualInputBehavior
 {
@@ -25,6 +31,7 @@ struct DefinitionIdentity
 {
     std::string id;
     std::uint32_t version = 1;
+    bool operator==(const DefinitionIdentity&) const = default;
 };
 
 struct PinDefinition
@@ -35,12 +42,14 @@ struct PinDefinition
     unsigned int index = 0;
     GridCoords anchor{0, 0};
     std::vector<GridCoords> lead;
+    bool operator==(const PinDefinition&) const = default;
 };
 
 struct DefinitionLayout
 {
     float width = 0, height = 0;
     std::vector<PinDefinition> pins;
+    bool operator==(const DefinitionLayout&) const = default;
 };
 
 enum class PresentationKind
@@ -81,6 +90,24 @@ struct ComponentDefinition
     bool defaultInputState = false;
     float defaultClockFrequency = 1.0f;
     bool defaultClockPaused = false;
+    std::vector<PropertyRule> propertyRules;
+};
+
+/** Retained design configuration; runtime signals/timer state never rewrite it. */
+struct ComponentConfiguration
+{
+    PropertyValues overrides;
+    std::optional<std::vector<PinDefinition>> pinLayout;
+    bool operator==(const ComponentConfiguration&) const = default;
+};
+
+/** Partial update; reset removes an override rather than copying a default value. */
+struct ComponentPropertyPatch
+{
+    PropertyValues values;
+    std::vector<std::string> reset;
+    std::optional<std::vector<PinDefinition>> pinLayout;
+    bool resetPinLayout = false;
 };
 
 /** Explicit instance options; absent fields use catalog defaults. */
@@ -91,6 +118,8 @@ struct ComponentOverrides
     std::optional<float> clockFrequency;
     std::optional<bool> clockPaused;
     std::optional<DefinitionLayout> layout;
+    PropertyValues properties;
+    std::optional<std::vector<PinDefinition>> pinLayout;
 };
 
 struct ResolvedComponent
@@ -102,6 +131,8 @@ struct ResolvedComponent
     bool inputState;
     float clockFrequency;
     bool clockPaused;
+    ComponentConfiguration configuration;
+    PropertyValues properties;
 };
 
 /** @brief Rejects inconsistent metadata/interfaces and unsupported presentation features. */
@@ -110,3 +141,16 @@ void validateDefinition(const ComponentDefinition& definition);
 ResolvedComponent
 resolveDefinition(const ComponentDefinition& definition, const ComponentOverrides& overrides = {});
 void validateClockFrequency(float hz);
+
+/** @brief Resolves retained overrides without reading transient simulation state. */
+ResolvedComponent resolveConfiguration(
+    const ComponentDefinition& definition, const ComponentConfiguration& configuration
+);
+/** @brief Applies a validated set/reset patch; explicit layout regeneration requires
+ * resetPinLayout. */
+ResolvedComponent patchConfiguration(
+    const ComponentDefinition& definition,
+    const ComponentConfiguration& current,
+    const ComponentPropertyPatch& patch
+);
+ComponentOverrides configurationOverrides(const ComponentConfiguration& configuration);
