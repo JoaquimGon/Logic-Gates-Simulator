@@ -33,7 +33,13 @@ target_link_libraries(simulator_scene PUBLIC
 )
 
 if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
-    add_library(simulator_input STATIC src/Editor/Input.cpp)
+    add_library(simulator_input STATIC
+        src/Editor/Input.cpp
+        src/Editor/ComponentShortcuts.cpp
+        src/Editor/Gestures/DragGesture.cpp
+        src/Editor/Gestures/WireGesture.cpp
+        src/Editor/Gestures/Selection.cpp
+    )
     target_link_libraries(simulator_input PUBLIC simulator_scene PRIVATE glfw)
     target_compile_definitions(simulator_input PRIVATE GLFW_INCLUDE_NONE)
 endif()
@@ -91,7 +97,10 @@ if(BUILD_TESTING)
     add_executable(InputTests tests/InputTests.cpp)
     target_link_libraries(InputTests PRIVATE simulator_input glfw)
     target_compile_definitions(InputTests PRIVATE GLFW_INCLUDE_NONE)
-    foreach(test_name IN ITEMS drag_cancellation drag_commit spawn_placement wire_segment_deletion)
+    foreach(test_name IN ITEMS
+        drag_cancellation drag_commit spawn_placement wire_segment_deletion
+        interaction_modes mode_cancellation wire_and_pan_gestures
+    )
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
     endforeach()
 endif()

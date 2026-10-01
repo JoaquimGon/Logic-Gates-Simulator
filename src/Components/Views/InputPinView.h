@@ -6,8 +6,8 @@
 #include <utility>
 
 // A manual input switch. One output pin, no inputs. Clicking its body toggles
-// the underlying logic InputPin instead of starting a wire-drag on the gate
-// body.
+// the underlying logic InputPin when Interaction mode delegates the click.
+// Selection mode moves the body without invoking this handler.
 class InputPinView : public ComponentView
 {
   public:

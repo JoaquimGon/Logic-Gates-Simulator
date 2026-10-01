@@ -19,17 +19,35 @@ A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 C
 
 ## Controls & Keybindings *(Temporary)*
 
+The application starts in **Selection mode**. Move/select/delete components,
+create wires, and use spawn shortcuts in this mode; clicking an input body never
+toggles its value. **Interaction mode** operates inputs and clock controls while
+blocking structural edits. Simulation continues in both modes; pan and zoom are
+available in both. The window title shows the mode and F2 shortcut.
+
+F2 changes modes immediately and cancels unfinished dragging, wire drawing,
+branching, and panning. Escape, right-click, focus loss, and scene switching also
+discard unfinished gestures; a later mouse release cannot commit them.
+Ctrl+Shift was avoided because Windows can reserve it for keyboard-layout changes.
+Pin/wire routing, Delete/Backspace, and component spawn shortcuts below apply only
+in Selection mode.
+
+
 | Input | Action |
 | :--- | :--- |
 | **Left Click (Pin)** | Begin routing wire from an input/output pin |
 | **Left Click (Wire)** | Branch or split an existing wire segment |
-| **Left Click (Gate Body)** | Select component / Drag to move |
-| **Left Click (InputPin Body)** | Toggle logic state (`HIGH` / `LOW`) |
+| **Left Click (Component Body)** | Selection: select/drag any component; Interaction: operate actionable components |
+| **Left Click (InputPin Body)** | Selection: move without toggling; Interaction: toggle logic state |
 | **Right Click (Drag)** | Pan view camera |
 | **Right Click (Click)** | Cancel wire placement / Deselect |
 | **Ctrl + Scroll** | Zoom in / Zoom out |
 | **Delete / Backspace** | Delete selected component or wire segment |
-| **Escape** | Abort current interaction |
+| **Escape** | Abort current gesture |
+| **F2** | Toggle Selection / Interaction mode |
+| **F3** | Toggle debug metrics |
+| **Space** | Interaction: pause/resume clocks |
+| **Period** | Interaction: step clocks once |
 | **1** | Spawn `InputPin` |
 | **2** | Spawn `NOT` Gate |
 | **3** | Spawn `AND` Gate |
@@ -38,6 +56,8 @@ A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 C
 | **6** | Spawn `NOR` Gate |
 | **7** | Spawn `XOR` Gate |
 | **8** | Spawn `NXOR` Gate |
+| **9** | Spawn clock |
+| **U / I** | Spawn SR / D latch |
 
 ---
 
@@ -48,6 +68,7 @@ src/
   App/                 Entry point, GLFW lifecycle, and application loop
   Editor/              Input gestures and Scene coordination
     Actions/           Typed edits, preview lifecycle, and reversible changes
+    Gestures/          Component dragging, wire drawing, panning, and selection
   Components/          Native behavior classes and logical pin types
     Views/             Component presentation and PinUI data
   Simulation/          Circuit propagation, nets, and endpoint identities
@@ -80,11 +101,14 @@ Headers include their own requirements; implementation-only headers belong in
 `.cpp` files. Native behavior and simulation must not include views, Graphics,
 GLFW, or GLAD. Wire vertex generation belongs in Graphics, not the wire model.
 
-Editor actions are implemented under `Editor/Actions/`. Further extraction of
-gesture handlers and connectivity building belong under `Editor/`; geometry normalization belongs
+Editor actions live under `Editor/Actions/`; concrete gesture handlers live under
+`Editor/Gestures/` and require no GLFW. Input adapts events, applies the mode policy,
+and dispatches shortcuts; native keyboard creation presets are in
+`Editor/ComponentShortcuts.cpp` pending the component catalog. Connectivity
+extraction remains under `Editor/`; geometry normalization belongs
 under `Geometry/`; reusable component definitions and their catalog belong
 under `Components/`. Those extractions remain pending; Scene still owns
-geometry normalization and net building, and Input still owns gestures/defaults.
+geometry normalization and net building. Catalog/default consolidation remains pending.
 
 ## Dependencies & Vendoring
 
@@ -198,8 +222,9 @@ when using a multi-configuration generator. Use `-DBUILD_TESTING=OFF` to omit te
 Input regression tests run in a separate `InputTests` executable using GLFW's
 null platform, so they require no display, native window, or OpenGL context.
 They cover Escape/right-click drag cancellation, movement and overlap rollback,
-connectivity after every component spawn shortcut, and middle-segment deletion.
-CTest runs all three runners (18 groups); use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion" --output-on-failure`
+connectivity after every component spawn shortcut, middle-segment deletion,
+mode isolation, immediate mode/focus cancellation, wire branching, and panning.
+CTest runs all three runners (21 groups); use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion" --output-on-failure`
 to run only the input tests.
 
 ## Shared Editor Actions

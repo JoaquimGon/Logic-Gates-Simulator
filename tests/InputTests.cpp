@@ -3,7 +3,7 @@
 #include "Geometry/GridSystem.h"
 
 #include <GLFW/glfw3.h>
-
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -46,6 +46,7 @@ class Editor
     {
         Input::keyCallback(window, key, 0, GLFW_PRESS, 0);
         input.process(window);
+        Input::keyCallback(window, key, 0, GLFW_RELEASE, 0);
     }
 
     int inverter(GridCoords position)
@@ -291,6 +292,275 @@ void wireSegmentDeletion(GLFWwindow* window)
     );
     require(!editor.input.hasSelectedSegment(), "Deletion retained a stale selected segment.");
 }
+
+void interactionModes(GLFWwindow* window)
+{
+    Editor editor(window);
+    const int source = editor.scene.addInputPin({-8, 0}, {0.15f, 0.15f}, "inputPin", true);
+    const int gate = editor.inverter({12, 0});
+    const int clock = editor.scene.addClock({20, 0}, {0.15f, 0.15f}, "clock");
+    editor.wire({{-7, 0}, {10, 0}});
+    editor.scene.propagate();
+    const auto builds = editor.scene.getTopologyBuildCount();
+    require(editor.input.getMode() == EditorMode::Selection, "Default mode is not Selection.");
+
+    editor.cursor({-8, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({-8, 4});
+    require(
+        editor.scene.getLogicComponent(source)->getStateOutPin(),
+        "Selection mode toggled the input while dragging."
+    );
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getCommittedComponentView(source)->getGridPosition() == GridCoords{-8, 4} &&
+            editor.scene.getTopologyBuildCount() == builds + 1,
+        "Input body did not commit a move in Selection mode."
+    );
+    editor.verifyPinLocations();
+    editor.scene.propagate();
+    require(
+        !editor.scene.getLogicComponent(gate)->getStateInPin(0) &&
+            editor.scene.getLogicComponent(source)->getStateOutPin(),
+        "Moving an input changed its value or left a stale attachment."
+    );
+
+    editor.key(GLFW_KEY_SPACE);
+    editor.key(GLFW_KEY_PERIOD);
+    require(
+        !static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused() &&
+            !editor.scene.getLogicComponent(clock)->getStateOutPin(),
+        "Selection mode operated runtime clock controls."
+    );
+
+    editor.key(GLFW_KEY_F2);
+    require(
+        editor.input.getMode() == EditorMode::Interaction &&
+            editor.input.getSelectedComponentId() == -1,
+        "F2 did not switch and clear selection."
+    );
+    const auto runtimeBuilds = editor.scene.getTopologyBuildCount();
+    editor.cursor({-8, 4});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({-8, 8});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        !editor.scene.getLogicComponent(source)->getStateOutPin() &&
+            editor.scene.getCommittedComponentView(source)->getGridPosition() ==
+                GridCoords{-8, 4} &&
+            editor.input.isIdle(),
+        "Interaction mode did not toggle without dragging."
+    );
+    for (GridCoords body : {GridCoords{12, 0}, GridCoords{20, 0}})
+    {
+        editor.cursor(body);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.cursor({body.x, body.y + 4});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    }
+    require(
+        editor.scene.getCommittedComponentView(gate)->getGridPosition() == GridCoords{12, 0} &&
+            editor.scene.getCommittedComponentView(clock)->getGridPosition() == GridCoords{20, 0},
+        "Interaction mode fell back to dragging a nonactionable component."
+    );
+    for (GridCoords start : {GridCoords{-7, 4}, GridCoords{0, 0}, GridCoords{0, 8}})
+    {
+        editor.cursor(start);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.cursor({start.x, start.y + 4});
+        require(!editor.input.isCurrentlyDrawingWire(), "Interaction mode started wiring.");
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    }
+    editor.cursor({-8, 4});
+    for (int key :
+         {GLFW_KEY_1,
+          GLFW_KEY_2,
+          GLFW_KEY_3,
+          GLFW_KEY_4,
+          GLFW_KEY_5,
+          GLFW_KEY_6,
+          GLFW_KEY_7,
+          GLFW_KEY_8,
+          GLFW_KEY_9,
+          GLFW_KEY_U,
+          GLFW_KEY_I,
+          GLFW_KEY_DELETE,
+          GLFW_KEY_BACKSPACE})
+        editor.key(key);
+    require(
+        editor.scene.getComponentCount() == 3 && editor.scene.wireCount() == 1 &&
+            editor.scene.getTopologyBuildCount() == runtimeBuilds,
+        "Interaction shortcuts modified circuit structure."
+    );
+    editor.key(GLFW_KEY_SPACE);
+    editor.key(GLFW_KEY_PERIOD);
+    require(
+        static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused() &&
+            editor.scene.getLogicComponent(clock)->getStateOutPin(),
+        "Interaction clock controls did not operate."
+    );
+    editor.key(GLFW_KEY_F2);
+    editor.input.process(window);
+    require(editor.scene.getComponentCount() == 3, "Blocked shortcuts fired after mode switch.");
+    editor.cursor({-8, 4});
+    editor.key(GLFW_KEY_DELETE);
+    require(!editor.scene.getLogicComponent(source), "Selection mode could not delete an input.");
+}
+
+void modeCancellation(GLFWwindow* window)
+{
+    Editor editor(window);
+    const int source = editor.scene.addInputPin({0, 0}, {0.15f, 0.15f}, "inputPin", true);
+    const auto builds = editor.scene.getTopologyBuildCount();
+    editor.cursor({0, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({6, 4});
+    Input::keyCallback(window, GLFW_KEY_1, 0, GLFW_PRESS, 0);
+    Input::keyCallback(window, GLFW_KEY_F2, 0, GLFW_PRESS, 0);
+    require(
+        editor.input.getMode() == EditorMode::Interaction && editor.input.isIdle() &&
+            editor.scene.getCommittedComponentView(source)->getGridPosition() == GridCoords{0, 0} &&
+            editor.scene.getTopologyBuildCount() == builds,
+        "Mode change did not cancel the preview immediately."
+    );
+    Input::keyCallback(window, GLFW_KEY_F2, 0, GLFW_REPEAT, 0);
+    Input::keyCallback(window, GLFW_KEY_F2, 0, GLFW_PRESS, 0);
+    require(editor.input.getMode() == EditorMode::Interaction, "Held F2 repeatedly toggled mode.");
+    Input::keyCallback(window, GLFW_KEY_F2, 0, GLFW_RELEASE, 0);
+    Input::keyCallback(window, GLFW_KEY_1, 0, GLFW_RELEASE, 0);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getLogicComponent(source)->getStateOutPin(),
+        "Release after mode switch toggled the input."
+    );
+    editor.key(GLFW_KEY_F2);
+    editor.input.process(window);
+    require(editor.scene.getComponentCount() == 1, "Queued edit escaped mode cancellation.");
+
+    Input::keyCallback(window, GLFW_KEY_F2, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+    Input::keyCallback(window, GLFW_KEY_F2, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+    require(editor.input.getMode() == EditorMode::Selection, "Modified F2 toggled unexpectedly.");
+    editor.cursor({8, 8});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({12, 10});
+    require(editor.input.isCurrentlyDrawingWire(), "Wire preview did not start.");
+    editor.key(GLFW_KEY_F2);
+    editor.key(GLFW_KEY_F2);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.wireCount() == 0 && editor.input.isIdle() &&
+            editor.scene.getTopologyBuildCount() == builds,
+        "Mode switching committed a cancelled wire."
+    );
+
+    editor.cursor({0, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({5, 5});
+    Input::keyCallback(window, GLFW_KEY_DELETE, 0, GLFW_PRESS, 0);
+    Input::focusCallback(window, GLFW_FALSE);
+    editor.input.process(window);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getLogicComponent(source) && editor.input.isIdle() &&
+            editor.scene.getCommittedComponentView(source)->getGridPosition() == GridCoords{0, 0} &&
+            editor.scene.getTopologyBuildCount() == builds,
+        "Focus loss did not discard the gesture/keys."
+    );
+}
+
+void wireAndPanGestures(GLFWwindow* window)
+{
+    Editor editor(window);
+    editor.scene.addInputPin({-8, 0}, {0.15f, 0.15f}, "inputPin", true);
+    const int sink = editor.inverter({8, 4});
+    auto builds = editor.scene.getTopologyBuildCount();
+    editor.cursor({-7, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({6, 4});
+    require(
+        editor.input.getActiveWire().getPath() == std::vector<GridCoords>{{-7, 0}, {6, 0}, {6, 4}},
+        "Wire bend chose the wrong initial axis."
+    );
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getTopologyBuildCount() == ++builds && editor.scene.netCount() == 1,
+        "Wire release did not commit once."
+    );
+    editor.scene.propagate();
+    editor.scene.syncVisuals();
+    require(
+        editor.scene.getLogicComponent(sink)->getStateInPin(0), "Wire gesture did not connect."
+    );
+
+    editor.cursor({0, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    require(
+        !editor.input.isCurrentlyDrawingWire() && editor.input.hasSelectedSegment(),
+        "Wire click did not defer branching."
+    );
+    editor.cursor({0, -4});
+    require(
+        editor.input.isCurrentlyDrawingWire() && editor.input.getWireOriginPin().componentId == 0,
+        "Branch did not retain driver identity."
+    );
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getTopologyBuildCount() == ++builds && editor.scene.netCount() == 1,
+        "Branch did not commit normalized connectivity once."
+    );
+
+    const auto wireIds = editor.scene.getWireIds();
+    editor.cursor({-7, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({-7, 4});
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+    require(
+        editor.scene.getWireIds() == wireIds && editor.scene.getTopologyBuildCount() == builds,
+        "Right-click wire cancellation changed geometry."
+    );
+    editor.cursor({-7, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({-7, 4});
+    editor.key(GLFW_KEY_ESCAPE);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(editor.scene.getWireIds() == wireIds, "Escape committed a cancelled wire.");
+    editor.cursor({-7, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({-7, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(editor.scene.getWireIds() == wireIds, "Click/release committed a zero-length wire.");
+
+    for (EditorMode mode : {EditorMode::Selection, EditorMode::Interaction})
+    {
+        editor.input.setMode(mode);
+        editor.input.setZoom(2);
+        const auto offset = editor.input.getPanOffset();
+        glfwSetCursorPos(window, 400, 400);
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        glfwSetCursorPos(window, 440, 420);
+        Input::cursorPositionCallback(window, 440, 420);
+        const auto delta = editor.input.getPanOffset() - offset;
+        require(
+            std::abs(delta.x + 0.05f) < 0.00001f && std::abs(delta.y - 0.025f) < 0.00001f,
+            "Panning did not respect zoom and viewport height."
+        );
+        editor.key(GLFW_KEY_F2);
+        const auto finishedOffset = editor.input.getPanOffset();
+        glfwSetCursorPos(window, 480, 440);
+        Input::cursorPositionCallback(window, 480, 440);
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        require(
+            editor.input.isIdle() && editor.input.getPanOffset() == finishedOffset &&
+                editor.scene.getWireIds() == wireIds,
+            "Mode change left panning or editing active."
+        );
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -317,7 +587,10 @@ int main(int argc, char** argv)
             {"drag_cancellation", dragCancellation},
             {"drag_commit", dragCommit},
             {"spawn_placement", spawnPlacement},
-            {"wire_segment_deletion", wireSegmentDeletion}
+            {"wire_segment_deletion", wireSegmentDeletion},
+            {"interaction_modes", interactionModes},
+            {"mode_cancellation", modeCancellation},
+            {"wire_and_pan_gestures", wireAndPanGestures}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)

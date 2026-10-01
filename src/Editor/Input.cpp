@@ -1,20 +1,25 @@
-﻿#include "Input.h"
+#include "Input.h"
 
 #include "Actions/EditorActions.h"
+#include "ComponentShortcuts.h"
 #include "Geometry/GridSystem.h"
 #include "Scene.h"
 
 #include <GLFW/glfw3.h>
-#include <cmath>
 #include <utility>
+
+void Input::recordEdit(const EditResult& result)
+{
+    m_lastEditError = result.error;
+    m_lastEditMessage = result.message;
+}
 
 bool Input::applyEdit(EditOperation operation)
 {
     if (!m_scene)
         return false;
     const auto result = EditorActions(*m_scene).apply({std::move(operation)});
-    m_lastEditError = result.error;
-    m_lastEditMessage = result.message;
+    recordEdit(result);
     return static_cast<bool>(result);
 }
 
@@ -24,81 +29,92 @@ void Input::setScene(Scene* scene)
         return;
     cancelCurrentAction();
     m_pendingKeyPresses.clear();
+    m_pressedKeys.clear();
     m_scene = scene;
     hoveredComponentId = hoveredPinComponentId = hoveredPinIndex = -1;
     hoveredWireId = INVALID_WIRE_ID;
     m_hoveredSegmentValid = false;
-    m_wireOriginComponentId = -1;
-    m_wireOriginPin = {};
     m_lastEditError = EditError::None;
     m_lastEditMessage.clear();
 }
 
+void Input::setMode(EditorMode mode)
+{
+    if (m_mode == mode)
+        return;
+    cancelCurrentAction();
+    m_pendingKeyPresses.clear();
+    m_mode = mode;
+}
+
 void Input::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
-    Input* handler = static_cast<Input*>(glfwGetWindowUserPointer(window));
-    if (handler)
-        handler->handleMouseButton(window, button, action, mods);
+    if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
+        input->handleMouseButton(window, button, action, mods);
 }
 
-
-void Input::cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
+void Input::cursorPositionCallback(GLFWwindow* window, double x, double y)
 {
-    Input* handler = static_cast<Input*>(glfwGetWindowUserPointer(window));
-    if (handler)
-        handler->handleCursorPos(window, xpos, ypos);
+    if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
+        input->handleCursorPos(window, x, y);
 }
 
-
-void Input::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+void Input::scrollCallback(GLFWwindow* window, double x, double y)
 {
-    Input* input = static_cast<Input*>(glfwGetWindowUserPointer(window));
-    if (input)
-        input->handleScroll(window, xoffset, yoffset);
+    if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
+        input->handleScroll(window, x, y);
 }
-
 
 void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    Input* input = static_cast<Input*>(glfwGetWindowUserPointer(window));
-    if (input)
-        input->handleKey(key, action);
+    if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
+        input->handleKey(key, action, mods);
 }
 
-
-void Input::handleKey(int key, int action)
+void Input::focusCallback(GLFWwindow* window, int focused)
 {
-    if (action == GLFW_PRESS)
-        m_pendingKeyPresses.insert(key);
+    if (!focused)
+        if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
+        {
+            input->cancelCurrentAction();
+            input->m_pendingKeyPresses.clear();
+            input->m_pressedKeys.clear();
+        }
 }
 
+void Input::handleKey(int key, int action, int mods)
+{
+    if (action == GLFW_RELEASE)
+    {
+        m_pressedKeys.erase(key);
+        return;
+    }
+    if (action != GLFW_PRESS || !m_pressedKeys.insert(key).second)
+        return;
+    if (key == GLFW_KEY_F2)
+    {
+        if (!(mods & (GLFW_MOD_SHIFT | GLFW_MOD_CONTROL | GLFW_MOD_ALT | GLFW_MOD_SUPER)))
+            setMode(
+                m_mode == EditorMode::Selection ? EditorMode::Interaction : EditorMode::Selection
+            );
+        return;
+    }
+    m_pendingKeyPresses.insert(key);
+}
 
 bool Input::consumeKeyPress(int key)
 {
     return m_pendingKeyPresses.erase(key) > 0;
 }
 
-
 void Input::cancelCurrentAction()
 {
-    if (m_movePreview && m_scene)
-        EditorActions(*m_scene).cancelMove(*m_movePreview);
-    m_movePreview.reset();
-
-    if (m_state == InteractionState::DRAWING_WIRE)
-    {
-        activeWire = Wire();
-        m_wireOriginComponentId = -1;
-        baseWirePath.clear();
-        isMidWireBranchPending = false;
-    }
-
-    m_selectedComponentId = -1;
-    m_selectedWireId = INVALID_WIRE_ID;
-    m_hasSelectedSegment = false;
-    m_state = InteractionState::IDLE;
+    if (m_scene)
+        m_drag.cancel(*m_scene);
+    m_wire.cancel();
+    m_pan.cancel();
+    m_selection.clear();
 }
-
 
 void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mods)
 {
@@ -106,480 +122,161 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     {
         if (action == GLFW_PRESS)
         {
-            if (m_state == InteractionState::DRAWING_WIRE ||
-                m_state == InteractionState::DRAGGING_GATE)
+            if (m_drag.active() || m_wire.ownsPointer())
             {
                 cancelCurrentAction();
                 return;
             }
-            m_selectedComponentId = -1;
-            m_selectedWireId = INVALID_WIRE_ID;
-            m_hasSelectedSegment = false;
-            isMidWireBranchPending = false;
-            m_wireOriginComponentId = -1;
-
+            m_selection.clear();
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
-            m_state = InteractionState::PANNING;
-        }
-        else if (action == GLFW_RELEASE && m_state == InteractionState::PANNING)
-        {
-            m_state = InteractionState::IDLE;
-        }
-    }
-
-    // State guard panning so it doesn't get overwritten
-    if (m_state == InteractionState::PANNING)
-        return;
-
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS &&
-        m_state == InteractionState::DRAGGING_GATE)
-        return;
-
-    if (button == GLFW_MOUSE_BUTTON_LEFT && m_scene)
-    {
-        if (action == GLFW_PRESS)
-        {
-            glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
-            updateHoverState(window);
-
-            const int clickedComponentId =
-                hoveredPinComponentId != -1 ? hoveredPinComponentId : hoveredComponentId;
-
-            // Clicking an already-selected gate deselects without creating an edit.
-            const bool clickedSelectedGate =
-                m_selectedComponentId != -1 && clickedComponentId == m_selectedComponentId &&
-                dynamic_cast<InputPin*>(m_scene->getLogicComponent(clickedComponentId)) == nullptr;
-
-            if (clickedSelectedGate)
-            {
-                cancelCurrentAction();
-                return;
-            }
-
-            m_selectedComponentId = -1;
-            m_selectedWireId = INVALID_WIRE_ID;
-            m_hasSelectedSegment = false;
-            isMidWireBranchPending = false;
-            m_wireOriginComponentId = -1;
-
-            if (hoveredPinComponentId != -1 && hoveredPinIndex != -1)
-            {
-                m_selectedComponentId = hoveredPinComponentId;
-                m_wireOriginComponentId = hoveredPinComponentId;
-
-                activeWire = Wire();
-                m_wireOriginPin = {hoveredPinComponentId, hoveredPinIndex};
-                m_wireOriginType = hoveredPinType;
-
-                activeWire.setState(PinState::DISCONNECTED);
-                baseWirePath = {mouseGridCoords};
-                wireStartPos = mouseGridCoords;
-                wireAxisLocked = false;
-                wireAxisXFirst = true;
-                m_state = InteractionState::DRAWING_WIRE;
-            }
-            else if (hoveredWireId != INVALID_WIRE_ID)
-            {
-                m_selectedWireId = hoveredWireId;
-                const Wire* clickedWire = m_scene->getWire(hoveredWireId);
-                m_hasSelectedSegment =
-                    clickedWire && clickedWire->getSegmentAt(
-                                       mouseGridCoords, m_selectedSegmentStart, m_selectedSegmentEnd
-                                   );
-
-                wireStartPos = mouseGridCoords;
-                isMidWireBranchPending = true;
-                wireAxisLocked = false;
-                wireAxisXFirst = true;
-
-                // Set the drawing wire to disconnected
-                activeWire = Wire();
-                activeWire.setState(PinState::DISCONNECTED);
-                m_wireOriginPin = PinRef();
-                m_wireOriginType = PinType::INPUT;
-            }
-            else if (hoveredComponentId != -1)
-            {
-                m_selectedComponentId = hoveredComponentId;
-
-                if (!m_scene->handleClick(hoveredComponentId))
-                {
-                    m_movePreview = EditorActions(*m_scene).beginMove(hoveredComponentId);
-                    if (m_movePreview)
-                        m_state = InteractionState::DRAGGING_GATE;
-                }
-            }
-            else
-            {
-                activeWire = Wire();
-                baseWirePath = {mouseGridCoords};
-                wireStartPos = mouseGridCoords;
-                wireAxisLocked = false;
-                wireAxisXFirst = true;
-                m_state = InteractionState::DRAWING_WIRE;
-            }
+            m_pan.begin(getLastMouse());
         }
         else if (action == GLFW_RELEASE)
-        {
-            if (isMidWireBranchPending)
-            {
-                isMidWireBranchPending = false;
-                m_state = InteractionState::IDLE;
-                return;
-            }
-
-            if (m_state == InteractionState::DRAGGING_GATE && m_movePreview)
-            {
-                const auto result = EditorActions(*m_scene).commitMove(*m_movePreview);
-                m_lastEditError = result.error;
-                m_lastEditMessage = result.message;
-                m_movePreview.reset();
-                m_state = InteractionState::IDLE;
-            }
-            else if (m_state == InteractionState::DRAWING_WIRE)
-            {
-                if (activeWire.getPath().size() <= 1)
-                {
-                    m_state = InteractionState::IDLE;
-                    activeWire = Wire();
-                    m_selectedComponentId = -1;
-                    m_wireOriginComponentId = -1;
-                    return;
-                }
-
-                updateHoverState(window);
-
-                // Disallow self-connecting wires directly to the origin
-                // component
-                if (hoveredPinComponentId != -1 && m_wireOriginComponentId != -1 &&
-                    hoveredPinComponentId == m_wireOriginComponentId)
-                {
-                    cancelCurrentAction();
-                    return;
-                }
-
-                // Geometry is committed directly; Scene::settleGeometry()
-                // splits overlapping and intersecting geometry cleanly in one
-                // place.
-                if (activeWire.getPath().size() >= 2)
-                {
-                    applyEdit(AddWire{activeWire.getPath()});
-                }
-
-                cancelCurrentAction();
-            }
-        }
-    }
-}
-
-
-void Input::handleCursorPos(GLFWwindow* window, double xpos, double ypos)
-{
-    glm::vec2 worldCoords = getMouseWorldCoord(window, m_zoom);
-    GridCoords snappedGridPos = GridSystem::worldToGrid(worldCoords);
-
-    if (isMidWireBranchPending && snappedGridPos != wireStartPos && m_scene)
-    {
-        if (const Wire* selectedWire = m_scene->getWire(m_selectedWireId))
-        {
-            const Wire& target = *selectedWire;
-
-            m_wireOriginPin = PinRef();
-            m_wireOriginType = PinType::INPUT;
-            m_wireOriginComponentId = -1;
-            if (const Net* net = m_scene->getNet(target.getNet()))
-            {
-                if (net->hasDriver())
-                {
-                    m_wireOriginPin = *net->getDriver();
-                    m_wireOriginType = PinType::OUTPUT;
-                    m_wireOriginComponentId = m_wireOriginPin.componentId;
-                }
-                else if (!net->getSinks().empty())
-                {
-                    m_wireOriginComponentId = net->getSinks().front().componentId;
-                }
-            }
-
-            activeWire = Wire();
-            if (const Net* net = m_scene->getNet(target.getNet()))
-            {
-                activeWire.setState(
-                    net->getState() == PinState::ON ? PinState::ON : PinState::DISCONNECTED
-                );
-            }
-            else
-            {
-                activeWire.setState(PinState::DISCONNECTED);
-            }
-
-            baseWirePath = {wireStartPos};
-            m_state = InteractionState::DRAWING_WIRE;
-            m_hasSelectedSegment = false;
-        }
-        isMidWireBranchPending = false;
-    }
-
-    if (m_state == InteractionState::DRAGGING_GATE && m_movePreview)
-    {
-        if (!m_scene || !EditorActions(*m_scene).previewMove(*m_movePreview, snappedGridPos))
-            cancelCurrentAction();
-        lastMouseX = xpos;
-        lastMouseY = ypos;
+            m_pan.cancel();
         return;
     }
+    if (button != GLFW_MOUSE_BUTTON_LEFT || m_pan.active() || !m_scene)
+        return;
 
-    if (m_state == InteractionState::DRAWING_WIRE)
+    if (action == GLFW_PRESS)
     {
-        if (snappedGridPos != wireStartPos)
+        if (!isIdle())
+            return;
+        updateHoverState(window);
+        const auto hit = m_scene->hitTest(getMouseWorldCoord(window, m_zoom), mouseGridCoords);
+        if (m_mode == EditorMode::Interaction)
         {
-            int dx = snappedGridPos.x - wireStartPos.x;
-            int dy = snappedGridPos.y - wireStartPos.y;
-            if (!wireAxisLocked)
-            {
-                wireAxisXFirst = (std::abs(dx) >= std::abs(dy));
-                wireAxisLocked = true;
-            }
+            if (hit.type == HitType::COMPONENT_BODY)
+                m_scene->handleClick(hit.componentId);
+            return;
+        }
+        if (hit.type == HitType::COMPONENT_BODY)
+        {
+            if (m_selection.selectComponent(hit.componentId))
+                m_drag.begin(*m_scene, hit.componentId);
+        }
+        else if (hit.type == HitType::COMPONENT_PIN)
+        {
+            m_selection.selectPinOwner(hit.componentId);
+            m_wire.begin(mouseGridCoords, {hit.componentId, hit.pinIndex}, hit.pinType);
+        }
+        else if (hit.wireId != INVALID_WIRE_ID)
+        {
+            m_selection.selectWire(*m_scene, hit.wireId, mouseGridCoords);
+            m_wire.beginBranch(hit.wireId, mouseGridCoords);
         }
         else
         {
-            wireAxisLocked = false;
+            m_selection.clear();
+            m_wire.begin(mouseGridCoords);
         }
-
-        std::vector<GridCoords> previewPath = baseWirePath;
-        if (snappedGridPos != wireStartPos)
-        {
-            if (wireStartPos.x != snappedGridPos.x && wireStartPos.y != snappedGridPos.y)
-            {
-                if (wireAxisXFirst)
-                    previewPath.push_back({snappedGridPos.x, wireStartPos.y});
-                else
-                    previewPath.push_back({wireStartPos.x, snappedGridPos.y});
-            }
-            previewPath.push_back(snappedGridPos);
-        }
-        activeWire.setPath(previewPath);
     }
-
-    if (m_state == InteractionState::PANNING)
+    else if (action == GLFW_RELEASE)
     {
-        double deltaX = xpos - lastMouseX;
-        double deltaY = ypos - lastMouseY;
-        int width, height;
-        glfwGetWindowSize(window, &width, &height);
-
-        panOffset.x -= ((static_cast<float>(deltaX) / height) * 2.0f) / m_zoom;
-        panOffset.y += ((static_cast<float>(deltaY) / height) * 2.0f) / m_zoom;
+        if (m_drag.active())
+            recordEdit(m_drag.finish(*m_scene));
+        else if (m_wire.ownsPointer())
+        {
+            updateHoverState(window);
+            const bool drawing = m_wire.active();
+            const auto hit = m_scene->hitTest(getMouseWorldCoord(window, m_zoom), mouseGridCoords);
+            if (auto command = m_wire.finish(hit))
+                applyEdit(std::move(*command));
+            if (drawing)
+                m_selection.clear();
+        }
+        updateHoverState(window);
     }
-
-    lastMouseX = xpos;
-    lastMouseY = ypos;
 }
 
+void Input::handleCursorPos(GLFWwindow* window, double x, double y)
+{
+    mouseGridCoords = GridSystem::worldToGrid(getMouseWorldCoord(window, m_zoom));
+    if (m_drag.active())
+    {
+        if (!m_scene || !m_drag.update(*m_scene, mouseGridCoords))
+            cancelCurrentAction();
+    }
+    else if (m_wire.ownsPointer() && m_scene)
+    {
+        const bool wasDrawing = m_wire.active();
+        m_wire.update(*m_scene, mouseGridCoords);
+        if (!wasDrawing && m_wire.active())
+            m_selection.clearSegment();
+    }
+    else if (m_pan.active())
+    {
+        int width, height;
+        glfwGetWindowSize(window, &width, &height);
+        m_pan.update(
+            {static_cast<float>(x), static_cast<float>(y)},
+            static_cast<float>(height),
+            m_zoom,
+            panOffset
+        );
+    }
+    lastMouseX = x;
+    lastMouseY = y;
+}
 
 void Input::process(GLFWwindow* window)
 {
-    // Every press is recorded by keyCallback() and drained here, so a key that
-    // is tapped between two frames still acts, and Escape no longer has to be
-    // held down.
     if (consumeKeyPress(GLFW_KEY_ESCAPE))
         cancelCurrentAction();
+    updateHoverState(window);
+    const bool canEdit = m_scene && m_mode == EditorMode::Selection && isIdle();
+    for (int key :
+         {GLFW_KEY_1,
+          GLFW_KEY_2,
+          GLFW_KEY_3,
+          GLFW_KEY_4,
+          GLFW_KEY_5,
+          GLFW_KEY_6,
+          GLFW_KEY_7,
+          GLFW_KEY_8,
+          GLFW_KEY_9,
+          GLFW_KEY_U,
+          GLFW_KEY_I})
+        if (consumeKeyPress(key) && canEdit)
+            if (auto command = componentShortcut(
+                    key, GridSystem::worldToGrid(getMouseWorldCoord(window, m_zoom))
+                ))
+                applyEdit(std::move(*command));
 
-    // Spawning and deleting only apply while no gesture owns the mouse. The
-    // press is consumed regardless of this flag, so a key pressed during a drag
-    // cannot fire later, out of context.
-    const bool canSpawn = (m_scene != nullptr) && isIdle();
-
-    auto trySpawnGate = [&](GateType type, const std::string& shaderName)
+    const bool pause = consumeKeyPress(GLFW_KEY_SPACE);
+    const bool step = consumeKeyPress(GLFW_KEY_PERIOD);
+    if (m_scene && m_mode == EditorMode::Interaction)
     {
-        if (!canSpawn)
-            return;
-
-        bool isInverted =
-            (type == GateType::NAND || type == GateType::NOR || type == GateType::NXOR);
-
-        std::vector<PinUI> inPins = {
-            {PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 1}},
-            {PinType::INPUT, 1, PinState::DISCONNECTED, {-2, -1}}
-        };
-
-        // Push the output pin out 1 grid cell for inverted gates to sit on the
-        // bubble
-        std::vector<PinUI> outPins = {
-            {PinType::OUTPUT, 0, PinState::DISCONNECTED, {isInverted ? 3 : 2, 0}}
-        };
-
-        // Widen the bounding box to 0.3 for inverted gates
-        glm::vec2 size = isInverted ? glm::vec2{0.3f, 0.2f} : glm::vec2{0.2f, 0.2f};
-
-        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
-        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-
-        applyEdit(
-            CreateGate{
-                type, gridPos, {size, shaderName, inPins, outPins}, PlacementPolicy::FindFree
-            }
-        );
-    };
-
-    // 1. SPAWN INPUT PIN (Key '1')
-    if (consumeKeyPress(GLFW_KEY_1) && canSpawn)
-    {
-        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
-        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-
-        applyEdit(
-            CreateInput{gridPos, {0.15f, 0.15f}, "inputPin", false, PlacementPolicy::FindFree}
-        );
+        if (pause)
+            m_scene->togglePauseAllClocks();
+        if (step)
+            m_scene->stepAllClocks();
     }
-
-    // 2. SPAWN NOT GATE (Key '2')
-    if (consumeKeyPress(GLFW_KEY_2) && canSpawn)
+    const bool remove = consumeKeyPress(GLFW_KEY_DELETE);
+    const bool backspace = consumeKeyPress(GLFW_KEY_BACKSPACE);
+    if (canEdit && (remove || backspace))
     {
-        // Pins spaced exactly 3 grid cells apart
-        std::vector<PinUI> inPins{{PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 0}}};
-        std::vector<PinUI> outPins{{PinType::OUTPUT, 0, PinState::DISCONNECTED, {1, 0}}};
-
-        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
-        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-
-        // Bounding box must be 4 cells wide (0.2f) so edges land on integer
-        // grid lines
-        applyEdit(
-            CreateGate{
-                NOT, gridPos, {{0.2f, 0.1f}, "NOTgate", inPins, outPins}, PlacementPolicy::FindFree
-            }
-        );
-    }
-
-    // 3. SPAWN AND GATE (Key '3')
-    if (consumeKeyPress(GLFW_KEY_3))
-        trySpawnGate(GateType::AND, "ANDgate");
-
-    // 4. SPAWN NAND GATE (Key '4')
-    if (consumeKeyPress(GLFW_KEY_4))
-        trySpawnGate(GateType::NAND, "NANDgate");
-
-    // 5. SPAWN OR GATE (Key '5')
-    if (consumeKeyPress(GLFW_KEY_5))
-        trySpawnGate(GateType::OR, "ORgate");
-
-    // 6. SPAWN NOR GATE (Key '6')
-    if (consumeKeyPress(GLFW_KEY_6))
-        trySpawnGate(GateType::NOR, "NORgate");
-
-    // 7. SPAWN XOR GATE (Key '7')
-    if (consumeKeyPress(GLFW_KEY_7))
-        trySpawnGate(GateType::XOR, "XORgate");
-
-    // 8. SPAWN NXOR GATE (Key '8')
-    if (consumeKeyPress(GLFW_KEY_8))
-        trySpawnGate(GateType::NXOR, "NXORgate");
-
-    // 9. SPAWN CLOCK (Key '9')
-    if (consumeKeyPress(GLFW_KEY_9) && canSpawn)
-    {
-        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
-        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-
-        applyEdit(CreateClock{gridPos, {0.15f, 0.15f}, "clock", 1.0f, PlacementPolicy::FindFree});
-    }
-
-    if (consumeKeyPress(GLFW_KEY_U) && canSpawn)
-    {
-        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
-        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-        applyEdit(CreateLatch{LatchType::SR_LATCH, gridPos, PlacementPolicy::FindFree});
-    }
-
-    // Spawn Gated D Latch (Key 'I')
-    if (consumeKeyPress(GLFW_KEY_I) && canSpawn)
-    {
-        glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
-        GridCoords gridPos = GridSystem::worldToGrid(worldPos);
-        applyEdit(CreateLatch{LatchType::D_LATCH, gridPos, PlacementPolicy::FindFree});
-    }
-
-    // Toggle clock(s) pause on Space
-    if (consumeKeyPress(GLFW_KEY_SPACE) && m_scene)
-    {
-        m_scene->togglePauseAllClocks();
-    }
-
-    // Single-step on Period key
-    if (consumeKeyPress(GLFW_KEY_PERIOD) && m_scene)
-    {
-        m_scene->stepAllClocks();
-    }
-
-    // Adjust frequency: Up Arrow = faster (+1 Hz), Down Arrow = slower (-1 Hz)
-    if (consumeKeyPress(GLFW_KEY_UP) && m_scene)
-    {
-        // scale up or down
-    }
-
-    // ==========================================
-    // DELETE SELECTED OR HOVERED (Delete or Backspace)
-    // ==========================================
-    // Both delete keys are drained before the action is attempted, so a press
-    // of either one cannot stay queued into the next frame.
-    const bool deletePressed = consumeKeyPress(GLFW_KEY_DELETE);
-    const bool backspacePressed = consumeKeyPress(GLFW_KEY_BACKSPACE);
-
-    if (deletePressed || backspacePressed)
-    {
-        if (canSpawn)
+        const auto hit = m_scene->hitTest(getMouseWorldCoord(window, m_zoom), mouseGridCoords);
+        std::optional<SelectedSegment> hovered;
+        if (const Wire* wire = m_scene->getWire(hit.wireId))
         {
-            int compToDelete =
-                m_selectedComponentId != -1 ? m_selectedComponentId : hoveredComponentId;
-            WireId wireToDelete =
-                m_selectedWireId != INVALID_WIRE_ID ? m_selectedWireId : hoveredWireId;
-
-            if (compToDelete != -1)
-            {
-                if (applyEdit(DeleteComponent{compToDelete}) &&
-                    m_selectedComponentId == compToDelete)
-                    m_selectedComponentId = -1;
-            }
-            else if (m_scene->getWire(wireToDelete))
-            {
-                bool removed;
-                if (m_selectedWireId == wireToDelete && m_hasSelectedSegment)
-                    removed = applyEdit(
-                        DeleteWireSegment{
-                            wireToDelete, m_selectedSegmentStart, m_selectedSegmentEnd
-                        }
-                    );
-                else if (wireToDelete == hoveredWireId && m_hoveredSegmentValid)
-                    removed = applyEdit(
-                        DeleteWireSegment{wireToDelete, m_hoveredSegmentStart, m_hoveredSegmentEnd}
-                    );
-                else
-                    removed = applyEdit(DeleteWire{wireToDelete});
-
-                if (removed && m_selectedWireId == wireToDelete)
-                {
-                    m_selectedWireId = INVALID_WIRE_ID;
-                    m_hasSelectedSegment = false;
-                }
-            }
-
-            updateHoverState(window);
+            SelectedSegment segment;
+            if (wire->getSegmentAt(mouseGridCoords, segment.start, segment.end))
+                hovered = segment;
         }
+        if (auto command = m_selection.deletion(hit, hovered))
+            if (applyEdit(std::move(*command)))
+                m_selection.clear();
     }
-
     updateHoverState(window);
 }
 
-
-void Input::handleScroll(GLFWwindow* window, double xoffset, double yoffset)
+void Input::handleScroll(GLFWwindow* window, double x, double y)
 {
-    bool ctrlPressed = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) ||
-                       (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS);
-    if (ctrlPressed)
+    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS)
     {
-        float zoomSpeed = 0.15f;
-        m_zoom += static_cast<float>(yoffset) * zoomSpeed;
+        m_zoom += static_cast<float>(y) * 0.15f;
         if (m_zoom < 0.2f)
             m_zoom = 0.2f;
         if (m_zoom > 5.0f)
@@ -587,10 +284,9 @@ void Input::handleScroll(GLFWwindow* window, double xoffset, double yoffset)
     }
 }
 
-
 void Input::updateHoverState(GLFWwindow* window)
 {
-    if (m_state == InteractionState::DRAGGING_GATE || m_state == InteractionState::PANNING)
+    if (m_drag.active() || m_pan.active())
         return;
     if (!m_scene)
         return;
@@ -638,7 +334,6 @@ void Input::updateHoverState(GLFWwindow* window)
         hoveredWire &&
         hoveredWire->getSegmentAt(mouseGridCoords, m_hoveredSegmentStart, m_hoveredSegmentEnd);
 }
-
 
 glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window, float zoom) const
 {

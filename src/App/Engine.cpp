@@ -81,6 +81,7 @@ int Engine::init()
     glfwSetCursorPosCallback(window, Input::cursorPositionCallback);
     glfwSetScrollCallback(window, Input::scrollCallback);
     glfwSetKeyCallback(window, Input::keyCallback);
+    glfwSetWindowFocusCallback(window, Input::focusCallback);
 
     // ==========================================
     // glad Configuration
@@ -139,6 +140,10 @@ void Engine::run()
 
     input.setScene(&scene);
 
+    auto titleForMode = [&]()
+    { return m_windowName + " - " + editorModeName(input.getMode()) + " mode (F2 to switch)"; };
+    glfwSetWindowTitle(window, titleForMode().c_str());
+    auto displayedMode = input.getMode();
     double lastFrameTime = glfwGetTime();
 
     while (!glfwWindowShouldClose(window))
@@ -165,6 +170,11 @@ void Engine::run()
 
         // 1. Process OS user inputs
         input.process(window);
+        if (displayedMode != input.getMode())
+        {
+            displayedMode = input.getMode();
+            glfwSetWindowTitle(window, titleForMode().c_str());
+        }
 
         // 2. Advance time for any clocks in the circuit
         bool clockEdgeFlipped = scene.updateClocks(deltaTime);

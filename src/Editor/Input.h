@@ -1,26 +1,21 @@
 #pragma once
 #include "Actions/EditTypes.h"
 #include "Components/PinTypes.h"
+#include "EditorMode.h"
 #include "Geometry/GridCoords.h"
 #include "Geometry/Wire.h"
+#include "Gestures/DragGesture.h"
+#include "Gestures/PanGesture.h"
+#include "Gestures/Selection.h"
+#include "Gestures/WireGesture.h"
 #include "Simulation/NetTypes.h"
 
 #include <glm/glm.hpp>
-#include <optional>
 #include <string>
 #include <unordered_set>
-#include <vector>
 
 struct GLFWwindow;
 class Scene;
-
-enum class InteractionState
-{
-    IDLE,
-    PANNING,
-    DRAGGING_GATE,
-    DRAWING_WIRE
-};
 
 class Input
 {
@@ -28,32 +23,21 @@ class Input
     Scene* m_scene = nullptr;
 
     float m_zoom = 1.0f;
-    InteractionState m_state = InteractionState::IDLE;
+    EditorMode m_mode = EditorMode::Selection;
+    DragGesture m_drag;
+    WireGesture m_wire;
+    PanGesture m_pan;
+    Selection m_selection;
 
     double lastMouseX = 0.0f;
     double lastMouseY = 0.0f;
     GridCoords mouseGridCoords = {0, 0};
     glm::vec2 panOffset = glm::vec2(0.0f, 0.0f);
 
-    std::optional<MovePreviewHandle> m_movePreview;
     EditError m_lastEditError = EditError::None;
     std::string m_lastEditMessage;
     bool applyEdit(EditOperation operation);
-
-    // Wire control
-    Wire activeWire;
-    int m_wireOriginComponentId = -1;
-    // Pin the wire being drawn started from. The wire carries no electrical
-    // identity until it is committed and the scene derives its net, so this is
-    // what the preview colour is read from - and it is the component a wire may
-    // never loop back to.
-    PinRef m_wireOriginPin;
-    PinType m_wireOriginType = PinType::INPUT;
-    std::vector<GridCoords> baseWirePath;
-    GridCoords wireStartPos = {0, 0};
-    bool wireAxisLocked = false;
-    bool wireAxisXFirst = true;
-    bool isMidWireBranchPending = false; // Deferred split tracking
+    void recordEdit(const EditResult& result);
 
     int hoveredComponentId = -1;
     int hoveredPinComponentId = -1;
@@ -61,20 +45,14 @@ class Input
     PinType hoveredPinType = PinType::INPUT;
     WireId hoveredWireId = INVALID_WIRE_ID;
 
-    WireId m_selectedWireId = INVALID_WIRE_ID;
-
     bool m_hoveredSegmentValid = false;
     GridCoords m_hoveredSegmentStart = {0, 0};
     GridCoords m_hoveredSegmentEnd = {0, 0};
 
-    GridCoords m_selectedSegmentStart = {0, 0};
-    GridCoords m_selectedSegmentEnd = {0, 0};
-    bool m_hasSelectedSegment = false;
-    int m_selectedComponentId = -1;
-
     // Keys whose GLFW_PRESS event has arrived but has not been drained by
     // process() yet.
     std::unordered_set<int> m_pendingKeyPresses;
+    std::unordered_set<int> m_pressedKeys;
 
   public:
     void process(GLFWwindow* window);
@@ -84,7 +62,13 @@ class Input
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     void handleMouseButton(GLFWwindow* window, int button, int action, int mods);
-    void handleKey(int key, int action);
+    void handleKey(int key, int action, int mods = 0);
+    static void focusCallback(GLFWwindow* window, int focused);
+
+    EditorMode getMode() const { return m_mode; }
+
+    /** @brief Changes mode immediately, discarding unfinished gestures and queued shortcuts. */
+    void setMode(EditorMode mode);
 
     /*
      * @brief Drains the recorded press edge of a key.
@@ -99,7 +83,7 @@ class Input
     void updateHoverState(GLFWwindow* window);
     void cancelCurrentAction();
 
-    bool isIdle() const { return m_state == InteractionState::IDLE; }
+    bool isIdle() const { return !m_drag.active() && !m_wire.ownsPointer() && !m_pan.active(); }
 
     glm::vec2 getMouseWorldCoord(GLFWwindow* window, float zoom) const;
 
@@ -116,13 +100,13 @@ class Input
 
     void setZoom(float zoom) { m_zoom = zoom; }
 
-    bool isCurrentlyDrawingWire() const { return m_state == InteractionState::DRAWING_WIRE; }
+    bool isCurrentlyDrawingWire() const { return m_wire.active(); }
 
-    const Wire& getActiveWire() const { return activeWire; }
+    const Wire& getActiveWire() const { return m_wire.preview(); }
 
-    PinRef getWireOriginPin() const { return m_wireOriginPin; }
+    PinRef getWireOriginPin() const { return m_wire.origin(); }
 
-    PinType getWireOriginType() const { return m_wireOriginType; }
+    PinType getWireOriginType() const { return m_wire.direction(); }
 
     void setScene(Scene* scene);
 
@@ -140,15 +124,21 @@ class Input
 
     PinType getHoveredPinType() const { return hoveredPinType; }
 
-    int getSelectedComponentId() const { return m_selectedComponentId; }
+    int getSelectedComponentId() const { return m_selection.component(); }
 
-    WireId getSelectedWireId() const { return m_selectedWireId; }
+    WireId getSelectedWireId() const { return m_selection.wire(); }
 
-    bool hasSelectedSegment() const { return m_hasSelectedSegment; }
+    bool hasSelectedSegment() const { return m_selection.segment().has_value(); }
 
-    GridCoords getSelectedSegmentStart() const { return m_selectedSegmentStart; }
+    GridCoords getSelectedSegmentStart() const
+    {
+        return m_selection.segment() ? m_selection.segment()->start : GridCoords{};
+    }
 
-    GridCoords getSelectedSegmentEnd() const { return m_selectedSegmentEnd; }
+    GridCoords getSelectedSegmentEnd() const
+    {
+        return m_selection.segment() ? m_selection.segment()->end : GridCoords{};
+    }
 
     bool hasHoveredSegment() const { return m_hoveredSegmentValid; }
 

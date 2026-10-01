@@ -93,7 +93,7 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 18 groups, including five `EditorActionsTests` groups for atomic batches,
+CTest runs 21 groups, including five `EditorActionsTests` groups for atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery, and
 snapshot restoration. `InputTests` additionally verifies actual keyboard spawning,
 drag commit/cancellation, scene switching, and middle-segment deletion:
@@ -103,3 +103,20 @@ cmake --build --preset debug
 ctest --preset debug
 ctest --test-dir out/build/debug -R "editor_|drag_|spawn_|wire_segment_deletion" --output-on-failure
 ```
+
+## Gesture integration and modes
+
+GLFW events are adapted by Input and dispatched to the concrete handlers in
+`Editor/Gestures/`: DragGesture owns the move token, WireGesture owns provisional
+routing/deferred branching, PanGesture updates camera offsets, and Selection owns
+selected identities and deletion requests. Gesture handlers do not depend on GLFW.
+Native creation shortcut presets live in `Editor/ComponentShortcuts.cpp` until
+RM-C1/RM-C2 consolidate the catalog/defaults.
+
+Selection mode edits layout and routes without operating component bodies.
+Interaction mode delegates runtime clicks through `Scene::handleClick()`, with no
+fallback to dragging; creation, deletion, and wiring are blocked. Pan/zoom and
+simulation work in either mode. F2 toggles modes once per press. Switching mode
+cancels the active gesture immediately, before subsequent mouse-release callbacks;
+focus loss and scene changes likewise discard unfinished gestures and queued keys.
+Future UI mode controls can call `Input::setMode()`; focus capture remains RM-U1.
