@@ -50,6 +50,14 @@ bool Input::consumeKeyPress(int key)
 
 void Input::cancelCurrentAction()
 {
+    if (m_state == InteractionState::DRAGGING_GATE && m_draggedComponent &&
+        m_draggedComponent->getGridPosition() != m_dragStartPos)
+    {
+        m_draggedComponent->setGridPosition(m_dragStartPos);
+        if (m_scene)
+            m_scene->rebuildNets();
+    }
+
     if (m_state == InteractionState::DRAWING_WIRE)
     {
         activeWire = Wire();
@@ -366,6 +374,24 @@ void Input::process(GLFWwindow* window)
     // cannot fire later, out of context.
     const bool canSpawn = (m_scene != nullptr) && isIdle();
 
+    auto settleSpawnedComponent = [&](int componentId)
+    {
+        ComponentView* view = m_scene->getComponentView(componentId);
+        if (!view)
+            return;
+
+        const GridCoords initialPosition = view->getGridPosition();
+        GridCoords position = initialPosition;
+        while (m_scene->checkOverlap(componentId))
+        {
+            position.x += 1;
+            position.y -= 1;
+            view->setGridPosition(position);
+        }
+        if (position != initialPosition)
+            m_scene->rebuildNets();
+    };
+
     auto trySpawnGate = [&](GateType type, const std::string& shaderName)
     {
         if (!canSpawn)
@@ -393,15 +419,7 @@ void Input::process(GLFWwindow* window)
 
         int newId = m_scene->addGate(type, gridPos, size, shaderName, inPins, outPins);
 
-        if (ComponentView* cv = m_scene->getComponentView(newId))
-        {
-            while (m_scene->checkOverlap(newId))
-            {
-                gridPos.x += 1;
-                gridPos.y -= 1;
-                cv->setGridPosition(gridPos);
-            }
-        }
+        settleSpawnedComponent(newId);
     };
 
     // 1. SPAWN INPUT PIN (Key '1')
@@ -412,15 +430,7 @@ void Input::process(GLFWwindow* window)
 
         int newId = m_scene->addInputPin(gridPos, {0.15f, 0.15f}, "inputPin", false);
 
-        if (ComponentView* cv = m_scene->getComponentView(newId))
-        {
-            while (m_scene->checkOverlap(newId))
-            {
-                gridPos.x += 1;
-                gridPos.y -= 1;
-                cv->setGridPosition(gridPos);
-            }
-        }
+        settleSpawnedComponent(newId);
     }
 
     // 2. SPAWN NOT GATE (Key '2')
@@ -438,15 +448,7 @@ void Input::process(GLFWwindow* window)
         int newId =
             m_scene->addGate(GateType::NOT, gridPos, {0.2f, 0.1f}, "NOTgate", inPins, outPins);
 
-        if (ComponentView* cv = m_scene->getComponentView(newId))
-        {
-            while (m_scene->checkOverlap(newId))
-            {
-                gridPos.x += 1;
-                gridPos.y -= 1;
-                cv->setGridPosition(gridPos);
-            }
-        }
+        settleSpawnedComponent(newId);
     }
 
     // 3. SPAWN AND GATE (Key '3')
@@ -481,15 +483,7 @@ void Input::process(GLFWwindow* window)
 
         int newId = m_scene->addClock(gridPos, {0.15f, 0.15f}, "clock", 1.0f);
 
-        if (ComponentView* cv = m_scene->getComponentView(newId))
-        {
-            while (m_scene->checkOverlap(newId))
-            {
-                gridPos.x += 1;
-                gridPos.y -= 1;
-                cv->setGridPosition(gridPos);
-            }
-        }
+        settleSpawnedComponent(newId);
     }
 
     if (consumeKeyPress(GLFW_KEY_U) && canSpawn)
@@ -497,15 +491,7 @@ void Input::process(GLFWwindow* window)
         glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
         GridCoords gridPos = GridSystem::worldToGrid(worldPos);
         int newId = m_scene->addLatch(LatchType::SR_LATCH, gridPos);
-        if (ComponentView* cv = m_scene->getComponentView(newId))
-        {
-            while (m_scene->checkOverlap(newId))
-            {
-                gridPos.x += 1;
-                gridPos.y -= 1;
-                cv->setGridPosition(gridPos);
-            }
-        }
+        settleSpawnedComponent(newId);
     }
 
     // Spawn Gated D Latch (Key 'I')
@@ -514,15 +500,7 @@ void Input::process(GLFWwindow* window)
         glm::vec2 worldPos = getMouseWorldCoord(window, m_zoom);
         GridCoords gridPos = GridSystem::worldToGrid(worldPos);
         int newId = m_scene->addLatch(LatchType::D_LATCH, gridPos);
-        if (ComponentView* cv = m_scene->getComponentView(newId))
-        {
-            while (m_scene->checkOverlap(newId))
-            {
-                gridPos.x += 1;
-                gridPos.y -= 1;
-                cv->setGridPosition(gridPos);
-            }
-        }
+        settleSpawnedComponent(newId);
     }
 
     // Toggle clock(s) pause on Space

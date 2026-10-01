@@ -191,4 +191,23 @@ if(BUILD_TESTING)
     )
         add_test(NAME ${test_name} COMMAND LogicTests ${test_name})
     endforeach()
+
+    # GLFW's null platform exercises input without a display or OpenGL context.
+    add_executable(InputTests
+        tests/InputTests.cpp
+        src/Core/Input.cpp
+        src/Core/Scene.cpp
+        src/Logic/Circuit.cpp
+        src/Logic/Gate.cpp
+        src/Logic/Wire.cpp
+    )
+    target_include_directories(InputTests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${GLAD_INCLUDE_DIR}
+    )
+    target_compile_definitions(InputTests PRIVATE GLFW_INCLUDE_NONE)
+    target_link_libraries(InputTests PRIVATE glfw glm::glm)
+    foreach(test_name IN ITEMS drag_cancellation drag_commit spawn_placement)
+        add_test(NAME ${test_name} COMMAND InputTests ${test_name})
+    endforeach()
 endif()

@@ -158,3 +158,10 @@ ctest --test-dir out/build/x64-debug --output-on-failure
 
 For a generic build directory, substitute `build` and pass `-C Debug` to CTest
 when using a multi-configuration generator. Use `-DBUILD_TESTING=OFF` to omit tests.
+
+Input regression tests run in a separate `InputTests` executable using GLFW's
+null platform, so they require no display, native window, or OpenGL context.
+They cover Escape/right-click drag cancellation, movement and overlap rollback,
+and connectivity after every component spawn shortcut. CTest runs both suites;
+use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_" --output-on-failure`
+to run only the input tests.
