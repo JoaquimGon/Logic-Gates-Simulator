@@ -614,22 +614,63 @@ void Scene::collectNets()
 void Scene::emitNetEdges()
 {
     m_circuit.clearConnections();
+    m_rejectedConnections.clear();
+    m_topologyResult = EvalOrderResult::OK;
+    m_topologyInvalidNeedsUpdate = false;
 
     for (const auto& [netId, net] : m_nets)
     {
-        // If the net is shorted, do not propagate ambiguous logic values
+        // Shorted nets already have separate diagnostics and no unambiguous driver.
         if (!net.hasDriver())
             continue;
 
         const PinRef driver = *net.getDriver();
         for (const PinRef& sink : net.getSinks())
         {
-            if (sink.componentId == driver.componentId)
-                continue;
-            m_circuit.connectComponents(
+            const ConnectionResult result = m_circuit.tryConnectComponents(
                 driver.componentId, driver.pinIndex, sink.componentId, sink.pinIndex
             );
+            if (result == ConnectionResult::OK)
+                continue;
+
+            m_rejectedConnections.push_back(
+                {netId,
+                 {driver.componentId, driver.pinIndex, sink.componentId, sink.pinIndex},
+                 result}
+            );
+            const char* reason = "invalid connection";
+            switch (result)
+            {
+            case ConnectionResult::CYCLE_DETECTED:
+                reason = "feedback loop";
+                m_topologyResult = EvalOrderResult::CYCLE_DETECTED;
+                break;
+            case ConnectionResult::INVALID_COMPONENT:
+                reason = "missing component";
+                break;
+            case ConnectionResult::INVALID_PIN:
+                reason = "invalid pin index";
+                break;
+            case ConnectionResult::INPUT_ALREADY_DRIVEN:
+                reason = "input already driven";
+                break;
+            case ConnectionResult::OK:
+                break;
+            }
+            if (m_topologyResult == EvalOrderResult::OK)
+                m_topologyResult = EvalOrderResult::CONNECTION_REJECTED;
+
+            std::cerr << "[Connection Rejected] Net " << netId << ": Component "
+                      << driver.componentId << " Out[" << driver.pinIndex << "] -> Component "
+                      << sink.componentId << " In[" << sink.pinIndex << "]: " << reason << ".\n";
         }
+    }
+
+    if (!m_rejectedConnections.empty())
+    {
+        m_circuit.clearConnections();
+        m_topologyInvalidNeedsUpdate = true;
+        syncVisuals();
     }
 }
 
@@ -653,7 +694,7 @@ NetId Scene::netOfPin(const PinRef& pin, PinType type) const
 
 PinState Scene::pinState(const PinRef& pin, PinType type)
 {
-    if (!pin.isConnected())
+    if (!pin.isConnected() || m_topologyResult != EvalOrderResult::OK)
         return PinState::DISCONNECTED;
 
     if (type == PinType::OUTPUT)
@@ -805,11 +846,16 @@ bool Scene::getCollinearOverlap(
 
 bool Scene::updateClocks(float deltaTime)
 {
-    return m_circuit.updateClocks(deltaTime);
+    return m_topologyResult == EvalOrderResult::OK && m_circuit.updateClocks(deltaTime);
 }
 
 EvalOrderResult Scene::propagate()
 {
+    if (m_topologyResult != EvalOrderResult::OK)
+    {
+        m_topologyInvalidNeedsUpdate = false;
+        return m_topologyResult;
+    }
     return m_circuit.propagate();
 }
 
@@ -864,6 +910,7 @@ void Scene::setAllClocksFrequency(float hz)
 
 void Scene::syncVisuals()
 {
+    const bool blocked = m_topologyResult != EvalOrderResult::OK;
     for (auto& [id, view] : m_componentViews)
     {
         Component* comp = m_circuit.getComponent(id);
@@ -871,18 +918,22 @@ void Scene::syncVisuals()
             continue;
 
         for (auto& pin : view->getOutputPins())
-            pin.state = comp->getStateOutPin(static_cast<int>(pin.pin_index)) ? PinState::ON
-                                                                              : PinState::OFF;
+            pin.state =
+                blocked ? PinState::DISCONNECTED
+                        : (comp->getStateOutPin(static_cast<int>(pin.pin_index)) ? PinState::ON
+                                                                                 : PinState::OFF);
 
         for (auto& pin : view->getInputPins())
             pin.state =
-                comp->getStateInPin(static_cast<int>(pin.pin_index)) ? PinState::ON : PinState::OFF;
+                blocked ? PinState::DISCONNECTED
+                        : (comp->getStateInPin(static_cast<int>(pin.pin_index)) ? PinState::ON
+                                                                                : PinState::OFF);
     }
 
     // Refresh Net states from single driver
     for (auto& [netId, net] : m_nets)
     {
-        if (net.shorted())
+        if (blocked || net.shorted())
         {
             net.setState(PinState::DISCONNECTED);
         }

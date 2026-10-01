@@ -610,7 +610,7 @@ void Renderer::drawLabels(
     m_drawCallCount++;
 }
 
-void Renderer::drawDebugOverlay(const DebugMetrics& metrics)
+void Renderer::drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics)
 {
     if (m_currentCamera.windowWidth <= 0 || m_currentCamera.windowHeight <= 0)
         return;
@@ -638,13 +638,16 @@ void Renderer::drawDebugOverlay(const DebugMetrics& metrics)
          << " components";
     if (metrics.evalResult == EvalOrderResult::CYCLE_DETECTED)
         ssL3 << " [CYCLE DETECTED]";
+    else if (metrics.evalResult == EvalOrderResult::CONNECTION_REJECTED)
+        ssL3 << " [CONNECTION REJECTED]";
     else
         ssL3 << " [OK]";
 
     // Line 4: Electrical Topology & Short Contention
     std::ostringstream ssL4;
     ssL4 << "Topology: " << metrics.netCount << " Nets | " << metrics.wireCount << " Wires | "
-         << metrics.shortedNetCount << " Shorts";
+         << metrics.shortedNetCount << " Shorts | " << metrics.rejectedConnectionCount
+         << " Rejected";
 
     // Line 5: Interaction / Selection & Cursor Position
     std::ostringstream ssL5;
@@ -670,15 +673,26 @@ void Renderer::drawDebugOverlay(const DebugMetrics& metrics)
          (metrics.timeSinceLastPropagateMs < 50.0f) ? glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)
                                                     : glm::vec4(0.70f, 0.70f, 0.75f, 0.85f)},
         {ssL3.str(),
-         (metrics.evalResult == EvalOrderResult::CYCLE_DETECTED)
-             ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f)
-             : glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)},
+         (metrics.evalResult != EvalOrderResult::OK) ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f)
+                                                     : glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)},
         {ssL4.str(),
          (metrics.shortedNetCount > 0)
              ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f) // Highlight shorts in red
              : glm::vec4(0.85f, 0.85f, 0.85f, 0.95f)},
         {ssL5.str(), glm::vec4(0.75f, 0.85f, 0.95f, 0.90f)}
     };
+
+    if (!showMetrics)
+        lines.clear();
+    if (metrics.evalResult != EvalOrderResult::OK)
+    {
+        const glm::vec4 errorColor(1.0f, 0.25f, 0.25f, 1.0f);
+        const std::string error = metrics.evalResult == EvalOrderResult::CYCLE_DETECTED
+                                      ? "[SIMULATION PAUSED] Feedback loop"
+                                      : "[SIMULATION PAUSED] Connection rejected";
+        lines.insert(lines.begin(), {error, errorColor});
+        lines.insert(lines.begin() + 1, {"Fix the wiring to resume.", errorColor});
+    }
 
     const float screenScale = 0.35f;
     const float lineSpacing = 20.0f;

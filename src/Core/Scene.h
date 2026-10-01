@@ -38,6 +38,13 @@ struct HitResult
     int wireId = INVALID_WIRE_ID;     // valid for WIRE_*
 };
 
+struct RejectedConnection
+{
+    NetId netId;
+    Connection connection;
+    ConnectionResult reason;
+};
+
 class Scene
 {
   public:
@@ -117,6 +124,12 @@ class Scene
 
     const std::map<NetId, Net>& getNets() const { return m_nets; }
 
+    /** @brief Lists rejected edges from the most recent topology rebuild. */
+    const std::vector<RejectedConnection>& getRejectedConnections() const
+    {
+        return m_rejectedConnections;
+    }
+
     const Net* getNet(NetId id) const;
     NetId netOfWire(WireId id) const;
     NetId netOfPin(const PinRef& pin, PinType type) const;
@@ -151,7 +164,11 @@ class Scene
 
     bool updateClocks(float deltaTime);
 
-    bool isSimulationDirty() const { return m_circuit.isStateDirty(); }
+    bool isSimulationDirty() const
+    {
+        return m_topologyResult == EvalOrderResult::OK ? m_circuit.isStateDirty()
+                                                       : m_topologyInvalidNeedsUpdate;
+    }
 
     void markSimulationDirty() { m_circuit.markStateDirty(); }
 
@@ -166,9 +183,16 @@ class Scene
     // Debugging
     float getLastPropagateTimeMs() const { return m_circuit.getLastPropagateTimeMs(); }
 
-    EvalOrderResult getLastEvalResult() const { return m_circuit.getLastEvalResult(); }
+    EvalOrderResult getLastEvalResult() const
+    {
+        return m_topologyResult == EvalOrderResult::OK ? m_circuit.getLastEvalResult()
+                                                       : m_topologyResult;
+    }
 
-    size_t getEvalOrderSize() const { return m_circuit.getEvalOrderSize(); }
+    size_t getEvalOrderSize() const
+    {
+        return m_topologyResult == EvalOrderResult::OK ? m_circuit.getEvalOrderSize() : 0;
+    }
 
     size_t getComponentCount() const { return m_circuit.getComponentCount(); }
 
@@ -185,6 +209,10 @@ class Scene
 
   private:
     Circuit m_circuit;
+    // Invalid geometry remains editable, but never runs as a partial simulation graph.
+    std::vector<RejectedConnection> m_rejectedConnections;
+    EvalOrderResult m_topologyResult = EvalOrderResult::OK;
+    bool m_topologyInvalidNeedsUpdate = false;
     std::unordered_map<int, std::unique_ptr<ComponentView>> m_componentViews;
 
     // Keyed by a stable WireId; see the note above the wire API.

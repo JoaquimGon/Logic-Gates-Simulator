@@ -155,21 +155,24 @@ void Engine::run()
         if (clockEdgeFlipped || scene.isSimulationDirty())
         {
             EvalOrderResult orderResult = scene.propagate();
-            
+
             // Debugging
             m_timeSinceLastPropagateMs = 0.0f;
-            
-            
+
+
             if (orderResult != m_lastOrderResult)
             {
                 m_lastOrderResult = orderResult;
 
                 if (orderResult == EvalOrderResult::CYCLE_DETECTED)
                 {
-                    std::cerr << "[Simulation] Combinational loop detected: "
-                                 "the last valid evaluation "
-                                 "order is kept and nothing is evaluated until "
-                                 "the loop is broken.\n";
+                    std::cerr << "[Simulation] Feedback connection rejected; "
+                                 "simulation is paused until the wiring is repaired.\n";
+                }
+                else if (orderResult == EvalOrderResult::CONNECTION_REJECTED)
+                {
+                    std::cerr << "[Simulation] Connection rejected; "
+                                 "simulation is paused until the wiring is repaired.\n";
                 }
                 else
                 {
@@ -278,7 +281,7 @@ void Engine::run()
         m_renderer.drawLabels(scene.getComponentViewMap());
 
         // Debugging
-        if (m_showDebugOverlay)
+        if (m_showDebugOverlay || scene.getLastEvalResult() != EvalOrderResult::OK)
         {
             DebugMetrics metrics;
             metrics.fps = m_fps;
@@ -294,6 +297,7 @@ void Engine::run()
             metrics.netCount = scene.netCount();
             metrics.wireCount = scene.wireCount();
             metrics.shortedNetCount = scene.getShortedNetCount();
+            metrics.rejectedConnectionCount = scene.getRejectedConnections().size();
 
             // Interaction & Cursor metrics
             metrics.hoveredCompId = input.getHoveredComponentId();
@@ -304,7 +308,7 @@ void Engine::run()
             metrics.selectedCompId = input.getSelectedComponentId();
             metrics.cursorGrid = input.getCurrentGridCoords();
 
-            m_renderer.drawDebugOverlay(metrics);
+            m_renderer.drawDebugOverlay(metrics, m_showDebugOverlay);
         }
 
         glfwSwapBuffers(window);

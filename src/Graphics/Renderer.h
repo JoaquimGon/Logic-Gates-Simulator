@@ -41,6 +41,7 @@ struct DebugMetrics
     size_t netCount;
     size_t wireCount;
     size_t shortedNetCount;
+    size_t rejectedConnectionCount;
     int hoveredCompId;
     int hoveredPinComponentId;
     int hoveredPinIdx;
@@ -103,7 +104,8 @@ class Renderer
 
     void drawLabels(const std::unordered_map<int, std::unique_ptr<ComponentView>>& componentViews);
 
-    void drawDebugOverlay(const DebugMetrics& metrics);
+    /** @brief Shows wiring errors regardless of whether debug metrics are enabled. */
+    void drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics = true);
 
     int getDrawCallCount() const { return m_drawCallCount; }
 

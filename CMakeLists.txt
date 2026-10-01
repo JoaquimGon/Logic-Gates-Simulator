@@ -187,6 +187,7 @@ if(BUILD_TESTING)
         connection_lifecycle
         scene_pin_layouts
         scene_wire_overlaps
+        scene_connection_rejections
         source_components
     )
         add_test(NAME ${test_name} COMMAND LogicTests ${test_name})

@@ -57,37 +57,44 @@ bool Circuit::connectComponents(
     int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex
 )
 {
-    if (srcComponentId == destComponentId)
-        return false;
+    return tryConnectComponents(srcComponentId, srcPinIndex, destComponentId, destPinIndex) ==
+           ConnectionResult::OK;
+}
 
+ConnectionResult Circuit::tryConnectComponents(
+    int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex
+)
+{
     Component* src = getComponent(srcComponentId);
     Component* dest = getComponent(destComponentId);
     if (!src || !dest)
-        return false;
+        return ConnectionResult::INVALID_COMPONENT;
 
     if (srcPinIndex < 0 || srcPinIndex >= src->getOutputPinCount() || destPinIndex < 0 ||
         destPinIndex >= dest->getInputPinCount())
     {
-        return false;
+        return ConnectionResult::INVALID_PIN;
     }
+
+    if (srcComponentId == destComponentId)
+        return ConnectionResult::CYCLE_DETECTED;
 
     const Connection connection{srcComponentId, srcPinIndex, destComponentId, destPinIndex};
     for (const auto& existing : dest->getInConnections())
     {
         if (existing.destPinIndex == destPinIndex)
-            return existing == connection;
+            return existing == connection ? ConnectionResult::OK
+                                          : ConnectionResult::INPUT_ALREADY_DRIVEN;
     }
 
     if (wouldCreateCycle(srcComponentId, destComponentId))
-    {
-        return false;
-    }
+        return ConnectionResult::CYCLE_DETECTED;
 
     src->addOutConnection(connection);
     dest->addInConnection(connection);
     m_evalOrderDirty = true;
     m_stateDirty = true;
-    return true;
+    return ConnectionResult::OK;
 }
 
 void Circuit::disconnectComponents(
