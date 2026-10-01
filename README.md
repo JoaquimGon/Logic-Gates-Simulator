@@ -165,3 +165,17 @@ They cover Escape/right-click drag cancellation, movement and overlap rollback,
 and connectivity after every component spawn shortcut. CTest runs both suites;
 use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_" --output-on-failure`
 to run only the input tests.
+
+### Rejected Connections
+
+Feedback connections, including self-loops, are unsupported by the current DAG
+simulator. When a scene connection is rejected, simulation and automatic clock
+advancement pause for the entire scene. Wiring remains editable, retained output
+states are preserved, and pins/wires display no active signal. A red warning
+appears even with the F3 debug HUD disabled; the console reports the rejected
+net, component/pin endpoints, and reason. Repairing the wiring rebuilds the full
+graph and resumes simulation automatically.
+
+`Circuit::tryConnectComponents()` returns a typed `ConnectionResult`; the
+existing `connectComponents()` boolean API remains available.
+`Scene::getRejectedConnections()` exposes diagnostics from the latest rebuild.
