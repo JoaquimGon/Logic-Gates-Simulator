@@ -21,9 +21,7 @@ void validateOffset(GridCoords position, GridCoords relative)
             throw std::invalid_argument("Component pin/lead exceeds the grid coordinate range.");
 }
 
-} // namespace
-
-ComponentLayout ComponentFactory::viewLayout(const ResolvedComponent& resolved)
+ComponentLayout viewLayout(const ResolvedComponent& resolved)
 {
     ComponentLayout layout{
         {resolved.layout.width, resolved.layout.height}, resolved.presentation.shader.key, {}, {}
@@ -44,6 +42,7 @@ ComponentLayout ComponentFactory::viewLayout(const ResolvedComponent& resolved)
     }
     return layout;
 }
+} // namespace
 
 CreatedComponent ComponentFactory::create(
     Circuit& circuit,
@@ -93,7 +92,6 @@ CreatedComponent ComponentFactory::create(
         );
     }
     view->m_definition = resolved.identity;
-    view->m_configuration = resolved.configuration;
     view->m_bodyLabel = resolved.presentation.bodyLabel;
     view->m_showPinLabels = resolved.presentation.showPinLabels;
     view->m_bodyStyle = resolved.presentation.body;

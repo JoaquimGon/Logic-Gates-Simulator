@@ -91,9 +91,8 @@ UI-first capture/focus lives in Input; see [InputRouting.md](InputRouting.md).
 Shared camera/viewport transforms, DPI resolution, and canvas clipping are complete
 under RM-U2; see [CanvasCamera.md](CanvasCamera.md). Renderer uses one forward
 matrix for world passes and the same inverse for the procedural grid. Screen text
-remains full-window. Property descriptors/overrides are complete (RM-C3); inspectors
-remain RM-U3. Presentation caching remains RM-R3 and packed junction integration
-remains RM-A8.
+remains full-window. Property schemas/inspectors remain RM-C3/RM-U3; presentation
+caching remains RM-R3 and packed junction integration remains RM-A8.
 
 ## Verification
 
@@ -111,8 +110,8 @@ ctest --preset x64-debug -R "render_|component_pin_leads|text_presentation"
 
 The framebuffer test writes `mixed-sizes.ppm` and
 `component-presentations.ppm` under the build's `render-artifacts/` directory
-for visual review. The application build has 41 groups; the headless build has
-40. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
+for visual review. The application build has 38 groups; the headless build has
+37. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
 font choices have not been visually verified.
 
 Camera framebuffer regressions also cover a panned/zoomed offset canvas at simulated

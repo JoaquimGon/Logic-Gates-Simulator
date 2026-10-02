@@ -40,8 +40,6 @@ class ComponentView
 
     const DefinitionIdentity& getDefinitionIdentity() const { return m_definition; }
 
-    const ComponentConfiguration& getConfiguration() const { return m_configuration; }
-
     const std::string& getBodyLabel() const { return m_bodyLabel; }
 
     bool showsPinLabels() const { return m_showPinLabels; }
@@ -85,7 +83,6 @@ class ComponentView
     virtual std::vector<PinUI>& editOutputPins() = 0;
 
     DefinitionIdentity m_definition;
-    ComponentConfiguration m_configuration;
     std::string m_bodyLabel;
     bool m_showPinLabels = false;
     BodyStyle m_bodyStyle;

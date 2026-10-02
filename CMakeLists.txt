@@ -14,8 +14,6 @@ include(cmake/Dependencies.cmake)
 add_library(simulator_components STATIC
     src/Components/Gate.cpp
     src/Components/Definitions/ComponentDefinition.cpp
-    src/Components/Definitions/PropertySchema.cpp
-    src/Components/Definitions/ConfigurationCodec.cpp
     src/Components/Definitions/ComponentCatalog.cpp
     src/Components/Definitions/NativeDefinitions.cpp
     src/Components/Definitions/PresentationGeometry.cpp
@@ -129,12 +127,6 @@ if(BUILD_TESTING)
         editor_wire_edits editor_restore_snapshots editor_body_placement
     )
         add_test(NAME ${test_name} COMMAND EditorActionsTests ${test_name})
-    endforeach()
-
-    add_executable(PropertyTests tests/PropertyTests.cpp)
-    target_link_libraries(PropertyTests PRIVATE simulator_scene)
-    foreach(test_name IN ITEMS component_property_schema component_property_edits component_configuration_round_trips)
-        add_test(NAME ${test_name} COMMAND PropertyTests ${test_name})
     endforeach()
 
     add_executable(ComponentCatalogTests tests/ComponentCatalogTests.cpp)
