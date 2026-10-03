@@ -44,6 +44,7 @@ class Input
     EditorMode m_mode = EditorMode::Selection;
     DragGesture m_drag;
     WireGesture m_wire;
+    std::optional<GridCoords> m_committedWirePoint;
     PanGesture m_pan;
     Selection m_selection;
 
@@ -144,6 +145,11 @@ class Input
     void setZoom(float zoom);
 
     bool isCurrentlyDrawingWire() const { return m_wire.active(); }
+
+    std::optional<GridCoords> getWireStartPoint() const { return m_wire.startPoint(); }
+
+    /** Hide the cursor guide at a newly committed endpoint until the pointer leaves that cell. */
+    bool shouldShowGridPointHighlight() const { return !m_committedWirePoint.has_value(); }
 
     const Wire& getActiveWire() const { return m_wire.preview(); }
 

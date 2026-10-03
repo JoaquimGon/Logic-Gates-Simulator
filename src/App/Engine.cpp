@@ -237,6 +237,8 @@ void Engine::run()
                 };
         }
         std::optional<Wire> active;
+        if (const auto start = input.getWireStartPoint())
+            frame.wireStartHighlight = GridHighlight{*start, 0.9f};
         if (input.isCurrentlyDrawingWire())
         {
             active = input.getActiveWire();
@@ -249,12 +251,16 @@ void Engine::run()
         }
         else if (
             input.isCanvasPointerAvailable(window) && input.isIdle() &&
-            input.getHoveredComponentId() == -1 && input.getHoveredPinComponentId() == -1
+            input.shouldShowGridPointHighlight() && input.getHoveredComponentId() == -1 &&
+            input.getHoveredPinComponentId() == -1
         )
-            frame.gridHighlight = GridHighlight{input.getCurrentGridCoords(), 0.4f};
-        frame.hoveredComponent = input.getHoveredPinComponentId();
-        frame.hoveredPin = input.getHoveredPinIndex();
-        frame.hoveredDirection = input.getHoveredPinType();
+            frame.gridHighlight = GridHighlight{input.getCurrentGridCoords(), 0.55f};
+        if (input.shouldShowGridPointHighlight())
+        {
+            frame.hoveredComponent = input.getHoveredPinComponentId();
+            frame.hoveredPin = input.getHoveredPinIndex();
+            frame.hoveredDirection = input.getHoveredPinType();
+        }
         m_renderer.drawCanvas(frame);
 
         // Debugging

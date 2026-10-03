@@ -498,6 +498,7 @@ void wireAndPanGestures(GLFWwindow* window)
     auto builds = editor.scene.getTopologyBuildCount();
     editor.cursor({-7, 0});
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    require(editor.input.getWireStartPoint() == GridCoords{-7, 0}, "Wire start marker is missing.");
     editor.cursor({6, 4});
     require(
         editor.input.getActiveWire().getPath() == std::vector<GridCoords>{{-7, 0}, {6, 0}, {6, 4}},
@@ -508,6 +509,15 @@ void wireAndPanGestures(GLFWwindow* window)
         editor.scene.getTopologyBuildCount() == ++builds && editor.scene.netCount() == 1,
         "Wire release did not commit once."
     );
+    require(
+        !editor.input.getWireStartPoint() && !editor.input.shouldShowGridPointHighlight(),
+        "Committed wire retained its creation highlight."
+    );
+    editor.cursor({6, 4});
+    require(
+        !editor.input.shouldShowGridPointHighlight(),
+        "Same-cell motion restored a committed marker."
+    );
     editor.scene.propagate();
     editor.scene.syncVisuals();
     require(
@@ -515,20 +525,35 @@ void wireAndPanGestures(GLFWwindow* window)
     );
 
     editor.cursor({0, 0});
+    require(
+        editor.input.shouldShowGridPointHighlight(),
+        "Leaving the endpoint did not restore hover markers."
+    );
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     require(
         !editor.input.isCurrentlyDrawingWire() && editor.input.hasSelectedSegment(),
         "Wire click did not defer branching."
+    );
+    require(
+        editor.input.getWireStartPoint() == GridCoords{0, 0}, "Deferred branch has no start marker."
     );
     editor.cursor({0, -4});
     require(
         editor.input.isCurrentlyDrawingWire() && editor.input.getWireOriginPin().componentId == 0,
         "Branch did not retain driver identity."
     );
+    require(
+        editor.input.getWireStartPoint() == GridCoords{0, 0},
+        "Branch start marker followed its endpoint."
+    );
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
         editor.scene.getTopologyBuildCount() == ++builds && editor.scene.netCount() == 1,
         "Branch did not commit normalized connectivity once."
+    );
+    require(
+        !editor.input.getWireStartPoint() && !editor.input.shouldShowGridPointHighlight(),
+        "Branch release retained temporary markers."
     );
 
     const auto wireIds = editor.scene.getWireIds();
@@ -538,6 +563,10 @@ void wireAndPanGestures(GLFWwindow* window)
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+    require(
+        !editor.input.getWireStartPoint() && editor.input.shouldShowGridPointHighlight(),
+        "Cancellation retained the origin marker or suppressed normal hover."
+    );
     require(
         editor.scene.getWireIds() == wireIds && editor.scene.getTopologyBuildCount() == builds,
         "Right-click wire cancellation changed geometry."

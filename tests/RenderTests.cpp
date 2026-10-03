@@ -566,6 +566,48 @@ void outputPresentation(Renderer& renderer)
     saveImage("output-bulb-unavailable.ppm");
 }
 
+void wireMarkers(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    Wire active;
+    active.setPath({{-8, 0}, {8, 0}});
+    active.setState(PinState::ON);
+    ComponentRenderData source{
+        {1, {-0.5f, 0}, {0.1f, 0.1f}, "box", {}},
+        "",
+        false,
+        {{PinType::OUTPUT, 0, PinState::ON, {-0.4f, 0}, "", {}}}
+    };
+    const std::vector<ComponentRenderData> components{source};
+    const std::map<WireId, Wire> wires;
+    const std::vector<glm::vec3> junctions;
+    CanvasFrame frame{components, wires, junctions, &active};
+    frame.wireStartHighlight = GridHighlight{{-8, 0}, 0.9f};
+    frame.gridHighlight = GridHighlight{{8, 0}, 1};
+    renderer.beginFrame(camera);
+    renderer.drawCanvas(frame);
+    require(pixel({-0.4f, 0})[0] > 200, "Wire origin marker was obscured by the originating pin.");
+    require(
+        pixel({0.4f, 0.008f})[0] > 150,
+        "Wire endpoint marker did not extend visibly past the wire thickness."
+    );
+    saveImage("wire-drag-markers.ppm");
+    frame.wireStartHighlight.reset();
+    frame.gridHighlight = GridHighlight{{0, 0}, 0.55f};
+    renderer.beginFrame(camera);
+    renderer.drawCanvas(frame);
+    const auto hover = pixel({0, 0});
+    require(hover[0] > 120 && hover[0] < 170, "Wire hover marker opacity is incorrect.");
+    saveImage("wire-hover-marker.ppm");
+    frame.gridHighlight.reset();
+    renderer.beginFrame(camera);
+    renderer.drawCanvas(frame);
+    require(
+        pixel({0, 0})[0] < 20 && pixel({-0.4f, 0})[0] < 20,
+        "Cleared creation markers left orange points on the wire."
+    );
+    saveImage("wire-markers-cleared.ppm");
+}
+
 void roundedBounds(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     renderer.beginFrame(camera);
@@ -815,6 +857,7 @@ int main()
             editedGate(renderer, camera);
             preview(renderer, camera);
             canvasViewport(renderer);
+            wireMarkers(renderer, camera);
             roundedBounds(renderer, camera);
             palettePresentation(renderer);
             outputPresentation(renderer);

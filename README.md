@@ -59,6 +59,11 @@ Blocked simulation states read `Unavailable`. Escape or a click outside closes
 it; resize and focus loss also dismiss it. Scroll inside if the rows do not fit.
 Pin editing and truth-table presentation remain future work.
 
+Wire-point guides are larger and more opaque on hover. Pressing to draw or
+branch keeps a highlighted dot at the starting point throughout the drag, with
+another at the moving endpoint. Release clears creation highlights; after a
+successful commit, normal hover highlighting resumes when leaving that grid cell.
+
 To name an input or output in Selection mode, right-click it, click the **Name**
 field, type, and press Enter to save. Backspace edits; Escape, outside clicks,
 resize, or focus loss discard unfinished typing. Names accept up to 32 printable

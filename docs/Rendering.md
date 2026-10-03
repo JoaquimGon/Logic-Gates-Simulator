@@ -34,7 +34,7 @@ translucent overlaps. Unique IDs are required, and actual GPU submissions count
 as draw calls; empty batches count zero.
 
 `drawCanvas()` owns the back-to-front order: grid, pin leads, bodies, wires,
-junctions, component/segment highlights, cursor marker, pins, and labels.
+junctions, component/segment highlights, pins, wire-start/cursor markers, and labels.
 Engine selects highlight values and active-wire state; it no longer chooses
 pass order. Screen overlays and future UI text are submitted afterward.
 `CanvasFrame` borrows its spans/wire map only during synchronous drawing. Keep
@@ -64,6 +64,14 @@ strips around a slightly rounded rectangle. The stroke is 0.006 world units,
 half the electrical wire's 0.012 width; corners use a 0.015 radius, clamped for
 small bodies. `BodyHighlight` and the renderer accept explicit bounds. Outline
 padding is visual only and does not affect picking, placement, or connectivity.
+
+Wire guides use a 0.030-world-unit diameter, with 0.55 opacity for idle hover,
+0.9 for the fixed starting point, and 1.0 for the moving endpoint. Committed
+junctions use a 0.034 diameter. Guides draw above pins so a pin cannot obscure
+the creation marker. The start marker appears immediately on branch press and
+stays at the origin throughout dragging. Release clears creation markers;
+after a successful commit, cursor/pin highlighting resumes once the pointer
+leaves the endpoint's grid cell. Cancellation releases the marker immediately.
 
 `PresentationGeometry` describes native/box silhouette contacts, excluding
 decorative XOR arcs and inner source glyphs. Automatic leads attach gates
@@ -197,3 +205,10 @@ card centering, including bubbles, and outline edges/corners/interiors.
 `rounded-component-bounds.ppm` is the outline review artifact. All 46 Debug
 and 45 headless AddressSanitizer groups pass; outline, palette-centering, and
 component-presentation previews were visually reviewed.
+
+Wire-marker regressions cover immediate/deferred starts, fixed origins during
+dragging, release/cancellation cleanup, and same-cell endpoint suppression.
+`wire-drag-markers.ppm`, `wire-hover-marker.ppm`, and `wire-markers-cleared.ppm`
+check marker size/opacity, layering above pins, and clean removal after drawing.
+All three framebuffer previews were visually reviewed; the 46 Debug and 45
+headless AddressSanitizer groups pass.

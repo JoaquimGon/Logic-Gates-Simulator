@@ -394,8 +394,8 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
         return;
     shader->setFloat("uPixelsPerWorldUnit", m_currentCamera.pixelsPerWorldUnit);
 
-    // Scale guide point with world space as well
-    shader->setFloat("uPointSize", 0.018f);
+    // Guide diameter exceeds wire thickness so its colored core stays visible on the route.
+    shader->setFloat("uPointSize", 0.030f);
 
     glm::vec2 worldPos = GridSystem::gridToWorld(gridPos);
     float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f;
@@ -419,7 +419,7 @@ void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
     shader->setFloat("uPixelsPerWorldUnit", m_currentCamera.pixelsPerWorldUnit);
 
     // Increased size so the outer dark rim extends past the wire boundaries
-    shader->setFloat("uPointSize", 0.028f);
+    shader->setFloat("uPointSize", 0.034f);
 
     std::vector<float> instancedData;
     instancedData.reserve(intersectionData.size() * 6);
@@ -585,9 +585,15 @@ void Renderer::drawCanvas(const CanvasFrame& frame)
             0.01f,
             frame.segmentHighlight->opacity
         );
-    if (frame.gridHighlight)
-        drawGridPointHighlight(frame.gridHighlight->position, frame.gridHighlight->opacity);
     drawPins(frame.components, frame.hoveredComponent, frame.hoveredPin, frame.hoveredDirection);
+    if (frame.wireStartHighlight)
+        drawGridPointHighlight(
+            frame.wireStartHighlight->position, frame.wireStartHighlight->opacity
+        );
+    if (frame.gridHighlight &&
+        (!frame.wireStartHighlight ||
+         frame.gridHighlight->position != frame.wireStartHighlight->position))
+        drawGridPointHighlight(frame.gridHighlight->position, frame.gridHighlight->opacity);
     drawLabels(frame.components);
     setScreenViewport();
 }

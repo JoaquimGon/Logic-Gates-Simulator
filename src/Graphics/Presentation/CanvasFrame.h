@@ -33,6 +33,7 @@ struct CanvasFrame
     std::optional<BodyHighlight> bodyHighlight;
     std::optional<SegmentHighlight> segmentHighlight;
     std::optional<GridHighlight> gridHighlight;
+    std::optional<GridHighlight> wireStartHighlight;
     int hoveredComponent = -1;
     int hoveredPin = -1;
     PinType hoveredDirection = PinType::INPUT;

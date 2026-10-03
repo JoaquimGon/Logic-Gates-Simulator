@@ -22,6 +22,11 @@ class WireGesture
 
     bool ownsPointer() const { return m_active || m_branch != INVALID_WIRE_ID; }
 
+    std::optional<GridCoords> startPoint() const
+    {
+        return ownsPointer() ? std::optional<GridCoords>{m_start} : std::nullopt;
+    }
+
     const Wire& preview() const { return m_wire; }
 
     PinRef origin() const { return m_origin; }

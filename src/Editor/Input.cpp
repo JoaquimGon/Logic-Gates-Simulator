@@ -194,6 +194,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     {
         if (!isIdle())
             return;
+        m_committedWirePoint.reset();
         updateHoverState(window);
         const auto hit = m_scene->hitTest(getMouseWorldCoord(window), mouseGridCoords);
         if (m_mode == EditorMode::Interaction)
@@ -233,7 +234,8 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             const bool drawing = m_wire.active();
             const auto hit = m_scene->hitTest(getMouseWorldCoord(window), mouseGridCoords);
             if (auto command = m_wire.finish(hit))
-                applyEdit(std::move(*command));
+                if (applyEdit(std::move(*command)))
+                    m_committedWirePoint = mouseGridCoords;
             if (drawing)
                 m_selection.clear();
         }
@@ -256,6 +258,8 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
         return;
     }
     mouseGridCoords = GridSystem::worldToGrid(getMouseWorldCoord(window));
+    if (m_committedWirePoint && mouseGridCoords != *m_committedWirePoint)
+        m_committedWirePoint.reset();
     if (m_drag.active())
     {
         if (!m_scene || !m_drag.update(*m_scene, mouseGridCoords))
