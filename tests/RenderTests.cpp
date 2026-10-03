@@ -176,6 +176,47 @@ void nativeContacts(Renderer& renderer, const CanvasCameraFrame& camera)
     }
 }
 
+void editedGate(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    Scene scene;
+    const int id = scene.addComponent(BuiltinComponentIds::And, {0, 0});
+    auto draw = [&]
+    {
+        auto body = buildComponentPresentation(scene.getComponentViewMap()).front();
+        const glm::vec2 factor = glm::vec2(0.7f) / body.body.size;
+        body.body.size *= factor;
+        for (auto& pin : body.pins)
+        {
+            pin.position *= factor;
+            for (auto& point : pin.lead)
+                point *= factor;
+        }
+        renderer.beginFrame(camera);
+        const std::vector<ComponentRenderData> one{body};
+        renderer.drawComponents(one);
+        return body;
+    };
+    draw();
+    const auto plain = pixel({0.4f * 0.7f, 0.2f * 0.7f});
+    const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
+        .componentId = id, .label = "Learning", .inputCount = 4, .inverted = true
+    }});
+    require(static_cast<bool>(result), "Native gate edit failed.");
+    const auto inverted = draw();
+    const auto gap = pixel({0.4f * 0.7f, 0.2f * 0.7f});
+    const auto bubble = pixel({0.41f * 0.7f, 0});
+    require(
+        plain[2] > 100 && gap[2] < 40 && bubble[2] > 100,
+        "Inversion edit did not select the matching native silhouette/bubble."
+    );
+    for (const auto& pin : inverted.pins)
+    {
+        const auto contact = pixel(pin.lead.front() * 0.99f);
+        require(contact[2] > 25, "Edited inversion lead misses the rendered body.");
+    }
+    saveImage("edited-gate-inverted.ppm");
+}
+
 void preview(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
@@ -393,6 +434,7 @@ int main()
             const auto camera = CanvasCamera{}.frame({extent, extent, extent, extent});
             mixedInstances(renderer, camera);
             nativeContacts(renderer, camera);
+            editedGate(renderer, camera);
             preview(renderer, camera);
             canvasViewport(renderer);
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";

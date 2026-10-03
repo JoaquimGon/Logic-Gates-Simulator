@@ -33,4 +33,9 @@ class ComponentFactory
     static ComponentLayout validateLayout(
         const ComponentCatalog& catalog, const ComponentView& view, const ComponentLayout& layout
     );
+    /** @brief Generates changed input rows from current geometry, preserving output anchors,
+     * surviving pin identity/leads and body dimensions (growing height when needed).
+     */
+    static ComponentLayout
+    resizeGateLayout(const ComponentCatalog& catalog, const ComponentView& view, int inputCount);
 };

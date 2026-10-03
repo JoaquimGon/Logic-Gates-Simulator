@@ -253,7 +253,7 @@ Presentation tests cover typed instances/batching, pin leads, label layout, and
 world/screen glyph geometry. The application build also runs an invisible-window
 framebuffer test; it skips when an OpenGL context is unavailable and writes PPM
 previews under the build's `render-artifacts/` directory when exercised.
-CTest runs 38 groups with the application, or 37 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_" --output-on-failure`
+CTest runs 39 groups with the application, or 38 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_" --output-on-failure`
 to run only the input tests.
 
 ## Shared Editor Actions
@@ -268,6 +268,12 @@ retain identity; removing wired inputs requires an explicit attachment policy or
 wire removal in the same batch. Pin layouts and committed wires are read-only to
 callers. Complete before/after records preserve normalized wire IDs and runtime
 state for future undo/redo; history controls and persistence remain pending.
+
+`ConfigureComponentProperties` edits explicit optional fields: body label,
+scalable input count (clamped 2–8), supported native inversion, clock frequency,
+and pause. Omitted fields retain current values. Inversion updates logic and the
+bubble together; failed batches roll back. The educational inspector will show
+live pins/state and a truth table alongside these limited controls.
 
 See [Editor action contracts and examples](docs/EditorActions.md) for API use,
 pointer lifetimes, migration rules, and snapshot-restoration semantics.

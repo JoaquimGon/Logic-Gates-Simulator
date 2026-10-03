@@ -38,6 +38,27 @@ bool Gate::isValidInputPinCount(GateType type, int inputPinCount)
     }
 }
 
+void Gate::setInverted(bool inverted)
+{
+    switch (m_gateType)
+    {
+    case AND:
+    case NAND:
+        m_gateType = inverted ? NAND : AND;
+        break;
+    case OR:
+    case NOR:
+        m_gateType = inverted ? NOR : OR;
+        break;
+    case XOR:
+    case NXOR:
+        m_gateType = inverted ? NXOR : XOR;
+        break;
+    default:
+        throw std::invalid_argument("NOT has fixed inversion.");
+    }
+}
+
 void Gate::evaluate()
 {
     const auto& inputs = getStateInPins();

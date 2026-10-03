@@ -152,6 +152,32 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             return options;
         };
 
+        auto configureLayout = [&](int id, const ComponentLayout& layout, RemovedPinPolicy policy)
+        {
+            auto& view = getView(id);
+            auto* gate = dynamic_cast<Gate*>(candidate.m_circuit.getComponent(id));
+            if (view.getSize() == layout.size && view.getShaderName() == layout.shader &&
+                samePins(view.getInputPins(), layout.inputs) &&
+                samePins(view.getOutputPins(), layout.outputs))
+                return;
+            for (const auto& pin : view.getInputPins())
+                if (pin.pin_index >= layout.inputs.size())
+                    removedPins.push_back(
+                        {id,
+                         static_cast<int>(pin.pin_index),
+                         view.getAbsolutePinGridPos(pin),
+                         policy}
+                    );
+            if (gate)
+                candidate.m_circuit.resizeGateInputs(id, static_cast<int>(layout.inputs.size()));
+            view.editInputPins() = layout.inputs;
+            view.editOutputPins() = layout.outputs;
+            view.m_size = layout.size;
+            view.m_shaderName = layout.shader;
+            placement[id] = PlacementPolicy::RejectOverlap;
+            changed = topologyChanged = true;
+        };
+
         for (const auto& operation : batch)
         {
             std::visit(
@@ -221,33 +247,89 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     else if constexpr (std::is_same_v<T, ConfigureComponent>)
                     {
                         auto& view = getView(op.componentId);
-                        auto* gate =
-                            dynamic_cast<Gate*>(candidate.m_circuit.getComponent(op.componentId));
-                        const auto layout =
-                            ComponentFactory::validateLayout(*candidate.m_catalog, view, op.layout);
-                        if (view.getSize() == layout.size &&
-                            view.getShaderName() == layout.shader &&
-                            samePins(view.getInputPins(), layout.inputs) &&
-                            samePins(view.getOutputPins(), layout.outputs))
-                            return;
-                        for (const auto& pin : view.getInputPins())
-                            if (pin.pin_index >= layout.inputs.size())
-                                removedPins.push_back(
-                                    {op.componentId,
-                                     static_cast<int>(pin.pin_index),
-                                     view.getAbsolutePinGridPos(pin),
-                                     op.removedPins}
+                        configureLayout(
+                            op.componentId,
+                            ComponentFactory::validateLayout(*candidate.m_catalog, view, op.layout),
+                            op.removedPins
+                        );
+                    }
+                    else if constexpr (std::is_same_v<T, ConfigureComponentProperties>)
+                    {
+                        auto& view = getView(op.componentId);
+                        auto* component = candidate.m_circuit.getComponent(op.componentId);
+                        auto* gate = dynamic_cast<Gate*>(component);
+                        auto* clock = dynamic_cast<Clock*>(component);
+                        const auto* definition =
+                            candidate.m_catalog->find(view.getDefinitionIdentity().id);
+                        if (op.inputCount)
+                        {
+                            if (!gate)
+                                throw EditFailure(
+                                    EditError::InvalidConfiguration,
+                                    "Input count editing requires a gate."
                                 );
-                        if (gate)
-                            candidate.m_circuit.resizeGateInputs(
-                                op.componentId, static_cast<int>(layout.inputs.size())
-                            );
-                        view.editInputPins() = layout.inputs;
-                        view.editOutputPins() = layout.outputs;
-                        view.m_size = layout.size;
-                        view.m_shaderName = layout.shader;
-                        placement[op.componentId] = PlacementPolicy::RejectOverlap;
-                        changed = topologyChanged = true;
+                            const int count = gate->getType() == NOT
+                                                  ? *op.inputCount
+                                                  : std::clamp(*op.inputCount, 2, 8);
+                            if (gate->getType() == NOT && count != 1)
+                                throw EditFailure(
+                                    EditError::InvalidConfiguration, "NOT has exactly one input."
+                                );
+                            if (count != gate->getInputPinCount())
+                                configureLayout(
+                                    op.componentId,
+                                    ComponentFactory::resizeGateLayout(
+                                        *candidate.m_catalog, view, count
+                                    ),
+                                    RemovedPinPolicy::RejectAttached
+                                );
+                        }
+                        if (op.inverted)
+                        {
+                            if (!gate || gate->getType() == NOT ||
+                                definition->presentation.kind != PresentationKind::NativeSdf)
+                                throw EditFailure(
+                                    EditError::InvalidConfiguration,
+                                    "Inversion editing requires a native paired gate."
+                                );
+                            if (gate->isInverted() != *op.inverted)
+                            {
+                                gate->setInverted(*op.inverted);
+                                view.m_bodyStyle.inverted = *op.inverted;
+                                view.m_shaderName =
+                                    candidate.m_catalog->find(builtinDefinitionId(gate->getType()))
+                                        ->presentation.shader.key;
+                                candidate.m_circuit.markStateDirty();
+                                changed = true;
+                            }
+                        }
+                        if (op.clockFrequency || op.clockPaused)
+                        {
+                            if (!clock)
+                                throw EditFailure(
+                                    EditError::InvalidConfiguration,
+                                    "Clock settings require a clock."
+                                );
+                            if (op.clockFrequency)
+                            {
+                                validateClockFrequency(*op.clockFrequency);
+                                if (clock->getFrequency() != *op.clockFrequency)
+                                {
+                                    clock->setFrequency(*op.clockFrequency);
+                                    changed = true;
+                                }
+                            }
+                            if (op.clockPaused && clock->isPaused() != *op.clockPaused)
+                            {
+                                clock->setPaused(*op.clockPaused);
+                                changed = true;
+                            }
+                        }
+                        if (op.label && view.m_bodyLabel != *op.label)
+                        {
+                            view.m_bodyLabel = *op.label;
+                            changed = true;
+                        }
                     }
                     else if constexpr (std::is_same_v<T, ConfigureInput>)
                     {

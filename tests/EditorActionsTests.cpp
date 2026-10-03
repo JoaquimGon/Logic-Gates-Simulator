@@ -1,3 +1,4 @@
+#include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/Scene.h"
 
@@ -486,6 +487,234 @@ void restoreSnapshots()
     );
 }
 
+void componentProperties()
+{
+    Scene scene;
+    EditorActions actions(scene);
+    const int gateId = scene.addComponent(BuiltinComponentIds::And, {0, 0});
+    const int sink = scene.addComponent(BuiltinComponentIds::Not, {12, 0});
+    const int clockId = scene.addComponent(BuiltinComponentIds::Clock, {24, 0});
+    const int input = scene.addComponent(BuiltinComponentIds::Input, {36, 0});
+    accepted(actions.apply({AddWire{{{2, 0}, {10, 0}}}}));
+    scene.propagate();
+    require(
+        !scene.getLogicComponent(gateId)->getStateOutPin() &&
+            scene.getLogicComponent(sink)->getStateOutPin(),
+        "Inversion fixture is not connected."
+    );
+    const auto wireIds = scene.getWireIds();
+    const auto builds = scene.getTopologyBuildCount();
+    const auto beforeLayout = currentLayout(scene, gateId);
+    const auto edit = accepted(actions.apply(
+        {ConfigureComponentProperties{.componentId = gateId, .label = "My gate", .inverted = true}}
+    ));
+    scene.propagate();
+    auto* gate = static_cast<Gate*>(scene.getLogicComponent(gateId));
+    const auto* view = scene.getCommittedComponentView(gateId);
+    require(
+        gate->getType() == NAND && gate->isInverted() && view->getBodyStyle().inverted &&
+            view->getShaderName() == "NANDgate" && view->getBodyLabel() == "My gate" &&
+            view->getSize() == beforeLayout.size &&
+            view->getOutputPins()[0].relative_pos == beforeLayout.outputs[0].relative_pos &&
+            scene.getWireIds() == wireIds && scene.getTopologyBuildCount() == builds &&
+            gate->getStateOutPin() && !scene.getLogicComponent(sink)->getStateOutPin(),
+        "Inversion changed placement/connectivity or failed to update logic and appearance."
+    );
+    require(
+        scene.getComponentCatalog()
+                .find(BuiltinComponentIds::And)
+                ->presentation.bodyLabel.empty() &&
+            !scene.getComponentCatalog().find(BuiltinComponentIds::And)->presentation.body.inverted,
+        "Instance edit mutated reusable defaults."
+    );
+    auto noOp = actions.apply(
+        {ConfigureComponentProperties{.componentId = gateId, .label = "My gate", .inverted = true}}
+    );
+    require(noOp && !noOp.change, "Unchanged fields produced a false edit.");
+    accepted(actions.restore(*edit.change->before, scene.getRevision()));
+    require(
+        static_cast<Gate*>(scene.getLogicComponent(gateId))->getType() == AND &&
+            scene.getCommittedComponentView(gateId)->getBodyLabel().empty(),
+        "Undo lost gate behavior or label."
+    );
+    accepted(actions.restore(*edit.change->after, scene.getRevision()));
+    require(
+        static_cast<Gate*>(scene.getLogicComponent(gateId))->isInverted() &&
+            scene.getCommittedComponentView(gateId)->getShaderName() == "NANDgate" &&
+            scene.getCommittedComponentView(gateId)->getBodyLabel() == "My gate",
+        "Redo lost gate behavior or appearance."
+    );
+    // Layout edits must also work after switching to the paired native shader.
+    accepted(actions.apply({ConfigureComponent{gateId, currentLayout(scene, gateId)}}));
+    accepted(
+        actions.apply({ConfigureComponentProperties{.componentId = gateId, .inputCount = 100}})
+    );
+    require(
+        scene.getLogicComponent(gateId)->getInputPinCount() == 8 &&
+            scene.getCommittedComponentView(gateId)->getInputPins().size() == 8 &&
+            scene.getCommittedComponentView(gateId)->getInputPins()[0].id == "in.0" &&
+            scene.getCommittedComponentView(gateId)->getShaderName() == "NANDgate" &&
+            scene.getCommittedComponentView(gateId)->getBodyLabel() == "My gate",
+        "Scalable count was not clamped or lost unrelated settings."
+    );
+    const auto* eight = scene.getCommittedComponentView(gateId);
+    const auto removedAnchor = eight->getAbsolutePinGridPos(eight->getInputPins().back());
+    accepted(actions.apply({AddWire{{{removedAnchor.x - 4, removedAnchor.y}, removedAnchor}}}));
+    const auto revision = scene.getRevision();
+    auto rejected = actions.apply(
+        {ConfigureComponentProperties{.componentId = clockId, .clockFrequency = 2.0f},
+         ConfigureComponentProperties{
+             .componentId = gateId, .label = "Rejected", .inputCount = -20
+         }}
+    );
+    require(
+        rejected.error == EditError::AttachedPin && scene.getRevision() == revision &&
+            scene.getLogicComponent(gateId)->getInputPinCount() == 8 &&
+            scene.getCommittedComponentView(gateId)->getBodyLabel() == "My gate" &&
+            static_cast<Clock*>(scene.getLogicComponent(clockId))->getFrequency() == 1,
+        "Wired shrink partially committed a batch."
+    );
+    const auto attached = scene.getWireIds();
+    EditBatch shrink;
+    for (auto id : attached)
+        if (scene.getWire(id)->containsPoint(removedAnchor))
+            shrink.push_back(DeleteWire{id});
+    shrink.push_back(
+        ConfigureComponentProperties{.componentId = gateId, .label = "", .inputCount = -20}
+    );
+    accepted(actions.apply(shrink));
+    require(
+        scene.getLogicComponent(gateId)->getInputPinCount() == 2 &&
+            scene.getCommittedComponentView(gateId)->getBodyLabel().empty() &&
+            scene.getCommittedComponentView(gateId)->getOutputPins()[0].relative_pos ==
+                beforeLayout.outputs[0].relative_pos,
+        "Explicit wire removal did not allow shrink or clear the label."
+    );
+
+    for (const auto& bad :
+         {ConfigureComponentProperties{.componentId = input, .inputCount = 3},
+          ConfigureComponentProperties{.componentId = input, .inverted = true},
+          ConfigureComponentProperties{.componentId = gateId, .clockPaused = true},
+          ConfigureComponentProperties{.componentId = sink, .inputCount = 2},
+          ConfigureComponentProperties{.componentId = sink, .inverted = false},
+          ConfigureComponentProperties{.componentId = clockId, .clockFrequency = 0.01f},
+          ConfigureComponentProperties{
+              .componentId = clockId, .clockFrequency = std::numeric_limits<float>::quiet_NaN()
+          },
+          ConfigureComponentProperties{
+              .componentId = clockId, .clockFrequency = std::numeric_limits<float>::infinity()
+          }})
+        require(
+            actions.apply({bad}).error == EditError::InvalidConfiguration,
+            "Unsupported component setting was accepted."
+        );
+    require(
+        actions.apply({ConfigureComponentProperties{999}}).error == EditError::InvalidComponent,
+        "Missing component was accepted."
+    );
+    const auto fixed =
+        actions.apply({ConfigureComponentProperties{.componentId = sink, .inputCount = 1}});
+    require(fixed && !fixed.change, "NOT one-input no-op changed the scene.");
+
+    accepted(actions.apply(
+        {ConfigureComponentProperties{.componentId = clockId, .clockFrequency = 2.0f}}
+    ));
+    require(!scene.updateClocks(0.125f), "Clock phase fixture advanced too soon.");
+    const auto clockBuilds = scene.getTopologyBuildCount();
+    accepted(actions.apply({ConfigureComponentProperties{
+        .componentId = clockId, .label = "Clock", .clockPaused = true
+    }}));
+    require(
+        static_cast<Clock*>(scene.getLogicComponent(clockId))->getFrequency() == 2 &&
+            !scene.updateClocks(0.125f),
+        "Pause reset frequency or advanced time."
+    );
+    accepted(
+        actions.apply({ConfigureComponentProperties{.componentId = clockId, .clockPaused = false}})
+    );
+    require(
+        scene.updateClocks(0.125f) && scene.getTopologyBuildCount() == clockBuilds,
+        "Partial clock edits lost phase or rebuilt topology."
+    );
+    scene.handleClick(input);
+    accepted(
+        actions.apply({ConfigureComponentProperties{.componentId = input, .label = "Source"}})
+    );
+    require(scene.getLogicComponent(input)->getStateOutPin(), "Label edit rewound a live input.");
+    auto preview = actions.beginMove(gateId);
+    require(
+        preview &&
+            actions.apply({ConfigureComponentProperties{.componentId = gateId, .label = "Preview"}})
+                    .error == EditError::PreviewActive,
+        "Property edit bypassed preview ownership."
+    );
+    actions.cancelMove(*preview);
+
+
+    Scene boxes;
+    EditorActions boxActions(boxes);
+    auto box = *boxes.getComponentCatalog().find(BuiltinComponentIds::And);
+    box.identity = {"educational.and", 1};
+    box.presentation.kind = PresentationKind::Box;
+    box.presentation.shader = boxShaderResources();
+    box.presentation.body = {};
+    accepted(boxActions.apply(
+        {RegisterComponentDefinition{box}, CreateComponent{box.identity.id, {0, 0}}}
+    ));
+    auto boxLayout = currentLayout(boxes, 0);
+    boxLayout.size.x = 0.4f;
+    boxLayout.inputs[0].lead = {{-3, 1}, {-2, 1}};
+    accepted(boxActions.apply({ConfigureComponent{0, boxLayout}}));
+    accepted(boxActions.apply({ConfigureComponentProperties{.componentId = 0, .inputCount = 4}}));
+    const auto* boxView = boxes.getCommittedComponentView(0);
+    require(
+        boxView->getSize().x == 0.4f && boxView->getInputPins()[0].id == "in.0" &&
+            boxView->getInputPins()[0].lead == std::vector<GridCoords>{{-3, 3}, {-2, 3}} &&
+            boxView->getOutputPins()[0].relative_pos == boxLayout.outputs[0].relative_pos &&
+            boxes.getComponentCatalog().find(box.identity.id)->layout.pins.size() == 3,
+        "Custom arity edit lost current geometry/leads or mutated defaults."
+    );
+    require(
+        boxActions.apply(
+                      {ConfigureComponentProperties{.componentId = 0, .inverted = true}}
+        ).error == EditError::InvalidConfiguration,
+        "Box accepted an unsupported inversion bubble."
+    );
+
+    // Native pair toggles use the actual gate behavior for every truth-table row.
+    for (const auto type : {AND, NAND, OR, NOR, XOR, NXOR})
+    {
+        Scene paired;
+        const int id = paired.addComponent(builtinDefinitionId(type), {0, 0}, {.inputCount = 3});
+        for (bool inverted : {false, true, false})
+        {
+            accepted(EditorActions(paired).apply(
+                {ConfigureComponentProperties{.componentId = id, .inverted = inverted}}
+            ));
+            auto* edited = static_cast<Gate*>(paired.getLogicComponent(id));
+            const GateType base = type == AND || type == NAND ? AND
+                                  : type == OR || type == NOR ? OR
+                                                              : XOR;
+            for (int bits = 0; bits < 8; ++bits)
+            {
+                Gate reference(-1, base, 3);
+                auto copy = edited->clone();
+                for (int i = 0; i < 3; ++i)
+                {
+                    reference.setStateInPin(i, (bits & (1 << i)) != 0);
+                    copy->setStateInPin(i, (bits & (1 << i)) != 0);
+                }
+                reference.evaluate();
+                copy->evaluate();
+                require(
+                    copy->getStateOutPin() == (reference.getStateOutPin() != inverted),
+                    "Edited gate truth table disagrees with inversion."
+                );
+            }
+        }
+    }
+}
+
 void bodyPlacement()
 {
     Scene scene;
@@ -544,6 +773,7 @@ int main(int argc, char** argv)
             {"editor_atomic_batches", atomicBatches},
             {"editor_move_previews", movePreviews},
             {"editor_configuration", configuration},
+            {"editor_component_properties", componentProperties},
             {"editor_wire_edits", wireEdits},
             {"editor_restore_snapshots", restoreSnapshots},
             {"editor_body_placement", bodyPlacement}

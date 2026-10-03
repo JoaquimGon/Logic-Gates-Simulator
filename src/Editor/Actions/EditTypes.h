@@ -100,6 +100,19 @@ struct ConfigureComponent
     RemovedPinPolicy removedPins = RemovedPinPolicy::RejectAttached;
 };
 
+/** @brief Edits explicit instance settings; omitted fields retain their current values.
+ * Scalable gate counts clamp to 2-8; NOT stays fixed at one. Wired pin removal is rejected.
+ */
+struct ConfigureComponentProperties
+{
+    int componentId;
+    std::optional<std::string> label;
+    std::optional<int> inputCount;
+    std::optional<bool> inverted;
+    std::optional<float> clockFrequency;
+    std::optional<bool> clockPaused;
+};
+
 struct ConfigureInput
 {
     int componentId;
@@ -140,6 +153,7 @@ using EditOperation = std::variant<
     MoveComponent,
     DeleteComponent,
     ConfigureComponent,
+    ConfigureComponentProperties,
     ConfigureInput,
     ConfigureClock,
     AddWire,

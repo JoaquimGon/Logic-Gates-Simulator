@@ -4,7 +4,8 @@ Use `EditorActions` (`src/Editor/Actions/`) for structural edits and editable
 properties. Keyboard input and application startup already use this service;
 future palettes, inspectors, and loaders should submit the same typed operations.
 Definitions/catalog creation are described in [ComponentDefinitions.md](ComponentDefinitions.md).
-Configurable-property schemas remain separate work.
+Instance customization uses explicit fields in ConfigureComponentProperties;
+the future inspector focuses on explaining live logic.
 
 ## Applying a complete edit
 
@@ -64,6 +65,42 @@ its preview before switching scenes; keep the previous Scene alive until then.
 
 ## Configuration and pin migration
 
+`ConfigureComponentProperties` accepts optional `label`, `inputCount`,
+`inverted`, `clockFrequency`, and `clockPaused`. Omitted fields retain their
+current values; an empty label clears body text. No property reflection or
+serialized override system is involved.
+
+~~~cpp
+auto result = EditorActions(scene).apply({
+    ConfigureComponentProperties{
+        .componentId = gateId,
+        .label = "Carry",
+        .inputCount = 4,
+        .inverted = true
+    }
+});
+~~~
+
+Scalable gate input counts clamp to 2–8. NOT accepts only one input; fixed custom
+interfaces reject count changes. Existing low-level creation/layout APIs retain
+their wider validated range. Arity edits reuse current geometry, preserve output
+anchors and surviving pin identities/labels/leads, regenerate input rows, and grow
+body height when needed. Body dimensions are retained when shrinking. Wire routes
+stay fixed. Removing a wired input requires deleting its wire in the same batch;
+the explicit layout API below still offers its existing removed-pin policies.
+
+Inversion selects AND/NAND, OR/NOR, or XOR/NXOR behavior and the matching native
+shader/bubble together. Pin positions, body size, tint, labels, and definition
+identity stay intact. The identity refers to the creation/default definition;
+`Gate::getType()` and `isInverted()` report current behavior. NOT has intrinsic
+inversion; custom boxes do not support this visual toggle.
+
+Clock fields apply only to clocks; frequency must be finite and at least 0.1 Hz.
+Partial edits preserve the other clock setting and accumulated phase. Labels,
+inversion, and clock edits rebuild no topology. Unsupported fields, overlap, and
+wired-pin removal reject the complete batch. Snapshots retain all edited values.
+Actual inspector widgets and truth-table presentation remain RM-U3.
+
 `ConfigureComponent` receives a complete layout, with logical pin identity carried
 by direction and index, independently of vector order. Gate input counts change
 together with their visual interface: NOT has one input, other gates require two
@@ -75,7 +112,7 @@ Removing an attached input defaults to `RejectAttached`: remove its wires in the
 same batch, or explicitly select `LeaveWires`. That policy leaves routes in place
 as dangling geometry and prevents retained pins reusing the removed attachment.
 Moved/resized pin anchors attach by their final grid coordinates. Automatic wire
-rerouting and versioned definition/interface migration remain RM-F5/RM-C1 work.
+rerouting and versioned definition/interface migration remain RM-F5/RM-C5 work.
 
 View pin lists and committed wires are read-only to callers; placement setters
 and pin editing are internal to Scene/action implementation. Runtime interactions
@@ -102,9 +139,10 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 38 groups with the application (37 headlessly), including six `EditorActionsTests` groups for atomic batches,
+CTest runs 39 groups with the application (38 headlessly), including seven `EditorActionsTests` groups for atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery,
-snapshot restoration, and body-placement rollback. `InputTests` additionally verifies actual keyboard spawning,
+snapshot restoration, body-placement rollback, and explicit component settings
+(including native-pair truth tables, clock phase, and custom lead preservation). `InputTests` additionally verifies actual keyboard spawning,
 drag commit/cancellation, scene switching, and middle-segment deletion:
 
 ```sh

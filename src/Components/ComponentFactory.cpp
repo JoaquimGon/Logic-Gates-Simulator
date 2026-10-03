@@ -126,8 +126,24 @@ ComponentLayout ComponentFactory::validateLayout(
         layoutOverrides(layout),
         view.getDefinitionIdentity().version
     );
-    if (layout.shader != resolved.presentation.shader.key)
+    if (layout.shader != view.getShaderName())
         throw std::invalid_argument("Layout edits cannot change the definition's presentation.");
+    resolved.presentation.shader.key = view.getShaderName();
+    return viewLayout(resolved);
+}
+
+ComponentLayout ComponentFactory::resizeGateLayout(
+    const ComponentCatalog& catalog, const ComponentView& view, int inputCount
+)
+{
+    auto definition = *catalog.find(view.getDefinitionIdentity().id);
+    const ComponentLayout current{
+        view.getSize(), view.getShaderName(), view.getInputPins(), view.getOutputPins()
+    };
+    // Resolve a temporary copy with the instance geometry; catalog defaults never change.
+    definition.layout = *layoutOverrides(current).layout;
+    auto resolved = resolveDefinition(definition, {.inputCount = inputCount});
+    resolved.presentation.shader.key = view.getShaderName();
     return viewLayout(resolved);
 }
 

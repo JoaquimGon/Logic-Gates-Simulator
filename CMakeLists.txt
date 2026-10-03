@@ -124,7 +124,7 @@ if(BUILD_TESTING)
     target_link_libraries(EditorActionsTests PRIVATE simulator_scene)
     foreach(test_name IN ITEMS
         editor_atomic_batches editor_move_previews editor_configuration
-        editor_wire_edits editor_restore_snapshots editor_body_placement
+        editor_wire_edits editor_restore_snapshots editor_body_placement editor_component_properties
     )
         add_test(NAME ${test_name} COMMAND EditorActionsTests ${test_name})
     endforeach()

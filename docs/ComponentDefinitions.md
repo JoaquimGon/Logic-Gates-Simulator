@@ -104,15 +104,20 @@ pins. Layout/configuration/snapshots retain explicit routes and validate overflo
 See [rendering boundaries](Rendering.md) for shape/resize, label, layer, and GPU
 ownership contracts plus framebuffer validation.
 
-Property schemas/serialized override storage remain RM-C3; file formats and
-import/export are RM-C5; truth tables/subcircuits are RM-C6. UI capture, viewport
-transforms, and inspectors remain separate items.
+Lightweight instance edits use explicit ConfigureComponentProperties fields;
+see [editor actions](EditorActions.md). Catalog defaults remain immutable. Native
+inversion changes the instance's paired gate behavior and shader; its creation
+definition ID remains intact. No generic schemas or configuration codec are used.
+Definition files/import/export remain RM-C5; external truth-table behaviors and
+subcircuits remain RM-C6. UI capture and viewport transforms are complete.
+The learning inspector's live values, highlighted truth table, and widgets remain
+RM-U3; whole-circuit persistence remains RM-F1.
 
 `ComponentCatalogTests` covers defaults, assets, registration validation,
 applicable options, instance/default isolation, working custom behavior, atomic
 rollback, and catalog/identity restoration. Input tests verify all eleven shortcuts
 against catalog identities and sizes. Presentation tests cover leads, instance
 sizes, stable ordering, and text layout; pixel tests verify native attachment and
-mixed-size rendering. Current validation passes 38 Debug groups and 37 headless
+mixed-size rendering. Current validation passes 39 Debug groups and 38 headless
 AddressSanitizer groups. Neutral descriptor/catalog headers require no graphics
 include paths.

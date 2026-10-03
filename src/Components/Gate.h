@@ -28,6 +28,16 @@ class Gate : public Component
 
     GateType getType() const { return m_gateType; }
 
+    bool isInverted() const
+    {
+        return m_gateType == NOT || m_gateType == NAND || m_gateType == NOR || m_gateType == NXOR;
+    }
+
+    /** @brief Selects AND/NAND, OR/NOR, or XOR/NXOR without replacing pins or state.
+     * NOT has fixed inversion and rejects this operation.
+     */
+    void setInverted(bool inverted);
+
   private:
     GateType m_gateType;
 };
