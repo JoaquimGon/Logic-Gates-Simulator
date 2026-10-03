@@ -1,8 +1,8 @@
 # Editor Actions
 
 Use `EditorActions` (`src/Editor/Actions/`) for structural edits and editable
-properties. Keyboard input and application startup already use this service;
-future palettes, inspectors, and loaders should submit the same typed operations.
+properties. Keyboard input, the component palette, and application startup use
+this service; future inspectors and loaders should submit the same typed operations.
 Definitions/catalog creation are described in [ComponentDefinitions.md](ComponentDefinitions.md).
 Instance customization uses explicit fields in ConfigureComponentProperties;
 the future inspector focuses on explaining live logic.
@@ -139,7 +139,7 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 39 groups with the application (38 headlessly), including seven `EditorActionsTests` groups for atomic batches,
+CTest runs 40 groups with the application (39 headlessly), including seven `EditorActionsTests` groups for atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery,
 snapshot restoration, body-placement rollback, and explicit component settings
 (including native-pair truth tables, clock phase, and custom lead preservation). `InputTests` additionally verifies actual keyboard spawning,
@@ -159,6 +159,12 @@ routing/deferred branching, PanGesture updates camera offsets, and Selection own
 selected identities and deletion requests. Gesture handlers do not depend on GLFW.
 Creation shortcuts in `Editor/ComponentShortcuts.cpp` map keys to catalog IDs and
 use `CreateComponent` with `FindFree`; defaults live in NativeDefinitions.cpp.
+
+The left palette (`UI`) uses catalog IDs too. Pressing a button captures input;
+dragging draws an outline without changing the scene. Releasing inside the canvas
+submits one `CreateComponent` with overlap rejection. Failed or cancelled drops
+create no edit record. The palette releases capture before applying the batch,
+and consumes the release so it cannot also begin a canvas gesture.
 
 Selection mode edits layout and routes without operating component bodies.
 Interaction mode delegates runtime clicks through `Scene::handleClick()`, with no

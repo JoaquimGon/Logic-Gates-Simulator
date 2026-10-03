@@ -459,6 +459,52 @@ void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
     m_drawCallCount++;
 }
 
+void Renderer::drawScreenRect(CanvasViewport bounds, glm::vec4 color)
+{
+    const auto& surface = m_currentCamera.surface;
+    if (bounds.width <= 0 || bounds.height <= 0 || surface.windowWidth <= 0 ||
+        surface.windowHeight <= 0 || surface.framebufferWidth <= 0 ||
+        surface.framebufferHeight <= 0)
+        return;
+    auto* shader = acquireShader("wire");
+    if (!shader)
+        return;
+    setScreenViewport();
+    shader->use();
+    shader->setMat4(
+        "uViewProjection",
+        glm::ortho(
+            0.0f,
+            static_cast<float>(surface.windowWidth),
+            static_cast<float>(surface.windowHeight),
+            0.0f,
+            -1.0f,
+            1.0f
+        )
+    );
+    std::vector<float> vertices;
+    for (const auto point :
+         {glm::dvec2{bounds.x, bounds.y},
+          glm::dvec2{bounds.x + bounds.width, bounds.y},
+          glm::dvec2{bounds.x + bounds.width, bounds.y + bounds.height},
+          glm::dvec2{bounds.x, bounds.y},
+          glm::dvec2{bounds.x + bounds.width, bounds.y + bounds.height},
+          glm::dvec2{bounds.x, bounds.y + bounds.height}})
+        vertices.insert(
+            vertices.end(),
+            {static_cast<float>(point.x),
+             static_cast<float>(point.y),
+             0,
+             color.r,
+             color.g,
+             color.b,
+             color.a}
+        );
+    m_wireMesh->updateData(vertices, 7);
+    m_wireMesh->draw();
+    ++m_drawCallCount;
+}
+
 void Renderer::drawText(std::span<const TextRun> runs, TextSpace space)
 {
     auto* shader = acquireShader("text");

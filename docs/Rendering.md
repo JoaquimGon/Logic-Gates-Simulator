@@ -82,6 +82,13 @@ generation and upload for world coordinates (Y up) and screen pixels (Y down).
 For another text presentation, produce `TextRun` values and call
 `Renderer::drawText(runs, TextSpace::Screen)` after the canvas pass.
 
+The component palette is one small `UI` class under `src/UI/`. `UI.cpp` handles
+layout and input; `UIDrawing.cpp` draws rectangular buttons, labels, and a drag
+badge. `Renderer::drawScreenRect()` reuses the wire shader/mesh for a colored
+screen rectangle. Both rectangles and text use the full window after the clipped,
+offset canvas pass. The placement outline uses the same camera as the canvas.
+No additional GPU resources or UI dependency are required.
+
 GPU owners cannot be copied. Initialize, reinitialize, and shut down with their
 OpenGL context current. Renderer initialization returns failure for missing
 required shaders/font resources; Engine aborts initialization and releases them.
@@ -109,10 +116,15 @@ ctest --preset x64-debug -R "render_|component_pin_leads|text_presentation"
 
 The framebuffer test writes `mixed-sizes.ppm` and
 `component-presentations.ppm` under the build's `render-artifacts/` directory
-for visual review. The application build has 39 groups; the headless build has
-38. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
+for visual review. The application build has 40 groups; the headless build has
+39. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
 font choices have not been visually verified.
 
 Camera framebuffer regressions also cover a panned/zoomed offset canvas at simulated
 2x DPI, every world layer's clipping, and screen text independent of camera changes.
 `canvas-viewport.ppm` and `canvas-with-overlay.ppm` are additional review artifacts.
+Palette framebuffer checks verify panel/button colors and full-window rendering;
+`component-palette.ppm` and `component-palette-drag.ppm` show all native components
+and the placement outline/badge. Both previews were visually reviewed. Input
+regressions cover all catalog buttons, overlap rejection, cancellation, scrolling,
+and mode isolation. Visible desktop interaction remains a manual integration check.

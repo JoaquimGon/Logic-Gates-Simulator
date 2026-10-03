@@ -37,9 +37,16 @@ and [shared camera/viewport transforms](docs/CanvasCamera.md). Canvas layout now
 controls rendering and picking together, including framebuffer scaling; screen
 text remains independent.
 
+The left component panel reserves 220 pixels of the window, leaving the rest for
+the simulator. In Selection mode, press a component button, drag onto the canvas,
+and release to place it on the grid. An outline follows the proposed placement;
+occupied space rejects the drop and shows a message. Escape, right-click, focus
+loss, or resizing cancels the drag. Scroll inside the panel in shorter windows.
+Debug metrics start hidden; F3 shows them.
 
 | Input | Action |
 | :--- | :--- |
+| **Drag (Component Panel Button)** | Selection: release on the canvas to create a component |
 | **Left Click (Pin)** | Begin routing wire from an input/output pin |
 | **Left Click (Wire)** | Branch or split an existing wire segment |
 | **Left Click (Component Body)** | Selection: select/drag any component; Interaction: operate actionable components |
@@ -83,6 +90,7 @@ src/
   Graphics/            OpenGL drawing, meshes, shaders, and wire vertices
     Presentation/      Typed canvas instances, batching, labels, and HUD layout
     Text/              CPU glyph geometry and context-owned atlas/text submission
+  UI/                  Small component palette: buttons, layout, input, and drawing
 cmake/                 Dependencies, compiler options, and font discovery
 assets/shaders/        GLSL presentations and live-reload sources
 tests/                 Logic, editor, catalog, input, presentation, and pixel regressions
@@ -119,8 +127,13 @@ for validated options, custom registration, and adding native declarations. Geom
 consume plain bounds/anchors without view or graphics dependencies. The builder
 under `Editor/Connectivity/` consumes normalized routes and pin interfaces without
 accessing Scene or healing geometry. Scene owns and publishes derived topology.
-Definition file import/export, property schemas, and palette/inspector UI remain
-pending. See [geometry and connectivity contracts](docs/SceneTopology.md).
+Definition file import/export and educational inspector UI remain pending.
+See [geometry and connectivity contracts](docs/SceneTopology.md).
+
+`UI` lays out catalog buttons and handles one drag-to-create gesture. On release,
+it submits `CreateComponent` through EditorActions. Drawing reuses screen
+rectangles and text from Renderer; no widget framework or additional dependency
+is introduced. Its input logic can be tested without an OpenGL context.
 
 Rendering adapts common view metadata into typed values once per frame. Bodies
 carry individual sizes/tints; stable component-ID ordering and adjacent shader
@@ -244,7 +257,8 @@ null platform, so they require no display, native window, or OpenGL context.
 They cover Escape/right-click drag cancellation, movement and overlap rollback,
 connectivity after every component spawn shortcut, middle-segment deletion,
 mode isolation, immediate mode/focus cancellation, wire branching, panning, UI
-capture, held-input cleanup, canvas bounds, and panned/zoomed subcanvas editing.
+capture, held-input cleanup, canvas bounds, panned/zoomed subcanvas editing, and
+palette creation/cancellation/scrolling in both modes.
 `CameraTests` covers shared forward/inverse transforms, viewport clipping/rounding,
 resizing, invalid/minimized layouts, and uniform/nonuniform DPI.
 Catalog regressions validate built-in defaults/assets, custom box/native behavior,
@@ -253,7 +267,7 @@ Presentation tests cover typed instances/batching, pin leads, label layout, and
 world/screen glyph geometry. The application build also runs an invisible-window
 framebuffer test; it skips when an OpenGL context is unavailable and writes PPM
 previews under the build's `render-artifacts/` directory when exercised.
-CTest runs 39 groups with the application, or 38 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_" --output-on-failure`
+CTest runs 40 groups with the application, or 39 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_|component_palette" --output-on-failure`
 to run only the input tests.
 
 ## Shared Editor Actions

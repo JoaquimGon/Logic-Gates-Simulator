@@ -58,6 +58,9 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
     )
     target_link_libraries(simulator_input PUBLIC simulator_scene PRIVATE glfw)
     target_compile_definitions(simulator_input PRIVATE GLFW_INCLUDE_NONE)
+    add_library(simulator_ui STATIC src/UI/UI.cpp)
+    target_link_libraries(simulator_ui PUBLIC simulator_input PRIVATE glfw)
+    target_compile_definitions(simulator_ui PRIVATE GLFW_INCLUDE_NONE)
 endif()
 
 if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
@@ -92,8 +95,10 @@ if(BUILD_SIMULATOR_APP)
         PROJECT_FONT_PATH="${PROJECT_FONT_PATH}"
     )
 
+    target_sources(simulator_ui PRIVATE src/UI/UIDrawing.cpp)
+    target_link_libraries(simulator_ui PRIVATE simulator_graphics)
     add_executable(${PROJECT_NAME} src/App/main.cpp src/App/Engine.cpp)
-    target_link_libraries(${PROJECT_NAME} PRIVATE simulator_input simulator_graphics glfw)
+    target_link_libraries(${PROJECT_NAME} PRIVATE simulator_ui simulator_graphics glfw)
     target_compile_definitions(${PROJECT_NAME} PRIVATE GLFW_INCLUDE_NONE)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
@@ -140,7 +145,7 @@ if(BUILD_TESTING)
 
     if(BUILD_SIMULATOR_APP)
         add_executable(RenderTests tests/RenderTests.cpp)
-        target_link_libraries(RenderTests PRIVATE simulator_graphics simulator_scene glfw)
+        target_link_libraries(RenderTests PRIVATE simulator_graphics simulator_scene simulator_ui glfw)
         target_compile_definitions(RenderTests PRIVATE GLFW_INCLUDE_NONE
             RENDER_ARTIFACTS_DIR="${CMAKE_BINARY_DIR}/render-artifacts")
         add_test(NAME render_pixels COMMAND RenderTests)
@@ -154,12 +159,12 @@ if(BUILD_TESTING)
     endforeach()
 
     add_executable(InputTests tests/InputTests.cpp)
-    target_link_libraries(InputTests PRIVATE simulator_input glfw)
+    target_link_libraries(InputTests PRIVATE simulator_ui glfw)
     target_compile_definitions(InputTests PRIVATE GLFW_INCLUDE_NONE)
     foreach(test_name IN ITEMS
         drag_cancellation drag_commit spawn_placement wire_segment_deletion
         interaction_modes mode_cancellation wire_and_pan_gestures
-        ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction
+        ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction component_palette
     )
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
     endforeach()

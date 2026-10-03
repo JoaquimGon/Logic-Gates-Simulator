@@ -43,6 +43,11 @@ class Renderer
     void drawIntersections(std::span<const glm::vec3> intersections);
     /** @brief Submits generic world/screen text, reusable by later UI adapters. */
     void drawText(std::span<const TextRun> runs, TextSpace space);
+    /** @brief Draws a filled rectangle in logical window pixels for basic UI. */
+    void drawScreenRect(CanvasViewport bounds, glm::vec4 color);
+
+    const FontMetrics& fontMetrics() const { return m_text.metrics(); }
+
     void drawLabels(std::span<const ComponentRenderData> components);
     void drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics = true);
 

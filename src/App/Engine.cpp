@@ -22,7 +22,6 @@ Engine::Engine(std::string windowName, int windowWidth, int windowHeight)
     m_windowHeight = windowHeight;
 }
 
-
 Engine::~Engine()
 {
     // Safety net for the paths that never reach the end of run(): a failed
@@ -30,7 +29,6 @@ Engine::~Engine()
     // no-op when run() already tore everything down.
     shutdown();
 }
-
 
 int Engine::init()
 {
@@ -102,7 +100,6 @@ int Engine::init()
     return 0;
 }
 
-
 void Engine::run()
 {
     // The loop below needs the window and GL context created by init(). Without
@@ -131,6 +128,16 @@ void Engine::run()
     }
 
     input.setScene(&scene);
+    auto updateUiLayout = [&]()
+    { m_ui.layout(scene.getComponentCatalog(), input.getCameraFrame(window).surface, input); };
+    updateUiLayout();
+    input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        {
+            updateUiLayout();
+            return m_ui.handleInput(event, scene, input, input.getCameraFrame(window));
+        }
+    );
 
     auto titleForMode = [&]()
     { return m_windowName + " - " + editorModeName(input.getMode()) + " mode (F2 to switch)"; };
@@ -161,6 +168,7 @@ void Engine::run()
         }
 
         // 1. Process OS user inputs
+        updateUiLayout();
         input.process(window);
         if (displayedMode != input.getMode())
         {
@@ -282,14 +290,16 @@ void Engine::run()
             m_renderer.drawDebugOverlay(metrics, m_showDebugOverlay);
         }
 
+        m_ui.draw(m_renderer, scene, input.getCameraFrame(window));
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
+    m_ui.cancel(input);
+    input.setUiInputHandler({});
     input.setScene(nullptr);
     shutdown();
 }
-
 
 void Engine::shutdown()
 {

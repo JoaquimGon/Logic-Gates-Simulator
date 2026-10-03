@@ -3,6 +3,7 @@
 #include "Editor/Input.h"
 #include "Graphics/Renderer.h"
 #include "Simulation/Circuit.h"
+#include "UI/UI.h"
 
 #include <string>
 
@@ -26,6 +27,7 @@ class Engine
 
     // NEW: The Renderer now owns all meshes, shaders, and OpenGL state
     Renderer m_renderer;
+    UI m_ui;
 
     /**
     @brief GLFW error sink, registered before glfwInit().
@@ -33,7 +35,7 @@ class Engine
     static void errorCallback(int error, const char* description);
 
     // Debugging
-    bool m_showDebugOverlay = true;
+    bool m_showDebugOverlay = false;
     float m_fps = 0.0f;
     float m_frameTimeAccumulator = 0.0f;
     int m_frameCount = 0;

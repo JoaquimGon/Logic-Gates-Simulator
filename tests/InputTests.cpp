@@ -2,6 +2,7 @@
 #include "Editor/Input.h"
 #include "Editor/Scene.h"
 #include "Geometry/GridSystem.h"
+#include "UI/UI.h"
 
 #include <GLFW/glfw3.h>
 #include <cmath>
@@ -947,6 +948,140 @@ void canvasCameraInteraction(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+void componentPalette(GLFWwindow* window)
+{
+    glfwSetWindowSize(window, 800, 600);
+    Editor editor(window);
+    UI ui;
+    auto layout = [&]
+    {
+        ui.layout(
+            editor.scene.getComponentCatalog(),
+            editor.input.getCameraFrame(window).surface,
+            editor.input
+        );
+    };
+    layout();
+    editor.input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        {
+            layout();
+            return ui.handleInput(
+                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
+            );
+        }
+    );
+    require(
+        editor.input.getCameraFrame(window).viewport == CanvasViewport{220, 0, 580, 600},
+        "Palette did not reserve the left side of the canvas."
+    );
+    const auto buttons = ui.buttons();
+    require(buttons.size() == 11, "Palette did not use the registered component catalog.");
+    for (std::size_t i = 0; i < buttons.size(); ++i)
+    {
+        const auto button = buttons[i];
+        const auto before = editor.scene.getComponentCount();
+        editor.cursorPixels(button.bounds.x + 20, button.bounds.y + 15);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        require(
+            ui.dragging() && editor.input.isIdle() &&
+                editor.input.getUiCapture() == UiInputCapture{true, true} &&
+                editor.scene.getComponentCount() == before,
+            "Palette press leaked into a canvas gesture or created too early."
+        );
+        editor.key(GLFW_KEY_A);
+        const GridCoords target{-8 + static_cast<int>(i % 3) * 8, 8 - static_cast<int>(i / 3) * 8};
+        editor.cursor(target);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        require(
+            !ui.dragging() && editor.input.getUiCapture() == UiInputCapture{} &&
+                editor.scene.getComponentCount() == before + 1 &&
+                editor.scene.getCommittedComponentView(static_cast<int>(before))
+                        ->getDefinitionIdentity()
+                        .id == button.definitionId &&
+                editor.scene.getCommittedComponentView(static_cast<int>(before))
+                        ->getGridPosition() == target &&
+                editor.input.isIdle(),
+            "Palette drop used the wrong component/transform or leaked release to the canvas."
+        );
+    }
+    auto start = [&]
+    {
+        const auto button = ui.buttons().front();
+        editor.cursorPixels(button.bounds.x + 20, button.bounds.y + 15);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        require(ui.dragging(), "Palette button did not begin dragging.");
+    };
+    const auto count = editor.scene.getComponentCount();
+    const auto builds = editor.scene.getTopologyBuildCount();
+    start();
+    editor.cursor({-8, 8});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getComponentCount() == count && !ui.message().empty() &&
+            editor.scene.getTopologyBuildCount() == builds,
+        "Overlapping drop partially created a component or hid its rejection."
+    );
+    start();
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getComponentCount() == count, "Click without dragging created a component."
+    );
+    for (int cancel = 0; cancel < 4; ++cancel)
+    {
+        start();
+        if (cancel == 0)
+            editor.key(GLFW_KEY_ESCAPE);
+        else if (cancel == 1)
+        {
+            editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+            editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+        }
+        else if (cancel == 2)
+        {
+            editor.input.handleFocus(false);
+            editor.input.handleFocus(true);
+        }
+        else
+        {
+            glfwSetWindowSize(window, 800, 420);
+            layout();
+        }
+        editor.cursor({10, -8});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        require(
+            !ui.dragging() && editor.scene.getComponentCount() == count &&
+                editor.input.getUiCapture() == UiInputCapture{} && editor.input.isIdle(),
+            "Cancelled palette drag created a component or retained capture."
+        );
+    }
+    const auto zoom = editor.input.getZoom();
+    editor.cursorPixels(30, 120);
+    Input::scrollCallback(window, 0, -20);
+    require(
+        editor.input.getZoom() == zoom && ui.buttons().back().bounds.y < 350,
+        "Palette scrolling zoomed the canvas or hid the last item."
+    );
+    editor.input.setMode(EditorMode::Interaction);
+    layout();
+    const auto button = ui.buttons().back();
+    editor.cursorPixels(button.bounds.x + 20, button.bounds.y + 15);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        !ui.dragging() && editor.scene.getComponentCount() == count,
+        "Interaction mode allowed structural palette edits."
+    );
+    editor.key(GLFW_KEY_F2);
+    require(
+        editor.input.getMode() == EditorMode::Selection,
+        "Palette focus prevented switching back to Selection mode."
+    );
+    ui.cancel(editor.input);
+    editor.input.setUiInputHandler({});
+    glfwSetWindowSize(window, 800, 800);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -980,7 +1115,8 @@ int main(int argc, char** argv)
             {"ui_input_routing", uiInputRouting},
             {"ui_gesture_cancellation", uiGestureCancellation},
             {"canvas_input_bounds", canvasInputBounds},
-            {"canvas_camera_interaction", canvasCameraInteraction}
+            {"canvas_camera_interaction", canvasCameraInteraction},
+            {"component_palette", componentPalette}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)

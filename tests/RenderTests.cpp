@@ -1,8 +1,10 @@
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
+#include "Editor/Input.h"
 #include "Editor/Scene.h"
 #include "Graphics/Presentation/ComponentPresentation.h"
 #include "Graphics/Renderer.h"
+#include "UI/UI.h"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -276,6 +278,60 @@ std::array<unsigned char, 4> cameraPixel(const CanvasCameraFrame& frame, glm::ve
     return result;
 }
 
+void palettePresentation(Renderer& renderer)
+{
+    Scene scene;
+    Input input;
+    input.setScene(&scene);
+    UI ui;
+    const CanvasSurface surface{extent, extent, extent, extent};
+    ui.layout(scene.getComponentCatalog(), surface, input);
+    CanvasCamera camera;
+    camera.setViewport(input.getCanvasViewport());
+    const auto frame = camera.frame(surface);
+    int i = 0;
+    for (const auto& button : ui.buttons())
+    {
+        scene.addComponent(button.definitionId, {-8 + (i % 3) * 8, 8 - (i / 3) * 8});
+        ++i;
+    }
+    const auto components = buildComponentPresentation(scene.getComponentViewMap());
+    const auto junctions = scene.getWireIntersections();
+    renderer.beginFrame(frame);
+    renderer.drawCanvas({components, scene.getWires(), junctions});
+    ui.draw(renderer, scene, frame);
+    std::array<unsigned char, 4> left{}, buttonPixel{};
+    glReadPixels(5, extent - 501, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, left.data());
+    glReadPixels(20, extent - 90, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, buttonPixel.data());
+    require(
+        left[2] > left[0] && buttonPixel[2] > left[2],
+        "Palette background/buttons were not drawn in screen space."
+    );
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    require(
+        glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE && viewport[2] == extent &&
+            viewport[3] == extent && glGetError() == GL_NO_ERROR,
+        "UI drawing left canvas clipping or invalid GPU state."
+    );
+    saveImage("component-palette.ppm");
+
+    const auto b = ui.buttons().front().bounds;
+    ui.handleInput(
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0, 0, b.x + 20, b.y + 15},
+        scene,
+        input,
+        frame
+    );
+    ui.handleInput({UiInputKind::Cursor, 0, 0, 0, 0, 800, 740}, scene, input, frame);
+    renderer.beginFrame(frame);
+    renderer.drawCanvas({components, scene.getWires(), junctions});
+    ui.draw(renderer, scene, frame);
+    require(glGetError() == GL_NO_ERROR, "Palette drag preview produced an OpenGL error.");
+    saveImage("component-palette-drag.ppm");
+    ui.cancel(input);
+}
+
 void canvasViewport(Renderer& renderer)
 {
     CanvasCamera camera;
@@ -437,6 +493,7 @@ int main()
             editedGate(renderer, camera);
             preview(renderer, camera);
             canvasViewport(renderer);
+            palettePresentation(renderer);
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";
         }
         catch (const std::exception& error)
