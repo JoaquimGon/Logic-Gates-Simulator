@@ -87,7 +87,12 @@ layout and input; `UIDrawing.cpp` draws rectangular buttons, labels, and a drag
 badge. `Renderer::drawScreenRect()` reuses the wire shader/mesh for a colored
 screen rectangle. Both rectangles and text use the full window after the clipped,
 offset canvas pass. The placement outline uses the same camera as the canvas.
-No additional GPU resources or UI dependency are required.
+No additional GPU resources or UI dependency are required. The read-only
+information popup uses the same rectangles/text. It stores a component ID and
+reads the current committed view's name/label and synchronized PinUI states;
+deleted components produce no popup. Its screen-space bounds stay inside the
+window and overflowing rows scroll. Palette text is submitted before the popup
+background so the popup fully covers it in narrow windows.
 
 GPU owners cannot be copied. Initialize, reinitialize, and shut down with their
 OpenGL context current. Renderer initialization returns failure for missing
@@ -98,8 +103,9 @@ UI-first capture/focus lives in Input; see [InputRouting.md](InputRouting.md).
 Shared camera/viewport transforms, DPI resolution, and canvas clipping are complete
 under RM-U2; see [CanvasCamera.md](CanvasCamera.md). Renderer uses one forward
 matrix for world passes and the same inverse for the procedural grid. Screen text
-remains full-window. Explicit instance label/inversion edits are available (RM-C3); learning-inspector
-widgets remain RM-U3. Presentation caching remains RM-R3 and packed junction integration remains RM-A8.
+remains full-window. Explicit instance label/inversion edits are available (RM-C3).
+Basic right-click information is complete (RM-F7); truth tables and editing
+controls remain RM-U3. Presentation caching remains RM-R3 and packed junction integration remains RM-A8.
 
 ## Verification
 
@@ -116,8 +122,8 @@ ctest --preset x64-debug -R "render_|component_pin_leads|text_presentation"
 
 The framebuffer test writes `mixed-sizes.ppm` and
 `component-presentations.ppm` under the build's `render-artifacts/` directory
-for visual review. The application build has 40 groups; the headless build has
-39. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
+for visual review. The application build has 41 groups; the headless build has
+40. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
 font choices have not been visually verified.
 
 Camera framebuffer regressions also cover a panned/zoomed offset canvas at simulated
@@ -128,3 +134,6 @@ Palette framebuffer checks verify panel/button colors and full-window rendering;
 and the placement outline/badge. Both previews were visually reviewed. Input
 regressions cover all catalog buttons, overlap rejection, cancellation, scrolling,
 and mode isolation. Visible desktop interaction remains a manual integration check.
+`component-information.ppm` shows named latch inputs and its two independent
+outputs in a right-click popup. Framebuffer checks verify its opaque background
+and text; the preview was visually reviewed.

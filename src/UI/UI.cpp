@@ -4,6 +4,7 @@
 #include "Editor/Input.h"
 #include "Editor/Scene.h"
 #include "Geometry/GridMetrics.h"
+#include "Geometry/GridSystem.h"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -17,6 +18,8 @@ constexpr double rowStep = 42;
 
 void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& input)
 {
+    if (surface != m_surface)
+        closeInfo();
     if (surface != m_surface || input.getMode() != EditorMode::Selection)
         cancel(input);
     m_surface = surface;
@@ -73,20 +76,97 @@ void UI::cancel(Input& input)
     }
 }
 
+void UI::closeInfo()
+{
+    m_infoComponent = -1;
+    m_infoScroll = 0;
+}
+
+std::vector<std::string> UI::componentInfo(const Scene& scene) const
+{
+    const auto* view = scene.getCommittedComponentView(m_infoComponent);
+    if (!view)
+        return {};
+    const auto* definition = scene.getComponentCatalog().find(view->getDefinitionIdentity().id);
+    std::vector<std::string> lines{definition ? definition->displayName : "Component"};
+    if (!view->getBodyLabel().empty() && view->getBodyLabel() != lines.front())
+        lines.push_back("Label: " + view->getBodyLabel());
+    auto pins = [&](const std::vector<PinUI>& values, const char* heading, const char* fallback)
+    {
+        lines.push_back(std::string(heading) + (values.empty() ? ": none" : ""));
+        for (const auto& pin : values)
+        {
+            const auto name = pin.label.empty()
+                                  ? std::string(fallback) + " " + std::to_string(pin.pin_index + 1)
+                                  : pin.label;
+            const char* state = pin.state == PinState::ON    ? "1 (ON)"
+                                : pin.state == PinState::OFF ? "0 (OFF)"
+                                                             : "Unavailable";
+            lines.push_back(name + ": " + state);
+        }
+    };
+    pins(view->getInputPins(), "Inputs", "Input");
+    pins(view->getOutputPins(), "Outputs", "Output");
+    return lines;
+}
+
+CanvasViewport UI::infoBounds(const Scene& scene) const
+{
+    const auto lines = componentInfo(scene);
+    if (lines.empty())
+        return {};
+    const double width = std::min(280.0, std::max(0.0, m_surface.windowWidth - 16.0));
+    const double height = std::min(
+        infoHeaderHeight + infoFooterHeight + static_cast<double>(lines.size() - 1) * infoRowHeight,
+        std::max(0.0, m_surface.windowHeight - 16.0)
+    );
+    return {
+        std::clamp(m_infoAnchor.x + 14, 8.0, std::max(8.0, m_surface.windowWidth - width - 8)),
+        std::clamp(m_infoAnchor.y + 14, 8.0, std::max(8.0, m_surface.windowHeight - height - 8)),
+        width,
+        height
+    };
+}
+
+int UI::infoVisibleRows(const Scene& scene) const
+{
+    return std::max(
+        0,
+        static_cast<int>(
+            (infoBounds(scene).height - infoHeaderHeight - infoFooterHeight) / infoRowHeight
+        )
+    );
+}
+
 bool UI::handleInput(
     const UiInputEvent& event, Scene& scene, Input& input, const CanvasCameraFrame& camera
 )
 {
+    if (m_infoComponent != -1 && !scene.getCommittedComponentView(m_infoComponent))
+        closeInfo();
     if (event.kind == UiInputKind::WindowFocus)
     {
         if (!event.focused)
+        {
             cancel(input);
+            closeInfo();
+            m_infoRightPressed = m_infoEscapePressed = false;
+        }
         return false;
     }
     if (event.kind == UiInputKind::Cursor || event.kind == UiInputKind::MouseButton)
         m_pointer = {event.x, event.y};
     if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_F2 && !dragging())
         input.setCanvasFocused(true);
+    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
+        (m_infoComponent != -1 || m_infoEscapePressed))
+    {
+        closeInfo();
+        m_infoEscapePressed = event.action != GLFW_RELEASE;
+        if (!m_infoEscapePressed)
+            input.setCanvasFocused(true);
+        return true;
+    }
     if (event.kind == UiInputKind::Key && dragging())
     {
         if (event.code == GLFW_KEY_ESCAPE && event.action == GLFW_PRESS)
@@ -97,6 +177,13 @@ bool UI::handleInput(
         return dragging();
     if (event.kind == UiInputKind::MouseButton)
     {
+        if (event.code == GLFW_MOUSE_BUTTON_RIGHT && event.action == GLFW_RELEASE &&
+            m_infoRightPressed)
+        {
+            m_infoRightPressed = false;
+            input.setCanvasFocused(true);
+            return true;
+        }
         if (dragging())
         {
             if (event.code == GLFW_MOUSE_BUTTON_RIGHT && event.action == GLFW_PRESS)
@@ -119,6 +206,17 @@ bool UI::handleInput(
             }
             return true;
         }
+        if (m_infoComponent != -1)
+        {
+            if (infoBounds(scene).contains(event.x, event.y))
+                return true;
+            if (event.action == GLFW_PRESS)
+            {
+                closeInfo();
+                if (event.code != GLFW_MOUSE_BUTTON_RIGHT)
+                    return true;
+            }
+        }
         if (m_panel.contains(event.x, event.y))
         {
             if (m_canCreate && input.isIdle() && event.code == GLFW_MOUSE_BUTTON_LEFT &&
@@ -131,6 +229,35 @@ bool UI::handleInput(
                 }
             return true;
         }
+        if (event.code == GLFW_MOUSE_BUTTON_RIGHT && event.action == GLFW_PRESS && input.isIdle() &&
+            camera.valid() && camera.viewport.contains(event.x, event.y))
+            if (const auto world = camera.windowToWorld(m_pointer))
+            {
+                const auto hit = scene.hitTest(*world, GridSystem::worldToGrid(*world));
+                if (hit.type == HitType::COMPONENT_BODY || hit.type == HitType::COMPONENT_PIN)
+                {
+                    m_infoComponent = hit.componentId;
+                    m_infoAnchor = m_pointer;
+                    m_infoScroll = 0;
+                    m_infoRightPressed = true;
+                    return true;
+                }
+            }
+    }
+    if (m_infoComponent != -1 && infoBounds(scene).contains(m_pointer.x, m_pointer.y))
+    {
+        if (event.kind == UiInputKind::Scroll && std::isfinite(event.y))
+        {
+            const int maximum = std::max(
+                0, static_cast<int>(componentInfo(scene).size()) - 1 - infoVisibleRows(scene)
+            );
+            m_infoScroll = static_cast<int>(
+                std::clamp(m_infoScroll - event.y, 0.0, static_cast<double>(maximum))
+            );
+            return true;
+        }
+        if (event.kind == UiInputKind::Cursor)
+            return true;
     }
     if (event.kind == UiInputKind::Scroll && m_panel.contains(m_pointer.x, m_pointer.y))
     {

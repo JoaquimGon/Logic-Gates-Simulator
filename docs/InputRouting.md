@@ -68,8 +68,18 @@ Negative/non-finite bounds throw before changing active input. Window/framebuffe
 size changes cancel gestures before interpreting new coordinates.
 
 See [CanvasCamera.md](CanvasCamera.md) for camera ownership, forward/inverse
-conversions, DPI handling, and screen-space overlay behavior. UI widgets and
-property schemas remain separate roadmap tasks.
+conversions, DPI handling, and screen-space overlay behavior.
+
+The `UI` adapter handles the left palette and right-click information popup.
+An idle component/pin right-click consumes its press/release, preserving canvas
+selection and preventing panning from that click. Right-click during a canvas
+gesture still cancels it; empty-canvas right-drag still pans. Popup-local pointer
+events cannot operate components underneath. Outside left-click dismisses the
+popup without starting a gesture; outside right-click can inspect another
+component or begin a pan. Escape dismissal and the opening right-button release
+restore canvas keyboard focus. Both editor modes can inspect; simulation and
+focused clock controls continue. Resize, focus loss, and component deletion
+dismiss the popup. `component_information` tests these interactions headlessly.
 
 ## Verification
 

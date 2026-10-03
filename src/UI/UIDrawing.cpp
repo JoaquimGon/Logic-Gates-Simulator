@@ -72,4 +72,37 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         label(definition->displayName, badge, 0.5f, ink);
     }
     renderer.drawText(text, TextSpace::Screen);
+    text.clear();
+    const auto info = componentInfo(scene);
+    if (!info.empty())
+    {
+        const auto bounds = infoBounds(scene);
+        renderer.drawScreenRect(bounds, {0.3f, 0.45f, 0.6f, 1});
+        renderer.drawScreenRect(
+            {bounds.x + 1, bounds.y + 1, bounds.width - 2, bounds.height - 2},
+            {0.08f, 0.12f, 0.17f, 1}
+        );
+        label(info.front(), {bounds.x, bounds.y, bounds.width, infoHeaderHeight}, 0.6f, ink);
+        const int rows = infoVisibleRows(scene);
+        const int offset =
+            std::clamp(m_infoScroll, 0, std::max(0, static_cast<int>(info.size()) - 1 - rows));
+        for (int row = 0; row < rows && row + offset + 1 < static_cast<int>(info.size()); ++row)
+            label(
+                info[row + offset + 1],
+                {bounds.x + 4,
+                 bounds.y + infoHeaderHeight + row * infoRowHeight,
+                 bounds.width - 8,
+                 infoRowHeight},
+                0.43f,
+                ink
+            );
+        label(
+            static_cast<int>(info.size()) - 1 > rows ? "Scroll; Esc / outside to close"
+                                                     : "Esc / click outside to close",
+            {bounds.x, bounds.y + bounds.height - infoFooterHeight, bounds.width, infoFooterHeight},
+            0.33f,
+            {0.55f, 0.65f, 0.76f, 1}
+        );
+    }
+    renderer.drawText(text, TextSpace::Screen);
 }

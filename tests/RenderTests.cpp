@@ -332,6 +332,72 @@ void palettePresentation(Renderer& renderer)
     ui.cancel(input);
 }
 
+void componentInformationPresentation(Renderer& renderer)
+{
+    Scene scene;
+    Input input;
+    input.setScene(&scene);
+    UI ui;
+    const CanvasSurface surface{extent, extent, extent, extent};
+    ui.layout(scene.getComponentCatalog(), surface, input);
+    CanvasCamera camera;
+    camera.setViewport(input.getCanvasViewport());
+    const auto frame = camera.frame(surface);
+    const int latch = scene.addComponent(BuiltinComponentIds::SrLatch, {0, 0});
+    ComponentOverrides options;
+    options.inputState = true;
+    scene.addComponent(BuiltinComponentIds::Input, {-8, 0}, options);
+    Wire wire;
+    wire.setPath({{-7, 0}, {-5, 0}, {-5, 1}, {-3, 1}});
+    scene.commitWire(std::move(wire));
+    scene.propagate();
+    scene.syncVisuals();
+    const auto point = *frame.worldToWindow({0, 0});
+    ui.handleInput(
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0, 0, point.x, point.y},
+        scene,
+        input,
+        frame
+    );
+    ui.handleInput(
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0, 0, point.x, point.y},
+        scene,
+        input,
+        frame
+    );
+    require(ui.infoComponentId() == latch, "Cannot open information rendering fixture.");
+    const auto components = buildComponentPresentation(scene.getComponentViewMap());
+    const auto junctions = scene.getWireIntersections();
+    renderer.beginFrame(frame);
+    renderer.drawCanvas({components, scene.getWires(), junctions});
+    ui.draw(renderer, scene, frame);
+    const auto bounds = ui.infoBounds(scene);
+    const int width = static_cast<int>(bounds.width), height = static_cast<int>(bounds.height);
+    std::vector<unsigned char> pixels(width * height * 4);
+    glReadPixels(
+        static_cast<int>(bounds.x),
+        extent - static_cast<int>(bounds.y + bounds.height),
+        width,
+        height,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        pixels.data()
+    );
+    const int sample = ((height - 6) * width + 4) * 4;
+    require(
+        std::abs(pixels[sample] - 20) <= 2 && std::abs(pixels[sample + 2] - 43) <= 2,
+        "Popup background failed to cover the canvas in screen space."
+    );
+    int glyphPixels = 0;
+    for (std::size_t i = 0; i < pixels.size(); i += 4)
+        glyphPixels += pixels[i] > 150 && pixels[i + 1] > 150 && pixels[i + 2] > 150;
+    require(
+        glyphPixels > 200 && glGetError() == GL_NO_ERROR,
+        "Popup omitted its text or produced an OpenGL error."
+    );
+    saveImage("component-information.ppm");
+}
+
 void canvasViewport(Renderer& renderer)
 {
     CanvasCamera camera;
@@ -494,6 +560,7 @@ int main()
             preview(renderer, camera);
             canvasViewport(renderer);
             palettePresentation(renderer);
+            componentInformationPresentation(renderer);
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";
         }
         catch (const std::exception& error)

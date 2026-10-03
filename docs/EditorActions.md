@@ -5,7 +5,7 @@ properties. Keyboard input, the component palette, and application startup use
 this service; future inspectors and loaders should submit the same typed operations.
 Definitions/catalog creation are described in [ComponentDefinitions.md](ComponentDefinitions.md).
 Instance customization uses explicit fields in ConfigureComponentProperties;
-the future inspector focuses on explaining live logic.
+the read-only information popup shows live pins; further educational controls remain pending.
 
 ## Applying a complete edit
 
@@ -99,7 +99,8 @@ Clock fields apply only to clocks; frequency must be finite and at least 0.1 Hz.
 Partial edits preserve the other clock setting and accumulated phase. Labels,
 inversion, and clock edits rebuild no topology. Unsupported fields, overlap, and
 wired-pin removal reject the complete batch. Snapshots retain all edited values.
-Actual inspector widgets and truth-table presentation remain RM-U3.
+The read-only right-click popup shows names and live pin states. Inspector edit
+controls and truth-table presentation remain RM-U3.
 
 `ConfigureComponent` receives a complete layout, with logical pin identity carried
 by direction and index, independently of vector order. Gate input counts change
@@ -139,7 +140,7 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 40 groups with the application (39 headlessly), including seven `EditorActionsTests` groups for atomic batches,
+CTest runs 41 groups with the application (40 headlessly), including seven `EditorActionsTests` groups for atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery,
 snapshot restoration, body-placement rollback, and explicit component settings
 (including native-pair truth tables, clock phase, and custom lead preservation). `InputTests` additionally verifies actual keyboard spawning,

@@ -164,7 +164,8 @@ if(BUILD_TESTING)
     foreach(test_name IN ITEMS
         drag_cancellation drag_commit spawn_placement wire_segment_deletion
         interaction_modes mode_cancellation wire_and_pan_gestures
-        ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction component_palette
+        ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction
+        component_palette component_information
     )
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
     endforeach()

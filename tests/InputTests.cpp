@@ -1,4 +1,5 @@
 #include "Components/Definitions/NativeDefinitions.h"
+#include "Editor/Actions/EditorActions.h"
 #include "Editor/Input.h"
 #include "Editor/Scene.h"
 #include "Geometry/GridSystem.h"
@@ -1082,6 +1083,211 @@ void componentPalette(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+void componentInformation(GLFWwindow* window)
+{
+    glfwSetWindowSize(window, 800, 600);
+    Editor editor(window);
+    UI ui;
+    auto layout = [&]
+    {
+        ui.layout(
+            editor.scene.getComponentCatalog(),
+            editor.input.getCameraFrame(window).surface,
+            editor.input
+        );
+    };
+    layout();
+    editor.input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        {
+            layout();
+            return ui.handleInput(
+                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
+            );
+        }
+    );
+    const int gate = editor.scene.addComponent(BuiltinComponentIds::And, {-6, 4});
+    const int latch = editor.scene.addComponent(BuiltinComponentIds::SrLatch, {4, 4});
+    const int source = editor.scene.addComponent(BuiltinComponentIds::Input, {-6, -6});
+    const int clock = editor.scene.addComponent(BuiltinComponentIds::Clock, {4, -6});
+    auto refresh = [&]
+    {
+        editor.scene.propagate();
+        editor.scene.syncVisuals();
+    };
+    refresh();
+    auto has = [&](const std::string& line)
+    {
+        const auto lines = ui.componentInfo(editor.scene);
+        return std::find(lines.begin(), lines.end(), line) != lines.end();
+    };
+    auto open = [&](int id)
+    {
+        editor.cursor(editor.scene.getCommittedComponentView(id)->getGridPosition());
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+        require(
+            ui.infoComponentId() == id && editor.input.isIdle(),
+            "Right-click did not open component information or started a pan."
+        );
+    };
+    editor.input.setPanOffset({0.1f, 0.05f});
+    editor.input.setZoom(1.2f);
+    editor.cursor({-6, 4});
+    require(ui.infoComponentId() == -1, "Hover opened unwanted component information.");
+    const auto revision = editor.scene.getRevision();
+    const auto builds = editor.scene.getTopologyBuildCount();
+    const auto pan = editor.input.getPanOffset();
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+    editor.cursorPixels(300, 250);
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+    require(
+        ui.infoComponentId() == gate && editor.input.getPanOffset() == pan &&
+            editor.input.isIdle() && editor.scene.getRevision() == revision &&
+            editor.scene.getTopologyBuildCount() == builds,
+        "Information click/drag changed camera or committed scene state."
+    );
+    require(
+        has("AND") && has("A: 0 (OFF)") && has("B: 0 (OFF)") && has("Y: 0 (OFF)"),
+        "Gate information omitted names or initial indexed states."
+    );
+    editor.scene.getLogicComponent(gate)->setStateInPin(0, true);
+    editor.scene.getLogicComponent(gate)->setStateInPin(1, true);
+    refresh();
+    require(
+        has("A: 1 (ON)") && has("B: 1 (ON)") && has("Y: 1 (ON)"),
+        "Open information retained a stale signal snapshot."
+    );
+    const auto popup = ui.infoBounds(editor.scene);
+    editor.cursorPixels(popup.x + 8, popup.y + 12);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        ui.infoComponentId() == gate && editor.input.isIdle() &&
+            editor.scene.getRevision() == revision,
+        "Clicking the popup leaked into component dragging or wiring."
+    );
+    editor.key(GLFW_KEY_ESCAPE);
+    require(
+        ui.infoComponentId() == -1 && editor.input.isCanvasFocused(),
+        "Escape did not dismiss information and return keyboard focus."
+    );
+
+    open(latch);
+    require(
+        has("SR LATCH") && has("S: 0 (OFF)") && has("R: 0 (OFF)") && has("Q: 0 (OFF)") &&
+            has("~Q: 1 (ON)"),
+        "Latch information confused its independent outputs or labels."
+    );
+    editor.key(GLFW_KEY_F2);
+    open(source);
+    require(
+        editor.input.getMode() == EditorMode::Interaction && has("Inputs: none") &&
+            has("Out: 0 (OFF)"),
+        "Information was unavailable in Interaction mode or invented source inputs."
+    );
+    open(clock);
+    editor.key(GLFW_KEY_PERIOD);
+    refresh();
+    require(has("Out: 1 (ON)"), "Information popup blocked clock controls or failed to update.");
+
+    ComponentDefinition custom;
+    custom.identity = {"custom.learning", 1};
+    custom.displayName = "Learning gate";
+    custom.behavior = OR;
+    custom.layout = {
+        0.3f,
+        0.2f,
+        {{"c", "C", PinType::INPUT, 2, {-3, 1}, {}},
+         {"a", "A", PinType::INPUT, 0, {-3, 0}, {}},
+         {"b", "", PinType::INPUT, 1, {-3, -1}, {}},
+         {"out", "Result", PinType::OUTPUT, 0, {3, 0}, {}}}
+    };
+    custom.presentation.shader = boxShaderResources();
+    custom.presentation.bodyLabel = "MY BLOCK";
+    const auto result =
+        EditorActions(editor.scene)
+            .apply(
+                {RegisterComponentDefinition{custom}, CreateComponent{custom.identity.id, {0, -12}}}
+            );
+    require(static_cast<bool>(result), "Cannot create custom information fixture.");
+    const int box = result.createdComponentIds.front();
+    editor.scene.getLogicComponent(box)->setStateInPin(2, true);
+    refresh();
+    open(box);
+    require(
+        has("Learning gate") && has("Label: MY BLOCK") && has("C: 1 (ON)") && has("A: 0 (OFF)") &&
+            has("Input 2: 0 (OFF)") && has("Result: 1 (ON)"),
+        "Custom information used vector order as pin identity or lost fallback names."
+    );
+    const auto bounds = ui.infoBounds(editor.scene);
+    require(
+        bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 800 &&
+            bounds.y + bounds.height <= 600,
+        "Popup extended past the window edge."
+    );
+    editor.input.handleFocus(false);
+    editor.input.handleFocus(true);
+    require(ui.infoComponentId() == -1, "Focus loss left the popup open.");
+    open(gate);
+    editor.cursorPixels(240, 580);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        ui.infoComponentId() == -1 && editor.input.isIdle(),
+        "Dismissal click created a canvas gesture."
+    );
+    const auto beforePan = editor.input.getPanOffset();
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+    editor.cursorPixels(280, 550);
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+    require(editor.input.getPanOffset() != beforePan, "Empty-canvas right-drag no longer pans.");
+    open(gate);
+    editor.scene.removeComponent(gate);
+    require(ui.componentInfo(editor.scene).empty(), "Deleted component left stale information.");
+    editor.cursorPixels(250, 580);
+    require(ui.infoComponentId() == -1, "Missing component was not dismissed on input.");
+
+    editor.key(GLFW_KEY_F2);
+    editor.cursor({-6, -6});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        ui.infoComponentId() == -1 && editor.input.isIdle(),
+        "Right-click inspection replaced active drag cancellation."
+    );
+    open(latch);
+    glfwSetWindowSize(window, 800, 220);
+    layout();
+    require(ui.infoComponentId() == -1, "Resize retained an obsolete popup layout.");
+    editor.input.setPanOffset({0, 0});
+    editor.input.setZoom(1);
+    open(latch);
+    const auto small = ui.infoBounds(editor.scene);
+    editor.cursorPixels(small.x + 10, small.y + 50);
+    const auto zoom = editor.input.getZoom();
+    Input::keyCallback(window, GLFW_KEY_LEFT_CONTROL, 0, GLFW_PRESS, 0);
+    Input::scrollCallback(window, 0, -5);
+    Input::keyCallback(window, GLFW_KEY_LEFT_CONTROL, 0, GLFW_RELEASE, 0);
+    require(
+        editor.input.getZoom() == zoom && small.y + small.height <= 220,
+        "Information scrolling zoomed the canvas or overflowed a short window."
+    );
+    editor.key(GLFW_KEY_ESCAPE);
+    editor.wire({{3, -12}, {4, -12}, {4, -9}, {-4, -9}, {-4, -12}, {-3, -12}});
+    refresh();
+    open(box);
+    require(
+        !editor.scene.getRejectedConnections().empty() && has("Result: Unavailable"),
+        "Paused simulation information presented a retained output as a valid signal."
+    );
+    editor.key(GLFW_KEY_ESCAPE);
+    editor.input.setUiInputHandler({});
+    glfwSetWindowSize(window, 800, 800);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -1116,7 +1322,8 @@ int main(int argc, char** argv)
             {"ui_gesture_cancellation", uiGestureCancellation},
             {"canvas_input_bounds", canvasInputBounds},
             {"canvas_camera_interaction", canvasCameraInteraction},
-            {"component_palette", componentPalette}
+            {"component_palette", componentPalette},
+            {"component_information", componentInformation}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)

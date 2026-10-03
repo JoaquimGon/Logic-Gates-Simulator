@@ -44,6 +44,13 @@ occupied space rejects the drop and shows a message. Escape, right-click, focus
 loss, or resizing cancels the drag. Scroll inside the panel in shorter windows.
 Debug metrics start hidden; F3 shows them.
 
+Right-click an idle component or its pin to open a small information popup in
+either mode. It shows the component name, body label when present, and live
+input/output states (`0 (OFF)` or `1 (ON)`), with pin names or numbered fallbacks.
+Blocked simulation states read `Unavailable`. Escape or a click outside closes
+it; resize and focus loss also dismiss it. Scroll inside if the rows do not fit.
+Pin editing and truth-table presentation remain future work.
+
 | Input | Action |
 | :--- | :--- |
 | **Drag (Component Panel Button)** | Selection: release on the canvas to create a component |
@@ -51,8 +58,9 @@ Debug metrics start hidden; F3 shows them.
 | **Left Click (Wire)** | Branch or split an existing wire segment |
 | **Left Click (Component Body)** | Selection: select/drag any component; Interaction: operate actionable components |
 | **Left Click (InputPin Body)** | Selection: move without toggling; Interaction: toggle logic state |
-| **Right Click (Drag)** | Pan view camera |
-| **Right Click (Click)** | Cancel wire placement / Deselect |
+| **Right Click (Component/Pin)** | Open live component information when no gesture is active |
+| **Right Click (Empty Canvas, Drag)** | Pan view camera |
+| **Right Click (Active Gesture)** | Cancel wire placement / component dragging |
 | **Ctrl + Scroll** | Zoom in / Zoom out |
 | **Delete / Backspace** | Delete selected component or wire segment |
 | **Escape** | Abort current gesture |
@@ -127,13 +135,15 @@ for validated options, custom registration, and adding native declarations. Geom
 consume plain bounds/anchors without view or graphics dependencies. The builder
 under `Editor/Connectivity/` consumes normalized routes and pin interfaces without
 accessing Scene or healing geometry. Scene owns and publishes derived topology.
-Definition file import/export and educational inspector UI remain pending.
+Definition file import/export and extended educational inspection remain pending.
 See [geometry and connectivity contracts](docs/SceneTopology.md).
 
 `UI` lays out catalog buttons and handles one drag-to-create gesture. On release,
 it submits `CreateComponent` through EditorActions. Drawing reuses screen
 rectangles and text from Renderer; no widget framework or additional dependency
 is introduced. Its input logic can be tested without an OpenGL context.
+The same class handles the read-only information popup, resolving its component
+ID on each draw and reading synchronized pin data from the committed view.
 
 Rendering adapts common view metadata into typed values once per frame. Bodies
 carry individual sizes/tints; stable component-ID ordering and adjacent shader
@@ -258,7 +268,8 @@ They cover Escape/right-click drag cancellation, movement and overlap rollback,
 connectivity after every component spawn shortcut, middle-segment deletion,
 mode isolation, immediate mode/focus cancellation, wire branching, panning, UI
 capture, held-input cleanup, canvas bounds, panned/zoomed subcanvas editing, and
-palette creation/cancellation/scrolling in both modes.
+palette creation/cancellation/scrolling in both modes, and right-click information
+with live indexed states, custom labels, dismissal, and preserved pan/cancel behavior.
 `CameraTests` covers shared forward/inverse transforms, viewport clipping/rounding,
 resizing, invalid/minimized layouts, and uniform/nonuniform DPI.
 Catalog regressions validate built-in defaults/assets, custom box/native behavior,
@@ -267,7 +278,7 @@ Presentation tests cover typed instances/batching, pin leads, label layout, and
 world/screen glyph geometry. The application build also runs an invisible-window
 framebuffer test; it skips when an OpenGL context is unavailable and writes PPM
 previews under the build's `render-artifacts/` directory when exercised.
-CTest runs 40 groups with the application, or 39 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_|component_palette" --output-on-failure`
+CTest runs 41 groups with the application, or 40 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_|component_palette|component_information" --output-on-failure`
 to run only the input tests.
 
 ## Shared Editor Actions
@@ -286,8 +297,8 @@ state for future undo/redo; history controls and persistence remain pending.
 `ConfigureComponentProperties` edits explicit optional fields: body label,
 scalable input count (clamped 2–8), supported native inversion, clock frequency,
 and pause. Omitted fields retain current values. Inversion updates logic and the
-bubble together; failed batches roll back. The educational inspector will show
-live pins/state and a truth table alongside these limited controls.
+bubble together; failed batches roll back. The information popup shows live
+pins/state; truth-table presentation and these limited edit controls remain pending.
 
 See [Editor action contracts and examples](docs/EditorActions.md) for API use,
 pointer lifetimes, migration rules, and snapshot-restoration semantics.
