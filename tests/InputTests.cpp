@@ -559,7 +559,7 @@ void wireAndPanGestures(GLFWwindow* window)
         editor.input.setZoom(2);
         const auto offset = editor.input.getPanOffset();
         glfwSetCursorPos(window, 400, 400);
-        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS);
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
         glfwSetCursorPos(window, 440, 420);
         Input::cursorPositionCallback(window, 440, 420);
@@ -572,7 +572,7 @@ void wireAndPanGestures(GLFWwindow* window)
         const auto finishedOffset = editor.input.getPanOffset();
         glfwSetCursorPos(window, 480, 440);
         Input::cursorPositionCallback(window, 480, 440);
-        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+        editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE);
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
         require(
             editor.input.isIdle() && editor.input.getPanOffset() == finishedOffset &&
@@ -729,7 +729,7 @@ void uiGestureCancellation(GLFWwindow* window)
                 { return consumeText && event.kind == UiInputKind::Text; }
             );
             editor.cursor(gesture == 0 ? GridCoords{0, 0} : GridCoords{0, -4});
-            const int button = gesture == 2 ? GLFW_MOUSE_BUTTON_RIGHT : GLFW_MOUSE_BUTTON_LEFT;
+            const int button = gesture == 2 ? GLFW_MOUSE_BUTTON_MIDDLE : GLFW_MOUSE_BUTTON_LEFT;
             editor.mouse(button, GLFW_PRESS);
             editor.cursor({6, 4});
             require(!editor.input.isIdle(), "Gesture fixture did not become active.");
@@ -919,9 +919,9 @@ void canvasCameraInteraction(GLFWwindow* window)
     );
     editor.cursorPixels(400, 300);
     const auto anchor = *editor.input.getCameraFrame(window).windowToWorld({400, 300});
-    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS);
     editor.cursorPixels(428, 320);
-    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+    editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE);
     require(
         glm::length(*editor.input.getCameraFrame(window).windowToWorld({428, 320}) - anchor) <
             0.00001f,
@@ -1173,6 +1173,27 @@ void componentInformation(GLFWwindow* window)
         "Escape did not dismiss information and return keyboard focus."
     );
 
+    for (EditorMode mode : {EditorMode::Selection, EditorMode::Interaction})
+    {
+        editor.input.setMode(mode);
+        open(gate);
+        editor.cursor({-6, 4});
+        const auto start = editor.input.getLastMouse();
+        const auto offset = editor.input.getPanOffset();
+        editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS);
+        editor.cursorPixels(start.x + 30, start.y + 20);
+        editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE);
+        require(
+            ui.infoComponentId() == -1 && editor.input.isIdle() &&
+                editor.input.getPanOffset() != offset && editor.scene.getRevision() == revision &&
+                editor.scene.getCommittedComponentView(gate)->getGridPosition() ==
+                    GridCoords{-6, 4},
+            "Middle-drag over a component failed to pan or opened information/edited the scene."
+        );
+        editor.input.setPanOffset(offset);
+    }
+    editor.input.setMode(EditorMode::Selection);
+
     open(latch);
     require(
         has("SR LATCH") && has("S: 0 (OFF)") && has("R: 0 (OFF)") && has("Q: 0 (OFF)") &&
@@ -1241,7 +1262,14 @@ void componentInformation(GLFWwindow* window)
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
     editor.cursorPixels(280, 550);
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
-    require(editor.input.getPanOffset() != beforePan, "Empty-canvas right-drag no longer pans.");
+    require(
+        editor.input.getPanOffset() == beforePan && ui.infoComponentId() == -1,
+        "Empty-canvas right-drag still pans."
+    );
+    editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS);
+    editor.cursorPixels(320, 520);
+    editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE);
+    require(editor.input.getPanOffset() != beforePan, "Empty-canvas middle-drag did not pan.");
     open(gate);
     editor.scene.removeComponent(gate);
     require(ui.componentInfo(editor.scene).empty(), "Deleted component left stale information.");

@@ -73,11 +73,13 @@ conversions, DPI handling, and screen-space overlay behavior.
 The `UI` adapter handles the left palette and right-click information popup.
 An idle component/pin right-click consumes its press/release, preserving canvas
 selection and preventing panning from that click. Right-click during a canvas
-gesture still cancels it; empty-canvas right-drag still pans. Popup-local pointer
+gesture still cancels it; middle-mouse drag pans, including over component bodies.
+Right-drag no longer pans. Popup-local pointer
 events cannot operate components underneath. Outside left-click dismisses the
 popup without starting a gesture; outside right-click can inspect another
-component or begin a pan. Escape dismissal and the opening right-button release
-restore canvas keyboard focus. Both editor modes can inspect; simulation and
+component. Outside middle-click dismisses the popup and begins a pan. Escape
+dismissal and the opening right-button release restore canvas keyboard focus.
+Both editor modes can inspect; simulation and
 focused clock controls continue. Resize, focus loss, and component deletion
 dismiss the popup. `component_information` tests these interactions headlessly.
 

@@ -213,7 +213,7 @@ bool UI::handleInput(
             if (event.action == GLFW_PRESS)
             {
                 closeInfo();
-                if (event.code != GLFW_MOUSE_BUTTON_RIGHT)
+                if (event.code == GLFW_MOUSE_BUTTON_LEFT)
                     return true;
             }
         }

@@ -59,7 +59,7 @@ Pin editing and truth-table presentation remain future work.
 | **Left Click (Component Body)** | Selection: select/drag any component; Interaction: operate actionable components |
 | **Left Click (InputPin Body)** | Selection: move without toggling; Interaction: toggle logic state |
 | **Right Click (Component/Pin)** | Open live component information when no gesture is active |
-| **Right Click (Empty Canvas, Drag)** | Pan view camera |
+| **Middle Mouse (Drag on Canvas)** | Pan view camera, including when starting over a component |
 | **Right Click (Active Gesture)** | Cancel wire placement / component dragging |
 | **Ctrl + Scroll** | Zoom in / Zoom out |
 | **Delete / Backspace** | Delete selected component or wire segment |

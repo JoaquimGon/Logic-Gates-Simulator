@@ -170,12 +170,15 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     if (button == GLFW_MOUSE_BUTTON_RIGHT)
     {
         if (action == GLFW_PRESS)
+            cancelCurrentAction();
+        return;
+    }
+    if (button == GLFW_MOUSE_BUTTON_MIDDLE)
+    {
+        if (action == GLFW_PRESS)
         {
-            if (m_drag.active() || m_wire.ownsPointer())
-            {
-                cancelCurrentAction();
+            if (!isIdle())
                 return;
-            }
             m_selection.clear();
             glfwGetCursorPos(window, &lastMouseX, &lastMouseY);
             m_pan.begin(getLastMouse());
