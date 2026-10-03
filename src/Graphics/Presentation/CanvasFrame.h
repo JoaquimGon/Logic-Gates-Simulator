@@ -7,7 +7,7 @@
 
 struct BodyHighlight
 {
-    glm::vec2 position, size;
+    BodyBounds bounds;
     float opacity = 1;
 };
 

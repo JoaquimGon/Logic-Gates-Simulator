@@ -138,7 +138,7 @@ bool Renderer::init()
     boundsLayout.addAttribute(3); // Position
     boundsLayout.addAttribute(4); // Color
     m_boundsMesh = std::make_unique<Mesh>(
-        std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_LINES
+        std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_TRIANGLES
     );
 
     ready = m_text.init(PROJECT_FONT_PATH) && ready;
@@ -264,26 +264,13 @@ void Renderer::drawWireSegmentBoundingBox(
     if (!useCanvasShader(*shader))
         return;
 
-    glm::vec2 p1 = GridSystem::gridToWorld(start);
-    glm::vec2 p2 = GridSystem::gridToWorld(end);
-
-    float minX = std::min(p1.x, p2.x) - padding;
-    float maxX = std::max(p1.x, p2.x) + padding;
-    float minY = std::min(p1.y, p2.y) - padding;
-    float maxY = std::max(p1.y, p2.y) + padding;
-
-    float r = 255.0f / 255.0f;
-    float g = 159.0f / 255.0f;
-    float b = 28.0f / 255.0f;
-    float a = alpha;
-
-    std::vector<float> boxData = {minX, maxY, 0.0f, r, g, b, a, maxX, maxY, 0.0f, r, g, b, a,
-
-                                  maxX, maxY, 0.0f, r, g, b, a, maxX, minY, 0.0f, r, g, b, a,
-
-                                  maxX, minY, 0.0f, r, g, b, a, minX, minY, 0.0f, r, g, b, a,
-
-                                  minX, minY, 0.0f, r, g, b, a, minX, maxY, 0.0f, r, g, b, a};
+    const auto p1 = GridSystem::gridToWorld(start);
+    const auto p2 = GridSystem::gridToWorld(end);
+    const auto boxData = buildBoundsVertices(
+        {std::min(p1.x, p2.x), std::min(p1.y, p2.y), std::max(p1.x, p2.x), std::max(p1.y, p2.y)},
+        padding,
+        alpha
+    );
 
     m_boundsMesh->updateData(boxData, 7);
     m_boundsMesh->draw();
@@ -384,36 +371,14 @@ void Renderer::drawPins(
     }
 }
 
-void Renderer::drawComponentBoundingBox(glm::vec2 pos, glm::vec2 size, float padding, float alpha)
+void Renderer::drawComponentBoundingBox(BodyBounds bounds, float padding, float alpha)
 {
-    auto* shader = acquireShader("wire"); // reused: a bounding box is just 4 colored lines
-    if (!shader)
+    auto* shader = acquireShader("wire");
+    if (!shader || !useCanvasShader(*shader))
         return;
-    if (!useCanvasShader(*shader))
+    const auto boxData = buildBoundsVertices(bounds, padding, alpha);
+    if (boxData.empty())
         return;
-
-
-    float halfW = (size.x * 0.5f) + padding;
-    float halfH = (size.y * 0.5f) + padding;
-
-    glm::vec2 topLeft(-halfW + pos.x, halfH + pos.y);
-    glm::vec2 topRight(halfW + pos.x, halfH + pos.y);
-    glm::vec2 bottomLeft(-halfW + pos.x, -halfH + pos.y);
-    glm::vec2 bottomRight(halfW + pos.x, -halfH + pos.y);
-
-    float r = 255.0f / 255.0f, g = 159.0f / 255.0f, b = 28.0f / 255.0f, a = alpha;
-
-    std::vector<float> boxData = {topLeft.x,     topLeft.y,     0.0f, r, g, b, a,
-                                  topRight.x,    topRight.y,    0.0f, r, g, b, a,
-
-                                  topRight.x,    topRight.y,    0.0f, r, g, b, a,
-                                  bottomRight.x, bottomRight.y, 0.0f, r, g, b, a,
-
-                                  bottomRight.x, bottomRight.y, 0.0f, r, g, b, a,
-                                  bottomLeft.x,  bottomLeft.y,  0.0f, r, g, b, a,
-
-                                  bottomLeft.x,  bottomLeft.y,  0.0f, r, g, b, a,
-                                  topLeft.x,     topLeft.y,     0.0f, r, g, b, a};
 
     m_boundsMesh->updateData(boxData, 7);
     m_boundsMesh->draw();
@@ -612,12 +577,7 @@ void Renderer::drawCanvas(const CanvasFrame& frame)
     drawWires(frame.wires, frame.activeWire);
     drawIntersections(frame.junctions);
     if (frame.bodyHighlight)
-        drawComponentBoundingBox(
-            frame.bodyHighlight->position,
-            frame.bodyHighlight->size,
-            0.01f,
-            frame.bodyHighlight->opacity
-        );
+        drawComponentBoundingBox(frame.bodyHighlight->bounds, 0.01f, frame.bodyHighlight->opacity);
     if (frame.segmentHighlight)
         drawWireSegmentBoundingBox(
             frame.segmentHighlight->start,

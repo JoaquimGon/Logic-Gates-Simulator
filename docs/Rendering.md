@@ -43,11 +43,27 @@ the call returns. Renderer retains no scene data.
 
 ## Body bounds, pin anchors, and leads
 
-Dimensions are positive finite world-space bounds. Native silhouettes retain
+Dimensions are positive finite shader scales in world units, without grid-cell
+rounding or an even-cell requirement. Native silhouettes retain
 their normalized SDFs and scale affinely with each instance's width/height;
 aspect changes also stretch internal glyphs and inversion bubbles. Their solid
 extents remain inside those bounds. Layout/arity changes preserve electrical
 grid anchors; resize does not silently relocate them or attached wires.
+
+`BodyBounds` stores floating-point left/bottom/right/top extents independently of
+the grid origin. `normalizedBodyBounds()` describes the visible SDF, including
+inversion bubbles and decorative XOR arcs; `bodyBounds()` applies the instance
+scale and origin. `ComponentView` and `ComponentBodyInstance` expose the same
+derived bounds. Picking and placement use their rectangular body interiors,
+while pin anchors remain integer grid coordinates. The body center may differ
+from the origin, particularly for NOT and inverted gates. Previews fit and center
+these visible bounds rather than the shader quad's empty margins.
+
+Selection/hover and wire-segment outlines reuse the wire shader with triangle
+strips around a slightly rounded rectangle. The stroke is 0.006 world units,
+half the electrical wire's 0.012 width; corners use a 0.015 radius, clamped for
+small bodies. `BodyHighlight` and the renderer accept explicit bounds. Outline
+padding is visual only and does not affect picking, placement, or connectivity.
 
 `PresentationGeometry` describes native/box silhouette contacts, excluding
 decorative XOR arcs and inner source glyphs. Automatic leads attach gates
@@ -64,7 +80,7 @@ routes along with their generated anchors. Leads are visual stubs, not electrica
 they create no nets, junctions, hit targets, or placement clearance. Connectivity
 continues to use declared pin anchors and actual wire routes.
 
-CPU contact equations and their matching GLSL silhouettes must change together.
+CPU contact/bounds equations and their matching GLSL silhouettes must change together.
 The framebuffer regression checks this boundary for all twelve built-ins and
 multiple arities/aspects. Shared GLSL helpers/hot-reload dependency tracking are
 still separate work (RM-R1).
@@ -173,3 +189,11 @@ camera independence, and 2x DPI. `component-palette-dpi.ppm`,
 `component-palette-custom-empty.ppm`, and `component-palette-custom-list.ppm`
 provide review artifacts. The populated custom list is a test-only fixture;
 no sample custom definitions are registered by the app.
+
+Bounds regressions also verify fractional sizes (`0.173 x 0.137`), grid movement
+and snapshot restoration, unchanged electrical anchors, empty-margin picking,
+body-overlap rollback and exact boundary contact. Pixel checks measure native
+card centering, including bubbles, and outline edges/corners/interiors.
+`rounded-component-bounds.ppm` is the outline review artifact. All 46 Debug
+and 45 headless AddressSanitizer groups pass; outline, palette-centering, and
+component-presentation previews were visually reviewed.

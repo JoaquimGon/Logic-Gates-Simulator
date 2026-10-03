@@ -1,4 +1,5 @@
 #pragma once
+#include "Components/Definitions/PresentationGeometry.h"
 
 #include <vector>
 
@@ -10,3 +11,7 @@ class Wire;
  * @return Interleaved position (3 floats) and color (4 floats) vertices.
  */
 std::vector<float> buildWireVertices(const Wire& wire);
+inline constexpr float WireHalfWidth = 0.006f;
+
+/** @brief Rounded outline triangles, with a stroke half the width of electrical wires. */
+std::vector<float> buildBoundsVertices(BodyBounds bounds, float padding, float alpha);

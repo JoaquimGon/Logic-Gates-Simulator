@@ -104,10 +104,15 @@ std::vector<ComponentGeometry> Scene::committedGeometry() const
     geometry.reserve(m_componentViews.size());
     for (const auto& [id, view] : m_componentViews)
     {
-        const auto position = view->getPosition();
-        const auto size = view->getSize();
+        const auto bounds = view->getBodyBounds();
         ComponentGeometry component{
-            id, view->getGridPosition(), position.x, position.y, size.x, size.y, {}
+            id,
+            view->getGridPosition(),
+            bounds.centerX(),
+            bounds.centerY(),
+            bounds.width(),
+            bounds.height(),
+            {}
         };
         for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
             for (const auto& pin : *pins)

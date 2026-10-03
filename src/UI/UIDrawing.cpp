@@ -76,13 +76,17 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             if (!definition)
                 continue;
             const CanvasViewport visual{rect.x + 8, rect.y + 8, rect.width - 16, rect.height - 36};
+            const auto bounds = normalizedBodyBounds(definition->presentation.body);
             const float fit = static_cast<float>(std::min(
-                visual.width / definition->layout.width, visual.height / definition->layout.height
+                visual.width / (definition->layout.width * bounds.width()),
+                visual.height / (definition->layout.height * bounds.height())
             ));
+            const glm::vec2 size{definition->layout.width * fit, definition->layout.height * fit};
             ComponentBodyInstance body{
                 0,
-                {visual.x + visual.width / 2, visual.y + visual.height / 2},
-                {definition->layout.width * fit, definition->layout.height * fit},
+                {visual.x + visual.width / 2 - bounds.centerX() * size.x,
+                 visual.y + visual.height / 2 - bounds.centerY() * size.y},
+                size,
                 definition->presentation.shader.key,
                 definition->presentation.body
             };
@@ -138,12 +142,17 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     {
         const auto* definition = scene.getComponentCatalog().find(m_dragDefinition);
         if (const auto position = dropPosition(camera))
-            renderer.drawComponentBoundingBox(
-                GridSystem::gridToWorld(*position),
-                {definition->layout.width, definition->layout.height},
-                0,
-                0.8f
+        {
+            const auto origin = GridSystem::gridToWorld(*position);
+            const auto bounds = bodyBounds(
+                definition->presentation.body,
+                origin.x,
+                origin.y,
+                definition->layout.width,
+                definition->layout.height
             );
+            renderer.drawComponentBoundingBox(bounds, 0.01f, 0.8f);
+        }
         const CanvasViewport badge{m_pointer.x + 14, m_pointer.y + 14, 170, 34};
         renderer.drawScreenRect(badge, {0.13f, 0.28f, 0.43f, 0.95f});
         label(definition->displayName, badge, 0.5f, ink);

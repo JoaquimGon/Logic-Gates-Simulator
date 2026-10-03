@@ -253,8 +253,7 @@ void preview(Renderer& renderer, const CanvasCameraFrame& camera)
     const auto components = buildComponentPresentation(scene.getComponentViewMap());
     const auto junctions = scene.getWireIntersections();
     CanvasFrame frame{components, scene.getWires(), junctions};
-    frame.bodyHighlight =
-        BodyHighlight{components.back().body.position, components.back().body.size, 1};
+    frame.bodyHighlight = BodyHighlight{components.back().body.getBodyBounds(), 1};
     renderer.beginFrame(camera);
     renderer.drawCanvas(frame);
     DebugMetrics metrics{};
@@ -352,6 +351,34 @@ void palettePresentation(Renderer& renderer)
         blueGate[2] > 150 && blueGate[2] > blueGate[0] * 2,
         "Native AND card did not reuse its colored component shader."
     );
+    for (const auto& button : ui.buttons())
+    {
+        const auto* definition = scene.getComponentCatalog().find(button.definitionId);
+        if (!std::holds_alternative<GateType>(definition->behavior))
+            continue;
+        const auto& rect = button.bounds;
+        int minX = extent, minY = extent, maxX = -1, maxY = -1;
+        for (int y = static_cast<int>(rect.y + 8); y < rect.y + rect.height - 28; ++y)
+            for (int x = static_cast<int>(rect.x + 8); x < rect.x + rect.width - 8; ++x)
+            {
+                const auto value = screenPixel({x, y});
+                const auto tint = definition->presentation.body.tint;
+                if (std::abs(value[0] - tint[0] * 255) < 8 &&
+                    std::abs(value[1] - tint[1] * 255) < 8 &&
+                    std::abs(value[2] - tint[2] * 255) < 8)
+                {
+                    minX = std::min(minX, x);
+                    maxX = std::max(maxX, x);
+                    minY = std::min(minY, y);
+                    maxY = std::max(maxY, y);
+                }
+            }
+        require(
+            maxX >= minX && std::abs((minX + maxX + 1) * 0.5 - (rect.x + rect.width * 0.5)) <= 2 &&
+                std::abs((minY + maxY + 1) * 0.5 - (rect.y + 8 + (rect.height - 36) * 0.5)) <= 2,
+            "Native card did not center its visible shape and bubble."
+        );
+    }
     camera.setCenter({0.4f, -0.2f});
     camera.setZoom(2);
     auto moved = camera.frame(surface);
@@ -486,8 +513,7 @@ void outputPresentation(Renderer& renderer)
     scene.handleClick(source);
     const auto high = draw();
     require(
-        high[1] > 200 && high[1] > low[1] + 100 && high[1] > high[0] * 2 &&
-            high[1] > high[2] * 2,
+        high[1] > 200 && high[1] > low[1] + 100 && high[1] > high[0] * 2 && high[1] > high[2] * 2,
         "Output bulb did not change from dark to green with its incoming signal."
     );
     saveImage("output-bulb-on.ppm");
@@ -538,6 +564,28 @@ void outputPresentation(Renderer& renderer)
         "Unavailable output retained the lit high-state appearance."
     );
     saveImage("output-bulb-unavailable.ppm");
+}
+
+void roundedBounds(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    renderer.beginFrame(camera);
+    const BodyBounds bounds{-0.32f, -0.24f, 0.27f, 0.24f};
+    renderer.drawComponentBoundingBox(bounds, 0, 1);
+    require(pixel({0, bounds.top})[0] > 200, "Outline top stroke is missing.");
+    require(
+        pixel({0, bounds.top - 0.01f})[0] < 50,
+        "Outline is as thick as a wire or fills its interior."
+    );
+    require(
+        pixel({bounds.left, bounds.top})[0] < 50,
+        "Outline corner stayed square instead of rounding."
+    );
+    require(pixel({0, 0})[0] < 50, "Rounded outline filled the component body.");
+    const auto corner = pixel({bounds.left + 0.0044f, bounds.top - 0.0044f});
+    require(corner[0] > 200, "Rounded corner triangles left a gap.");
+    renderer.drawWireSegmentBoundingBox({-4, -2}, {4, -2}, 0.01f, 0.6f);
+    require(glGetError() == GL_NO_ERROR, "Triangle outlines produced an OpenGL error.");
+    saveImage("rounded-component-bounds.ppm");
 }
 
 void componentInformationPresentation(Renderer& renderer)
@@ -632,7 +680,7 @@ void canvasViewport(Renderer& renderer)
     const std::map<WireId, Wire> wires{{1, wire}};
     const std::vector<glm::vec3> junctions{{0, 2, 0}};
     CanvasFrame canvas{components, wires, junctions};
-    canvas.bodyHighlight = BodyHighlight{camera.center(), component.body.size, 1};
+    canvas.bodyHighlight = BodyHighlight{component.body.getBodyBounds(), 1};
     canvas.segmentHighlight = SegmentHighlight{{-30, 2}, {30, 2}, 1};
     canvas.gridHighlight = GridHighlight{{0, -8}, 1};
     renderer.beginFrame(frame);
@@ -767,6 +815,7 @@ int main()
             editedGate(renderer, camera);
             preview(renderer, camera);
             canvasViewport(renderer);
+            roundedBounds(renderer, camera);
             palettePresentation(renderer);
             outputPresentation(renderer);
             componentInformationPresentation(renderer);

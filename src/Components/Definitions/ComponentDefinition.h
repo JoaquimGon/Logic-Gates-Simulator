@@ -44,6 +44,7 @@ struct PinDefinition
 
 struct DefinitionLayout
 {
+    // Shader scale in world units, independent of integer pin anchors and visible body bounds.
     float width = 0, height = 0;
     std::vector<PinDefinition> pins;
 };

@@ -15,6 +15,11 @@ struct ComponentBodyInstance
     glm::vec2 position, size;
     std::string shader;
     BodyStyle style;
+
+    BodyBounds getBodyBounds() const
+    {
+        return bodyBounds(style, position.x, position.y, size.x, size.y);
+    }
 };
 
 struct RenderPin

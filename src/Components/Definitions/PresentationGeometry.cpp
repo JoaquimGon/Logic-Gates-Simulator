@@ -19,6 +19,60 @@ float box(float x, float y, float hx, float hy, float radius)
 }
 } // namespace
 
+BodyBounds normalizedBodyBounds(const BodyStyle& style)
+{
+    // These extents match the native SDFs; the shader quad can include empty margins.
+    BodyBounds bounds{-0.48f, -0.48f, 0.48f, 0.48f};
+    switch (style.contour)
+    {
+    case BodyContour::And:
+        bounds = {-0.5f, -0.42f, 0.5f, 0.42f};
+        break;
+    case BodyContour::Or:
+        // The left extent is the back-cut/lens intersection; the tip joins both circles.
+        bounds = {-0.499590f, -0.4f, -0.334f + std::sqrt(1.05f * 1.05f - 0.65f * 0.65f), 0.4f};
+        break;
+    case BodyContour::Xor:
+        bounds = {
+            -1.27f + std::sqrt(0.847f * 0.847f - 0.38f * 0.38f),
+            -0.4f,
+            -0.334f + std::sqrt(1.05f * 1.05f - 0.65f * 0.65f),
+            0.4f
+        };
+        break;
+    case BodyContour::Not:
+        return {-0.5f, -0.5f, 0.25f, 0.5f};
+    case BodyContour::Input:
+        return {-0.42f / 1.3f, -0.42f / 1.3f, 0.42f / 1.3f, 0.42f / 1.3f};
+    case BodyContour::Clock:
+        return {-0.47f / 1.3f, -0.47f / 1.3f, 0.47f / 1.3f, 0.47f / 1.3f};
+    case BodyContour::Output:
+        return {-0.32f, -0.32f, 0.32f, 0.32f};
+    default:
+        return bounds;
+    }
+    if (style.inverted)
+    {
+        bounds.left /= 1.5f;
+        bounds.right = (0.615f + 0.13f) / 1.5f;
+    }
+    // Geometry outside the shader quad is clipped (notably the plain XOR's arc).
+    bounds.left = std::max(bounds.left, -0.5f);
+    bounds.right = std::min(bounds.right, 0.5f);
+    return bounds;
+}
+
+BodyBounds bodyBounds(const BodyStyle& style, float x, float y, float width, float height)
+{
+    const auto bounds = normalizedBodyBounds(style);
+    return {
+        x + bounds.left * width,
+        y + bounds.bottom * height,
+        x + bounds.right * width,
+        y + bounds.top * height
+    };
+}
+
 float bodyContourDistance(const BodyStyle& style, float x, float y)
 {
     if (style.inverted)

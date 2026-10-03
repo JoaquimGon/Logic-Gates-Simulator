@@ -695,8 +695,8 @@ void geometryServices()
         "Component body hit lost its identity."
     );
     require(
-        hitGeometry(components, {}, 0.295f, 0, {6, 0}).type == HitType::NONE,
-        "Component body hit inset changed."
+        hitGeometry(components, {}, 0.305f, 0, {6, 0}).type == HitType::NONE,
+        "Component body hit extended past its bounds."
     );
     components.push_back({3, {20, 0}, 1, 0, 0.2f, 0.2f, pins});
     require(

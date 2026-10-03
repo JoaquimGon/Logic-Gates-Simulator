@@ -24,8 +24,9 @@ layoutComponentLabels(std::span<const ComponentRenderData> components, const Fon
     for (const auto& component : components)
     {
         const auto& body = component.body;
-        const glm::vec2 low = body.position - body.size * 0.5f;
-        const glm::vec2 high = body.position + body.size * 0.5f;
+        const auto bounds = body.getBodyBounds();
+        const glm::vec2 low{bounds.left, bounds.bottom};
+        const glm::vec2 high{bounds.right, bounds.top};
         const float inset = std::min({0.01f, body.size.x * 0.05f, body.size.y * 0.05f});
         if (!component.bodyLabel.empty())
         {
@@ -62,7 +63,7 @@ layoutComponentLabels(std::span<const ComponentRenderData> components, const Fon
             if (scale > 0)
                 runs.push_back(
                     {component.bodyLabel,
-                     {body.position.x - getTextWidth(component.bodyLabel, scale, font) * 0.5f,
+                     {bounds.centerX() - getTextWidth(component.bodyLabel, scale, font) * 0.5f,
                       row - getCapHeight(scale, font) * 0.5f},
                      scale,
                      {1, 1, 1, 0.95f}}

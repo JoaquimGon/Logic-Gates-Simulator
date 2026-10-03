@@ -27,8 +27,11 @@ FontMetrics fontMetrics()
     return font;
 }
 
+void bodyGeometry();
+
 void instances()
 {
+    bodyGeometry();
     Scene scene;
     const int first = scene.addComponent(BuiltinComponentIds::And, {-10, 0});
     const int second = scene.addComponent(BuiltinComponentIds::And, {10, 0}, {.inputCount = 6});
@@ -72,6 +75,69 @@ void instances()
         "Presentation values borrow mutable views or ignore preview state."
     );
     actions.cancelMove(*preview);
+}
+
+void bodyGeometry()
+{
+    Scene scene;
+    auto layout = scene.getComponentCatalog().find(BuiltinComponentIds::Nand)->layout;
+    layout.width = 0.173f;
+    layout.height = 0.137f;
+    const int id = scene.addComponent(BuiltinComponentIds::Nand, {5, -3}, {.layout = layout});
+    const auto* view = scene.getCommittedComponentView(id);
+    const auto bounds = view->getBodyBounds();
+    require(
+        view->getSize() == glm::vec2(0.173f, 0.137f), "Fractional size was rounded to grid cells."
+    );
+    require(
+        bounds.centerX() > view->getPosition().x && bounds.width() < view->getSize().x,
+        "Inversion bubble bounds still assume a symmetric shader quad."
+    );
+    const auto pin = view->getAbsolutePinGridPos(view->getOutputPins().front());
+    require(pin == GridCoords{8, -3}, "Visual bounds changed the electrical grid anchor.");
+    EditorActions actions(scene);
+    const auto result = actions.apply({MoveComponent{id, {8, -1}}});
+    require(static_cast<bool>(result), "Fractional component failed to move.");
+    const auto moved = scene.getCommittedComponentView(id)->getBodyBounds();
+    require(
+        std::abs(moved.left - bounds.left - 0.15f) < 0.000001f &&
+            std::abs(moved.bottom - bounds.bottom - 0.1f) < 0.000001f,
+        "Body offset was lost during a grid move."
+    );
+    require(
+        static_cast<bool>(actions.restore(*result.change->before, scene.getRevision())),
+        "Bounds snapshot failed to restore."
+    );
+    require(
+        scene.getCommittedComponentView(id)->getBodyBounds().right == bounds.right,
+        "Restoration lost fractional/asymmetric bounds."
+    );
+    const int unary = scene.addComponent(BuiltinComponentIds::Not, {-10, 0});
+    require(
+        scene.hitTest({-0.42f, 0}, {-8, 0}).type == HitType::NONE,
+        "Empty NOT shader margin remained a body target."
+    );
+    const auto unaryBounds = scene.getCommittedComponentView(unary)->getBodyBounds();
+    require(
+        std::abs(unaryBounds.right + 0.45f) < 0.000001f,
+        "NOT bounds excluded its bubble or included the empty output margin."
+    );
+    for (const auto& definition : nativeDefinitions())
+    {
+        const auto& style = definition.presentation.body;
+        const auto local = normalizedBodyBounds(style);
+        for (int ix = -100; ix <= 100; ++ix)
+            for (int iy = -100; iy <= 100; ++iy)
+            {
+                const float x = ix / 200.0f, y = iy / 200.0f;
+                if (bodyContourDistance(style, x, y) < -0.00001f)
+                    require(
+                        x >= local.left - 0.00001f && x <= local.right + 0.00001f &&
+                            y >= local.bottom - 0.00001f && y <= local.top + 0.00001f,
+                        "Visible body extends outside its declared bounds."
+                    );
+            }
+    }
 }
 
 void leads()
@@ -205,8 +271,15 @@ void text()
         port.showPinLabels = false;
         const auto named = layoutComponentLabels(std::vector<ComponentRenderData>{port}, font);
         require(
-            named.size() == 1 && named[0].baseline.y + getCapHeight(named[0].scale, font) <
-                                     port.body.position.y - port.body.size.y / 2,
+            named.size() == 1 &&
+                named[0].baseline.y + getCapHeight(named[0].scale, font) < bodyBounds(
+                                                                               port.body.style,
+                                                                               port.body.position.x,
+                                                                               port.body.position.y,
+                                                                               port.body.size.x,
+                                                                               port.body.size.y
+                                                                           )
+                                                                               .bottom,
             "Input/output name covered the symbol instead of appearing beneath it."
         );
     }

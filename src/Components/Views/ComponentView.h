@@ -34,7 +34,13 @@ class ComponentView
 
     glm::vec2 getPosition() const { return m_position; }
 
+    /** Shader scale in world units; need not be an even number of grid cells. */
     glm::vec2 getSize() const { return m_size; }
+
+    BodyBounds getBodyBounds() const
+    {
+        return bodyBounds(m_bodyStyle, m_position.x, m_position.y, m_size.x, m_size.y);
+    }
 
     const std::string& getShaderName() const { return m_shaderName; }
 

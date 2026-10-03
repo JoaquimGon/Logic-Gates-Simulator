@@ -721,18 +721,18 @@ void bodyPlacement()
     EditorActions actions(scene);
     accepted(actions.apply({CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin"}}));
     const auto revision = scene.getRevision();
-    auto overlap = actions.apply({CreateInput{{2, 0}, {0.15f, 0.15f}, "inputPin"}});
+    auto overlap = actions.apply({CreateInput{{1, 0}, {0.15f, 0.15f}, "inputPin"}});
     require(overlap.error == EditError::Overlap, "Intersecting component bodies were accepted.");
     require(
         scene.getRevision() == revision && scene.getComponentCount() == 1,
         "Rejected body overlap changed the scene."
     );
-    auto boundary = accepted(actions.apply({CreateInput{{3, 0}, {0.15f, 0.15f}, "inputPin"}}));
+    auto boundary = accepted(actions.apply({CreateInput{{2, 0}, {0.15f, 0.15f}, "inputPin"}}));
     const int second = boundary.createdComponentIds[0];
     const auto builds = scene.getTopologyBuildCount();
     require(
-        actions.apply({MoveComponent{second, {2, 0}}}).error == EditError::Overlap &&
-            scene.getCommittedComponentView(second)->getGridPosition() == GridCoords{3, 0},
+        actions.apply({MoveComponent{second, {1, 0}}}).error == EditError::Overlap &&
+            scene.getCommittedComponentView(second)->getGridPosition() == GridCoords{2, 0},
         "Move accepted intersecting bodies or changed committed placement."
     );
     auto enlarged = currentLayout(scene, second);
@@ -744,7 +744,7 @@ void bodyPlacement()
         "Resize partially committed an overlapping body."
     );
     auto batch =
-        actions.apply({ConfigureInput{0, true}, CreateInput{{2, 0}, {0.15f, 0.15f}, "inputPin"}});
+        actions.apply({ConfigureInput{0, true}, CreateInput{{1, 0}, {0.15f, 0.15f}, "inputPin"}});
     require(
         batch.error == EditError::Overlap && !scene.getLogicComponent(0)->getStateOutPin(),
         "Overlapping batch changed runtime state before failing."
@@ -756,13 +756,21 @@ void bodyPlacement()
     ));
     require(
         automatic.getCommittedComponentView(free.createdComponentIds[0])->getGridPosition() ==
-                GridCoords{3, -3} &&
+                GridCoords{2, -2} &&
             !automatic.checkOverlap(free.createdComponentIds[0]),
-        "Automatic placement ignored the full body footprint."
+        "Automatic placement ignored the visible body footprint."
     );
-    automatic.addInputPin({2, 0}, {0.15f, 0.15f}, "inputPin");
+    automatic.addInputPin({1, 0}, {0.15f, 0.15f}, "inputPin");
     require(automatic.checkOverlap(0), "Explicit legacy overlap policy changed.");
+    Scene touching;
+    EditorActions edgeActions(touching);
+    // A 0.1-world-unit visible width reaches exactly the next two-cell body boundary.
+    const glm::vec2 size{0.1f * 1.3f / 0.84f, 0.15f};
+    accepted(edgeActions.apply(
+        {CreateInput{{0, 0}, size, "inputPin"}, CreateInput{{2, 0}, size, "inputPin"}}
+    ));
 }
+
 } // namespace
 
 int main(int argc, char** argv)

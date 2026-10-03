@@ -38,6 +38,13 @@ Layout edits preserve IDs, labels, and presentation; they cannot silently reassi
 pins. Removed attached inputs still require the existing explicit wire policy.
 Definition-version migrations and automatic wire rerouting remain separate work.
 
+Layout width/height are floating-point shader scales, not grid-cell counts or
+symmetrical placement extents. `BodyBounds` derives visible extents from the
+declared contour, including bubbles and XOR arcs. Its center can differ from the
+grid origin. Views, previews, picking, and placement share these bounds; changing
+dimensions does not round them or move existing pin anchors. For example,
+`width = 0.173f` and `height = 0.137f` are valid instance dimensions.
+
 ## Creating and registering
 
 Use the shared editor action for keyboard, startup, palette, and loader adapters:

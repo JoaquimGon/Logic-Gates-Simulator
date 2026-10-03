@@ -241,7 +241,7 @@ void spawnPlacement(GLFWwindow* window)
         const int outputX =
             latch || inverted ? 3 : (key >= GLFW_KEY_3 && key <= GLFW_KEY_8 ? 2 : 1);
         const int outputY = latch ? 1 : 0;
-        const int shift = key == GLFW_KEY_1 || key == GLFW_KEY_2 || key == GLFW_KEY_9 ? 3 : 4;
+        const int shift = latch ? 4 : 3;
         const int sink = editor.inverter({outputX + shift + 7, outputY - shift});
         editor.wire({{outputX, outputY}, {outputX + 5, outputY}});
         editor.wire({{outputX + shift, outputY - shift}, {outputX + shift + 5, outputY - shift}});

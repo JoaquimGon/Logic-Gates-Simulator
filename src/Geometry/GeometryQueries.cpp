@@ -71,8 +71,8 @@ HitResult hitGeometry(
 
     for (const auto& component : components)
     {
-        const float halfWidth = component.width * 0.5f - 0.015f;
-        const float halfHeight = component.height * 0.5f - 0.015f;
+        const float halfWidth = component.width * 0.5f;
+        const float halfHeight = component.height * 0.5f;
         if (std::abs(worldX - component.centerX) <= halfWidth &&
             std::abs(worldY - component.centerY) <= halfHeight)
             return {HitType::COMPONENT_BODY, component.componentId};

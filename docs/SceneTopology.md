@@ -10,6 +10,8 @@ edits, rather than simulation frames; existing EditorActions batching is preserv
 `Geometry/GeometryTypes.h` describes component bounds and absolute indexed pin
 anchors without ComponentView, Scene, GLM, GLFW, or OpenGL dependencies. Scene
 adapts committed views to this data; move previews never supply connectivity.
+The origin is the snapped electrical reference; center/width/height describe the
+floating-point visible body bounds and need not be symmetrical about that origin.
 
 `normalizeWires(wires, pins, nextWireId)` mutates routes in place: it removes
 degenerate paths, merges overlapping segments, splits at pin/branch anchors,
@@ -23,11 +25,13 @@ identities. Borrowed wire/path references can expire. The service does not build
 nets or update signal state; callers must rebuild derived topology afterward.
 
 GeometryQueries supplies read-only hit, placement, and junction queries. Hits
-prioritize pins, wire endpoints/junctions, wire interiors, then inset bodies.
+prioritize pins, wire endpoints/junctions, wire interiors, then visible body bounds.
 Placement rejects body-interior intersection, identical origins, and coincident
 pin anchors; edges/corners may touch within a `1e-6` world-unit tolerance.
 Wires and pin-to-body contact impose no additional clearance. Explicit legacy
-`AllowOverlap` creation remains available. Native SDF sizing remains separate work.
+`AllowOverlap` creation remains available. Bounds include inversion bubbles and
+decorative XOR arcs, while empty shader margins impose no placement clearance.
+Selection-outline padding remains visual only; see [rendering](Rendering.md).
 
 Junction queries return integer positions and typed signal state. Scene currently
 adapts them to the renderer's packed `glm::vec3` interface; RM-A8 remains pending.

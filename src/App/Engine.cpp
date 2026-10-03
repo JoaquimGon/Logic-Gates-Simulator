@@ -224,7 +224,7 @@ void Engine::run()
         const int highlighted = selected != -1 ? selected : input.getHoveredComponentId();
         if (const auto* view = scene.getComponentView(highlighted))
             frame.bodyHighlight =
-                BodyHighlight{view->getPosition(), view->getSize(), selected != -1 ? 1.0f : 0.4f};
+                BodyHighlight{view->getBodyBounds(), selected != -1 ? 1.0f : 0.4f};
         if (!input.isCurrentlyDrawingWire())
         {
             if (input.hasSelectedSegment())

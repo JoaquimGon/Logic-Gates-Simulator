@@ -37,9 +37,7 @@ class Renderer
     void drawWireSegmentBoundingBox(
         const GridCoords& start, const GridCoords& end, float padding = 0.03f, float alpha = 1
     );
-    void drawComponentBoundingBox(
-        glm::vec2 position, glm::vec2 size, float padding = 0.01f, float alpha = 1
-    );
+    void drawComponentBoundingBox(BodyBounds bounds, float padding = 0.01f, float alpha = 1);
     void drawGridPointHighlight(GridCoords position, float opacity);
     void drawIntersections(std::span<const glm::vec3> intersections);
     /** @brief Submits generic world/screen text, reusable by later UI adapters. */
