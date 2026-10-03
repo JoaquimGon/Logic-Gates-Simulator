@@ -65,7 +65,7 @@ they create no nets, junctions, hit targets, or placement clearance. Connectivit
 continues to use declared pin anchors and actual wire routes.
 
 CPU contact equations and their matching GLSL silhouettes must change together.
-The framebuffer regression checks this boundary for all eleven built-ins and
+The framebuffer regression checks this boundary for all twelve built-ins and
 multiple arities/aspects. Shared GLSL helpers/hot-reload dependency tracking are
 still separate work (RM-R1).
 
@@ -75,6 +75,10 @@ still separate work (RM-R1).
 bounds. Labels follow physical pin sides rather than assuming every input is
 left and every output right. Long text shrinks to its available region; nearby
 rows constrain pin label height, and body labels prefer a free row.
+Input/output names are fitted beneath their symbols instead of covering them.
+The output bulb's normalized radius is 0.32 in both CPU contact geometry and its
+shader. Its tint comes from synchronized incoming pin state: green for HIGH,
+dark for LOW, and gray for unavailable signals. Presentation needs no logic pointer.
 
 `layoutDebugOverlay()` produces right-aligned screen runs. Feedback/rejection
 warnings remain visible with F3 metrics disabled. `TextPainter` shares glyph
@@ -87,12 +91,15 @@ layout and input; `UIDrawing.cpp` draws rectangular buttons, labels, and a drag
 badge. `Renderer::drawScreenRect()` reuses the wire shader/mesh for a colored
 screen rectangle. Both rectangles and text use the full window after the clipped,
 offset canvas pass. The placement outline uses the same camera as the canvas.
-No additional GPU resources or UI dependency are required. The read-only
-information popup uses the same rectangles/text. It stores a component ID and
+No additional GPU resources or UI dependency are required. The information
+popup and its input/output name field use the same rectangles/text. It stores a component ID and
 reads the current committed view's name/label and synchronized PinUI states;
 deleted components produce no popup. Its screen-space bounds stay inside the
 window and overflowing rows scroll. Palette text is submitted before the popup
 background so the popup fully covers it in narrow windows.
+The name field captures typing only in Selection mode and submits the existing
+label action on Enter. Names are limited to 32 printable ASCII characters to
+match the current font atlas; other inspection data remains read-only.
 
 GPU owners cannot be copied. Initialize, reinitialize, and shut down with their
 OpenGL context current. Renderer initialization returns failure for missing
@@ -104,8 +111,8 @@ Shared camera/viewport transforms, DPI resolution, and canvas clipping are compl
 under RM-U2; see [CanvasCamera.md](CanvasCamera.md). Renderer uses one forward
 matrix for world passes and the same inverse for the procedural grid. Screen text
 remains full-window. Explicit instance label/inversion edits are available (RM-C3).
-Basic right-click information is complete (RM-F7); truth tables and editing
-controls remain RM-U3. Presentation caching remains RM-R3 and packed junction integration remains RM-A8.
+Basic right-click information and input/output naming are complete (RM-F7/RM-F8);
+truth tables and other editing controls remain RM-U3. Presentation caching remains RM-R3 and packed junction integration remains RM-A8.
 
 ## Verification
 
@@ -122,8 +129,8 @@ ctest --preset x64-debug -R "render_|component_pin_leads|text_presentation"
 
 The framebuffer test writes `mixed-sizes.ppm` and
 `component-presentations.ppm` under the build's `render-artifacts/` directory
-for visual review. The application build has 44 groups; the headless build has
-43. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
+for visual review. The application build has 46 groups; the headless build has
+45. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
 font choices have not been visually verified.
 
 Camera framebuffer regressions also cover a panned/zoomed offset canvas at simulated
@@ -137,6 +144,9 @@ and mode isolation. Visible desktop interaction remains a manual integration che
 `component-information.ppm` shows named latch inputs and its two independent
 outputs in a right-click popup. Framebuffer checks verify its opaque background
 and text; the preview was visually reviewed.
+`output-bulb-off.ppm`, `output-bulb-on.ppm`, `output-bulb-unavailable.ppm`, and
+`input-output-naming.ppm` verify bulb colors, fitted names, and the active name
+field. All four previews were visually reviewed.
 
 ## Component palette previews
 

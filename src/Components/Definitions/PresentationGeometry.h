@@ -11,7 +11,8 @@ enum class BodyContour
     Xor,
     Not,
     Input,
-    Clock
+    Clock,
+    Output
 };
 
 struct BodyStyle

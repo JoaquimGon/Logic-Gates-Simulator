@@ -29,12 +29,18 @@ layoutComponentLabels(std::span<const ComponentRenderData> components, const Fon
         const float inset = std::min({0.01f, body.size.x * 0.05f, body.size.y * 0.05f});
         if (!component.bodyLabel.empty())
         {
+            const bool below = body.style.contour == BodyContour::Input ||
+                               body.style.contour == BodyContour::Output;
             float scale = fitScale(
-                component.bodyLabel, body.size.x * 0.8f, body.size.y * 0.2f, 0.0012f, font
+                component.bodyLabel,
+                body.size.x * (below ? 2.5f : 0.8f),
+                body.size.y * 0.2f,
+                0.0012f,
+                font
             );
             // Prefer the center; move into a free band when pin labels occupy that row.
-            float row = body.position.y;
-            if (component.showPinLabels && !component.pins.empty())
+            float row = below ? low.y - 0.015f - getCapHeight(scale, font) * 0.5f : body.position.y;
+            if (!below && component.showPinLabels && !component.pins.empty())
             {
                 float bestClearance = -1;
                 for (const float candidate :

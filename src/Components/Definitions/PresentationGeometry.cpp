@@ -49,6 +49,8 @@ float bodyContourDistance(const BodyStyle& style, float x, float y)
         return box(x * 1.3f, y * 1.3f, 0.42f, 0.42f, 0.14f);
     case BodyContour::Clock:
         return box(x * 1.3f, y * 1.3f, 0.47f, 0.47f, 0.05f);
+    case BodyContour::Output:
+        return circle(x, y, 0, 0, 0.32f);
     default:
         return box(x, y, 0.48f, 0.48f, 0.05f);
     }

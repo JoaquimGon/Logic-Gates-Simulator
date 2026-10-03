@@ -13,7 +13,7 @@ class Input;
 class Renderer;
 class Scene;
 
-/** Small tabbed component palette and read-only information popup. */
+/** Small tabbed palette and information popup, with a name field for inputs/outputs. */
 class UI
 {
   public:
@@ -53,16 +53,19 @@ class UI
      */
     std::vector<std::string> componentInfo(const Scene& scene) const;
     CanvasViewport infoBounds(const Scene& scene) const;
+    CanvasViewport nameBounds(const Scene& scene) const;
 
   private:
     const Button* buttonAt(glm::dvec2 point) const;
     std::optional<GridCoords> dropPosition(const CanvasCameraFrame& camera) const;
-    void closeInfo();
+    void closeInfo(Input& input);
+    bool canName(const Scene& scene) const;
     int infoVisibleRows(const Scene& scene) const;
 
     static constexpr double infoRowHeight = 22;
     static constexpr double infoHeaderHeight = 42;
     static constexpr double infoFooterHeight = 30;
+    static constexpr double infoNameHeight = 64;
 
     CanvasSurface m_surface{};
     CanvasViewport m_panel{}, m_list{};
@@ -75,4 +78,6 @@ class UI
     int m_infoComponent = -1, m_infoScroll = 0;
     glm::dvec2 m_infoAnchor{0};
     bool m_infoRightPressed = false, m_infoEscapePressed = false;
+    bool m_nameEditing = false;
+    std::string m_nameDraft, m_nameError;
 };

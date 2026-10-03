@@ -3,7 +3,7 @@
 ## Where declarations belong
 
 `src/Components/Definitions/NativeDefinitions.cpp` is the declaration table for
-all eleven built-ins. It owns editor defaults, stable type IDs/versions, behavior
+all twelve built-ins. It owns editor defaults, stable type IDs/versions, behavior
 references, body sizes, pin identities/labels/anchors, and shader resources.
 Body sizes and generated gate layouts use `Geometry/GridMetrics.h` spacing.
 Shortcuts map keys to IDs; Engine supplies IDs and positions for its initial scene.
@@ -110,14 +110,23 @@ inversion changes the instance's paired gate behavior and shader; its creation
 definition ID remains intact. No generic schemas or configuration codec are used.
 Definition files/import/export remain RM-C5; external truth-table behaviors and
 subcircuits remain RM-C6. UI capture and viewport transforms are complete.
-The learning inspector's live values, highlighted truth table, and widgets remain
-RM-U3; whole-circuit persistence remains RM-F1.
+The information popup shows live values and edits input/output names; highlighted
+truth tables and other controls remain RM-U3. Whole-circuit persistence remains RM-F1.
+
+`native.output` uses `OutputBehavior`: exactly one input (`in`, displayed as
+`Signal`) and zero outputs. It observes its input without driving another net.
+The factory creates an `OutputPin` and matching view; its native presentation is
+a bulb. Input/output names reuse the existing instance body label and explicit
+label edit action. Snapshots retain names, while definition defaults and stable
+pin IDs stay unchanged. Subcircuit interface rules, unique names, and import/export
+are not implemented by this feature.
 
 `ComponentCatalogTests` covers defaults, assets, registration validation,
 applicable options, instance/default isolation, working custom behavior, atomic
 rollback, and catalog/identity restoration. Input tests verify all eleven shortcuts
 against catalog identities and sizes. Presentation tests cover leads, instance
 sizes, stable ordering, and text layout; pixel tests verify native attachment and
-mixed-size rendering. Current validation passes 44 Debug groups and 43 headless
+mixed-size rendering. Output tests cover signal propagation and label restoration;
+input tests cover naming capture/cancellation. Current validation passes 46 Debug groups and 45 headless
 AddressSanitizer groups. Neutral descriptor/catalog headers require no graphics
 include paths.

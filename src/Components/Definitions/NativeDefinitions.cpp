@@ -98,6 +98,25 @@ ComponentDefinition latch(const char* id, const char* name, LatchType type)
     definition.presentation.showPinLabels = true;
     return definition;
 }
+
+ComponentDefinition output()
+{
+    ComponentDefinition definition;
+    definition.identity = {BuiltinComponentIds::Output, 1};
+    definition.displayName = "Output";
+    definition.behavior = OutputBehavior{};
+    definition.layout = {
+        3 * GridMetrics::Spacing,
+        3 * GridMetrics::Spacing,
+        {{"in", "Signal", PinType::INPUT, 0, {-1, 0}, {}}}
+    };
+    definition.presentation.kind = PresentationKind::NativeSdf;
+    definition.presentation.shader = {
+        "outputPin", "shaders/components/gates/gate.vert", "shaders/components/outputPin.frag"
+    };
+    definition.presentation.body = {BodyContour::Output, false, {0, 1, 0, 1}};
+    return definition;
+}
 } // namespace
 
 const std::vector<ComponentDefinition>& nativeDefinitions()
@@ -110,6 +129,7 @@ const std::vector<ComponentDefinition>& nativeDefinitions()
             "inputPin",
             "shaders/components/inputPin.frag"
         ),
+        output(),
         source(
             BuiltinComponentIds::Clock,
             "Clock",

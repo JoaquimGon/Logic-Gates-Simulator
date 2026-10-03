@@ -160,6 +160,32 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             {0.08f, 0.12f, 0.17f, 1}
         );
         label(info.front(), {bounds.x, bounds.y, bounds.width, infoHeaderHeight}, 0.6f, ink);
+        const bool named = canName(scene);
+        if (named)
+        {
+            const auto field = nameBounds(scene);
+            label(
+                "Name",
+                {field.x - 10, field.y - 18, field.width + 20, 18},
+                0.35f,
+                {0.55f, 0.65f, 0.76f, 1}
+            );
+            renderer.drawScreenRect(
+                field,
+                m_nameEditing ? glm::vec4{0.3f, 0.65f, 0.95f, 1} : glm::vec4{0.25f, 0.35f, 0.46f, 1}
+            );
+            renderer.drawScreenRect(
+                {field.x + 1, field.y + 1, field.width - 2, field.height - 2},
+                {0.06f, 0.09f, 0.13f, 1}
+            );
+            const auto& name = scene.getCommittedComponentView(m_infoComponent)->getBodyLabel();
+            label(
+                m_nameEditing ? m_nameDraft + "|" : (name.empty() ? "(unnamed)" : name),
+                field,
+                0.43f,
+                ink
+            );
+        }
         const int rows = infoVisibleRows(scene);
         const int offset =
             std::clamp(m_infoScroll, 0, std::max(0, static_cast<int>(info.size()) - 1 - rows));
@@ -167,15 +193,19 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             label(
                 info[row + offset + 1],
                 {bounds.x + 4,
-                 bounds.y + infoHeaderHeight + row * infoRowHeight,
+                 bounds.y + infoHeaderHeight + (named ? infoNameHeight : 0) + row * infoRowHeight,
                  bounds.width - 8,
                  infoRowHeight},
                 0.43f,
                 ink
             );
         label(
-            static_cast<int>(info.size()) - 1 > rows ? "Scroll; Esc / outside to close"
-                                                     : "Esc / click outside to close",
+            !m_nameError.empty()                       ? m_nameError
+            : m_nameEditing                            ? "Enter: save; Esc: cancel"
+            : named && m_canCreate                     ? "Click name to edit; Esc: close"
+            : named                                    ? "F2: Selection to rename"
+            : static_cast<int>(info.size()) - 1 > rows ? "Scroll; Esc / outside to close"
+                                                       : "Esc / click outside to close",
             {bounds.x, bounds.y + bounds.height - infoFooterHeight, bounds.width, infoFooterHeight},
             0.33f,
             {0.55f, 0.65f, 0.76f, 1}

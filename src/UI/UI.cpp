@@ -21,7 +21,7 @@ constexpr double cardHeight = 88, cardStep = 96, rowHeight = 48, rowStep = 56;
 void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& input)
 {
     if (surface != m_surface)
-        closeInfo();
+        closeInfo(input);
     if (surface != m_surface || input.getMode() != EditorMode::Selection)
         cancel(input);
     m_surface = surface;
@@ -101,17 +101,41 @@ std::optional<GridCoords> UI::dropPosition(const CanvasCameraFrame& camera) cons
 
 void UI::cancel(Input& input)
 {
-    if (dragging())
+    if (dragging() || m_nameEditing)
     {
         m_dragDefinition.clear();
         input.setUiCapture({});
+        if (m_nameEditing)
+            input.setCanvasFocused(true);
+        m_nameEditing = false;
+        m_nameDraft.clear();
+        m_nameError.clear();
     }
 }
 
-void UI::closeInfo()
+void UI::closeInfo(Input& input)
 {
+    if (m_nameEditing)
+        cancel(input);
     m_infoComponent = -1;
     m_infoScroll = 0;
+}
+
+bool UI::canName(const Scene& scene) const
+{
+    const auto* view = scene.getCommittedComponentView(m_infoComponent);
+    const auto* definition =
+        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    return definition && (std::holds_alternative<ManualInputBehavior>(definition->behavior) ||
+                          std::holds_alternative<OutputBehavior>(definition->behavior));
+}
+
+CanvasViewport UI::nameBounds(const Scene& scene) const
+{
+    if (!canName(scene))
+        return {};
+    const auto bounds = infoBounds(scene);
+    return {bounds.x + 10, bounds.y + infoHeaderHeight + 18, bounds.width - 20, 28};
 }
 
 std::vector<std::string> UI::componentInfo(const Scene& scene) const
@@ -121,7 +145,7 @@ std::vector<std::string> UI::componentInfo(const Scene& scene) const
         return {};
     const auto* definition = scene.getComponentCatalog().find(view->getDefinitionIdentity().id);
     std::vector<std::string> lines{definition ? definition->displayName : "Component"};
-    if (!view->getBodyLabel().empty() && view->getBodyLabel() != lines.front())
+    if (!canName(scene) && !view->getBodyLabel().empty() && view->getBodyLabel() != lines.front())
         lines.push_back("Label: " + view->getBodyLabel());
     auto pins = [&](const std::vector<PinUI>& values, const char* heading, const char* fallback)
     {
@@ -149,7 +173,8 @@ CanvasViewport UI::infoBounds(const Scene& scene) const
         return {};
     const double width = std::min(280.0, std::max(0.0, m_surface.windowWidth - 16.0));
     const double height = std::min(
-        infoHeaderHeight + infoFooterHeight + static_cast<double>(lines.size() - 1) * infoRowHeight,
+        infoHeaderHeight + infoFooterHeight + (canName(scene) ? infoNameHeight : 0) +
+            static_cast<double>(lines.size() - 1) * infoRowHeight,
         std::max(0.0, m_surface.windowHeight - 16.0)
     );
     return {
@@ -165,7 +190,9 @@ int UI::infoVisibleRows(const Scene& scene) const
     return std::max(
         0,
         static_cast<int>(
-            (infoBounds(scene).height - infoHeaderHeight - infoFooterHeight) / infoRowHeight
+            (infoBounds(scene).height - infoHeaderHeight - infoFooterHeight -
+             (canName(scene) ? infoNameHeight : 0)) /
+            infoRowHeight
         )
     );
 }
@@ -175,28 +202,55 @@ bool UI::handleInput(
 )
 {
     if (m_infoComponent != -1 && !scene.getCommittedComponentView(m_infoComponent))
-        closeInfo();
+        closeInfo(input);
     if (event.kind == UiInputKind::WindowFocus)
     {
         if (!event.focused)
         {
             cancel(input);
-            closeInfo();
+            closeInfo(input);
             m_infoRightPressed = m_infoEscapePressed = false;
         }
         return false;
     }
     if (event.kind == UiInputKind::Cursor || event.kind == UiInputKind::MouseButton)
         m_pointer = {event.x, event.y};
-    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_F2 && !dragging())
+    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_F2 && !dragging() &&
+        !m_nameEditing)
         input.setCanvasFocused(true);
     if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
         (m_infoComponent != -1 || m_infoEscapePressed))
     {
-        closeInfo();
+        closeInfo(input);
         m_infoEscapePressed = event.action != GLFW_RELEASE;
         if (!m_infoEscapePressed)
             input.setCanvasFocused(true);
+        return true;
+    }
+    if (m_nameEditing && event.kind == UiInputKind::Key)
+    {
+        if (event.action == GLFW_PRESS || event.action == GLFW_REPEAT)
+        {
+            if (event.code == GLFW_KEY_BACKSPACE && !m_nameDraft.empty())
+                m_nameDraft.pop_back();
+            else if (event.code == GLFW_KEY_ENTER || event.code == GLFW_KEY_KP_ENTER)
+            {
+                const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
+                    .componentId = m_infoComponent, .label = m_nameDraft
+                }});
+                if (result)
+                    cancel(input);
+                else
+                    m_nameError = result.message;
+            }
+        }
+        return true;
+    }
+    if (m_nameEditing && event.kind == UiInputKind::Text)
+    {
+        // TextPainter currently supports printable ASCII; keep this small field consistent.
+        if (event.codepoint >= 32 && event.codepoint <= 126 && m_nameDraft.size() < 32)
+            m_nameDraft.push_back(static_cast<char>(event.codepoint));
         return true;
     }
     if (event.kind == UiInputKind::Key && dragging())
@@ -241,10 +295,21 @@ bool UI::handleInput(
         if (m_infoComponent != -1)
         {
             if (infoBounds(scene).contains(event.x, event.y))
+            {
+                if (m_canCreate && event.code == GLFW_MOUSE_BUTTON_LEFT &&
+                    event.action == GLFW_PRESS && nameBounds(scene).contains(event.x, event.y) &&
+                    !m_nameEditing)
+                {
+                    m_nameDraft = scene.getCommittedComponentView(m_infoComponent)->getBodyLabel();
+                    m_nameError.clear();
+                    m_nameEditing = true;
+                    input.setUiCapture({true, false});
+                }
                 return true;
+            }
             if (event.action == GLFW_PRESS)
             {
-                closeInfo();
+                closeInfo(input);
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT)
                     return true;
             }

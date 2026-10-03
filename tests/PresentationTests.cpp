@@ -198,6 +198,18 @@ void text()
                 run.baseline.y + getCapHeight(run.scale, font) <= 3.10001f,
             "Label overflowed its component bounds."
         );
+    for (const auto contour : {BodyContour::Input, BodyContour::Output})
+    {
+        auto port = box;
+        port.body.style.contour = contour;
+        port.showPinLabels = false;
+        const auto named = layoutComponentLabels(std::vector<ComponentRenderData>{port}, font);
+        require(
+            named.size() == 1 && named[0].baseline.y + getCapHeight(named[0].scale, font) <
+                                     port.body.position.y - port.body.size.y / 2,
+            "Input/output name covered the symbol instead of appearing beneath it."
+        );
+    }
     DebugMetrics metrics{};
     metrics.evalResult = SimulationResult::OK;
     require(layoutDebugOverlay(metrics, false, 800, 600, font).empty(), "F3 hid no metrics.");

@@ -67,7 +67,7 @@ void catalogDefaults()
 {
     Scene scene;
     const auto& definitions = scene.getComponentCatalog().definitions();
-    require(definitions.size() == 11, "A built-in definition was lost.");
+    require(definitions.size() == 12, "A built-in definition was lost.");
     int x = 0;
     for (const auto& [id, definition] : definitions)
     {
@@ -345,6 +345,72 @@ void catalogEdits()
         "Restoration lost definition/pin identities."
     );
 }
+
+void componentOutputs()
+{
+    Scene scene;
+    const int source = scene.addComponent(BuiltinComponentIds::Input, {-6, 0});
+    const int output = scene.addComponent(BuiltinComponentIds::Output, {6, 0});
+    require(
+        scene.getLogicComponent(output)->getInputPinCount() == 1 &&
+            scene.getLogicComponent(output)->getOutputPinCount() == 0 &&
+            scene.getCommittedComponentView(output)->getInputPins()[0].id == "in" &&
+            !scene.handleClick(output),
+        "Output is not a passive one-input sink."
+    );
+    EditorActions actions(scene);
+    accepted(actions.apply({AddWire{{{-5, 0}, {5, 0}}}}));
+    scene.propagate();
+    require(!scene.getLogicComponent(output)->getStateInPin(0), "Low input lit the output.");
+    scene.handleClick(source);
+    scene.propagate();
+    require(scene.getLogicComponent(output)->getStateInPin(0), "High input missed the output.");
+    const auto builds = scene.getTopologyBuildCount();
+    const auto labels = accepted(actions.apply(
+        {ConfigureComponentProperties{.componentId = source, .label = "A"},
+         ConfigureComponentProperties{.componentId = output, .label = "Sum"}}
+    ));
+    require(
+        scene.getTopologyBuildCount() == builds &&
+            scene.getLogicComponent(output)->getStateInPin(0) &&
+            scene.getCommittedComponentView(output)->getBodyLabel() == "Sum" &&
+            scene.getCommittedComponentView(output)->getInputPins()[0].id == "in" &&
+            scene.getComponentCatalog()
+                .find(BuiltinComponentIds::Output)
+                ->presentation.bodyLabel.empty(),
+        "Renaming changed wiring, runtime state, pin identity or catalog defaults."
+    );
+    accepted(actions.restore(*labels.change->before, scene.getRevision()));
+    require(
+        scene.getCommittedComponentView(output)->getBodyLabel().empty(),
+        "Before snapshot retained a later output name."
+    );
+    accepted(actions.restore(*labels.change->after, scene.getRevision()));
+    require(
+        scene.getCommittedComponentView(source)->getBodyLabel() == "A" &&
+            scene.getCommittedComponentView(output)->getBodyLabel() == "Sum",
+        "Snapshot restore lost input/output names."
+    );
+    const auto rejected = actions.apply(
+        {ConfigureComponentProperties{.componentId = output, .label = "Wrong", .inputCount = 2}}
+    );
+    require(
+        !rejected && scene.getCommittedComponentView(output)->getBodyLabel() == "Sum",
+        "Invalid output settings partially applied a name."
+    );
+    accepted(actions.apply({DeleteWire{scene.getWireIds().front()}}));
+    scene.propagate();
+    require(
+        !scene.getLogicComponent(output)->getStateInPin(0),
+        "Disconnected output retained a stale high signal."
+    );
+    auto malformed = *scene.getComponentCatalog().find(BuiltinComponentIds::Output);
+    malformed.layout.pins.clear();
+    invalid([&] { validateDefinition(malformed); });
+    malformed = *scene.getComponentCatalog().find(BuiltinComponentIds::Output);
+    malformed.layout.pins[0].direction = PinType::OUTPUT;
+    invalid([&] { validateDefinition(malformed); });
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -352,7 +418,8 @@ int main(int argc, char** argv)
     const std::pair<const char*, void (*)()> groups[] = {
         {"component_catalog_defaults", catalogDefaults},
         {"component_definition_validation", definitionValidation},
-        {"component_catalog_edits", catalogEdits}
+        {"component_catalog_edits", catalogEdits},
+        {"component_outputs", componentOutputs}
     };
     try
     {

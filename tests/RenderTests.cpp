@@ -247,7 +247,7 @@ void preview(Renderer& renderer, const CanvasCameraFrame& camera)
          {"out", "Result", PinType::OUTPUT, 0, {4, 0}, {}}}
     };
     auto added = EditorActions(scene).apply(
-        {RegisterComponentDefinition{custom}, CreateComponent{custom.identity.id, {13, -7}}}
+        {RegisterComponentDefinition{custom}, CreateComponent{custom.identity.id, {13, -15}}}
     );
     require(static_cast<bool>(added), "Custom visual preview could not be created.");
     const auto components = buildComponentPresentation(scene.getComponentViewMap());
@@ -339,7 +339,13 @@ void palettePresentation(Renderer& renderer)
         );
         return value;
     };
-    const auto andCard = ui.buttons()[3].bounds;
+    const auto andButton = std::find_if(
+        ui.buttons().begin(),
+        ui.buttons().end(),
+        [](const auto& item) { return item.definitionId == BuiltinComponentIds::And; }
+    );
+    require(andButton != ui.buttons().end(), "AND card is missing.");
+    const auto andCard = andButton->bounds;
     const glm::dvec2 andCenter{andCard.x + andCard.width / 2, andCard.y + 34};
     const auto blueGate = screenPixel(andCenter);
     require(
@@ -441,6 +447,97 @@ void palettePresentation(Renderer& renderer)
         "Custom palette lost its name/count row or corrupted GPU state."
     );
     saveImage("component-palette-custom-list.ppm");
+}
+
+void outputPresentation(Renderer& renderer)
+{
+    Scene scene;
+    Input input;
+    input.setScene(&scene);
+    UI ui;
+    const CanvasSurface surface{extent, extent, extent, extent};
+    ui.layout(scene.getComponentCatalog(), surface, input);
+    CanvasCamera camera;
+    camera.setViewport(input.getCanvasViewport());
+    const auto frame = camera.frame(surface);
+    const int source = scene.addComponent(BuiltinComponentIds::Input, {-8, 0});
+    const int output = scene.addComponent(BuiltinComponentIds::Output, {8, 0});
+    require(
+        static_cast<bool>(EditorActions(scene).apply(
+            {AddWire{{{-7, 0}, {7, 0}}},
+             ConfigureComponentProperties{.componentId = source, .label = "Data"},
+             ConfigureComponentProperties{.componentId = output, .label = "Sum"}}
+        )),
+        "Output presentation fixture failed."
+    );
+    auto draw = [&]
+    {
+        scene.propagate();
+        scene.syncVisuals();
+        const auto components = buildComponentPresentation(scene.getComponentViewMap());
+        const auto junctions = scene.getWireIntersections();
+        renderer.beginFrame(frame);
+        renderer.drawCanvas({components, scene.getWires(), junctions});
+        ui.draw(renderer, scene, frame);
+        return cameraPixel(frame, {0.4f, 0});
+    };
+    const auto low = draw();
+    saveImage("output-bulb-off.ppm");
+    scene.handleClick(source);
+    const auto high = draw();
+    require(
+        high[1] > 200 && high[1] > low[1] + 100 && high[1] > high[0] * 2 &&
+            high[1] > high[2] * 2,
+        "Output bulb did not change from dark to green with its incoming signal."
+    );
+    saveImage("output-bulb-on.ppm");
+    const auto point = *frame.worldToWindow({0.4f, 0});
+    ui.handleInput(
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0, 0, point.x, point.y},
+        scene,
+        input,
+        frame
+    );
+    ui.handleInput(
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0, 0, point.x, point.y},
+        scene,
+        input,
+        frame
+    );
+    const auto field = ui.nameBounds(scene);
+    ui.handleInput(
+        {UiInputKind::MouseButton,
+         GLFW_MOUSE_BUTTON_LEFT,
+         GLFW_PRESS,
+         0,
+         0,
+         field.x + 12,
+         field.y + 12},
+        scene,
+        input,
+        frame
+    );
+    draw();
+    require(
+        input.getUiCapture().keyboard && glGetError() == GL_NO_ERROR,
+        "Naming popup failed to draw its focused text field."
+    );
+    saveImage("input-output-naming.ppm");
+    ui.handleInput({UiInputKind::Key, GLFW_KEY_ESCAPE, GLFW_PRESS}, scene, input, frame);
+    scene.addComponent(BuiltinComponentIds::Not, {0, 8});
+    require(
+        static_cast<bool>(
+            EditorActions(scene).apply({AddWire{{{1, 8}, {1, 12}, {-2, 12}, {-2, 8}}}})
+        ),
+        "Oscillation fixture failed."
+    );
+    const auto unavailable = draw();
+    require(
+        scene.getLastEvalResult() == SimulationResult::NON_CONVERGENT &&
+            unavailable[2] > unavailable[0] && unavailable[1] < high[1],
+        "Unavailable output retained the lit high-state appearance."
+    );
+    saveImage("output-bulb-unavailable.ppm");
 }
 
 void componentInformationPresentation(Renderer& renderer)
@@ -671,6 +768,7 @@ int main()
             preview(renderer, camera);
             canvasViewport(renderer);
             palettePresentation(renderer);
+            outputPresentation(renderer);
             componentInformationPresentation(renderer);
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";
         }

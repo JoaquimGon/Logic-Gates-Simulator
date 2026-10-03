@@ -10,6 +10,8 @@ A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 C
   - Base gates: `AND`, `OR`, `XOR`, `NOT`
   - Inverted gates: `NAND`, `NOR`, `NXOR` (with dedicated inversion bubbles)
   - Interactive inputs: `InputPin` (clickable manual toggle switch)
+  - Outputs: `OutputPin` (one-input bulb, dark for LOW and green for HIGH)
+  - Input/output names: editable instance labels displayed beneath their symbols
 - **Grid & Routing Engine:** Discrete integer coordinate snapping, collinear overlap merging, mid-wire branch-splitting, and automatic wire healing.
 - **Feedback Simulation:** Changed signals propagate until stable; bounded settling pauses unstable circuits while keeping the editor responsive.
 - **Clock Edges:** Every elapsed rising/falling transition settles the circuit before the next transition; simultaneous clocks advance together.
@@ -40,7 +42,7 @@ text remains independent.
 
 The left component panel reserves 220 pixels of the window, leaving the rest for
 the simulator. Its **Native** tab shows shader-preview cards with names below,
-ordered Input, Clock, NOT, AND, NAND, OR, NOR, XOR, NXOR, SR LATCH, D LATCH.
+ordered Input, Output, Clock, NOT, AND, NAND, OR, NOR, XOR, NXOR, SR LATCH, D LATCH.
 Latch previews show the latch name inside the body without pin labels. Cards use
 two columns, or one in narrow windows. The **Custom** tab lists registered custom
 definitions by name and input/output counts; it starts empty, with no sample circuits.
@@ -56,6 +58,15 @@ input/output states (`0 (OFF)` or `1 (ON)`), with pin names or numbered fallback
 Blocked simulation states read `Unavailable`. Escape or a click outside closes
 it; resize and focus loss also dismiss it. Scroll inside if the rows do not fit.
 Pin editing and truth-table presentation remain future work.
+
+To name an input or output in Selection mode, right-click it, click the **Name**
+field, type, and press Enter to save. Backspace edits; Escape, outside clicks,
+resize, or focus loss discard unfinished typing. Names accept up to 32 printable
+ASCII characters; an empty name clears the label. Interaction mode shows the
+name without editing it. Names preserve pin identities and wiring, and do not
+need to be unique yet. Subcircuit interfaces and packaging remain future work.
+Output bulbs have one incoming pin and no outgoing pins; unavailable signals
+appear gray.
 
 | Input | Action |
 | :--- | :--- |
@@ -150,8 +161,10 @@ See [geometry and connectivity contracts](docs/SceneTopology.md).
 it submits `CreateComponent` through EditorActions. Drawing reuses screen
 rectangles and text from Renderer; no widget framework or additional dependency
 is introduced. Its input logic can be tested without an OpenGL context.
-The same class handles the read-only information popup, resolving its component
-ID on each draw and reading synchronized pin data from the committed view.
+The same class handles the information popup, resolving its component ID on each
+draw and reading synchronized pin data from the committed view. Its small
+input/output name field submits the existing `ConfigureComponentProperties`
+label operation through EditorActions.
 
 Rendering adapts common view metadata into typed values once per frame. Bodies
 carry individual sizes/tints; stable component-ID ordering and adjacent shader
@@ -289,8 +302,10 @@ previews under the build's `render-artifacts/` directory when exercised.
 `SimulationTests` covers stable feedback, bounded oscillation/recovery, chronological
 and simultaneous clocks, retained catch-up, rising/falling receivers, register
 ordering, and a master/slave circuit made from existing D latches.
-CTest runs 44 groups with the application, or 43 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_|component_palette|component_information" --output-on-failure`
+CTest runs 46 groups with the application, or 45 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_|component_palette|component_information|component_naming" --output-on-failure`
 to run only the input tests.
+`component_outputs` checks passive output propagation, labels, and restoration;
+`component_naming` checks text capture, submission, and cancellation.
 
 ## Shared Editor Actions
 
@@ -309,7 +324,8 @@ state for future undo/redo; history controls and persistence remain pending.
 scalable input count (clamped 2–8), supported native inversion, clock frequency,
 and pause. Omitted fields retain current values. Inversion updates logic and the
 bubble together; failed batches roll back. The information popup shows live
-pins/state; truth-table presentation and these limited edit controls remain pending.
+pins/state and edits input/output names; truth tables and other limited edit
+controls remain pending.
 
 See [Editor action contracts and examples](docs/EditorActions.md) for API use,
 pointer lifetimes, migration rules, and snapshot-restoration semantics.

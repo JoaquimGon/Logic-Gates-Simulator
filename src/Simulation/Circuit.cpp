@@ -64,6 +64,11 @@ int Circuit::addInputPin(bool initialState)
     return addComponent(std::make_unique<InputPin>(-1, initialState));
 }
 
+int Circuit::addOutputPin()
+{
+    return addComponent(std::make_unique<OutputPin>(-1));
+}
+
 Component* Circuit::getComponent(int id)
 {
     auto it = m_components.find(id);

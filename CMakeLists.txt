@@ -144,7 +144,7 @@ if(BUILD_TESTING)
     target_link_libraries(ComponentCatalogTests PRIVATE simulator_scene)
     target_compile_definitions(ComponentCatalogTests PRIVATE CATALOG_ASSETS_DIR="${PROJECT_SOURCE_DIR}/assets")
     foreach(test_name IN ITEMS
-        component_catalog_defaults component_definition_validation component_catalog_edits
+        component_catalog_defaults component_definition_validation component_catalog_edits component_outputs
     )
         add_test(NAME ${test_name} COMMAND ComponentCatalogTests ${test_name})
     endforeach()
@@ -171,7 +171,7 @@ if(BUILD_TESTING)
         drag_cancellation drag_commit spawn_placement wire_segment_deletion
         interaction_modes mode_cancellation wire_and_pan_gestures
         ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction
-        component_palette component_information
+        component_palette component_information component_naming
     )
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
     endforeach()

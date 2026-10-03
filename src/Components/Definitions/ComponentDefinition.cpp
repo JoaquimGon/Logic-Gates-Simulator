@@ -81,6 +81,11 @@ void validateLayout(
         if (inputs.size() != 2 || outputs.size() != 2)
             throw std::invalid_argument("Native latches require two inputs and two outputs.");
     }
+    else if (std::holds_alternative<OutputBehavior>(behavior))
+    {
+        if (inputs.size() != 1 || !outputs.empty())
+            throw std::invalid_argument("Outputs require one input and no outgoing pins.");
+    }
     else if (!inputs.empty() || outputs.size() != 1)
         throw std::invalid_argument("Native sources require no inputs and one output.");
 }
@@ -114,7 +119,7 @@ void validateDefinition(const ComponentDefinition& definition)
                 throw std::invalid_argument("Symmetric gate input IDs must use in.<index>.");
     }
     const auto& body = definition.presentation.body;
-    if (body.contour < BodyContour::Box || body.contour > BodyContour::Clock ||
+    if (body.contour < BodyContour::Box || body.contour > BodyContour::Output ||
         (body.inverted && body.contour != BodyContour::And && body.contour != BodyContour::Or &&
          body.contour != BodyContour::Xor))
         throw std::invalid_argument("Invalid body contour/inversion combination.");

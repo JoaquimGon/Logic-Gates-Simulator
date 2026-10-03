@@ -14,6 +14,14 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
             view->showsPinLabels(),
             {}
         };
+        if (data.body.style.contour == BodyContour::Output && !view->getInputPins().empty())
+        {
+            const auto state = view->getInputPins().front().state;
+            data.body.style.tint = state == PinState::ON ? std::array<float, 4>{0, 1, 0, 1}
+                                   : state == PinState::OFF
+                                       ? std::array<float, 4>{0.12f, 0.15f, 0.2f, 1}
+                                       : std::array<float, 4>{0.32f, 0.38f, 0.46f, 1};
+        }
         for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
             for (const auto& pin : *pins)
             {

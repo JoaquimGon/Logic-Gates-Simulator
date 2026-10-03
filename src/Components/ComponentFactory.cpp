@@ -4,6 +4,7 @@
 #include "Components/Views/GateView.h"
 #include "Components/Views/InputPinView.h"
 #include "Components/Views/LatchView.h"
+#include "Components/Views/OutputPinView.h"
 
 #include <cstdint>
 #include <limits>
@@ -83,6 +84,13 @@ CreatedComponent ComponentFactory::create(
         static_cast<Clock*>(circuit.getComponent(id))->setPaused(resolved.clockPaused);
         view =
             std::make_unique<ClockView>(position, id, layout.size, layout.shader, layout.outputs);
+    }
+    else if (std::holds_alternative<OutputBehavior>(resolved.behavior))
+    {
+        id = circuit.addOutputPin();
+        view = std::make_unique<OutputPinView>(
+            position, id, layout.size, layout.shader, layout.inputs
+        );
     }
     else
     {

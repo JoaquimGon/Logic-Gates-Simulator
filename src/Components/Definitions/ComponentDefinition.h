@@ -19,7 +19,12 @@ struct ClockBehavior
 {
 };
 
-using NativeBehavior = std::variant<GateType, ManualInputBehavior, ClockBehavior, LatchType>;
+struct OutputBehavior
+{
+};
+
+using NativeBehavior =
+    std::variant<GateType, ManualInputBehavior, ClockBehavior, LatchType, OutputBehavior>;
 
 struct DefinitionIdentity
 {

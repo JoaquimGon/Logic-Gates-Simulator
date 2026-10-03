@@ -3,6 +3,7 @@
 #include "Components/Gate.h"
 #include "Components/InputPin.h"
 #include "Components/Latch.h"
+#include "Components/OutputPin.h"
 #include "Simulation/SimulationStatus.h"
 
 #include <cstddef>
@@ -50,6 +51,7 @@ class Circuit
     int addGate(GateType type);
     int addGate(GateType type, int inputPinCount);
     int addInputPin(bool initialState = false);
+    int addOutputPin();
     int addClock(float frequencyHz = 1.0f);
     int addLatch(LatchType type);
     /** @brief Takes ownership of a logical component and assigns its circuit-local ID. */

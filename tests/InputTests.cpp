@@ -978,9 +978,10 @@ void componentPalette(GLFWwindow* window)
         "Palette did not reserve the left side of the canvas."
     );
     const auto buttons = ui.buttons();
-    require(buttons.size() == 11, "Palette did not use the registered component catalog.");
+    require(buttons.size() == 12, "Palette did not use the registered component catalog.");
     const std::vector<std::string> expected{
         BuiltinComponentIds::Input,
+        BuiltinComponentIds::Output,
         BuiltinComponentIds::Clock,
         BuiltinComponentIds::Not,
         BuiltinComponentIds::And,
@@ -1147,7 +1148,7 @@ void componentPalette(GLFWwindow* window)
         "Custom palette fixture could not be registered."
     );
     layout();
-    require(ui.buttons().size() == 11, "Registered custom component leaked into native cards.");
+    require(ui.buttons().size() == 12, "Registered custom component leaked into native cards.");
     switchTab(UI::Tab::Custom);
     require(
         ui.buttons().size() == 1 && ui.buttons()[0].label == "Custom memory" &&
@@ -1206,6 +1207,8 @@ void componentInformation(GLFWwindow* window)
     };
     auto open = [&](int id)
     {
+        if (ui.infoComponentId() != -1)
+            editor.key(GLFW_KEY_ESCAPE);
         editor.cursor(editor.scene.getCommittedComponentView(id)->getGridPosition());
         editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
         editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
@@ -1401,6 +1404,147 @@ void componentInformation(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+void componentNaming(GLFWwindow* window)
+{
+    glfwSetWindowSize(window, 800, 600);
+    Editor editor(window);
+    UI ui;
+    auto layout = [&]
+    {
+        ui.layout(
+            editor.scene.getComponentCatalog(),
+            editor.input.getCameraFrame(window).surface,
+            editor.input
+        );
+    };
+    layout();
+    editor.input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        {
+            layout();
+            return ui.handleInput(
+                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
+            );
+        }
+    );
+    const int source = editor.scene.addComponent(BuiltinComponentIds::Input, {-6, 0});
+    const int output = editor.scene.addComponent(BuiltinComponentIds::Output, {6, 0});
+    editor.wire({{-5, 0}, {5, 0}});
+    editor.scene.propagate();
+    editor.scene.syncVisuals();
+    const auto builds = editor.scene.getTopologyBuildCount();
+    auto open = [&](int id)
+    {
+        editor.cursor(editor.scene.getCommittedComponentView(id)->getGridPosition());
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+        require(ui.infoComponentId() == id, "Port information did not open.");
+    };
+    auto edit = [&]
+    {
+        const auto bounds = ui.nameBounds(editor.scene);
+        editor.cursorPixels(bounds.x + 12, bounds.y + 12);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    };
+    auto type = [&](const std::string& value)
+    {
+        for (unsigned char c : value)
+            Input::charCallback(window, c);
+    };
+    for (const auto& [id, name] :
+         std::vector<std::pair<int, std::string>>{{source, "Data"}, {output, "Sum"}})
+    {
+        open(id);
+        edit();
+        require(editor.input.getUiCapture().keyboard, "Name field did not capture typing.");
+        const auto count = editor.scene.getComponentCount();
+        editor.key(GLFW_KEY_9);
+        editor.key(GLFW_KEY_F2);
+        type(name + "x");
+        editor.key(GLFW_KEY_BACKSPACE);
+        require(
+            editor.scene.getCommittedComponentView(id)->getBodyLabel().empty() &&
+                editor.scene.getComponentCount() == count &&
+                editor.input.getMode() == EditorMode::Selection,
+            "Draft typing committed early or activated canvas shortcuts."
+        );
+        editor.key(GLFW_KEY_ENTER);
+        require(
+            editor.scene.getCommittedComponentView(id)->getBodyLabel() == name &&
+                editor.input.getUiCapture() == UiInputCapture{} &&
+                editor.scene.getTopologyBuildCount() == builds,
+            "Saving a port name changed topology or retained keyboard capture."
+        );
+        edit();
+        type("Discarded");
+        editor.key(GLFW_KEY_ESCAPE);
+        require(
+            ui.infoComponentId() == -1 && !editor.input.getUiCapture().keyboard &&
+                editor.scene.getCommittedComponentView(id)->getBodyLabel() == name,
+            "Escape saved a draft or retained name editing."
+        );
+    }
+    open(output);
+    edit();
+    type("Cancelled");
+    editor.input.handleFocus(false);
+    editor.input.handleFocus(true);
+    require(
+        ui.infoComponentId() == -1 && !editor.input.getUiCapture().keyboard &&
+            editor.scene.getCommittedComponentView(output)->getBodyLabel() == "Sum",
+        "Focus loss committed a draft or trapped typing."
+    );
+    open(source);
+    edit();
+    type("Outside");
+    editor.cursorPixels(790, 590);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        ui.infoComponentId() == -1 && !editor.input.getUiCapture().keyboard &&
+            editor.scene.getCommittedComponentView(source)->getBodyLabel() == "Data",
+        "Outside click committed a name draft."
+    );
+    open(source);
+    edit();
+    for (int i = 0; i < 4; ++i)
+        editor.key(GLFW_KEY_BACKSPACE);
+    type(std::string(40, 'A'));
+    Input::charCallback(window, 0xE9);
+    editor.key(GLFW_KEY_ENTER);
+    require(
+        editor.scene.getCommittedComponentView(source)->getBodyLabel() == std::string(32, 'A'),
+        "Name field exceeded its printable 32-character limit."
+    );
+    edit();
+    for (int i = 0; i < 32; ++i)
+        editor.key(GLFW_KEY_BACKSPACE);
+    editor.key(GLFW_KEY_ENTER);
+    require(
+        editor.scene.getCommittedComponentView(source)->getBodyLabel().empty(),
+        "Empty name did not clear the label."
+    );
+    editor.key(GLFW_KEY_ESCAPE);
+    editor.input.setMode(EditorMode::Interaction);
+    layout();
+    open(output);
+    edit();
+    require(!editor.input.getUiCapture().keyboard, "Interaction mode allowed port renaming.");
+    editor.key(GLFW_KEY_ESCAPE);
+    editor.input.setMode(EditorMode::Selection);
+    open(output);
+    edit();
+    const auto deletion = EditorActions(editor.scene).apply({DeleteComponent{output}});
+    require(static_cast<bool>(deletion), "Deletion fixture failed.");
+    editor.key(GLFW_KEY_ENTER);
+    require(
+        ui.infoComponentId() == -1 && !editor.input.getUiCapture().keyboard,
+        "Deleting the named component retained a stale editor."
+    );
+    editor.input.setUiInputHandler({});
+    glfwSetWindowSize(window, 800, 800);
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -1436,7 +1580,8 @@ int main(int argc, char** argv)
             {"canvas_input_bounds", canvasInputBounds},
             {"canvas_camera_interaction", canvasCameraInteraction},
             {"component_palette", componentPalette},
-            {"component_information", componentInformation}
+            {"component_information", componentInformation},
+            {"component_naming", componentNaming}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)
