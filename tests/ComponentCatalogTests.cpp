@@ -301,7 +301,7 @@ void catalogEdits()
         scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
     accepted(actions.apply({AddWire{{{-9, 0}, {-3, 0}}}}));
     require(
-        scene.propagate() == EvalOrderResult::OK &&
+        scene.propagate() == SimulationResult::OK &&
             scene.getLogicComponent(component)->getStateInPin(0) &&
             !scene.getLogicComponent(component)->getStateOutPin(),
         "Custom descriptor lost the registered native behavior."

@@ -1,6 +1,6 @@
 # Logic Gates Simulator
 
-A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 Core. Circuit connectivity is solved via a directed graph network evaluated through a Depth-First Search (DFS) topological sort, and rendering uses custom Signed Distance Field (SDF) shaders with analytical anti-aliasing.
+A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 Core. Circuit signals settle through a bounded change-driven queue with support for feedback and chronological clock transitions, and rendering uses custom Signed Distance Field (SDF) shaders with analytical anti-aliasing.
 
 ---
 
@@ -11,7 +11,8 @@ A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 C
   - Inverted gates: `NAND`, `NOR`, `NXOR` (with dedicated inversion bubbles)
   - Interactive inputs: `InputPin` (clickable manual toggle switch)
 - **Grid & Routing Engine:** Discrete integer coordinate snapping, collinear overlap merging, mid-wire branch-splitting, and automatic wire healing.
-- **Topological Simulation:** Cycle-checked topological order calculation preventing evaluation crashes during combinational feedback loops.
+- **Feedback Simulation:** Changed signals propagate until stable; bounded settling pauses unstable circuits while keeping the editor responsive.
+- **Clock Edges:** Every elapsed rising/falling transition settles the circuit before the next transition; simultaneous clocks advance together.
 - **SDF Graphics Pipeline:** Resolution-independent gate geometry rendered on dynamic quads with sub-pixel screen-space anti-aliasing (`fwidth`).
 - **Live Shader Hot-Reloading:** Edit `.frag` or `.vert` files on disk; shaders recompile automatically at runtime.
 
@@ -108,9 +109,10 @@ external/              Vendored GLAD and stb_truetype
 
 Input and startup submit batches through EditorActions. Scene supplies committed
 bounds and indexed pin anchors to Geometry services, then uses ConnectivityBuilder
-to derive nets and Circuit edges from the normalized routes. Circuit evaluates the supported DAG, and
-Scene synchronizes signal states for rendering. Invalid feedback pauses the
-scene until the wiring is repaired.
+to derive nets and Circuit edges from the normalized routes. Circuit settles changed
+signals and advances clocks chronologically; Scene synchronizes states for rendering.
+Connections permit feedback. Signals that exceed the settling limit pause simulation
+until an input or edit requests another attempt.
 
 CMake compiles shared `simulator_components`, `simulator_simulation`,
 `simulator_geometry`, `simulator_component_factory`, `simulator_scene`, and `simulator_input` libraries.
@@ -278,7 +280,10 @@ Presentation tests cover typed instances/batching, pin leads, label layout, and
 world/screen glyph geometry. The application build also runs an invisible-window
 framebuffer test; it skips when an OpenGL context is unavailable and writes PPM
 previews under the build's `render-artifacts/` directory when exercised.
-CTest runs 41 groups with the application, or 40 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_|component_palette|component_information" --output-on-failure`
+`SimulationTests` covers stable feedback, bounded oscillation/recovery, chronological
+and simultaneous clocks, retained catch-up, rising/falling receivers, register
+ordering, and a master/slave circuit made from existing D latches.
+CTest runs 44 groups with the application, or 43 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_|component_palette|component_information" --output-on-failure`
 to run only the input tests.
 
 ## Shared Editor Actions
@@ -304,15 +309,18 @@ See [Editor action contracts and examples](docs/EditorActions.md) for API use,
 pointer lifetimes, migration rules, and snapshot-restoration semantics.
 `EditorActionsTests` covers these boundaries without a window or OpenGL context.
 
-### Rejected Connections
+### Feedback and simulation status
 
-Feedback connections, including self-loops, are unsupported by the current DAG
-simulator. When a scene connection is rejected, simulation and automatic clock
-advancement pause for the entire scene. Wiring remains editable, retained output
-states are preserved, and pins/wires display no active signal. A red warning
-appears even with the F3 debug HUD disabled; the console reports the rejected
-net, component/pin endpoints, and reason. Repairing the wiring rebuilds the full
-graph and resumes simulation automatically.
+Feedback connections, including self-loops, are accepted. Stable circuits settle
+normally; a circuit exceeding the settling limit pauses automatic clocks, displays
+unavailable signals, and shows a warning even with F3 hidden. Input changes or
+edits request another attempt. Gate-built memory may need Set/Reset initialization.
+
+Invalid endpoints or multiple drivers on one input still reject connectivity and
+pause the scene. Wiring remains editable; the console reports rejected endpoints
+and reasons. Repairing the wiring rebuilds connectivity and resumes simulation.
+See [clock timing and feedback](docs/Simulation.md) for limits, catch-up behavior,
+and the educational Boolean model.
 
 `Circuit::tryConnectComponents()` returns a typed `ConnectionResult`; the
 existing `connectComponents()` boolean API remains available.

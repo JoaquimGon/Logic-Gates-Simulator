@@ -122,8 +122,8 @@ ctest --preset x64-debug -R "render_|component_pin_leads|text_presentation"
 
 The framebuffer test writes `mixed-sizes.ppm` and
 `component-presentations.ppm` under the build's `render-artifacts/` directory
-for visual review. The application build has 41 groups; the headless build has
-40. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
+for visual review. The application build has 44 groups; the headless build has
+43. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
 font choices have not been visually verified.
 
 Camera framebuffer regressions also cover a panned/zoomed offset canvas at simulated

@@ -1,3 +1,4 @@
+#include "Components/Definitions/NativeDefinitions.h"
 #include "Components/Views/LatchView.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/Scene.h"
@@ -157,10 +158,6 @@ void connectionEndpoints()
         "Invalid input rejection lost its reason."
     );
     require(
-        circuit.tryConnectComponents(gate, 0, gate, 0) == ConnectionResult::CYCLE_DETECTED,
-        "Self-loop rejection lost its reason."
-    );
-    require(
         circuit.tryConnectComponents(latch, 0, gate, 2) == ConnectionResult::OK,
         "Valid connection reported a rejection."
     );
@@ -172,20 +169,14 @@ void connectionEndpoints()
         circuit.tryConnectComponents(latch, 0, gate, 3) == ConnectionResult::INPUT_ALREADY_DRIVEN,
         "Occupied input rejection lost its reason."
     );
-    require(
-        circuit.tryConnectComponents(gate, 0, latch, 0) == ConnectionResult::CYCLE_DETECTED,
-        "Indirect cycle rejection lost its reason."
-    );
     require(circuit.getComponent(latch)->getOutConnections().size() == 2, "Duplicate edge added.");
     require(!circuit.connectComponents(latch, -1, gate, 0), "Negative output accepted.");
     require(!circuit.connectComponents(latch, 2, gate, 0), "Missing output accepted.");
     require(!circuit.connectComponents(latch, 0, gate, -1), "Negative input accepted.");
     require(!circuit.connectComponents(latch, 0, gate, 4), "Missing input accepted.");
     require(!circuit.connectComponents(-1, 0, gate, 0), "Missing component accepted.");
-    require(!circuit.connectComponents(gate, 0, gate, 0), "Self-edge accepted.");
-    require(!circuit.connectComponents(gate, 0, latch, 0), "Cycle accepted.");
 
-    require(circuit.propagate() == EvalOrderResult::OK, "Propagation failed.");
+    require(circuit.propagate() == SimulationResult::OK, "Propagation failed.");
     require(!circuit.getComponent(gate)->getStateInPin(2), "Q did not reach the chosen input.");
     require(circuit.getComponent(gate)->getStateInPin(3), "~Q did not reach the chosen input.");
 
@@ -196,7 +187,7 @@ void connectionEndpoints()
     require(circuit.getComponent(gate)->getInConnections().size() == 1, "Wrong edge removed.");
     require(circuit.getComponent(latch)->getOutConnections().size() == 1, "Edge lists diverged.");
     require(circuit.connectComponents(latch, 1, gate, 3), "Reconnect failed.");
-    require(circuit.propagate() == EvalOrderResult::OK, "Reconnect propagation failed.");
+    require(circuit.propagate() == SimulationResult::OK, "Reconnect propagation failed.");
     require(circuit.getComponent(gate)->getStateInPin(3), "Reconnect lost output index.");
 }
 
@@ -223,7 +214,7 @@ void latchOutputPropagation()
             static_cast<InputPin*>(circuit.getComponent(first))->setState(firstState);
             static_cast<InputPin*>(circuit.getComponent(second))->setState(secondState);
             circuit.markStateDirty();
-            require(circuit.propagate() == EvalOrderResult::OK, "Latch propagation failed.");
+            require(circuit.propagate() == SimulationResult::OK, "Latch propagation failed.");
             require(circuit.getComponent(latch)->getStateOutPin(0) == q, "Q state mismatch.");
             require(circuit.getComponent(latch)->getStateOutPin(1) == notQ, "~Q state mismatch.");
             require(circuit.getComponent(qSink)->getStateOutPin() == !q, "Q sink state mismatch.");
@@ -276,7 +267,7 @@ void connectionLifecycle()
         circuit.getComponent(second)->getInConnections().empty(), "Deleted driver left an edge."
     );
     require(!circuit.getComponent(second)->getStateInPin(0), "Deleted driver left a signal.");
-    require(circuit.propagate() == EvalOrderResult::OK, "Deletion left invalid evaluation order.");
+    require(circuit.propagate() == SimulationResult::OK, "Deletion left invalid evaluation order.");
 
     int source = circuit.addInputPin(true);
     int gate = circuit.addGate(AND, 4);
@@ -401,7 +392,7 @@ void distinctRoutePins()
     scene.addWires(top, bottom);
     scene.commitWire(route({-1, 0}, {0, 0}));
     require(
-        scene.propagate() == EvalOrderResult::OK &&
+        scene.propagate() == SimulationResult::OK &&
             scene.getLogicComponent(upper)->getStateInPin(0) &&
             scene.getLogicComponent(lower)->getStateInPin(0) &&
             scene.netOfPin({upper, 0}, PinType::INPUT) ==
@@ -420,7 +411,7 @@ void scenePinLayouts()
     int notQSink = scene.addGate(NOT, {10, -1}, {0.2f, 0.1f}, "NOTgate", notInput, notOutput);
     scene.commitWire(route({3, 1}, {8, 1}));
     scene.commitWire(route({3, -1}, {8, -1}));
-    require(scene.propagate() == EvalOrderResult::OK, "Scene propagation failed.");
+    require(scene.propagate() == SimulationResult::OK, "Scene propagation failed.");
     scene.syncVisuals();
     require(scene.getLogicComponent(qSink)->getStateOutPin(), "Scene Q wiring mismatch.");
     require(!scene.getLogicComponent(notQSink)->getStateOutPin(), "Scene ~Q wiring mismatch.");
@@ -538,166 +529,81 @@ void scenePinLayouts()
     );
 }
 
-void sceneConnectionRejections()
+void sceneFeedback()
 {
     for (bool selfFeedback : {false, true})
     {
         Scene scene;
-        auto inverter = [&](GridCoords position)
-        {
-            return scene.addGate(
-                NOT,
-                position,
-                {0.2f, 0.1f},
-                "NOTgate",
-                {{PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 0}}},
-                {{PinType::OUTPUT, 0, PinState::DISCONNECTED, {1, 0}}}
-            );
-        };
-        int first = inverter({0, 0});
-        int second = inverter({10, 0});
-        int fanout = inverter({10, -4});
-        int source = scene.addInputPin({30, 10}, {0.15f, 0.15f}, "inputPin", true);
-        int unrelated = inverter({40, 10});
-        int clock = scene.addClock({30, -10}, {0.15f, 0.15f}, "clock");
-        int latch = scene.addLatch(LatchType::SR_LATCH, {40, -10});
+        const int first = scene.addComponent(BuiltinComponentIds::Not, {0, 0});
+        const int second = scene.addComponent(BuiltinComponentIds::Not, {10, 0});
+        const int clock = scene.addComponent(BuiltinComponentIds::Clock, {0, -10});
+        const int latch = scene.addComponent(BuiltinComponentIds::SrLatch, {10, -10});
         scene.commitWire(route({1, 0}, {8, 0}));
-        scene.commitWire(route({31, 10}, {38, 10}));
-        Wire branch;
-        branch.setPath({{1, 0}, {1, -4}, {8, -4}});
-        scene.commitWire(std::move(branch));
-        require(scene.propagate() == EvalOrderResult::OK, "Initial acyclic scene failed.");
-        const bool secondState = scene.getLogicComponent(second)->getStateOutPin();
-        const bool latchState = scene.getLogicComponent(latch)->getStateOutPin(1);
-
+        require(scene.propagate() == SimulationResult::OK, "Initial circuit did not settle.");
         Wire feedback;
         feedback.setPath(
             {{selfFeedback ? 1 : 11, 0}, {selfFeedback ? 1 : 11, 4}, {-2, 4}, {-2, 0}}
         );
-        auto feedbackId = scene.commitWire(feedback);
-        require(feedbackId && scene.getWire(*feedbackId), "Feedback geometry was lost.");
+        const auto wireId = scene.commitWire(feedback);
         require(
-            scene.getLastEvalResult() == EvalOrderResult::CYCLE_DETECTED,
-            "Rejected feedback was not reported immediately after editing."
+            wireId && scene.getRejectedConnections().empty(),
+            "Feedback was rejected instead of retaining its connections."
         );
-        require(scene.isSimulationDirty(), "New rejection did not request a status update.");
+        const auto result = scene.propagate();
         require(
-            scene.getEvalOrderSize() == 0, "Blocked scene advertised a valid evaluation order."
-        );
-        const auto& rejections = scene.getRejectedConnections();
-        require(rejections.size() == 1, "Rejected feedback was not diagnosed exactly once.");
-        const auto& rejection = rejections.front();
-        require(
-            rejection.reason == ConnectionResult::CYCLE_DETECTED,
-            "Scene rejection lost its cycle reason."
-        );
-        const Net* rejectedNet = scene.getNet(rejection.netId);
-        require(rejectedNet && rejectedNet->hasDriver(), "Rejection referenced a missing net.");
-        require(
-            *rejectedNet->getDriver() ==
-                    PinRef{rejection.connection.srcComponentId, rejection.connection.srcPinIndex} &&
-                rejectedNet->isSink(
-                    {rejection.connection.destComponentId, rejection.connection.destPinIndex}
-                ),
-            "Rejection did not retain the rejected endpoints."
+            result == (selfFeedback ? SimulationResult::NON_CONVERGENT : SimulationResult::OK),
+            "Stable feedback and an oscillating inverter were confused."
         );
         require(
-            (rejection.connection.srcComponentId == rejection.connection.destComponentId) ==
-                selfFeedback,
-            "Self-loop and indirect feedback diagnoses were confused."
+            !scene.getLogicComponent(first)->getInConnections().empty() &&
+                !scene.getLogicComponent(second)->getInConnections().empty(),
+            "Feedback left a partial simulation graph."
         );
-        require(
-            scene.propagate() == EvalOrderResult::CYCLE_DETECTED,
-            "Scene silently simulated a graph with the feedback edge omitted."
-        );
-        require(
-            scene.getLastEvalResult() == EvalOrderResult::CYCLE_DETECTED,
-            "Scene status hid the rejected feedback connection."
-        );
-        require(!scene.isSimulationDirty(), "Blocked scene kept requesting propagation.");
-        require(!scene.updateClocks(0.5f), "Blocked scene advanced automatic clocks.");
-        require(!scene.getLogicComponent(clock)->getStateOutPin(), "Paused clock changed state.");
-        for (const auto& [id, view] : scene.getComponentViewMap())
+        scene.syncVisuals();
+        if (selfFeedback)
         {
             require(
-                scene.getLogicComponent(id)->getInConnections().empty() &&
-                    scene.getLogicComponent(id)->getOutConnections().empty(),
-                "Rejected topology left a partial simulation graph."
+                !scene.isSimulationDirty() && !scene.updateClocks(0.5f),
+                "Unsettled simulation advanced clocks or requested endless retries."
+            );
+            require(
+                !scene.getLogicComponent(clock)->getStateOutPin() &&
+                    scene.getLogicComponent(latch)->getStateOutPin(1),
+                "Unsettled simulation lost retained clock/latch state."
+            );
+            for (const auto& [id, view] : scene.getComponentViewMap())
+                for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
+                    for (const auto& pin : *pins)
+                        require(
+                            pin.state == PinState::DISCONNECTED,
+                            "Unsettled pin displayed a valid signal."
+                        );
+            for (const auto& [id, net] : scene.getNets())
+                require(
+                    net.getState() == PinState::DISCONNECTED, "Unsettled net displayed a signal."
+                );
+            require(
+                scene.pinState({first, 0}, PinType::OUTPUT) == PinState::DISCONNECTED,
+                "Unsettled preview displayed an active signal."
             );
         }
+        else
+            require(scene.updateClocks(0.5f), "Stable feedback unnecessarily paused clocks.");
+        require(scene.removeWire(*wireId), "Cannot remove feedback route.");
         require(
-            scene.getLogicComponent(second)->getStateOutPin() == secondState &&
-                scene.getLogicComponent(latch)->getStateOutPin(1) == latchState,
-            "Blocked propagation evaluated components or changed retained state."
+            scene.propagate() == SimulationResult::OK &&
+                scene.getLastEvalResult() == SimulationResult::OK,
+            "Removing feedback did not resume simulation."
         );
         scene.syncVisuals();
-        for (const auto& [id, view] : scene.getComponentViewMap())
-        {
-            for (const auto& pin : view->getInputPins())
-                require(pin.state == PinState::DISCONNECTED, "Blocked input displayed a signal.");
-            for (const auto& pin : view->getOutputPins())
-                require(pin.state == PinState::DISCONNECTED, "Blocked output displayed a signal.");
-        }
-        for (const auto& [id, net] : scene.getNets())
-            require(net.getState() == PinState::DISCONNECTED, "Blocked net displayed a signal.");
-        for (const auto& [id, wire] : scene.getWires())
-            require(wire.getState() == PinState::DISCONNECTED, "Blocked wire displayed a signal.");
         require(
-            scene.pinState({source, 0}, PinType::OUTPUT) == PinState::DISCONNECTED,
-            "Blocked wire preview displayed an active signal."
+            !scene.getLogicComponent(second)->getStateOutPin(),
+            "Repair lost its original connection."
         );
-
-        scene.rebuildNets();
-        require(
-            scene.propagate() == EvalOrderResult::CYCLE_DETECTED,
-            "Rebuilding geometry cleared an unresolved feedback error."
-        );
-        require(scene.removeWire(*feedbackId), "Could not remove the offending feedback wire.");
-        require(scene.getRejectedConnections().empty(), "Repair retained stale rejection details.");
-        require(scene.isSimulationDirty(), "Repaired scene did not request propagation.");
-        require(scene.propagate() == EvalOrderResult::OK, "Repair did not resume simulation.");
-        require(scene.getLastEvalResult() == EvalOrderResult::OK, "Repair kept the cycle warning.");
-        scene.syncVisuals();
-        require(!scene.getLogicComponent(second)->getStateOutPin(), "Repair lost the first edge.");
-        require(!scene.getLogicComponent(fanout)->getStateOutPin(), "Repair lost valid fanout.");
-        require(
-            !scene.getLogicComponent(unrelated)->getStateOutPin(),
-            "Repair did not restore the unrelated circuit."
-        );
-        require(scene.updateClocks(0.5f), "Repair did not resume automatic clocks.");
-        for (const auto& [netId, net] : scene.getNets())
-        {
-            const auto driver = net.getDriver();
-            if (!driver)
-                continue;
-            for (const PinRef& sink : net.getSinks())
-            {
-                const Connection edge{
-                    driver->componentId, driver->pinIndex, sink.componentId, sink.pinIndex
-                };
-                const auto& incoming =
-                    scene.getLogicComponent(sink.componentId)->getInConnections();
-                const auto& outgoing =
-                    scene.getLogicComponent(driver->componentId)->getOutConnections();
-                require(
-                    std::find(incoming.begin(), incoming.end(), edge) != incoming.end() &&
-                        std::find(outgoing.begin(), outgoing.end(), edge) != outgoing.end(),
-                    "Repaired net did not match the simulation graph."
-                );
-            }
-        }
-
         scene.commitWire(feedback);
-        require(
-            scene.propagate() == EvalOrderResult::CYCLE_DETECTED, "Repeated feedback was lost."
-        );
+        scene.propagate();
         scene.removeComponent(first);
-        require(
-            scene.propagate() == EvalOrderResult::OK, "Deleting the feedback gate did not repair."
-        );
-        require(
-            scene.getLastEvalResult() == EvalOrderResult::OK, "Deletion retained an old error."
-        );
+        require(scene.propagate() == SimulationResult::OK, "Deletion did not recover simulation.");
     }
 }
 
@@ -810,7 +716,7 @@ void connectivityBuilder()
     };
     auto topology = buildConnectivity(wires, pins, circuit, 40);
     require(
-        topology.status == EvalOrderResult::OK && topology.nextNetId == 41 &&
+        topology.status == SimulationResult::OK && topology.nextNetId == 41 &&
             topology.wireNets.at(7) == 40 && topology.pinNets.at({latch, 1, true}) == 40 &&
             topology.pinNets.at({sink, 0, false}) == 40,
         "Builder lost pin direction, output index, or allocator state."
@@ -821,24 +727,24 @@ void connectivityBuilder()
         "Connectivity builder mutated its geometry input."
     );
     require(
-        circuit.propagate() == EvalOrderResult::OK && circuit.getComponent(sink)->getStateInPin(0),
+        circuit.propagate() == SimulationResult::OK && circuit.getComponent(sink)->getStateInPin(0),
         "Builder propagated Q instead of ~Q."
     );
 
-    pins.push_back({{latch, 1}, PinType::INPUT, {5, 0}});
+    pins.push_back({{latch, 2}, PinType::INPUT, {5, 0}});
     topology = buildConnectivity(wires, pins, circuit, topology.nextNetId);
     require(
-        topology.status == EvalOrderResult::CYCLE_DETECTED &&
+        topology.status == SimulationResult::CONNECTION_REJECTED &&
             topology.rejectedConnections.size() == 1 &&
             topology.rejectedConnections[0].connection.srcPinIndex == 1 &&
             circuit.getComponent(sink)->getInConnections().empty() &&
-            topology.pinNets.at({latch, 1, false}) == topology.pinNets.at({latch, 1, true}),
+            topology.pinNets.at({latch, 2, false}) == topology.pinNets.at({latch, 1, true}),
         "Rejected topology left a partial graph or merged directional pin identities."
     );
     pins.pop_back();
     topology = buildConnectivity(wires, pins, circuit, topology.nextNetId);
     require(
-        topology.status == EvalOrderResult::OK && topology.rejectedConnections.empty() &&
+        topology.status == SimulationResult::OK && topology.rejectedConnections.empty() &&
             circuit.getComponent(sink)->getInConnections().size() == 1,
         "Repair did not rebuild the complete graph."
     );
@@ -868,7 +774,7 @@ int main(int argc, char** argv)
         {"scene_pin_layouts", scenePinLayouts},
         {"scene_wire_overlaps", sceneWireOverlaps},
         {"distinct_route_pins", distinctRoutePins},
-        {"scene_connection_rejections", sceneConnectionRejections},
+        {"scene_feedback", sceneFeedback},
         {"source_components", sourceComponents},
         {"geometry_services", geometryServices},
         {"connectivity_builder", connectivityBuilder}

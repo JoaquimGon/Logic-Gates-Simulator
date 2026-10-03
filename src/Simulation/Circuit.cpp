@@ -2,12 +2,15 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
 Circuit::Circuit(const Circuit& other)
-    : m_evaluationOrder(other.m_evaluationOrder), m_currentId(other.m_currentId),
-      m_evalOrderDirty(other.m_evalOrderDirty), m_stateDirty(other.m_stateDirty),
+    : m_componentOrder(other.m_componentOrder), m_outputStates(other.m_outputStates),
+      m_currentId(other.m_currentId), m_structureDirty(other.m_structureDirty),
+      m_stateDirty(other.m_stateDirty), m_pendingClockTime(other.m_pendingClockTime),
       m_lastPropagateDurationMs(other.m_lastPropagateDurationMs),
       m_lastEvalResult(other.m_lastEvalResult)
 {
@@ -42,7 +45,7 @@ void Circuit::resizeGateInputs(int componentId, int inputPinCount)
                 edge.srcComponentId, edge.srcPinIndex, componentId, edge.destPinIndex
             );
     gate->m_stateInPins.resize(inputPinCount, false);
-    m_evalOrderDirty = true;
+    m_structureDirty = true;
     m_stateDirty = true;
 }
 
@@ -53,20 +56,12 @@ int Circuit::addGate(GateType type)
 
 int Circuit::addGate(GateType type, int inputPinCount)
 {
-    int id = m_currentId++;
-    m_components.emplace(id, std::make_unique<Gate>(id, type, inputPinCount));
-    m_evalOrderDirty = true;
-    m_stateDirty = true;
-    return id;
+    return addComponent(std::make_unique<Gate>(-1, type, inputPinCount));
 }
 
 int Circuit::addInputPin(bool initialState)
 {
-    int id = m_currentId++;
-    m_components.emplace(id, std::make_unique<InputPin>(id, initialState));
-    m_evalOrderDirty = true;
-    m_stateDirty = true;
-    return id;
+    return addComponent(std::make_unique<InputPin>(-1, initialState));
 }
 
 Component* Circuit::getComponent(int id)
@@ -95,7 +90,8 @@ void Circuit::delComponent(int id)
     }
 
     m_components.erase(id);
-    m_evalOrderDirty = true;
+    m_outputStates.erase(id);
+    m_structureDirty = true;
     m_stateDirty = true;
 }
 
@@ -122,9 +118,6 @@ ConnectionResult Circuit::tryConnectComponents(
         return ConnectionResult::INVALID_PIN;
     }
 
-    if (srcComponentId == destComponentId)
-        return ConnectionResult::CYCLE_DETECTED;
-
     const Connection connection{srcComponentId, srcPinIndex, destComponentId, destPinIndex};
     for (const auto& existing : dest->getInConnections())
     {
@@ -133,12 +126,11 @@ ConnectionResult Circuit::tryConnectComponents(
                                           : ConnectionResult::INPUT_ALREADY_DRIVEN;
     }
 
-    if (wouldCreateCycle(srcComponentId, destComponentId))
-        return ConnectionResult::CYCLE_DETECTED;
-
     src->addOutConnection(connection);
     dest->addInConnection(connection);
-    m_evalOrderDirty = true;
+    // Wiring initializes a level, rather than inventing a clock edge.
+    dest->setStateInPin(destPinIndex, src->getStateOutPin(srcPinIndex));
+    m_structureDirty = true;
     m_stateDirty = true;
     return ConnectionResult::OK;
 }
@@ -161,7 +153,7 @@ void Circuit::disconnectComponents(
     dest->delInConnection(connection);
     dest->setStateInPin(destPinIndex, false);
 
-    m_evalOrderDirty = true;
+    m_structureDirty = true;
     m_stateDirty = true;
 }
 
@@ -174,171 +166,153 @@ void Circuit::clearConnections()
             component->setStateInPin(pin, false);
     }
 
-    m_evalOrderDirty = true;
+    m_structureDirty = true;
     m_stateDirty = true;
 }
 
-bool Circuit::wouldCreateCycle(int srcComponentId, int destComponentId)
+int Circuit::addComponent(std::unique_ptr<Component> component)
 {
-    std::unordered_set<int> visited;
-    std::vector<int> stack{destComponentId};
-
-    while (!stack.empty())
-    {
-        int currentId = stack.back();
-        stack.pop_back();
-
-        if (currentId == srcComponentId)
-            return true;
-        if (!visited.insert(currentId).second)
-            continue;
-
-        if (Component* comp = getComponent(currentId))
-            for (const auto& conn : comp->getOutConnections())
-                stack.push_back(conn.destComponentId);
-    }
-
-    return false;
-}
-
-EvalOrderResult Circuit::evaluateOrder()
-{
-    std::unordered_set<int> visited;
-    std::unordered_set<int> scheduled;
-    std::vector<int> order;
-
-    for (const auto& pair : m_components)
-    {
-        int currentId = pair.first;
-        if (visited.find(currentId) == visited.end())
-        {
-            if (!dfsSort(currentId, visited, scheduled, order))
-            {
-                return EvalOrderResult::CYCLE_DETECTED;
-            }
-        }
-    }
-
-    m_evaluationOrder = std::move(order);
-    std::reverse(m_evaluationOrder.begin(), m_evaluationOrder.end());
-    return EvalOrderResult::OK;
-}
-
-bool Circuit::dfsSort(
-    int componentId,
-    std::unordered_set<int>& visited,
-    std::unordered_set<int>& scheduled,
-    std::vector<int>& order
-)
-{
-    if (scheduled.find(componentId) != scheduled.end())
-        return false;
-    if (visited.find(componentId) != visited.end())
-        return true;
-
-    scheduled.insert(componentId);
-
-    if (Component* comp = getComponent(componentId))
-    {
-        for (const auto& conn : comp->getOutConnections())
-        {
-            if (!dfsSort(conn.destComponentId, visited, scheduled, order))
-            {
-                scheduled.erase(componentId);
-                return false;
-            }
-        }
-    }
-
-    scheduled.erase(componentId);
-    visited.insert(componentId);
-    order.push_back(componentId);
-    return true;
+    if (!component)
+        throw std::invalid_argument("Cannot add a null component.");
+    const int id = m_currentId++;
+    component->m_id = id;
+    m_components.emplace(id, std::move(component));
+    m_structureDirty = m_stateDirty = true;
+    return id;
 }
 
 int Circuit::addClock(float frequencyHz)
 {
-    int id = m_currentId++;
-    m_components.emplace(id, std::make_unique<Clock>(id, frequencyHz));
-    m_evalOrderDirty = true;
-    m_stateDirty = true;
-    return id;
-}
-
-bool Circuit::updateClocks(float deltaTime)
-{
-    bool clockEdgeOccurred = false;
-    for (auto& [id, comp] : m_components)
-    {
-        if (auto* clk = dynamic_cast<Clock*>(comp.get()))
-        {
-            if (clk->advanceTime(deltaTime))
-            {
-                clockEdgeOccurred = true;
-            }
-        }
-    }
-
-    if (clockEdgeOccurred)
-    {
-        m_stateDirty = true;
-    }
-    return clockEdgeOccurred;
-}
-
-
-EvalOrderResult Circuit::propagate()
-{
-    auto startTime = std::chrono::high_resolution_clock::now();
-
-    // Step 1: Structural sort only when topology changed
-    if (m_evalOrderDirty)
-    {
-        EvalOrderResult result = evaluateOrder();
-        m_lastEvalResult = result;
-        if (result == EvalOrderResult::CYCLE_DETECTED)
-        {
-            auto endTime = std::chrono::high_resolution_clock::now();
-            m_lastPropagateDurationMs =
-                std::chrono::duration<float, std::milli>(endTime - startTime).count();
-            return result;
-        }
-        m_evalOrderDirty = false;
-    }
-
-    // Step 2: Forward evaluation pass
-    for (int id : m_evaluationOrder)
-    {
-        Component* comp = getComponent(id);
-        if (!comp)
-            continue;
-
-        comp->evaluate();
-
-        for (const auto& connection : comp->getOutConnections())
-        {
-            if (Component* child = getComponent(connection.destComponentId))
-            {
-                child->setStateInPin(
-                    connection.destPinIndex, comp->getStateOutPin(connection.srcPinIndex)
-                );
-            }
-        }
-    }
-
-    auto endTime = std::chrono::high_resolution_clock::now();
-    m_lastPropagateDurationMs =
-        std::chrono::duration<float, std::milli>(endTime - startTime).count();
-
-    m_stateDirty = false;
-    return EvalOrderResult::OK;
+    return addComponent(std::make_unique<Clock>(-1, frequencyHz));
 }
 
 int Circuit::addLatch(LatchType type)
 {
-    int id = m_currentId++;
-    m_components.emplace(id, std::make_unique<Latch>(id, type));
-    m_evalOrderDirty = true;
-    m_stateDirty = true;
-    return id;
+    return addComponent(std::make_unique<Latch>(-1, type));
+}
+
+void Circuit::publishOutputs(const std::vector<int>& components, std::vector<int>& changed)
+{
+    struct InputChange
+    {
+        int component, pin;
+        bool value;
+    };
+
+    std::vector<InputChange> inputs;
+    for (int id : components)
+    {
+        auto* source = getComponent(id);
+        auto& previous = m_outputStates[id];
+        const bool initial = previous.empty();
+        if (initial)
+            previous.resize(source->getOutputPinCount());
+        for (int pin = 0; pin < source->getOutputPinCount(); ++pin)
+        {
+            const bool value = source->getStateOutPin(pin);
+            if (!initial && previous[pin] == value)
+                continue;
+            previous[pin] = value;
+            for (const auto& edge : source->getOutConnections())
+                if (edge.srcPinIndex == pin &&
+                    getComponent(edge.destComponentId)->getStateInPin(edge.destPinIndex) != value)
+                    inputs.push_back({edge.destComponentId, edge.destPinIndex, value});
+        }
+    }
+    // Deliver the whole step before invoking receivers; callbacks do not publish outputs yet.
+    for (const auto& input : inputs)
+    {
+        getComponent(input.component)->setStateInPin(input.pin, input.value);
+        changed.push_back(input.component);
+    }
+    for (const auto& input : inputs)
+    {
+        auto* receiver = getComponent(input.component);
+        if (receiver->clockInputPin() == input.pin)
+            receiver->onClockEdge(input.value);
+    }
+}
+
+SimulationResult Circuit::propagate()
+{
+    const auto start = std::chrono::steady_clock::now();
+    if (m_structureDirty)
+    {
+        m_componentOrder.clear();
+        for (const auto& [id, component] : m_components)
+            m_componentOrder.push_back(id);
+        std::sort(m_componentOrder.begin(), m_componentOrder.end());
+        m_structureDirty = false;
+    }
+    // Sources can change outside evaluate() (manual inputs, clocks, restored state).
+    std::vector<int> dirty = m_componentOrder, next;
+    publishOutputs(m_componentOrder, next);
+    constexpr int maxSteps = 1024;
+    constexpr std::size_t maxEvaluations = 100000;
+    std::size_t evaluations = 0;
+    int steps = 0;
+    while (!dirty.empty() && steps++ < maxSteps && evaluations + dirty.size() <= maxEvaluations)
+    {
+        next.clear();
+        for (int id : dirty)
+            getComponent(id)->evaluate();
+        evaluations += dirty.size();
+        publishOutputs(dirty, next);
+        std::sort(next.begin(), next.end());
+        next.erase(std::unique(next.begin(), next.end()), next.end());
+        dirty.swap(next);
+    }
+    m_lastEvalResult = dirty.empty() ? SimulationResult::OK : SimulationResult::NON_CONVERGENT;
+    m_stateDirty = false;
+    m_lastPropagateDurationMs =
+        std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - start).count();
+    return m_lastEvalResult;
+}
+
+bool Circuit::updateClocks(float deltaTime)
+{
+    if (!std::isfinite(deltaTime) || deltaTime < 0)
+        throw std::invalid_argument("Simulation elapsed time must be finite and non-negative.");
+    if (isStateDirty())
+        propagate();
+    if (m_lastEvalResult != SimulationResult::OK)
+    {
+        m_pendingClockTime = 0;
+        return false;
+    }
+    std::vector<Clock*> clocks;
+    for (int id : m_componentOrder)
+        if (auto* clock = dynamic_cast<Clock*>(getComponent(id)))
+            clocks.push_back(clock);
+    m_pendingClockTime += deltaTime;
+    bool changed = false;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(4);
+    for (int step = 0; step < 256 && m_pendingClockTime > 0; ++step)
+    {
+        double nextEdge = std::numeric_limits<double>::infinity();
+        for (const auto* clock : clocks)
+            nextEdge = std::min(nextEdge, clock->timeUntilEdge());
+        if (!std::isfinite(nextEdge))
+        {
+            m_pendingClockTime = 0; // No running clocks; paused time is not accumulated.
+            break;
+        }
+        const double elapsed = std::min(nextEdge, m_pendingClockTime);
+        bool edgeOccurred = false;
+        for (auto* clock : clocks)
+            edgeOccurred |= clock->advanceSlice(elapsed);
+        m_pendingClockTime = std::max(0.0, m_pendingClockTime - elapsed);
+        if (edgeOccurred)
+        {
+            changed = true;
+            if (propagate() != SimulationResult::OK)
+            {
+                m_pendingClockTime = 0;
+                break;
+            }
+        }
+        if (std::chrono::steady_clock::now() >= deadline)
+            break; // Preserve unprocessed time; continue next frame, without skipping edges.
+    }
+    return changed;
 }

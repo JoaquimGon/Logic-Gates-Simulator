@@ -258,7 +258,7 @@ void preview(Renderer& renderer, const CanvasCameraFrame& camera)
     renderer.beginFrame(camera);
     renderer.drawCanvas(frame);
     DebugMetrics metrics{};
-    metrics.evalResult = EvalOrderResult::CONNECTION_REJECTED;
+    metrics.evalResult = SimulationResult::CONNECTION_REJECTED;
     renderer.drawDebugOverlay(metrics, false);
     require(glGetError() == GL_NO_ERROR, "Canvas/text pass produced an OpenGL error.");
     saveImage("component-presentations.ppm");

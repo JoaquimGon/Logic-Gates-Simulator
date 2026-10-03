@@ -159,7 +159,7 @@ class Scene
     // ----- Simulation -----
     // Forwards the simulation status (e.g. a detected combinational loop) so
     // callers can report it without catching exceptions.
-    EvalOrderResult propagate();
+    SimulationResult propagate();
     void syncVisuals();
     bool handleClick(int componentId);
     bool checkOverlap(int draggedComponentId) const;
@@ -168,8 +168,8 @@ class Scene
 
     bool isSimulationDirty() const
     {
-        return m_topologyResult == EvalOrderResult::OK ? m_circuit.isStateDirty()
-                                                       : m_topologyInvalidNeedsUpdate;
+        return m_topologyResult == SimulationResult::OK ? m_circuit.isStateDirty()
+                                                        : m_topologyInvalidNeedsUpdate;
     }
 
     void markSimulationDirty() { m_circuit.markStateDirty(); }
@@ -188,15 +188,16 @@ class Scene
     // Debugging
     float getLastPropagateTimeMs() const { return m_circuit.getLastPropagateTimeMs(); }
 
-    EvalOrderResult getLastEvalResult() const
+    SimulationResult getLastEvalResult() const
     {
-        return m_topologyResult == EvalOrderResult::OK ? m_circuit.getLastEvalResult()
-                                                       : m_topologyResult;
+        return m_topologyResult == SimulationResult::OK ? m_circuit.getLastEvalResult()
+                                                        : m_topologyResult;
     }
 
-    size_t getEvalOrderSize() const
+    size_t getSimulationComponentCount() const
     {
-        return m_topologyResult == EvalOrderResult::OK ? m_circuit.getEvalOrderSize() : 0;
+        return getLastEvalResult() == SimulationResult::OK ? m_circuit.getSimulationComponentCount()
+                                                           : 0;
     }
 
     size_t getComponentCount() const { return m_circuit.getComponentCount(); }
@@ -230,7 +231,7 @@ class Scene
     Circuit m_circuit;
     // Invalid geometry remains editable, but never runs as a partial simulation graph.
     std::vector<RejectedConnection> m_rejectedConnections;
-    EvalOrderResult m_topologyResult = EvalOrderResult::OK;
+    SimulationResult m_topologyResult = SimulationResult::OK;
     bool m_topologyInvalidNeedsUpdate = false;
     std::unordered_map<int, std::unique_ptr<ComponentView>> m_componentViews;
 

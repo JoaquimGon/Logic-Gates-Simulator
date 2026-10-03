@@ -21,7 +21,7 @@ class Engine
     // Last simulation status printed to the console, so a persistent condition
     // (e.g. a combinational loop) is reported on the transition only, not once
     // per frame.
-    EvalOrderResult m_lastOrderResult = EvalOrderResult::OK;
+    SimulationResult m_lastSimulationResult = SimulationResult::OK;
 
     Input input;
 

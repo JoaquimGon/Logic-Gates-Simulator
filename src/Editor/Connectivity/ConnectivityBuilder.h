@@ -24,7 +24,7 @@ struct ConnectivityResult
     PinNetIndex pinNets;
     std::map<WireId, NetId> wireNets;
     std::vector<RejectedConnection> rejectedConnections;
-    EvalOrderResult status = EvalOrderResult::OK;
+    SimulationResult status = SimulationResult::OK;
     NetId nextNetId = 0;
 };
 

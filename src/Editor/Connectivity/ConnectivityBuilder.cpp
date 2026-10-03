@@ -145,10 +145,6 @@ ConnectivityResult buildConnectivity(
             const char* reason = "invalid connection";
             switch (connectionResult)
             {
-            case ConnectionResult::CYCLE_DETECTED:
-                reason = "feedback loop";
-                result.status = EvalOrderResult::CYCLE_DETECTED;
-                break;
             case ConnectionResult::INVALID_COMPONENT:
                 reason = "missing component";
                 break;
@@ -161,8 +157,8 @@ ConnectivityResult buildConnectivity(
             case ConnectionResult::OK:
                 break;
             }
-            if (result.status == EvalOrderResult::OK)
-                result.status = EvalOrderResult::CONNECTION_REJECTED;
+            if (result.status == SimulationResult::OK)
+                result.status = SimulationResult::CONNECTION_REJECTED;
 
             std::cerr << "[Connection Rejected] Net " << netId << ": Component "
                       << driver.componentId << " Out[" << driver.pinIndex << "] -> Component "

@@ -1,8 +1,8 @@
 #pragma once
 
-enum class EvalOrderResult
+enum class SimulationResult
 {
     OK,
-    CYCLE_DETECTED,
+    NON_CONVERGENT,
     CONNECTION_REJECTED
 };

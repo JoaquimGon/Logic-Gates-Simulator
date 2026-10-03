@@ -176,42 +176,40 @@ void Engine::run()
             glfwSetWindowTitle(window, titleForMode().c_str());
         }
 
-        // 2. Advance time for any clocks in the circuit
+        // Clocks settle the circuit at every transition; remember edits for visual synchronization.
+        const bool pendingSimulation = scene.isSimulationDirty();
         bool clockEdgeFlipped = scene.updateClocks(deltaTime);
 
         // Debugging
         m_timeSinceLastPropagateMs += (deltaTime * 1000.0f);
 
 
-        // 3. EVENT-DRIVEN SIMULATION:
-        // Only run DFS/propagation when an edge flipped or a component/wire was
-        // touched
-        if (clockEdgeFlipped || scene.isSimulationDirty())
+        if (clockEdgeFlipped || pendingSimulation || scene.isSimulationDirty())
         {
-            EvalOrderResult orderResult = scene.propagate();
+            SimulationResult simulationResult =
+                scene.isSimulationDirty() ? scene.propagate() : scene.getLastEvalResult();
 
             // Debugging
             m_timeSinceLastPropagateMs = 0.0f;
 
 
-            if (orderResult != m_lastOrderResult)
+            if (simulationResult != m_lastSimulationResult)
             {
-                m_lastOrderResult = orderResult;
+                m_lastSimulationResult = simulationResult;
 
-                if (orderResult == EvalOrderResult::CYCLE_DETECTED)
+                if (simulationResult == SimulationResult::NON_CONVERGENT)
                 {
-                    std::cerr << "[Simulation] Feedback connection rejected; "
-                                 "simulation is paused until the wiring is repaired.\n";
+                    std::cerr << "[Simulation] Signals did not settle within the safety limit; "
+                                 "simulation is paused. Change an input or repair the circuit.\n";
                 }
-                else if (orderResult == EvalOrderResult::CONNECTION_REJECTED)
+                else if (simulationResult == SimulationResult::CONNECTION_REJECTED)
                 {
                     std::cerr << "[Simulation] Connection rejected; "
                                  "simulation is paused until the wiring is repaired.\n";
                 }
                 else
                 {
-                    std::cerr << "[Simulation] Evaluation order rebuilt, "
-                                 "simulation resumed.\n";
+                    std::cerr << "[Simulation] Signals settled, simulation resumed.\n";
                 }
             }
             scene.syncVisuals();
@@ -260,7 +258,7 @@ void Engine::run()
         m_renderer.drawCanvas(frame);
 
         // Debugging
-        if (m_showDebugOverlay || scene.getLastEvalResult() != EvalOrderResult::OK)
+        if (m_showDebugOverlay || scene.getLastEvalResult() != SimulationResult::OK)
         {
             DebugMetrics metrics;
             metrics.fps = m_fps;
@@ -268,7 +266,7 @@ void Engine::run()
             metrics.drawCalls = m_renderer.getDrawCallCount();
             metrics.lastPropagateMs = scene.getLastPropagateTimeMs();
             metrics.timeSinceLastPropagateMs = m_timeSinceLastPropagateMs;
-            metrics.evalOrderCount = scene.getEvalOrderSize();
+            metrics.scheduledComponentCount = scene.getSimulationComponentCount();
             metrics.totalComponents = scene.getComponentCount();
             metrics.evalResult = scene.getLastEvalResult();
 

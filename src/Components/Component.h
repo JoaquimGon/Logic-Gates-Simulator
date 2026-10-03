@@ -54,8 +54,13 @@ class Component
 
     int getOutputPinCount() const { return static_cast<int>(m_stateOutPins.size()); }
 
-    virtual bool isClocked() const { return false; }
+    /** @brief Clock input index for edge-sensitive components; -1 for gates, latches and sources.
+     */
+    virtual int clockInputPin() const { return -1; }
 
+    /** @brief Called after a clock input changes: true is rising, false is falling.
+     * Inputs at this propagation step are delivered before any edge callbacks run.
+     */
     virtual void onClockEdge(bool clockState) {}
 
     const std::vector<Connection>& getOutConnections() const { return m_outConnections; }

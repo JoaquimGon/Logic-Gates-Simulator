@@ -1304,11 +1304,13 @@ void componentInformation(GLFWwindow* window)
         "Information scrolling zoomed the canvas or overflowed a short window."
     );
     editor.key(GLFW_KEY_ESCAPE);
-    editor.wire({{3, -12}, {4, -12}, {4, -9}, {-4, -9}, {-4, -12}, {-3, -12}});
+    const int oscillator = editor.scene.addComponent(BuiltinComponentIds::Not, {-10, -12});
+    editor.wire({{-9, -12}, {-8, -12}, {-8, -15}, {-12, -15}, {-12, -12}});
     refresh();
-    open(box);
+    open(oscillator);
     require(
-        !editor.scene.getRejectedConnections().empty() && has("Result: Unavailable"),
+        editor.scene.getLastEvalResult() == SimulationResult::NON_CONVERGENT &&
+            has("Y: Unavailable"),
         "Paused simulation information presented a retained output as a valid signal."
     );
     editor.key(GLFW_KEY_ESCAPE);

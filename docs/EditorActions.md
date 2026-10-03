@@ -46,9 +46,10 @@ invalid. Wires and pin-to-body contacts impose no additional clearance. The same
 check applies to creation, movement, configuration, and future import batches.
 
 Invalid wire paths, stale segment endpoints, invalid layouts, and unsupported
-arity produce typed failures. Feedback geometry remains committed and editable,
-with Scene's existing rejection diagnostics and explicit simulation pause. An
-accepted edit does not guarantee a simulatable DAG; inspect Scene diagnostics.
+arity produce typed failures. Feedback is accepted and remains editable. An accepted
+edit need not settle: inspect `Scene::getLastEvalResult()` for `NON_CONVERGENT`,
+which pauses automatic simulation until an input or edit requests another attempt.
+Invalid connections retain separate rejection diagnostics. See [simulation](Simulation.md).
 
 ## Preview, commit, and cancel
 
@@ -140,7 +141,7 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 41 groups with the application (40 headlessly), including seven `EditorActionsTests` groups for atomic batches,
+CTest runs 44 groups with the application (43 headlessly), including seven `EditorActionsTests` groups for atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery,
 snapshot restoration, body-placement rollback, and explicit component settings
 (including native-pair truth tables, clock phase, and custom lead preservation). `InputTests` additionally verifies actual keyboard spawning,

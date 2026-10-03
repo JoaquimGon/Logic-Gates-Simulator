@@ -25,13 +25,13 @@ std::vector<TextRun> layoutDebugOverlay(
         ssL2 << std::fixed << std::setprecision(0) << metrics.timeSinceLastPropagateMs
              << " ms ago)";
 
-    // Line 3: Evaluation Order & Topological Status
+    // Line 3: Scheduled components and settling status
     std::ostringstream ssL3;
-    ssL3 << "Eval Order: " << metrics.evalOrderCount << "/" << metrics.totalComponents
+    ssL3 << "Simulation: " << metrics.scheduledComponentCount << "/" << metrics.totalComponents
          << " components";
-    if (metrics.evalResult == EvalOrderResult::CYCLE_DETECTED)
-        ssL3 << " [CYCLE DETECTED]";
-    else if (metrics.evalResult == EvalOrderResult::CONNECTION_REJECTED)
+    if (metrics.evalResult == SimulationResult::NON_CONVERGENT)
+        ssL3 << " [DID NOT SETTLE]";
+    else if (metrics.evalResult == SimulationResult::CONNECTION_REJECTED)
         ssL3 << " [CONNECTION REJECTED]";
     else
         ssL3 << " [OK]";
@@ -66,8 +66,8 @@ std::vector<TextRun> layoutDebugOverlay(
          (metrics.timeSinceLastPropagateMs < 50.0f) ? glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)
                                                     : glm::vec4(0.70f, 0.70f, 0.75f, 0.85f)},
         {ssL3.str(),
-         (metrics.evalResult != EvalOrderResult::OK) ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f)
-                                                     : glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)},
+         (metrics.evalResult != SimulationResult::OK) ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f)
+                                                      : glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)},
         {ssL4.str(),
          (metrics.shortedNetCount > 0)
              ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f) // Highlight shorts in red
@@ -77,14 +77,16 @@ std::vector<TextRun> layoutDebugOverlay(
 
     if (!showMetrics)
         lines.clear();
-    if (metrics.evalResult != EvalOrderResult::OK)
+    if (metrics.evalResult != SimulationResult::OK)
     {
         const glm::vec4 errorColor(1.0f, 0.25f, 0.25f, 1.0f);
-        const std::string error = metrics.evalResult == EvalOrderResult::CYCLE_DETECTED
-                                      ? "[SIMULATION PAUSED] Feedback loop"
+        const std::string error = metrics.evalResult == SimulationResult::NON_CONVERGENT
+                                      ? "[SIMULATION PAUSED] Signals did not settle"
                                       : "[SIMULATION PAUSED] Connection rejected";
         lines.insert(lines.begin(), {error, errorColor});
-        lines.insert(lines.begin() + 1, {"Fix the wiring to resume.", errorColor});
+        lines.insert(
+            lines.begin() + 1, {"Change an input or fix the circuit to resume.", errorColor}
+        );
     }
 
 

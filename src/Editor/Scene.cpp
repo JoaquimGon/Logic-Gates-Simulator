@@ -91,7 +91,7 @@ void Scene::rebuildNets()
     m_nextNetId = topology.nextNetId;
     m_rejectedConnections = std::move(topology.rejectedConnections);
     m_topologyResult = topology.status;
-    m_topologyInvalidNeedsUpdate = m_topologyResult != EvalOrderResult::OK;
+    m_topologyInvalidNeedsUpdate = m_topologyResult != SimulationResult::OK;
     for (auto& [id, wire] : m_wires)
         wire.setNet(topology.wireNets.at(id));
     if (m_topologyInvalidNeedsUpdate)
@@ -141,7 +141,7 @@ NetId Scene::netOfPin(const PinRef& pin, PinType type) const
 
 PinState Scene::pinState(const PinRef& pin, PinType type)
 {
-    if (!pin.isConnected() || m_topologyResult != EvalOrderResult::OK)
+    if (!pin.isConnected() || getLastEvalResult() != SimulationResult::OK)
         return PinState::DISCONNECTED;
 
     if (type == PinType::OUTPUT)
@@ -177,12 +177,12 @@ bool Scene::getCollinearOverlap(
 
 bool Scene::updateClocks(float deltaTime)
 {
-    return m_topologyResult == EvalOrderResult::OK && m_circuit.updateClocks(deltaTime);
+    return m_topologyResult == SimulationResult::OK && m_circuit.updateClocks(deltaTime);
 }
 
-EvalOrderResult Scene::propagate()
+SimulationResult Scene::propagate()
 {
-    if (m_topologyResult != EvalOrderResult::OK)
+    if (m_topologyResult != SimulationResult::OK)
     {
         m_topologyInvalidNeedsUpdate = false;
         return m_topologyResult;
@@ -230,7 +230,7 @@ void Scene::setAllClocksFrequency(float hz)
 
 void Scene::syncVisuals()
 {
-    const bool blocked = m_topologyResult != EvalOrderResult::OK;
+    const bool blocked = getLastEvalResult() != SimulationResult::OK;
     auto syncViews = [&](auto& views)
     {
         for (auto& [id, view] : views)

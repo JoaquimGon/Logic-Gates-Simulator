@@ -199,9 +199,9 @@ void text()
             "Label overflowed its component bounds."
         );
     DebugMetrics metrics{};
-    metrics.evalResult = EvalOrderResult::OK;
+    metrics.evalResult = SimulationResult::OK;
     require(layoutDebugOverlay(metrics, false, 800, 600, font).empty(), "F3 hid no metrics.");
-    for (auto result : {EvalOrderResult::CYCLE_DETECTED, EvalOrderResult::CONNECTION_REJECTED})
+    for (auto result : {SimulationResult::NON_CONVERGENT, SimulationResult::CONNECTION_REJECTED})
     {
         metrics.evalResult = result;
         const auto warning = layoutDebugOverlay(metrics, false, 800, 600, font);

@@ -41,6 +41,9 @@ Its result contains nets, pin/wire indexes, rejected edges, evaluation status,
 and the advanced net allocator. Net IDs are regenerated on every rebuild.
 
 The builder replaces Circuit connections without moving or splitting routes.
+Feedback edges are accepted; Circuit handles bounded settling independently of
+route building (see [simulation](Simulation.md)). Runtime non-convergence uses
+`SimulationResult::NON_CONVERGENT`; rejected edges use `CONNECTION_REJECTED`.
 Any rejected edge clears the entire partial graph. Scene publishes diagnostics,
 suppresses signals, and pauses simulation/automatic clocks until a repaired
 rebuild succeeds. Shorted nets retain their existing separate policy: they have

@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <memory>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 enum class ConnectionResult
@@ -16,30 +15,24 @@ enum class ConnectionResult
     OK,
     INVALID_COMPONENT,
     INVALID_PIN,
-    INPUT_ALREADY_DRIVEN,
-    CYCLE_DETECTED
+    INPUT_ALREADY_DRIVEN
 };
 
 class Circuit
 {
   private:
     std::unordered_map<int, std::unique_ptr<Component>> m_components;
-    std::vector<int> m_evaluationOrder;
+    std::vector<int> m_componentOrder;
+    std::unordered_map<int, std::vector<bool>> m_outputStates;
     int m_currentId{0};
-    bool m_evalOrderDirty{true};
+    bool m_structureDirty{true};
     bool m_stateDirty{true};
+    double m_pendingClockTime = 0;
 
-    bool dfsSort(
-        int componentId,
-        std::unordered_set<int>& visited,
-        std::unordered_set<int>& scheduled,
-        std::vector<int>& order
-    );
-    EvalOrderResult evaluateOrder();
-    bool wouldCreateCycle(int srcComponentId, int destComponentId);
+    void publishOutputs(const std::vector<int>& components, std::vector<int>& changed);
 
     float m_lastPropagateDurationMs = 0.0f;
-    EvalOrderResult m_lastEvalResult = EvalOrderResult::OK;
+    SimulationResult m_lastEvalResult = SimulationResult::OK;
 
   public:
     Circuit() = default;
@@ -57,8 +50,10 @@ class Circuit
     int addGate(GateType type);
     int addGate(GateType type, int inputPinCount);
     int addInputPin(bool initialState = false);
-    int addClock(float frequencyHz = 1.0f); // NEW
+    int addClock(float frequencyHz = 1.0f);
     int addLatch(LatchType type);
+    /** @brief Takes ownership of a logical component and assigns its circuit-local ID. */
+    int addComponent(std::unique_ptr<Component> component);
 
     Component* getComponent(int id);
     void delComponent(int id);
@@ -69,8 +64,8 @@ class Circuit
      * @param srcPinIndex Source output index.
      * @param destComponentId Destination component.
      * @param destPinIndex Destination input index.
-     * @return True for a new or identical edge; false for invalid pins, an occupied input, or a
-     * cycle.
+     * @return True for a new or identical edge, including feedback; false for invalid endpoints
+     * or an occupied input.
      */
     bool
     connectComponents(int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex);
@@ -92,22 +87,23 @@ class Circuit
 
     void markStateDirty() { m_stateDirty = true; }
 
-    bool isStateDirty() const { return m_stateDirty || m_evalOrderDirty; }
+    bool isStateDirty() const { return m_stateDirty || m_structureDirty; }
 
     /**
-     * @brief Advances all clocks in the circuit.
-     * @return true if any clock completed a cycle and flipped state.
+     * @brief Advances clocks chronologically, settling the circuit after each transition time.
+     * Work is bounded per call; unprocessed elapsed time is retained for the next call.
+     * @return true if at least one clock edge was processed.
      */
     bool updateClocks(float deltaTime);
 
-    EvalOrderResult propagate();
+    SimulationResult propagate();
 
     // Debugging:
     float getLastPropagateTimeMs() const { return m_lastPropagateDurationMs; }
 
-    EvalOrderResult getLastEvalResult() const { return m_lastEvalResult; }
+    SimulationResult getLastEvalResult() const { return m_lastEvalResult; }
 
-    size_t getEvalOrderSize() const { return m_evaluationOrder.size(); }
+    size_t getSimulationComponentCount() const { return m_componentOrder.size(); }
 
     size_t getComponentCount() const { return m_components.size(); }
 };

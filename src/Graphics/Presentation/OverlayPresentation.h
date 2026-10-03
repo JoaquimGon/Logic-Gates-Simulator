@@ -15,9 +15,9 @@ struct DebugMetrics
     int drawCalls = 0;
     float lastPropagateMs = 0;
     float timeSinceLastPropagateMs = 0;
-    size_t evalOrderCount = 0;
+    size_t scheduledComponentCount = 0;
     size_t totalComponents = 0;
-    EvalOrderResult evalResult = EvalOrderResult::OK;
+    SimulationResult evalResult = SimulationResult::OK;
     size_t netCount = 0;
     size_t wireCount = 0;
     size_t shortedNetCount = 0;

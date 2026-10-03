@@ -415,12 +415,12 @@ void wireEdits()
     accepted(feedbackActions.apply({CreateGate{NOT, {0, 0}, inverter}}));
     auto loop = accepted(feedbackActions.apply({AddWire{{{1, 0}, {1, 3}, {-2, 3}, {-2, 0}}}}));
     require(
-        feedback.propagate() == EvalOrderResult::CYCLE_DETECTED &&
-            !feedback.getRejectedConnections().empty() && feedback.wireCount() == 1,
-        "Action silently rejected feedback instead of keeping editable paused geometry."
+        feedback.propagate() == SimulationResult::NON_CONVERGENT &&
+            feedback.getRejectedConnections().empty() && feedback.wireCount() == 1,
+        "Action rejected feedback instead of retaining an editable, non-convergent circuit."
     );
     accepted(feedbackActions.apply({DeleteWire{loop.insertedWireIds[0]}}));
-    require(feedback.propagate() == EvalOrderResult::OK, "Repair through actions did not resume.");
+    require(feedback.propagate() == SimulationResult::OK, "Repair through actions did not resume.");
 }
 
 void restoreSnapshots()

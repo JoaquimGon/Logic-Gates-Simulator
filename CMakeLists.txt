@@ -119,10 +119,16 @@ if(BUILD_TESTING)
     foreach(test_name IN ITEMS
         gate_truth_tables component_pin_bounds connection_endpoints
         latch_output_propagation connection_lifecycle scene_pin_layouts
-        scene_wire_overlaps scene_connection_rejections source_components
+        scene_wire_overlaps scene_feedback source_components
         geometry_services connectivity_builder distinct_route_pins
     )
         add_test(NAME ${test_name} COMMAND LogicTests ${test_name})
+    endforeach()
+
+    add_executable(SimulationTests tests/SimulationTests.cpp)
+    target_link_libraries(SimulationTests PRIVATE simulator_simulation)
+    foreach(test_name IN ITEMS cyclic_propagation clock_edge_timing clock_edge_receivers)
+        add_test(NAME ${test_name} COMMAND SimulationTests ${test_name})
     endforeach()
 
     add_executable(EditorActionsTests tests/EditorActionsTests.cpp)
