@@ -103,6 +103,20 @@ ComponentDefinition latch(const char* id, const char* name, LatchType type)
 const std::vector<ComponentDefinition>& nativeDefinitions()
 {
     static const std::vector<ComponentDefinition> definitions{
+        source(
+            BuiltinComponentIds::Input,
+            "Input",
+            ManualInputBehavior{},
+            "inputPin",
+            "shaders/components/inputPin.frag"
+        ),
+        source(
+            BuiltinComponentIds::Clock,
+            "Clock",
+            ClockBehavior{},
+            "clock",
+            "shaders/components/clock.frag"
+        ),
         gate(
             BuiltinComponentIds::Not, "NOT", NOT, "NOTgate", "shaders/components/gates/notGate.frag"
         ),
@@ -136,20 +150,6 @@ const std::vector<ComponentDefinition>& nativeDefinitions()
             "NXORgate",
             "shaders/components/gates/nxorGate.frag",
             true
-        ),
-        source(
-            BuiltinComponentIds::Input,
-            "Input",
-            ManualInputBehavior{},
-            "inputPin",
-            "shaders/components/inputPin.frag"
-        ),
-        source(
-            BuiltinComponentIds::Clock,
-            "Clock",
-            ClockBehavior{},
-            "clock",
-            "shaders/components/clock.frag"
         ),
         latch(BuiltinComponentIds::SrLatch, "SR LATCH", LatchType::SR_LATCH),
         latch(BuiltinComponentIds::DLatch, "D LATCH", LatchType::D_LATCH)

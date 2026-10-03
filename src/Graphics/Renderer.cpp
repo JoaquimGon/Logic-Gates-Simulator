@@ -154,6 +154,7 @@ void Renderer::beginFrame(const CanvasCameraFrame& camera)
 {
     m_sm.checkHotReload();
     m_currentCamera = camera;
+    m_screenClip.reset();
     m_drawCallCount = 0; // Reset at the beginning of each frame
     setScreenViewport();
     glClear(GL_COLOR_BUFFER_BIT);
@@ -161,13 +162,32 @@ void Renderer::beginFrame(const CanvasCameraFrame& camera)
 
 void Renderer::setScreenViewport()
 {
-    glDisable(GL_SCISSOR_TEST);
+    if (m_screenClip)
+    {
+        glEnable(GL_SCISSOR_TEST);
+        const auto& clip = *m_screenClip;
+        glScissor(clip.x, clip.y, clip.width, clip.height);
+    }
+    else
+        glDisable(GL_SCISSOR_TEST);
     glViewport(
         0,
         0,
         std::max(0, m_currentCamera.surface.framebufferWidth),
         std::max(0, m_currentCamera.surface.framebufferHeight)
     );
+}
+
+void Renderer::setScreenClip(std::optional<CanvasViewport> bounds)
+{
+    m_screenClip.reset();
+    if (bounds)
+    {
+        CanvasCamera clipCamera;
+        clipCamera.setViewport(bounds);
+        m_screenClip = clipCamera.frame(m_currentCamera.surface).framebufferViewport;
+    }
+    setScreenViewport();
 }
 
 bool Renderer::setCanvasViewport()
@@ -502,6 +522,36 @@ void Renderer::drawScreenRect(CanvasViewport bounds, glm::vec4 color)
         );
     m_wireMesh->updateData(vertices, 7);
     m_wireMesh->draw();
+    ++m_drawCallCount;
+}
+
+void Renderer::drawScreenComponent(const ComponentBodyInstance& body)
+{
+    const auto& surface = m_currentCamera.surface;
+    if (body.size.x <= 0 || body.size.y <= 0 || surface.windowWidth <= 0 ||
+        surface.windowHeight <= 0 || surface.framebufferWidth <= 0 ||
+        surface.framebufferHeight <= 0)
+        return;
+    auto* shader = acquireShader(body.shader);
+    if (!shader)
+        return;
+    setScreenViewport();
+    shader->use();
+    shader->setMat4(
+        "uViewProjection",
+        glm::ortho(
+            0.0f,
+            static_cast<float>(surface.windowWidth),
+            static_cast<float>(surface.windowHeight),
+            0.0f,
+            -1.0f,
+            1.0f
+        )
+    );
+    auto instance = body;
+    instance.size.y = -instance.size.y; // Preserve the shader's upward local Y in screen space.
+    m_gateMesh->setInstanceData(packComponentInstances({&instance, 1}), {2, 2, 4}, 1);
+    m_gateMesh->drawInstanced(1);
     ++m_drawCallCount;
 }
 

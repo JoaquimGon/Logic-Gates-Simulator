@@ -6,6 +6,7 @@
 #include "UI/UI.h"
 
 #include <GLFW/glfw3.h>
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -951,7 +952,7 @@ void canvasCameraInteraction(GLFWwindow* window)
 
 void componentPalette(GLFWwindow* window)
 {
-    glfwSetWindowSize(window, 800, 600);
+    glfwSetWindowSize(window, 800, 800);
     Editor editor(window);
     UI ui;
     auto layout = [&]
@@ -973,11 +974,48 @@ void componentPalette(GLFWwindow* window)
         }
     );
     require(
-        editor.input.getCameraFrame(window).viewport == CanvasViewport{220, 0, 580, 600},
+        editor.input.getCameraFrame(window).viewport == CanvasViewport{220, 0, 580, 800},
         "Palette did not reserve the left side of the canvas."
     );
     const auto buttons = ui.buttons();
     require(buttons.size() == 11, "Palette did not use the registered component catalog.");
+    const std::vector<std::string> expected{
+        BuiltinComponentIds::Input,
+        BuiltinComponentIds::Clock,
+        BuiltinComponentIds::Not,
+        BuiltinComponentIds::And,
+        BuiltinComponentIds::Nand,
+        BuiltinComponentIds::Or,
+        BuiltinComponentIds::Nor,
+        BuiltinComponentIds::Xor,
+        BuiltinComponentIds::Nxor,
+        BuiltinComponentIds::SrLatch,
+        BuiltinComponentIds::DLatch
+    };
+    for (std::size_t i = 0; i < expected.size(); ++i)
+        require(buttons[i].definitionId == expected[i], "Native card order is incorrect.");
+    require(
+        buttons[0].bounds.y == buttons[1].bounds.y && buttons[0].bounds.x < buttons[1].bounds.x &&
+            buttons[2].bounds.y > buttons[0].bounds.y,
+        "Native cards did not use a two-column grid."
+    );
+    auto switchTab = [&](UI::Tab tab)
+    {
+        const auto bounds = ui.tabBounds(tab);
+        editor.cursorPixels(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        require(
+            ui.activeTab() == tab && editor.input.isIdle() && !ui.dragging(),
+            "Tab click leaked into a drag or canvas gesture."
+        );
+    };
+    switchTab(UI::Tab::Custom);
+    require(
+        ui.buttons().empty() && editor.scene.getComponentCount() == 0,
+        "Empty custom tab contained placeholder components."
+    );
+    switchTab(UI::Tab::Native);
     for (std::size_t i = 0; i < buttons.size(); ++i)
     {
         const auto button = buttons[i];
@@ -1063,6 +1101,23 @@ void componentPalette(GLFWwindow* window)
         editor.input.getZoom() == zoom && ui.buttons().back().bounds.y < 350,
         "Palette scrolling zoomed the canvas or hid the last item."
     );
+    const auto partial = std::find_if(
+        ui.buttons().begin(),
+        ui.buttons().end(),
+        [](const auto& item)
+        { return item.bounds.y < 112 && item.bounds.y + item.bounds.height > 112; }
+    );
+    require(partial != ui.buttons().end(), "Scroll fixture did not leave a partly visible card.");
+    const double partialX = partial->bounds.x + 4;
+    editor.cursorPixels(partialX, 116);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    require(ui.dragging(), "Visible part of a scrolled card could not be dragged.");
+    editor.key(GLFW_KEY_ESCAPE);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    editor.cursorPixels(partialX, 108);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    require(!ui.dragging(), "Hidden card area above the list accepted a drag.");
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     editor.input.setMode(EditorMode::Interaction);
     layout();
     const auto button = ui.buttons().back();
@@ -1073,10 +1128,38 @@ void componentPalette(GLFWwindow* window)
         !ui.dragging() && editor.scene.getComponentCount() == count,
         "Interaction mode allowed structural palette edits."
     );
+    switchTab(UI::Tab::Custom);
+    require(ui.buttons().empty(), "Custom tab included native components.");
+    switchTab(UI::Tab::Native);
+    require(ui.buttons().front().bounds.y == 112, "Tab switch retained stale scroll position.");
     editor.key(GLFW_KEY_F2);
     require(
         editor.input.getMode() == EditorMode::Selection,
         "Palette focus prevented switching back to Selection mode."
+    );
+    auto custom = *editor.scene.getComponentCatalog().find(BuiltinComponentIds::DLatch);
+    custom.identity = {"test.custom-memory", 1};
+    custom.displayName = "Custom memory";
+    custom.presentation.kind = PresentationKind::Box;
+    custom.presentation.shader = boxShaderResources();
+    require(
+        static_cast<bool>(EditorActions(editor.scene).apply({RegisterComponentDefinition{custom}})),
+        "Custom palette fixture could not be registered."
+    );
+    layout();
+    require(ui.buttons().size() == 11, "Registered custom component leaked into native cards.");
+    switchTab(UI::Tab::Custom);
+    require(
+        ui.buttons().size() == 1 && ui.buttons()[0].label == "Custom memory" &&
+            ui.buttons()[0].inputCount == 2 && ui.buttons()[0].outputCount == 2,
+        "Custom list omitted the registered name or indexed pin counts."
+    );
+    start();
+    editor.cursor({16, 8});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getComponentCount() == count + 1 && !ui.dragging(),
+        "Custom list entry did not retain drag-to-place behavior."
     );
     ui.cancel(editor.input);
     editor.input.setUiInputHandler({});

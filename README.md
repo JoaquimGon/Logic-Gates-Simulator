@@ -39,7 +39,12 @@ controls rendering and picking together, including framebuffer scaling; screen
 text remains independent.
 
 The left component panel reserves 220 pixels of the window, leaving the rest for
-the simulator. In Selection mode, press a component button, drag onto the canvas,
+the simulator. Its **Native** tab shows shader-preview cards with names below,
+ordered Input, Clock, NOT, AND, NAND, OR, NOR, XOR, NXOR, SR LATCH, D LATCH.
+Latch previews show the latch name inside the body without pin labels. Cards use
+two columns, or one in narrow windows. The **Custom** tab lists registered custom
+definitions by name and input/output counts; it starts empty, with no sample circuits.
+In Selection mode, press a card or custom row, drag onto the canvas,
 and release to place it on the grid. An outline follows the proposed placement;
 occupied space rejects the drop and shows a message. Escape, right-click, focus
 loss, or resizing cancels the drag. Scroll inside the panel in shorter windows.
@@ -54,7 +59,8 @@ Pin editing and truth-table presentation remain future work.
 
 | Input | Action |
 | :--- | :--- |
-| **Drag (Component Panel Button)** | Selection: release on the canvas to create a component |
+| **Click (Native / Custom Tab)** | Switch the component palette category in either mode |
+| **Drag (Component Card / Custom Row)** | Selection: release on the canvas to create a component |
 | **Left Click (Pin)** | Begin routing wire from an input/output pin |
 | **Left Click (Wire)** | Branch or split an existing wire segment |
 | **Left Click (Component Body)** | Selection: select/drag any component; Interaction: operate actionable components |

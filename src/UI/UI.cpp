@@ -1,5 +1,6 @@
 #include "UI/UI.h"
 
+#include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/Input.h"
 #include "Editor/Scene.h"
@@ -10,10 +11,11 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace
 {
-constexpr double rowStep = 42;
+constexpr double cardHeight = 88, cardStep = 96, rowHeight = 48, rowStep = 56;
 }
 
 void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& input)
@@ -28,25 +30,55 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     const double height = std::max(0, surface.windowHeight);
     m_panel = {0, 0, std::min(220.0, width * 0.45), height};
     input.setCanvasViewport(CanvasViewport{m_panel.width, 0, width - m_panel.width, height});
-    m_list = {12, 76, std::max(0.0, m_panel.width - 24), std::max(0.0, height - 124)};
-    m_maxScroll =
-        std::max(0.0, static_cast<double>(catalog.definitions().size()) * rowStep - m_list.height);
-    m_scroll = std::clamp(m_scroll, 0.0, m_maxScroll);
+    m_list = {12, 112, std::max(0.0, m_panel.width - 24), std::max(0.0, height - 160)};
     m_buttons.clear();
-    double y = m_list.y - m_scroll;
-    for (const auto& [id, definition] : catalog.definitions())
+    auto add = [&](const ComponentDefinition& definition)
     {
-        m_buttons.push_back({id, definition.displayName, {m_list.x, y, m_list.width, 36}});
-        y += rowStep;
+        Button button{definition.identity.id, definition.displayName, {}};
+        for (const auto& pin : definition.layout.pins)
+            (pin.direction == PinType::INPUT ? button.inputCount : button.outputCount)++;
+        m_buttons.push_back(std::move(button));
+    };
+    if (m_tab == Tab::Native)
+    {
+        for (const auto& native : nativeDefinitions())
+            if (const auto* definition = catalog.find(native.identity.id))
+                add(*definition);
     }
+    else
+        for (const auto& [id, definition] : catalog.definitions())
+            if (!id.starts_with("native."))
+                add(definition);
+
+    const int columns = m_tab == Tab::Native && m_list.width >= 160 ? 2 : 1;
+    const double step = m_tab == Tab::Native ? cardStep : rowStep;
+    const double itemHeight = m_tab == Tab::Native ? cardHeight : rowHeight;
+    const auto rows = (m_buttons.size() + columns - 1) / columns;
+    const double contentHeight = rows == 0 ? 0 : (rows - 1) * step + itemHeight;
+    m_maxScroll = std::max(0.0, contentHeight - m_list.height);
+    m_scroll = std::clamp(m_scroll, 0.0, m_maxScroll);
+    const double itemWidth = (m_list.width - (columns - 1) * 8) / columns;
+    for (std::size_t i = 0; i < m_buttons.size(); ++i)
+        m_buttons[i].bounds = {
+            m_list.x + (i % columns) * (itemWidth + 8),
+            m_list.y + (i / columns) * step - m_scroll,
+            itemWidth,
+            itemHeight
+        };
+}
+
+CanvasViewport UI::tabBounds(Tab tab) const
+{
+    const double width = std::max(0.0, (m_panel.width - 32) / 2);
+    return {12 + (tab == Tab::Custom ? width + 8 : 0), 70, width, 28};
 }
 
 const UI::Button* UI::buttonAt(glm::dvec2 point) const
 {
+    if (!m_list.contains(point.x, point.y))
+        return nullptr;
     for (const auto& button : m_buttons)
-        if (button.bounds.y >= m_list.y &&
-            button.bounds.y + button.bounds.height <= m_list.y + m_list.height &&
-            button.bounds.contains(point.x, point.y))
+        if (button.bounds.contains(point.x, point.y))
             return &button;
     return nullptr;
 }
@@ -219,6 +251,17 @@ bool UI::handleInput(
         }
         if (m_panel.contains(event.x, event.y))
         {
+            if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS)
+                for (const auto tab : {Tab::Native, Tab::Custom})
+                    if (tabBounds(tab).contains(event.x, event.y))
+                    {
+                        input.cancelCurrentAction();
+                        m_tab = tab;
+                        m_scroll = 0;
+                        m_message.clear();
+                        layout(scene.getComponentCatalog(), m_surface, input);
+                        return true;
+                    }
             if (m_canCreate && input.isIdle() && event.code == GLFW_MOUSE_BUTTON_LEFT &&
                 event.action == GLFW_PRESS)
                 if (const auto* button = buttonAt(m_pointer))
@@ -263,7 +306,8 @@ bool UI::handleInput(
     {
         if (!dragging() && std::isfinite(event.y))
         {
-            m_scroll = std::clamp(m_scroll - event.y * rowStep, 0.0, m_maxScroll);
+            const double step = m_tab == Tab::Native ? cardStep : rowStep;
+            m_scroll = std::clamp(m_scroll - event.y * step, 0.0, m_maxScroll);
             layout(scene.getComponentCatalog(), m_surface, input);
         }
         return true;

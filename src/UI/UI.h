@@ -13,14 +13,21 @@ class Input;
 class Renderer;
 class Scene;
 
-/** Small component palette and read-only information popup, using rectangles and text. */
+/** Small tabbed component palette and read-only information popup. */
 class UI
 {
   public:
+    enum class Tab
+    {
+        Native,
+        Custom
+    };
+
     struct Button
     {
         std::string definitionId, label;
         CanvasViewport bounds;
+        int inputCount = 0, outputCount = 0;
     };
 
     void layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& input);
@@ -31,6 +38,10 @@ class UI
     void draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& camera) const;
 
     const std::vector<Button>& buttons() const { return m_buttons; }
+
+    Tab activeTab() const { return m_tab; }
+
+    CanvasViewport tabBounds(Tab tab) const;
 
     bool dragging() const { return !m_dragDefinition.empty(); }
 
@@ -56,6 +67,7 @@ class UI
     CanvasSurface m_surface{};
     CanvasViewport m_panel{}, m_list{};
     std::vector<Button> m_buttons;
+    Tab m_tab = Tab::Native;
     glm::dvec2 m_pointer{0};
     std::string m_dragDefinition, m_message;
     double m_scroll = 0, m_maxScroll = 0;

@@ -55,7 +55,7 @@ horizontally; boxes/source symbols follow the nearest side. If an extreme row
 misses the silhouette, a bounded contact search and orthogonal dogleg reach an
 inner row. Interior anchors need no visible lead.
 
-A nonempty `PinDefinition::lead` contains 2–256 orthogonal, nonzero relative grid
+A nonempty `PinDefinition::lead` contains 2â€“256 orthogonal, nonzero relative grid
 points ending at that pin's anchor. The first point is connected to the body;
 the declared route follows afterward. Factory/configuration/movement validate
 all absolute points against integer overflow. Views, edits, previews, and
@@ -129,7 +129,7 @@ font choices have not been visually verified.
 Camera framebuffer regressions also cover a panned/zoomed offset canvas at simulated
 2x DPI, every world layer's clipping, and screen text independent of camera changes.
 `canvas-viewport.ppm` and `canvas-with-overlay.ppm` are additional review artifacts.
-Palette framebuffer checks verify panel/button colors and full-window rendering;
+Palette framebuffer checks verify panel/card colors and full-window rendering;
 `component-palette.ppm` and `component-palette-drag.ppm` show all native components
 and the placement outline/badge. Both previews were visually reviewed. Input
 regressions cover all catalog buttons, overlap rejection, cancellation, scrolling,
@@ -137,3 +137,29 @@ and mode isolation. Visible desktop interaction remains a manual integration che
 `component-information.ppm` shows named latch inputs and its two independent
 outputs in a right-click popup. Framebuffer checks verify its opaque background
 and text; the preview was visually reviewed.
+
+## Component palette previews
+
+The small UI class draws Native/Custom tabs with the existing rectangle/text
+primitives. Native cards fit each definition's default aspect ratio and shader
+inside a preview region, with the display name below. Latches retain their central
+body label and omit pin labels. The declaration table supplies native ordering.
+Custom entries are full-width rows with display names and input/output counts;
+the catalog starts with no custom definitions.
+
+Scrolling draws partially visible cards/rows with a screen clip around the list,
+rather than hiding whole items. Hit testing uses the same list bounds. Headers,
+tabs, footer and popups draw after releasing the clip; framebuffer scaling uses
+the existing viewport conversion. `component-palette-scrolled.ppm` verifies the
+bottom scroll position at 2x DPI, including partial cards and header/footer isolation.
+
+`Renderer::drawScreenComponent()` reuses the component mesh, instance packing,
+and loaded shaders with a screen projection. Logical window pixels keep previews
+independent of canvas pan/zoom and preserve framebuffer/DPI scaling. Previewing
+does not instantiate logical components or mutate the scene.
+
+The existing framebuffer runner additionally checks native preview color,
+camera independence, and 2x DPI. `component-palette-dpi.ppm`,
+`component-palette-custom-empty.ppm`, and `component-palette-custom-list.ppm`
+provide review artifacts. The populated custom list is a test-only fixture;
+no sample custom definitions are registered by the app.

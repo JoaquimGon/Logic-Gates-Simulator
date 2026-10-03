@@ -302,7 +302,16 @@ void palettePresentation(Renderer& renderer)
     ui.draw(renderer, scene, frame);
     std::array<unsigned char, 4> left{}, buttonPixel{};
     glReadPixels(5, extent - 501, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, left.data());
-    glReadPixels(20, extent - 90, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, buttonPixel.data());
+    const auto first = ui.buttons().front().bounds;
+    glReadPixels(
+        static_cast<int>(first.x + 3),
+        extent - static_cast<int>(first.y + 3) - 1,
+        1,
+        1,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        buttonPixel.data()
+    );
     require(
         left[2] > left[0] && buttonPixel[2] > left[2],
         "Palette background/buttons were not drawn in screen space."
@@ -315,6 +324,69 @@ void palettePresentation(Renderer& renderer)
         "UI drawing left canvas clipping or invalid GPU state."
     );
     saveImage("component-palette.ppm");
+
+    auto screenPixel = [](glm::dvec2 point, double scale = 1)
+    {
+        std::array<unsigned char, 4> value{};
+        glReadPixels(
+            static_cast<int>(point.x * scale),
+            extent - static_cast<int>(point.y * scale) - 1,
+            1,
+            1,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            value.data()
+        );
+        return value;
+    };
+    const auto andCard = ui.buttons()[3].bounds;
+    const glm::dvec2 andCenter{andCard.x + andCard.width / 2, andCard.y + 34};
+    const auto blueGate = screenPixel(andCenter);
+    require(
+        blueGate[2] > 150 && blueGate[2] > blueGate[0] * 2,
+        "Native AND card did not reuse its colored component shader."
+    );
+    camera.setCenter({0.4f, -0.2f});
+    camera.setZoom(2);
+    auto moved = camera.frame(surface);
+    renderer.beginFrame(moved);
+    renderer.drawCanvas({components, scene.getWires(), junctions});
+    ui.draw(renderer, scene, moved);
+    require(screenPixel(andCenter) == blueGate, "Canvas camera transformed a native card preview.");
+    const CanvasSurface dpiSurface{extent / 2, extent / 2, extent, extent};
+    ui.layout(scene.getComponentCatalog(), dpiSurface, input);
+    camera.setViewport(input.getCanvasViewport());
+    auto dpi = camera.frame(dpiSurface);
+    renderer.beginFrame(dpi);
+    renderer.drawCanvas({components, scene.getWires(), junctions});
+    ui.draw(renderer, scene, dpi);
+    require(
+        screenPixel(andCenter, 2) == blueGate, "Native shader preview ignored framebuffer scaling."
+    );
+    saveImage("component-palette-dpi.ppm");
+    ui.handleInput({UiInputKind::Cursor, 0, 0, 0, 0, 30, 120}, scene, input, dpi);
+    ui.handleInput({UiInputKind::Scroll, 0, 0, 0, 0, 0, -20}, scene, input, dpi);
+    const auto partial = std::find_if(
+        ui.buttons().begin(),
+        ui.buttons().end(),
+        [](const auto& item)
+        { return item.bounds.y < 112 && item.bounds.y + item.bounds.height > 112; }
+    );
+    require(partial != ui.buttons().end(), "Framebuffer scroll fixture has no partial card.");
+    renderer.beginFrame(dpi);
+    renderer.drawCanvas({components, scene.getWires(), junctions});
+    ui.draw(renderer, scene, dpi);
+    const double edgeX = partial->bounds.x + 3;
+    const auto cardEdge = screenPixel({edgeX, 115}, 2);
+    const auto panelBackground = screenPixel({5, 115}, 2);
+    require(
+        cardEdge[2] > panelBackground[2] && screenPixel({edgeX, 110}, 2) == panelBackground &&
+            screenPixel({edgeX, dpiSurface.windowHeight - 45.0}, 2) == panelBackground &&
+            glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE,
+        "Scrolling hid partial cards, leaked into header/footer, or retained UI clipping."
+    );
+    saveImage("component-palette-scrolled.ppm");
+    ui.layout(scene.getComponentCatalog(), surface, input);
 
     const auto b = ui.buttons().front().bounds;
     ui.handleInput(
@@ -330,6 +402,45 @@ void palettePresentation(Renderer& renderer)
     require(glGetError() == GL_NO_ERROR, "Palette drag preview produced an OpenGL error.");
     saveImage("component-palette-drag.ppm");
     ui.cancel(input);
+
+    const auto customTab = ui.tabBounds(UI::Tab::Custom);
+    ui.handleInput(
+        {UiInputKind::MouseButton,
+         GLFW_MOUSE_BUTTON_LEFT,
+         GLFW_PRESS,
+         0,
+         0,
+         customTab.x + 10,
+         customTab.y + 10},
+        scene,
+        input,
+        frame
+    );
+    require(ui.buttons().empty(), "Custom palette rendered placeholder/native entries.");
+    renderer.beginFrame(frame);
+    renderer.drawCanvas({components, scene.getWires(), junctions});
+    ui.draw(renderer, scene, frame);
+    saveImage("component-palette-custom-empty.ppm");
+
+    auto custom = *scene.getComponentCatalog().find(BuiltinComponentIds::DLatch);
+    custom.identity = {"test.custom-memory", 1};
+    custom.displayName = "Custom memory";
+    custom.presentation.kind = PresentationKind::Box;
+    custom.presentation.shader = boxShaderResources();
+    require(
+        static_cast<bool>(EditorActions(scene).apply({RegisterComponentDefinition{custom}})),
+        "Cannot register custom list rendering fixture."
+    );
+    ui.layout(scene.getComponentCatalog(), surface, input);
+    renderer.beginFrame(frame);
+    renderer.drawCanvas({components, scene.getWires(), junctions});
+    ui.draw(renderer, scene, frame);
+    require(
+        ui.buttons().size() == 1 && ui.buttons()[0].inputCount == 2 &&
+            ui.buttons()[0].outputCount == 2 && glGetError() == GL_NO_ERROR,
+        "Custom palette lost its name/count row or corrupted GPU state."
+    );
+    saveImage("component-palette-custom-list.ppm");
 }
 
 void componentInformationPresentation(Renderer& renderer)

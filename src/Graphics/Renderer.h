@@ -7,6 +7,7 @@
 #include "Graphics/Text/TextPainter.h"
 
 #include <memory>
+#include <optional>
 #include <unordered_set>
 
 /** Coordinates canvas layers and owns context-bound drawing resources. */
@@ -45,6 +46,11 @@ class Renderer
     void drawText(std::span<const TextRun> runs, TextSpace space);
     /** @brief Draws a filled rectangle in logical window pixels for basic UI. */
     void drawScreenRect(CanvasViewport bounds, glm::vec4 color);
+    /** @brief Draws a shader body in logical window pixels, reusing the canvas component mesh. */
+    void drawScreenComponent(const ComponentBodyInstance& body);
+    /** @brief Clips screen drawing to logical window bounds; nullopt restores full-window drawing.
+     */
+    void setScreenClip(std::optional<CanvasViewport> bounds);
 
     const FontMetrics& fontMetrics() const { return m_text.metrics(); }
 
@@ -60,6 +66,7 @@ class Renderer
     std::unique_ptr<Mesh> m_gateMesh, m_gridMesh, m_pointMesh, m_wireMesh, m_boundsMesh;
     TextPainter m_text;
     CanvasCameraFrame m_currentCamera{};
+    std::optional<PixelViewport> m_screenClip;
     bool setCanvasViewport();
     bool useCanvasShader(Shader& shader);
     void setScreenViewport();
