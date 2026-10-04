@@ -51,6 +51,7 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
     add_library(simulator_input STATIC
         src/Editor/Input.cpp
         src/Editor/InputRouting.cpp
+        src/Editor/CircuitViews.cpp
         src/Editor/ComponentShortcuts.cpp
         src/Editor/Gestures/DragGesture.cpp
         src/Editor/Gestures/WireGesture.cpp
@@ -58,7 +59,7 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
     )
     target_link_libraries(simulator_input PUBLIC simulator_scene PRIVATE glfw)
     target_compile_definitions(simulator_input PRIVATE GLFW_INCLUDE_NONE)
-    add_library(simulator_ui STATIC src/UI/UI.cpp)
+    add_library(simulator_ui STATIC src/UI/UI.cpp src/UI/CircuitTabs.cpp)
     target_link_libraries(simulator_ui PUBLIC simulator_input PRIVATE glfw)
     target_compile_definitions(simulator_ui PRIVATE GLFW_INCLUDE_NONE)
 endif()
@@ -72,6 +73,10 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
         src/Graphics/Text/TextGeometry.cpp
     )
     target_link_libraries(simulator_presentation PUBLIC simulator_views stb_truetype)
+endif()
+
+if(TARGET simulator_ui)
+    target_link_libraries(simulator_ui PUBLIC simulator_presentation)
 endif()
 
 if(BUILD_SIMULATOR_APP)
@@ -95,7 +100,7 @@ if(BUILD_SIMULATOR_APP)
         PROJECT_FONT_PATH="${PROJECT_FONT_PATH}"
     )
 
-    target_sources(simulator_ui PRIVATE src/UI/UIDrawing.cpp)
+    target_sources(simulator_ui PRIVATE src/UI/UIDrawing.cpp src/UI/CircuitTabsDrawing.cpp)
     target_link_libraries(simulator_ui PRIVATE simulator_graphics)
     add_executable(${PROJECT_NAME} src/App/main.cpp src/App/Engine.cpp)
     target_link_libraries(${PROJECT_NAME} PRIVATE simulator_ui simulator_graphics glfw)
@@ -175,4 +180,9 @@ if(BUILD_TESTING)
     )
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
     endforeach()
+
+    add_executable(CircuitViewsTests tests/CircuitViewsTests.cpp)
+    target_link_libraries(CircuitViewsTests PRIVATE simulator_ui glfw)
+    target_compile_definitions(CircuitViewsTests PRIVATE GLFW_INCLUDE_NONE)
+    add_test(NAME circuit_views COMMAND CircuitViewsTests)
 endif()

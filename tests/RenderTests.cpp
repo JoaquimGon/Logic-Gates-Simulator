@@ -1,5 +1,6 @@
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
+#include "Editor/CircuitViews.h"
 #include "Editor/Input.h"
 #include "Editor/Scene.h"
 #include "Graphics/Presentation/ComponentPresentation.h"
@@ -924,6 +925,143 @@ void canvasViewport(Renderer& renderer)
         "Canvas completion did not restore the full framebuffer viewport."
     );
 }
+
+void circuitViewsPresentation(Renderer& renderer)
+{
+    CircuitViews views;
+    Input input;
+    views.select(0, input);
+    views.activeScene().addComponent(BuiltinComponentIds::And, {0, 0});
+    UI ui;
+    ui.setCircuitViews(&views, &renderer.fontMetrics());
+    CanvasSurface surface{extent, extent, extent, extent};
+    auto layout = [&] { ui.layout(views.activeScene().getComponentCatalog(), surface, input); };
+    auto frame = [&]
+    {
+        CanvasCamera camera;
+        camera.setViewport(input.getCanvasViewport());
+        camera.setCenter(input.getPanOffset());
+        camera.setZoom(input.getZoom());
+        return camera.frame(surface);
+    };
+    auto draw = [&]
+    {
+        layout();
+        const auto camera = frame();
+        renderer.beginFrame(camera);
+        const auto components =
+            buildComponentPresentation(views.activeScene().getComponentViewMap());
+        const auto junctions = views.activeScene().getWireIntersections();
+        renderer.drawCanvas({components, views.activeScene().getWires(), junctions});
+        ui.draw(renderer, views.activeScene(), camera);
+        return camera;
+    };
+    auto screenPixel = [&](double x, double y)
+    {
+        std::array<unsigned char, 4> value;
+        glReadPixels(
+            static_cast<int>(x * extent / surface.windowWidth),
+            extent - 1 - static_cast<int>(y * extent / surface.windowHeight),
+            1,
+            1,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            value.data()
+        );
+        return value;
+    };
+    auto click = [&](CanvasViewport bounds, int button)
+    {
+        UiInputEvent event{UiInputKind::MouseButton};
+        event.code = button;
+        event.action = GLFW_PRESS;
+        event.x = bounds.x + bounds.width / 2;
+        event.y = bounds.y + bounds.height / 2;
+        if (bounds.y == 0 && bounds != ui.circuitTabs().tabBounds(0) &&
+            bounds != ui.circuitTabs().addBounds())
+        {
+            const auto main = ui.circuitTabs().tabBounds(0);
+            const double left = std::max(bounds.x, main.x + main.width);
+            const double right =
+                std::min(bounds.x + bounds.width, static_cast<double>(surface.windowWidth));
+            require(right > left, "Circuit tab click has no visible target.");
+            event.x = (left + right) / 2;
+        }
+        ui.handleInput(event, views.activeScene(), input, frame());
+        layout();
+        event.action = GLFW_RELEASE;
+        ui.handleInput(event, views.activeScene(), input, frame());
+    };
+    auto mainFrame = draw();
+    require(
+        mainFrame.viewport.y == 34 && cameraPixel(mainFrame, {0, 0})[2] > 150,
+        "Main tab canvas is not clipped below the header or lost its component."
+    );
+    const auto mainBounds = ui.circuitTabs().tabBounds(0);
+    const auto mainColor = screenPixel(mainBounds.x + 4, 5);
+    require(
+        mainColor[2] > mainColor[0] + 50, "Active Main circuit tab did not draw above the canvas."
+    );
+    click(ui.circuitTabs().addBounds(), GLFW_MOUSE_BUTTON_LEFT);
+    const auto emptyFrame = draw();
+    require(
+        views.activeIndex() == 1 && cameraPixel(emptyFrame, {0, 0})[2] < 100,
+        "New circuit still rendered the outgoing scene."
+    );
+    views.activeScene().addComponent(BuiltinComponentIds::Or, {0, 0});
+    auto secondFrame = draw();
+    const auto gate = cameraPixel(secondFrame, {0, 0});
+    require(
+        gate[0] > 150 && gate[2] < 100, "New circuit component was not rendered on its own canvas."
+    );
+    const auto add = ui.circuitTabs().addBounds();
+    const auto addFill = screenPixel(add.x + 3, add.y + 3);
+    require(
+        add.width == add.height && addFill[2] > 45 && addFill[0] < 40,
+        "Trailing plus square did not draw separately from the circuit tabs."
+    );
+    saveImage("circuit-tabs.ppm");
+    views.rename(1, "A long circuit name that should be shortened in the tab");
+    layout();
+    require(ui.circuitTabs().tabName(1).ends_with("..."), "Circuit tab title did not shorten.");
+    click(ui.circuitTabs().tabBounds(1), GLFW_MOUSE_BUTTON_RIGHT);
+    require(ui.circuitTabs().popupIndex() == 1, "Visible circuit tab did not open its name popup.");
+    draw();
+    const auto popup = ui.circuitTabs().popupBounds();
+    const auto field = ui.circuitTabs().nameBounds();
+    require(
+        screenPixel(popup.x + 2, popup.y + 2)[2] > 25 &&
+            screenPixel(field.x + 2, field.y + 2)[2] < 50,
+        "Circuit name popup and text field did not render."
+    );
+    saveImage("circuit-tab-name.ppm");
+    surface = {512, 512, extent, extent};
+    layout();
+    click(ui.circuitTabs().tabBounds(1), GLFW_MOUSE_BUTTON_RIGHT);
+    require(
+        ui.circuitTabs().popupIndex() == 1, "Partially clipped tab could not open its name popup."
+    );
+    draw();
+    const auto dpiPopup = ui.circuitTabs().popupBounds();
+    require(
+        screenPixel(dpiPopup.x + 2, dpiPopup.y + 2)[2] > 25,
+        "Circuit name popup did not scale to 2x DPI."
+    );
+    saveImage("circuit-tabs-2x.ppm");
+    click(ui.circuitTabs().tabBounds(0), GLFW_MOUSE_BUTTON_LEFT);
+    const auto returnedFrame = draw();
+    require(
+        views.activeIndex() == 0 && cameraPixel(returnedFrame, {0, 0})[2] > 150,
+        "Returning to Main did not redraw its retained scene."
+    );
+    require(
+        glGetError() == GL_NO_ERROR && glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE,
+        "Circuit tab drawing left a clipping or OpenGL error."
+    );
+    ui.setCircuitViews(nullptr, nullptr);
+    input.setScene(nullptr);
+}
+
 } // namespace
 
 int main()
@@ -979,6 +1117,7 @@ int main()
             palettePresentation(renderer);
             outputPresentation(renderer);
             componentInformationPresentation(renderer);
+            circuitViewsPresentation(renderer);
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";
         }
         catch (const std::exception& error)

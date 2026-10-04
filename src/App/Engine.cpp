@@ -2,6 +2,7 @@
 
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
+#include "Editor/CircuitViews.h"
 #include "Editor/Scene.h"
 #include "Graphics/Presentation/ComponentPresentation.h"
 
@@ -110,16 +111,17 @@ void Engine::run()
         return;
     }
 
-    Scene scene;
+    CircuitViews circuits;
 
-    const auto initialScene = EditorActions(scene).apply(
-        {CreateComponent{BuiltinComponentIds::And, {0, 0}, {}},
-         CreateComponent{BuiltinComponentIds::Nand, {0, 10}, {}},
-         CreateComponent{BuiltinComponentIds::Or, {10, 0}, {}},
-         CreateComponent{BuiltinComponentIds::Nor, {10, 10}, {}},
-         CreateComponent{BuiltinComponentIds::Xor, {-10, 0}, {}},
-         CreateComponent{BuiltinComponentIds::Nxor, {-10, 10}, {}}}
-    );
+    const auto initialScene = EditorActions(circuits.activeScene())
+                                  .apply(
+                                      {CreateComponent{BuiltinComponentIds::And, {0, 0}, {}},
+                                       CreateComponent{BuiltinComponentIds::Nand, {0, 10}, {}},
+                                       CreateComponent{BuiltinComponentIds::Or, {10, 0}, {}},
+                                       CreateComponent{BuiltinComponentIds::Nor, {10, 10}, {}},
+                                       CreateComponent{BuiltinComponentIds::Xor, {-10, 0}, {}},
+                                       CreateComponent{BuiltinComponentIds::Nxor, {-10, 10}, {}}}
+                                  );
     if (!initialScene)
     {
         std::cerr << "[Editor] Initial scene could not be created: " << initialScene.message
@@ -127,15 +129,27 @@ void Engine::run()
         return;
     }
 
-    input.setScene(&scene);
+    circuits.select(0, input);
+    m_ui.setCircuitViews(&circuits, &m_renderer.fontMetrics());
     auto updateUiLayout = [&]()
-    { m_ui.layout(scene.getComponentCatalog(), input.getCameraFrame(window).surface, input); };
+    {
+        m_ui.layout(
+            circuits.activeScene().getComponentCatalog(),
+            input.getCameraFrame(window).surface,
+            input
+        );
+    };
     updateUiLayout();
     input.setUiInputHandler(
         [&](const UiInputEvent& event)
         {
             updateUiLayout();
-            return m_ui.handleInput(event, scene, input, input.getCameraFrame(window));
+            m_ui.update(glfwGetTime(), input);
+            const bool consumed = m_ui.handleInput(
+                event, circuits.activeScene(), input, input.getCameraFrame(window)
+            );
+            updateUiLayout();
+            return consumed;
         }
     );
 
@@ -170,6 +184,8 @@ void Engine::run()
         // 1. Process OS user inputs
         updateUiLayout();
         input.process(window);
+        m_ui.update(currentFrameTime, input);
+        Scene& scene = circuits.activeScene();
         if (displayedMode != input.getMode())
         {
             displayedMode = input.getMode();
@@ -300,6 +316,7 @@ void Engine::run()
     }
 
     m_ui.cancel(input);
+    m_ui.setCircuitViews(nullptr, nullptr);
     input.setUiInputHandler({});
     input.setScene(nullptr);
     shutdown();

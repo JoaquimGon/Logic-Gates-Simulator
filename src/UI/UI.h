@@ -3,6 +3,7 @@
 #include "Editor/UiInput.h"
 #include "Geometry/CanvasCamera.h"
 #include "Geometry/GridCoords.h"
+#include "UI/CircuitTabs.h"
 
 #include <optional>
 #include <string>
@@ -31,6 +32,11 @@ class UI
     };
 
     void layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& input);
+    void setCircuitViews(CircuitViews* views, const FontMetrics* font);
+    void update(double now, Input& input);
+
+    const CircuitTabs& circuitTabs() const { return m_circuitTabs; }
+
     bool handleInput(
         const UiInputEvent& event, Scene& scene, Input& input, const CanvasCameraFrame& camera
     );
@@ -80,4 +86,5 @@ class UI
     bool m_infoRightPressed = false, m_infoEscapePressed = false;
     bool m_nameEditing = false;
     std::string m_nameDraft, m_nameError;
+    CircuitTabs m_circuitTabs;
 };

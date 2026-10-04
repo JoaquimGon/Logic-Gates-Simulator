@@ -21,7 +21,10 @@ constexpr double cardHeight = 88, cardStep = 96, rowHeight = 48, rowStep = 56;
 void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& input)
 {
     if (surface != m_surface)
+    {
         closeInfo(input);
+        m_circuitTabs.cancel(input);
+    }
     if (surface != m_surface || input.getMode() != EditorMode::Selection)
         cancel(input);
     m_surface = surface;
@@ -29,7 +32,11 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     const double width = std::max(0, surface.windowWidth);
     const double height = std::max(0, surface.windowHeight);
     m_panel = {0, 0, std::min(220.0, width * 0.45), height};
-    input.setCanvasViewport(CanvasViewport{m_panel.width, 0, width - m_panel.width, height});
+    const double top = m_circuitTabs.enabled() ? std::min(34.0, height) : 0;
+    m_circuitTabs.layout({m_panel.width, 0, width - m_panel.width, top});
+    input.setCanvasViewport(
+        CanvasViewport{m_panel.width, top, width - m_panel.width, height - top}
+    );
     m_list = {12, 112, std::max(0.0, m_panel.width - 24), std::max(0.0, height - 160)};
     m_buttons.clear();
     auto add = [&](const ComponentDefinition& definition)
@@ -65,6 +72,18 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
             itemWidth,
             itemHeight
         };
+}
+
+void UI::setCircuitViews(CircuitViews* views, const FontMetrics* font)
+{
+    m_circuitTabs.bind(views, font);
+}
+
+void UI::update(double now, Input& input)
+{
+    m_circuitTabs.update(now, input);
+    if (m_circuitTabs.popupIndex())
+        closeInfo(input);
 }
 
 CanvasViewport UI::tabBounds(Tab tab) const
@@ -201,6 +220,15 @@ bool UI::handleInput(
     const UiInputEvent& event, Scene& scene, Input& input, const CanvasCameraFrame& camera
 )
 {
+    if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS &&
+        m_circuitTabs.contains(event.x, event.y))
+    {
+        cancel(input);
+        closeInfo(input);
+        m_message.clear();
+    }
+    if (!dragging() && m_circuitTabs.handleInput(event, input))
+        return true;
     if (m_infoComponent != -1 && !scene.getCommittedComponentView(m_infoComponent))
         closeInfo(input);
     if (event.kind == UiInputKind::WindowFocus)

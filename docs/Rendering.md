@@ -239,3 +239,36 @@ dragging, release/cancellation cleanup, and same-cell endpoint suppression.
 check marker size/opacity, layering above pins, and clean removal after drawing.
 All three framebuffer previews were visually reviewed; the 46 Debug and 45
 headless AddressSanitizer groups pass.
+
+## Circuit viewpoints
+
+`Editor/CircuitViews` owns a small vector of named, independent scenes and their
+last pan/zoom values. Main exists from startup; creation adds an empty scene.
+Switching reuses `Input::setScene()` to cancel previews, clear selection and
+queued shortcuts, then restores the destination camera. Existing EditorActions
+and scene snapshots continue to operate on one scene. Only the active scene is
+simulated; inactive clock phases/signals are retained without wall-time catch-up.
+
+`UI/CircuitTabs` provides the top strip and its rename popup using existing
+Renderer rectangles/text. The shared canvas viewport excludes its 34-pixel
+header. Each tab measures `unnamed circuit` at 0.45 font scale with 10-pixel side
+padding; longer names replace the last fitting characters with `...`. Main remains pinned while the other tabs scroll. A separate square plus button
+follows the last circuit tab; creation and resizing reveal it with the newest
+active tab. Other active tabs are revealed when switching. No tab removal is exposed yet.
+
+A one-second hover or right-click opens a popup with the full name and a
+prefilled field. Clicking the field selects its contents; Enter saves, Backspace
+and Ctrl+A edit, and Escape/outside click/focus loss/resize discard drafts.
+Keyboard capture blocks canvas shortcuts while typing. Names are metadata,
+limited by the field to 64 printable ASCII characters; blank names use the
+default. Subcircuit I/O panels, validation, packaging, nesting, and persistence
+remain separate future work.
+
+`CircuitViewsTests` checks independent contents/signals/cameras, scene-local
+snapshot restoration, cancelled gestures, header drop cancellation, hover timing,
+renaming/capture/cancellation, overflow scrolling, and resize visibility.
+Framebuffer checks draw the active scene, tab titles, and a real name popup at
+normal and 2x DPI; review artifacts are `circuit-tabs.ppm`,
+`circuit-tab-name.ppm`, and `circuit-tabs-2x.ppm`.
+All 47 Debug and 46 headless AddressSanitizer checks pass; the tab and rename
+popup previews were visually reviewed.

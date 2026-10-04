@@ -221,4 +221,5 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         );
     }
     renderer.drawText(text, TextSpace::Screen);
+    m_circuitTabs.draw(renderer);
 }
