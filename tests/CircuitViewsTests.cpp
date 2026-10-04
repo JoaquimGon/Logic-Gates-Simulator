@@ -79,8 +79,8 @@ void run(GLFWwindow* window)
     main.syncVisuals();
     input.setPanOffset({0.12f, -0.2f});
     input.setZoom(1.75f);
-    require(input.getCanvasViewport()->y == 34, "Tabs did not reserve canvas space.");
-    const double width = getTextWidth("unnamed circuit", 0.45f, font) + 20;
+    require(input.getCanvasViewport()->y == 30, "Tabs did not reserve canvas space.");
+    const double width = static_cast<double>(getTextWidth("unnamed", 0.42f, font)) + 44;
     require(
         std::abs(ui.circuitTabs().tabBounds(0).width - width) < 0.01,
         "Tab width is not based on the default name's font metrics."
@@ -88,7 +88,7 @@ void run(GLFWwindow* window)
     const auto add = ui.circuitTabs().addBounds();
     const auto mainTab = ui.circuitTabs().tabBounds(0);
     require(
-        add.width == add.height && add.height == 34 &&
+        add.width == add.height && add.height == 30 &&
             std::abs(add.x - (mainTab.x + mainTab.width)) < 0.01,
         "Plus is not an independent square after Main."
     );
@@ -99,7 +99,7 @@ void run(GLFWwindow* window)
         "Plus did not follow the last circuit tab."
     );
     require(
-        views.size() == 2 && views.activeIndex() == 1 && views.name(1) == "unnamed circuit" &&
+        views.size() == 2 && views.activeIndex() == 1 && views.name(1) == "unnamed" &&
             views.activeScene().getComponentCount() == 0,
         "Plus did not create and select an empty named scene."
     );
@@ -192,7 +192,7 @@ void run(GLFWwindow* window)
         "Circuit naming failed, leaked a shortcut, or did not shorten the tab title."
     );
     require(
-        getTextWidth(ui.circuitTabs().tabName(1), 0.45f, font) <= width - 20,
+        getTextWidth(ui.circuitTabs().tabName(1), 0.42f, font) <= width - 44,
         "Shortened circuit title overflows its tab."
     );
     key(GLFW_KEY_ESCAPE);
@@ -254,6 +254,87 @@ void run(GLFWwindow* window)
         "The permanent Main circuit could not be reached after many tabs."
     );
     key(GLFW_KEY_ESCAPE);
+    const auto count = views.size();
+    require(
+        ui.circuitTabs().closeBounds(0).width == 0 && !views.remove(0, input) &&
+            !views.remove(999, input) && views.size() == count,
+        "Main or an invalid circuit could be removed."
+    );
+    views.select(3, input);
+    layout();
+    auto* retained = &views.activeScene();
+    retained->addComponent(BuiltinComponentIds::And, {0, 0});
+    input.setPanOffset({0.21f, -0.08f});
+    input.setZoom(1.4f);
+    click(ui.circuitTabs().closeBounds(2));
+    require(
+        ui.circuitTabs().confirmingDelete() && ui.circuitTabs().popupIndex() == 2 &&
+            views.size() == count && views.activeIndex() == 3 && input.getUiCapture().keyboard &&
+            input.getUiCapture().pointer,
+        "Close did not request confirmation without switching or deleting the circuit."
+    );
+    ui.update(100, input);
+    key(GLFW_KEY_F2);
+    require(
+        ui.circuitTabs().confirmingDelete() && input.getMode() == EditorMode::Selection,
+        "Hover timing or a shortcut dismissed the deletion confirmation."
+    );
+    click(ui.circuitTabs().cancelDeleteBounds());
+    require(
+        views.size() == count && !ui.circuitTabs().popupIndex() && !input.getUiCapture().keyboard &&
+            !input.getUiCapture().pointer,
+        "Cancel deleted a circuit or retained input capture."
+    );
+    click(ui.circuitTabs().closeBounds(2));
+    key(GLFW_KEY_ESCAPE);
+    require(
+        views.size() == count && !ui.circuitTabs().confirmingDelete(),
+        "Escape did not cancel circuit deletion."
+    );
+    click(ui.circuitTabs().closeBounds(2));
+    input.handleFocus(false);
+    input.handleFocus(true);
+    require(
+        views.size() == count && !ui.circuitTabs().popupIndex() && !input.getUiCapture().pointer,
+        "Focus loss retained or confirmed a circuit deletion."
+    );
+    click(ui.circuitTabs().closeBounds(2));
+    click(ui.circuitTabs().deleteBounds());
+    require(
+        views.size() == count - 1 && views.activeIndex() == 2 && &views.activeScene() == retained &&
+            input.getPanOffset() == glm::vec2{0.21f, -0.08f} && input.getZoom() == 1.4f,
+        "Deleting an earlier inactive tab lost the active scene or camera."
+    );
+    const auto dragPoint = input.getCameraFrame(window).worldToWindow({0, 0});
+    cursor(dragPoint->x, dragPoint->y);
+    mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    require(!input.isIdle(), "Active deletion fixture did not start a drag.");
+    const auto close = ui.circuitTabs().closeBounds(2);
+    cursor(close.x + close.width / 2, close.y + close.height / 2);
+    mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    click(close);
+    require(
+        input.isIdle() && views.size() == count - 1,
+        "Opening confirmation did not cancel a pending drag safely."
+    );
+    click(ui.circuitTabs().deleteBounds());
+    input.process(window);
+    require(
+        views.size() == count - 2 && views.activeIndex() == 1 && &views.activeScene() == &second &&
+            input.isIdle() && input.getSelectedComponentId() == -1 &&
+            input.getPanOffset() == glm::vec2{-0.1f, 0.3f} && input.getZoom() == 0.75f,
+        "Deleting the active scene did not safely restore its left neighbor."
+    );
+    while (views.size() > 1)
+        require(views.remove(views.size() - 1, input), "Could not remove a remaining circuit.");
+    layout();
+    input.process(window);
+    require(
+        views.activeIndex() == 0 && &views.activeScene() == &main &&
+            ui.circuitTabs().addBounds().x ==
+                ui.circuitTabs().tabBounds(0).x + ui.circuitTabs().tabBounds(0).width,
+        "Removing the final circuit did not leave Main and its trailing plus."
+    );
     ui.setCircuitViews(nullptr, nullptr);
     input.setUiInputHandler({});
     input.setScene(nullptr);

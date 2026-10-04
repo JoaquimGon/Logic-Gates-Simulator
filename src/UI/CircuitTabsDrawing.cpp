@@ -24,6 +24,19 @@ void CircuitTabs::draw(Renderer& renderer) const
              ink}
         );
     };
+    auto icon = [&](const std::string& value, CanvasViewport bounds, float scale)
+    {
+        const float width = getTextWidth(value, 1, *m_font);
+        if (width > 0)
+            scale = std::min(scale, static_cast<float>(std::max(0.0, bounds.width - 10)) / width);
+        text.push_back(
+            {value,
+             {static_cast<float>(bounds.x + (bounds.width - width * scale) / 2),
+              static_cast<float>(bounds.y + bounds.height / 2) + getCapHeight(scale, *m_font) / 2},
+             scale,
+             ink}
+        );
+    };
     renderer.drawScreenRect(m_bar, {0.075f, 0.09f, 0.12f, 1});
     auto tab = [&](std::size_t index)
     {
@@ -39,7 +52,15 @@ void CircuitTabs::draw(Renderer& renderer) const
             renderer.drawScreenRect(
                 {bounds.x, bounds.y + bounds.height - 2, bounds.width, 2}, {0.3f, 0.65f, 0.95f, 1}
             );
-        label(tabName(index), bounds, 0.45f);
+        if (index > 0)
+        {
+            const auto close = closeBounds(index);
+            if (close.contains(m_pointerX, m_pointerY))
+                renderer.drawScreenRect(close, {0.5f, 0.17f, 0.18f, 1});
+            icon("X", close, 0.38f);
+            bounds.width -= close.width;
+        }
+        label(tabName(index), bounds, 0.42f);
     };
     renderer.setScreenClip(m_tabList);
     for (std::size_t index = 1; index < m_views->size(); ++index)
@@ -55,16 +76,7 @@ void CircuitTabs::draw(Renderer& renderer) const
         add.contains(m_pointerX, m_pointerY) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
                                              : glm::vec4{0.11f, 0.15f, 0.21f, 1}
     );
-    const float addScale = std::min(
-        0.55f, static_cast<float>(std::max(0.0, add.width - 12)) / getTextWidth("+", 1, *m_font)
-    );
-    text.push_back(
-        {"+",
-         {static_cast<float>(add.x + (add.width - getTextWidth("+", addScale, *m_font)) / 2),
-          static_cast<float>(add.y + add.height / 2) + getCapHeight(addScale, *m_font) / 2},
-         addScale,
-         ink}
-    );
+    icon("+", add, 0.55f);
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
     renderer.setScreenClip(m_bar);
@@ -79,22 +91,37 @@ void CircuitTabs::draw(Renderer& renderer) const
         renderer.drawScreenRect(
             {popup.x + 1, popup.y + 1, popup.width - 2, popup.height - 2}, {0.08f, 0.12f, 0.17f, 1}
         );
-        label(m_views->name(*m_popup), {popup.x, popup.y, popup.width, 34}, 0.5f);
-        const auto field = nameBounds();
-        renderer.drawScreenRect(
-            field, m_editing ? glm::vec4{0.3f, 0.65f, 0.95f, 1} : glm::vec4{0.25f, 0.35f, 0.46f, 1}
-        );
-        renderer.drawScreenRect(
-            {field.x + 1, field.y + 1, field.width - 2, field.height - 2},
-            m_editing && m_selectAll ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
-                                     : glm::vec4{0.06f, 0.09f, 0.13f, 1}
-        );
-        label(m_editing ? m_draft + "|" : m_views->name(*m_popup), field, 0.43f);
-        label(
-            m_editing ? "Enter: save; Esc: cancel" : "Click name to edit; Esc: close",
-            {popup.x, popup.y + 80, popup.width, 26},
-            0.33f
-        );
+        if (m_confirmDelete)
+        {
+            label("Delete circuit?", {popup.x, popup.y, popup.width, 30}, 0.5f);
+            label(m_views->name(*m_popup), {popup.x, popup.y + 32, popup.width, 28}, 0.43f);
+            const auto cancel = cancelDeleteBounds();
+            const auto remove = deleteBounds();
+            renderer.drawScreenRect(cancel, {0.16f, 0.3f, 0.46f, 1});
+            renderer.drawScreenRect(remove, {0.55f, 0.16f, 0.18f, 1});
+            label("Cancel", cancel, 0.42f);
+            label("Delete", remove, 0.42f);
+        }
+        else
+        {
+            label(m_views->name(*m_popup), {popup.x, popup.y, popup.width, 34}, 0.5f);
+            const auto field = nameBounds();
+            renderer.drawScreenRect(
+                field,
+                m_editing ? glm::vec4{0.3f, 0.65f, 0.95f, 1} : glm::vec4{0.25f, 0.35f, 0.46f, 1}
+            );
+            renderer.drawScreenRect(
+                {field.x + 1, field.y + 1, field.width - 2, field.height - 2},
+                m_editing && m_selectAll ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                         : glm::vec4{0.06f, 0.09f, 0.13f, 1}
+            );
+            label(m_editing ? m_draft + "|" : m_views->name(*m_popup), field, 0.43f);
+            label(
+                m_editing ? "Enter: save; Esc: cancel" : "Click name to edit; Esc: close",
+                {popup.x, popup.y + 80, popup.width, 26},
+                0.33f
+            );
+        }
         renderer.drawText(text, TextSpace::Screen);
     }
 }

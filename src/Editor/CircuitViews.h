@@ -29,6 +29,8 @@ class CircuitViews
     void create(Input& input);
     /** Saves the outgoing camera and restores the destination camera and scene. */
     bool select(std::size_t index, Input& input);
+    /** Removes a circuit; active removal switches left before freeing its scene. Main stays. */
+    bool remove(std::size_t index, Input& input);
     void rename(std::size_t index, std::string name);
 
   private:

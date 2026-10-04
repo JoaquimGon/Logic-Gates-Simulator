@@ -11,7 +11,7 @@ CircuitViews::CircuitViews()
 
 void CircuitViews::create(Input& input)
 {
-    m_views.push_back(View{"unnamed circuit"});
+    m_views.push_back(View{"unnamed"});
     select(m_views.size() - 1, input);
 }
 
@@ -38,8 +38,20 @@ void CircuitViews::rename(std::size_t index, std::string name)
 {
     const auto first = name.find_first_not_of(' ');
     if (first == std::string::npos)
-        name = index == 0 ? "Main" : "unnamed circuit";
+        name = index == 0 ? "Main" : "unnamed";
     else
         name = name.substr(first, name.find_last_not_of(' ') - first + 1);
     m_views.at(index).name = std::move(name);
+}
+
+bool CircuitViews::remove(std::size_t index, Input& input)
+{
+    if (index == 0 || index >= m_views.size())
+        return false;
+    if (index == m_active)
+        select(index - 1, input);
+    m_views.erase(m_views.begin() + index);
+    if (index < m_active)
+        --m_active;
+    return true;
 }

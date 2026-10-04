@@ -994,7 +994,7 @@ void circuitViewsPresentation(Renderer& renderer)
     };
     auto mainFrame = draw();
     require(
-        mainFrame.viewport.y == 34 && cameraPixel(mainFrame, {0, 0})[2] > 150,
+        mainFrame.viewport.y == 30 && cameraPixel(mainFrame, {0, 0})[2] > 150,
         "Main tab canvas is not clipped below the header or lost its component."
     );
     const auto mainBounds = ui.circuitTabs().tabBounds(0);
@@ -1048,7 +1048,29 @@ void circuitViewsPresentation(Renderer& renderer)
         "Circuit name popup did not scale to 2x DPI."
     );
     saveImage("circuit-tabs-2x.ppm");
-    click(ui.circuitTabs().tabBounds(0), GLFW_MOUSE_BUTTON_LEFT);
+    click(ui.circuitTabs().closeBounds(1), GLFW_MOUSE_BUTTON_LEFT);
+    require(
+        ui.circuitTabs().confirmingDelete() && views.size() == 2,
+        "Circuit close button bypassed deletion confirmation."
+    );
+    draw();
+    const auto deletion = ui.circuitTabs().deleteBounds();
+    const auto deleteColor = screenPixel(deletion.x + 3, deletion.y + 3);
+    require(
+        deleteColor[0] > 100 && deleteColor[1] < 60,
+        "Circuit deletion confirmation did not render its Delete button."
+    );
+    saveImage("circuit-tab-delete.ppm");
+    click(ui.circuitTabs().cancelDeleteBounds(), GLFW_MOUSE_BUTTON_LEFT);
+    require(
+        views.size() == 2 && !ui.circuitTabs().popupIndex(), "Cancel did not retain the circuit."
+    );
+    click(ui.circuitTabs().closeBounds(1), GLFW_MOUSE_BUTTON_LEFT);
+    click(ui.circuitTabs().deleteBounds(), GLFW_MOUSE_BUTTON_LEFT);
+    require(
+        views.size() == 1 && ui.circuitTabs().closeBounds(0).width == 0,
+        "Confirmed circuit removal did not retain the permanent Main tab."
+    );
     const auto returnedFrame = draw();
     require(
         views.activeIndex() == 0 && cameraPixel(returnedFrame, {0, 0})[2] > 150,

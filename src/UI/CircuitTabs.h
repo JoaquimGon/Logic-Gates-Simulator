@@ -12,7 +12,7 @@ class Input;
 class Renderer;
 struct FontMetrics;
 
-/** A tab strip and one small rename popup, drawn with existing rectangles and text. */
+/** A tab strip with simple rename/deletion popups, drawn with existing rectangles and text. */
 class CircuitTabs
 {
   public:
@@ -28,12 +28,17 @@ class CircuitTabs
 
     CanvasViewport tabBounds(std::size_t index) const;
     CanvasViewport addBounds() const;
+    CanvasViewport closeBounds(std::size_t index) const;
     CanvasViewport popupBounds() const;
     CanvasViewport nameBounds() const;
+    CanvasViewport deleteBounds() const;
+    CanvasViewport cancelDeleteBounds() const;
     bool contains(double x, double y) const;
     std::string tabName(std::size_t index) const;
 
     std::optional<std::size_t> popupIndex() const { return m_popup; }
+
+    bool confirmingDelete() const { return m_confirmDelete; }
 
   private:
     std::optional<std::size_t> tabAt(double x, double y) const;
@@ -48,5 +53,6 @@ class CircuitTabs
     double m_pointerX = 0, m_pointerY = 0;
     std::optional<std::size_t> m_hover, m_popup, m_lastActive;
     bool m_editing = false, m_selectAll = false, m_escapePressed = false;
+    bool m_confirmDelete = false;
     std::string m_draft;
 };

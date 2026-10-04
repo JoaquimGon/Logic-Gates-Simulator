@@ -32,7 +32,7 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     const double width = std::max(0, surface.windowWidth);
     const double height = std::max(0, surface.windowHeight);
     m_panel = {0, 0, std::min(220.0, width * 0.45), height};
-    const double top = m_circuitTabs.enabled() ? std::min(34.0, height) : 0;
+    const double top = m_circuitTabs.enabled() ? std::min(30.0, height) : 0;
     m_circuitTabs.layout({m_panel.width, 0, width - m_panel.width, top});
     input.setCanvasViewport(
         CanvasViewport{m_panel.width, top, width - m_panel.width, height - top}

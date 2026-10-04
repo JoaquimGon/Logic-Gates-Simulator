@@ -10,7 +10,7 @@
 
 namespace
 {
-constexpr float titleScale = 0.45f;
+constexpr float titleScale = 0.42f;
 }
 
 void CircuitTabs::bind(CircuitViews* views, const FontMetrics* font)
@@ -22,6 +22,7 @@ void CircuitTabs::bind(CircuitViews* views, const FontMetrics* font)
     m_lastActive.reset();
     m_scroll = 0;
     m_editing = m_selectAll = m_escapePressed = false;
+    m_confirmDelete = false;
 }
 
 double CircuitTabs::maxScroll() const
@@ -35,7 +36,7 @@ void CircuitTabs::layout(CanvasViewport bar)
     m_bar = bar;
     if (!enabled())
         return;
-    m_tabWidth = getTextWidth("unnamed circuit", titleScale, *m_font) + 20;
+    m_tabWidth = static_cast<double>(getTextWidth("unnamed", titleScale, *m_font)) + 44;
     const double mainWidth = std::min(m_tabWidth, std::max(0.0, bar.width - bar.height));
     m_tabList = {bar.x + mainWidth, bar.y, std::max(0.0, bar.width - mainWidth), bar.height};
     m_scroll = std::clamp(m_scroll, 0.0, maxScroll());
@@ -82,10 +83,31 @@ CanvasViewport CircuitTabs::popupBounds() const
     return {x, m_bar.y + m_bar.height, width, 112};
 }
 
+CanvasViewport CircuitTabs::closeBounds(std::size_t index) const
+{
+    if (!enabled() || index == 0 || index >= m_views->size())
+        return {};
+    const auto tab = tabBounds(index);
+    const double side = std::min(24.0, tab.height);
+    return {tab.x + tab.width - side - 2, tab.y + (tab.height - side) / 2, side, side};
+}
+
 CanvasViewport CircuitTabs::nameBounds() const
 {
     const auto popup = popupBounds();
     return {popup.x + 10, popup.y + 42, std::max(0.0, popup.width - 20), 30};
+}
+
+CanvasViewport CircuitTabs::deleteBounds() const
+{
+    const auto popup = popupBounds();
+    return {popup.x + popup.width / 2 + 4, popup.y + 72, std::max(0.0, popup.width / 2 - 14), 30};
+}
+
+CanvasViewport CircuitTabs::cancelDeleteBounds() const
+{
+    const auto popup = popupBounds();
+    return {popup.x + 10, popup.y + 72, std::max(0.0, popup.width / 2 - 14), 30};
 }
 
 bool CircuitTabs::contains(double x, double y) const
@@ -108,7 +130,7 @@ std::optional<std::size_t> CircuitTabs::tabAt(double x, double y) const
 std::string CircuitTabs::tabName(std::size_t index) const
 {
     std::string name = m_views->name(index);
-    const double width = std::max(0.0, tabBounds(index).width - 20);
+    const double width = std::max(0.0, tabBounds(index).width - 20 - (index == 0 ? 0 : 24));
     if (getTextWidth(name, titleScale, *m_font) <= width)
         return name;
     while (!name.empty() && getTextWidth(name + "...", titleScale, *m_font) > width)
@@ -129,6 +151,12 @@ void CircuitTabs::stopEditing(Input& input)
 void CircuitTabs::cancel(Input& input)
 {
     stopEditing(input);
+    if (m_confirmDelete)
+    {
+        input.setUiCapture({});
+        input.setCanvasFocused(true);
+    }
+    m_confirmDelete = false;
     m_popup.reset();
     m_hover.reset();
     m_escapePressed = false;
@@ -136,6 +164,7 @@ void CircuitTabs::cancel(Input& input)
 
 void CircuitTabs::open(std::size_t index)
 {
+    m_confirmDelete = false;
     m_popup = index;
     m_draft = m_views->name(index);
 }
@@ -143,7 +172,8 @@ void CircuitTabs::open(std::size_t index)
 void CircuitTabs::update(double now, Input& input)
 {
     m_now = now;
-    if (!enabled() || m_editing || input.getUiCapture().keyboard || input.getUiCapture().pointer)
+    if (!enabled() || m_editing || m_confirmDelete || input.getUiCapture().keyboard ||
+        input.getUiCapture().pointer)
         return;
     if (m_hover && now - m_hoverSince >= 1.0 && m_popup != m_hover)
         open(*m_hover);
@@ -167,6 +197,8 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
     }
     if (event.kind == UiInputKind::Cursor)
     {
+        if (m_confirmDelete)
+            return true;
         const auto hover = tabAt(event.x, event.y);
         if (hover != m_hover)
         {
@@ -178,11 +210,29 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
     if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
         (m_popup || m_escapePressed))
     {
-        stopEditing(input);
-        m_popup.reset();
-        m_hover.reset();
+        cancel(input);
         m_escapePressed = event.action != GLFW_RELEASE;
         input.setCanvasFocused(true);
+        return true;
+    }
+    if (m_confirmDelete)
+    {
+        if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS)
+        {
+            if (event.code == GLFW_MOUSE_BUTTON_LEFT && deleteBounds().contains(event.x, event.y))
+            {
+                const auto index = *m_popup;
+                cancel(input);
+                m_views->remove(index, input);
+                m_lastActive.reset();
+                layout(m_bar);
+            }
+            else if (
+                cancelDeleteBounds().contains(event.x, event.y) ||
+                !popupBounds().contains(event.x, event.y)
+            )
+                cancel(input);
+        }
         return true;
     }
     if (m_editing && event.kind == UiInputKind::Key)
@@ -249,7 +299,16 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
                 if (addBounds().contains(event.x, event.y))
                     m_views->create(input);
                 else if (const auto index = tabAt(event.x, event.y))
-                    m_views->select(*index, input);
+                {
+                    if (closeBounds(*index).contains(event.x, event.y))
+                    {
+                        m_popup = *index;
+                        m_confirmDelete = true;
+                        input.setUiCapture({true, true});
+                    }
+                    else
+                        m_views->select(*index, input);
+                }
                 layout(m_bar);
             }
             else if (event.action == GLFW_PRESS && event.code == GLFW_MOUSE_BUTTON_RIGHT)

@@ -17,7 +17,7 @@ A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 C
 - **Clock Edges:** Every elapsed rising/falling transition settles the circuit before the next transition; simultaneous clocks advance together.
 - **SDF Graphics Pipeline:** Resolution-independent gate geometry rendered on dynamic quads with sub-pixel screen-space anti-aliasing (`fwidth`).
 - **Component Outlines:** Thin slate edges on basic components, inversion bubbles, pins, and latches, matching the unpowered output bulb fill.
-- **Circuit Tabs:** Independent named scenes with retained cameras, a permanent Main tab, and a basic rename popup.
+- **Circuit Tabs:** Independent named scenes with retained cameras, a permanent Main tab, and simple rename/delete popups.
 - **Live Shader Hot-Reloading:** Edit `.frag` or `.vert` files on disk; shaders recompile automatically at runtime.
 
 ---
@@ -54,17 +54,21 @@ occupied space rejects the drop and shows a message. Escape, right-click, focus
 loss, or resizing cancels the drag. Scroll inside the panel in shorter windows.
 Debug metrics start hidden; F3 shows them.
 
-The top circuit strip reserves 34 pixels above the canvas. Click the square **+**
-after the last circuit tab to create and open an empty `unnamed circuit`; click a
+The top circuit strip reserves 30 pixels above the canvas. Click the square **+**
+after the last circuit tab to create and open an empty `unnamed`; click a
 tab to switch.
 Each circuit retains its components, wires, signal state, pan, and zoom. Only
 the visible scene runs; inactive clocks freeze until that scene is revisited.
-Tabs have a fixed width measured from `unnamed circuit`, with small text padding.
+Tabs have a compact fixed width measured from `unnamed`, including padding and
+space for the close button.
 Long titles end in `...`; scroll over the strip when the tabs do not fit.
 Hover a title for one second or right-click it to show its full name and a
 prefilled name field. Click the field to replace the name, then Enter to save;
 Backspace and Ctrl+A edit, while Escape, outside clicks, resize, and focus loss
-cancel the draft. Names accept up to 64 printable ASCII characters. Views are
+cancel the draft. Names accept up to 64 printable ASCII characters. Click a circuit tab's **X**
+to open a **Delete / Cancel** confirmation. Closing the active circuit switches
+to the tab on its left; Main cannot be deleted. Escape or an outside click
+cancels deletion. There is no saved-state check yet. Views are
 currently kept in memory; subcircuit interfaces, validation, packaging, and
 saving remain future work.
 
