@@ -16,6 +16,7 @@ A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 C
 - **Feedback Simulation:** Changed signals propagate until stable; bounded settling pauses unstable circuits while keeping the editor responsive.
 - **Clock Edges:** Every elapsed rising/falling transition settles the circuit before the next transition; simultaneous clocks advance together.
 - **SDF Graphics Pipeline:** Resolution-independent gate geometry rendered on dynamic quads with sub-pixel screen-space anti-aliasing (`fwidth`).
+- **Component Outlines:** Thin slate edges on basic components, inversion bubbles, pins, and latches, matching the unpowered output bulb fill.
 - **Live Shader Hot-Reloading:** Edit `.frag` or `.vert` files on disk; shaders recompile automatically at runtime.
 
 ---

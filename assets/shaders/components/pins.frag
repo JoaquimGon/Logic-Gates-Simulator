@@ -1,5 +1,6 @@
 #version 330 core
 
+uniform float uOutlineScale = 1.0;
 in vec4 vertexColor;
 out vec4 FragColor;
 
@@ -12,15 +13,16 @@ void main()
     // Exact derivative width corresponding to 1 screen pixel
     float delta = fwidth(dist);
 
-    // Core color boundary (radius 0.36) and outer rim boundary (radius 0.48)
-    const float innerR = 0.36;
     const float outerR = 0.48;
+    // Match component outlines in pixel width; retain a visible core on tiny points.
+    float pixelWidth = max(length(vec2(dFdx(dist), dFdy(dist))), 0.000001);
+    float innerR = outerR - min(1.5 * uOutlineScale * pixelWidth, 0.18);
 
     // Hard, crisp AA for the inner core -> dark border transition
     float rimFactor = smoothstep(innerR - delta * 0.5, innerR + delta * 0.5, dist);
 
-    // Dark high-contrast border matching dark UI backdrop
-    vec4 borderColor = vec4(0.08, 0.08, 0.08, vertexColor.a);
+    // Slate border matching the output bulb's unpowered fill
+    vec4 borderColor = vec4(0.12, 0.15, 0.20, vertexColor.a);
     vec4 col = mix(vertexColor, borderColor, rimFactor);
 
     // Sub-pixel alpha falloff at the outer rim (analytical anti-aliasing)

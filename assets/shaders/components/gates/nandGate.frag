@@ -1,6 +1,7 @@
 #version 330 core
 out vec4 FragColor;
 in vec4 instanceTint;
+uniform float uOutlineScale = 1.0;
 in vec2 localPos; // Range: -0.5 .. 0.5
 
 // AND Gate SDF: Flat back at -halfSize.x, curved nose reaching +halfSize.x
@@ -12,17 +13,22 @@ float sdAndGate(vec2 p, vec2 halfSize)
     // The curve radius matches the half-height (halfSize.y) so it meets the walls seamlessly.
     float splitX = halfSize.x - halfSize.y;
 
-    if (p.x > splitX) {
-        // Semi-circle arc centered at (splitX, 0) reaching exactly +halfSize.x at its tip
-        return length(p - vec2(splitX, 0.0)) - halfSize.y;
-    }
-
-    // Straight body box spanning from -halfSize.x to splitX
-    float boxHalfW = (splitX - (-halfSize.x)) * 0.5;
+    // Union the cap with the straight body: their internal join is not an edge.
+    float boxHalfW = (splitX + halfSize.x) * 0.5;
     float boxCenterX = -halfSize.x + boxHalfW;
+    vec2 q = abs(p - vec2(boxCenterX, 0.0)) - vec2(boxHalfW, halfSize.y);
+    float straight = min(max(q.x, q.y), 0.0) + length(max(q, 0.0));
+    float cap = length(p - vec2(splitX, 0.0)) - halfSize.y;
+    return min(straight, cap);
+}
 
-    vec2 d = abs(p - vec2(boxCenterX, 0.0)) - vec2(boxHalfW, halfSize.y);
-    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+// Taper the inset outline below normal zoom; cap it at 1.5 framebuffer pixels.
+float outlineFactor(float distance)
+{
+    float pixelWidth = max(length(vec2(dFdx(distance), dFdy(distance))), 0.000001);
+    float strokeWidth = 1.5 * uOutlineScale;
+    return smoothstep(-(strokeWidth + 0.5) * pixelWidth,
+                      -max(strokeWidth - 0.5, 0.0) * pixelWidth, distance);
 }
 
 void main()
@@ -45,5 +51,10 @@ void main()
     float aa = fwidth(d);
     float fillFactor = 1.0 - smoothstep(0.0, aa, d);
 
-    FragColor = vec4(instanceTint.rgb, fillFactor * instanceTint.a);
+    float outline = outlineFactor(d);
+    // Preserve the bubble's complete rim where it meets the gate body.
+    float bubbleCoverage = 1.0 - smoothstep(0.0, max(fwidth(bubble), 0.000001), bubble);
+    outline = max(outline, outlineFactor(bubble) * bubbleCoverage);
+    vec3 color = mix(instanceTint.rgb, vec3(0.12, 0.15, 0.20), outline);
+    FragColor = vec4(color, fillFactor * instanceTint.a);
 }

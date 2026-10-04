@@ -24,9 +24,30 @@ not Circuit implementation.
 
 The component vertex shader receives position(2), size(2), and tint(4) per
 instance. There is no batch-wide size uniform. Native solid shapes use declared
-tint directly; boxes/latches multiply their slate/border material by it.
+tint for their fill; boxes/latches multiply their slate fill by it. All use a
+neutral slate outline matching the output bulb's unpowered fill color.
 Contours/inversion describe the matching shader's silhouette and attachment
 policy; they do not change simulation behavior.
+
+Gates, inversion bubbles, inputs, clocks, boxes/latches, and pin/junction markers
+share the output bulb's unpowered fill color `(0.12, 0.15, 0.20)`. Fragment derivatives keep
+the inset stroke approximately 1.5 framebuffer pixels wide at 1x zoom and above,
+independent of instance size/aspect. Below 1x, thickness scales with zoom
+(`1.5 * zoom` pixels), retaining pixel anti-aliasing. Screen-space card previews
+always use the 1.5-pixel thickness, independent of the canvas camera. Tiny point sprites clamp their rim width
+to retain a colored core. Inversion bubbles retain their complete circular rim
+at the body join; XOR/NXOR rear arcs retain their original colored width with a
+matching rim added outward, clipped by the gate quad. Their rim follows the same zoom rule;
+a stable circle gradient avoids derivative artifacts along their centerline.
+Input/clock outlines follow the outer body rather than bordering their inner
+glyph cutouts. The output bulb retains its distinct material.
+
+Body outlines are inset shading. Rear arc rims extend outward within the shader
+quad; neither changes component sizing or electrical pin anchors.
+AND's straight body and cap use a continuous union distance field on both CPU
+and GPU, preventing their internal join from being shaded as a false edge.
+Outline helpers remain small local shader functions; shader helper consolidation
+and dependency-aware includes remain RM-R1.
 
 Bodies are ordered by ascending stable component ID. Only adjacent instances
 with the same shader are batched. Grouping all equal shaders would reorder
@@ -205,6 +226,12 @@ card centering, including bubbles, and outline edges/corners/interiors.
 `rounded-component-bounds.ppm` is the outline review artifact. All 46 Debug
 and 45 headless AddressSanitizer groups pass; outline, palette-centering, and
 component-presentation previews were visually reviewed.
+
+Component-outline checks cover perimeter shading, constant pixel thickness at
+1x/2x zoom, tapering below 1x, colored XOR/NXOR rear arcs, full NAND/NOR/NXOR bubble rims and colored interiors, seam-free AND
+fills, and outline-aware card centering. `component-outline-nand.ppm`, native
+palette, and component-presentation previews were visually reviewed. All 46
+Debug checks and 45 headless AddressSanitizer checks pass.
 
 Wire-marker regressions cover immediate/deferred starts, fixed origins during
 dragging, release/cancellation cleanup, and same-cell endpoint suppression.

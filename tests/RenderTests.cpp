@@ -277,6 +277,118 @@ std::array<unsigned char, 4> cameraPixel(const CanvasCameraFrame& frame, glm::ve
     return result;
 }
 
+void componentOutlines(Renderer& renderer)
+{
+    auto slateRim = [](const auto& color)
+    {
+        return std::abs(color[0] - 31) < 15 && std::abs(color[1] - 38) < 15 &&
+               std::abs(color[2] - 51) < 15;
+    };
+    Scene scene;
+    scene.addComponent(BuiltinComponentIds::And, {0, 0});
+    const auto base = buildComponentPresentation(scene.getComponentViewMap()).front();
+    for (float zoom : {1.0f, 2.0f})
+    {
+        CanvasCamera camera;
+        camera.setZoom(zoom);
+        const auto frame = camera.frame({extent, extent, extent, extent});
+        const float onePixel = 1.0f / frame.pixelsPerWorldUnit;
+        auto body = base;
+        body.body.size = {0.6f, 0.6f};
+        renderer.beginFrame(frame);
+        renderer.drawComponents(std::vector<ComponentRenderData>{body});
+        require(
+            slateRim(cameraPixel(frame, {0, 0.252f - 0.5f * onePixel})),
+            "Basic gate has no thin outline along its perimeter."
+        );
+        require(
+            cameraPixel(frame, {0, 0.252f - 4 * onePixel})[2] > 180,
+            "Component outline expanded with zoom or covered its fill."
+        );
+        require(
+            cameraPixel(frame, {0.048f, 0})[2] > 180,
+            "AND outline exposed an internal seam between its box and cap."
+        );
+        for (auto id :
+             {BuiltinComponentIds::Nand, BuiltinComponentIds::Nor, BuiltinComponentIds::Nxor})
+        {
+            const auto* definition = scene.getComponentCatalog().find(id);
+            body.body.style = definition->presentation.body;
+            body.body.shader = definition->presentation.shader.key;
+            renderer.beginFrame(frame);
+            renderer.drawComponents(std::vector<ComponentRenderData>{body});
+            require(
+                slateRim(cameraPixel(frame, {0.246f, 0.078f - 0.5f * onePixel})),
+                "Inversion bubble is missing its outline."
+            );
+            require(
+                slateRim(cameraPixel(frame, {0.194f + 0.5f * onePixel, 0})),
+                "Bubble outline disappeared where it meets the gate body."
+            );
+            const auto center = cameraPixel(frame, {0.246f, 0});
+            require(
+                std::max({center[0], center[1], center[2]}) > 180,
+                "Inversion bubble lost its colored interior."
+            );
+            if (id == BuiltinComponentIds::Nand && zoom == 1)
+                saveImage("component-outline-nand.ppm");
+        }
+        for (auto id : {BuiltinComponentIds::Xor, BuiltinComponentIds::Nxor})
+        {
+            const auto* definition = scene.getComponentCatalog().find(id);
+            body.body.style = definition->presentation.body;
+            body.body.shader = definition->presentation.shader.key;
+            renderer.beginFrame(frame);
+            renderer.drawComponents(std::vector<ComponentRenderData>{body});
+            const float arcX = id == BuiltinComponentIds::Xor ? -0.246f : -0.164f;
+            const auto arc = cameraPixel(frame, {arcX, 0});
+            for (int channel = 0; channel < 3; ++channel)
+                require(
+                    std::abs(arc[channel] - body.body.style.tint[channel] * 255) < 20,
+                    "XOR rear arc lost its gate color and visibility."
+                );
+            const float arcEdgeX = id == BuiltinComponentIds::Xor ? -0.2382f : -0.1588f;
+            const auto arcRimProbe = cameraPixel(frame, {arcEdgeX + 1.25f * onePixel, 0});
+            require(
+                std::abs(arcRimProbe[0] - 31) < 20 && std::abs(arcRimProbe[1] - 38) < 20 &&
+                    std::abs(arcRimProbe[2] - 51) < 20,
+                "XOR rear arc is missing its outer outline."
+            );
+            require(
+                cameraPixel(frame, {-0.3f - onePixel, 0.18f})[2] < 25,
+                "XOR rear arc outline escaped its shader quad."
+            );
+            if (zoom == 1)
+                saveImage(
+                    id == BuiltinComponentIds::Xor ? "component-outline-xor.ppm"
+                                                   : "component-outline-nxor.ppm"
+                );
+        }
+    }
+    int normalZoomInsetBlue = 0;
+    for (float zoom : {1.0f, 0.5f, 0.25f})
+    {
+        CanvasCamera camera;
+        camera.setZoom(zoom);
+        const auto frame = camera.frame({extent, extent, extent, extent});
+        auto body = base;
+        body.body.size = {0.6f, 0.6f};
+        body.body.position.y = -0.002f; // Align the top edge at y=0.25 with pixel boundaries.
+        renderer.beginFrame(frame);
+        renderer.drawComponents(std::vector<ComponentRenderData>{body});
+        const auto inset = cameraPixel(frame, {0, 0.25f - 1.5f / frame.pixelsPerWorldUnit});
+        if (zoom == 1)
+            normalZoomInsetBlue = inset[2];
+        else
+            require(
+                inset[2] > normalZoomInsetBlue + 60,
+                "Zooming out kept a full-width outline instead of preserving the colored fill."
+            );
+        if (zoom == 0.25f)
+            saveImage("component-outline-zoomed-out.ppm");
+    }
+}
+
 void palettePresentation(Renderer& renderer)
 {
     Scene scene;
@@ -363,9 +475,13 @@ void palettePresentation(Renderer& renderer)
             {
                 const auto value = screenPixel({x, y});
                 const auto tint = definition->presentation.body.tint;
-                if (std::abs(value[0] - tint[0] * 255) < 8 &&
-                    std::abs(value[1] - tint[1] * 255) < 8 &&
-                    std::abs(value[2] - tint[2] * 255) < 8)
+                const bool fill = std::abs(value[0] - tint[0] * 255) < 8 &&
+                                  std::abs(value[1] - tint[1] * 255) < 8 &&
+                                  std::abs(value[2] - tint[2] * 255) < 8;
+                const bool outline = std::abs(value[0] - 0.12f * 255) < 4 &&
+                                     std::abs(value[1] - 0.15f * 255) < 4 &&
+                                     std::abs(value[2] - 0.20f * 255) < 4;
+                if (fill || outline)
                 {
                     minX = std::min(minX, x);
                     maxX = std::max(maxX, x);
@@ -859,6 +975,7 @@ int main()
             canvasViewport(renderer);
             wireMarkers(renderer, camera);
             roundedBounds(renderer, camera);
+            componentOutlines(renderer);
             palettePresentation(renderer);
             outputPresentation(renderer);
             componentInformationPresentation(renderer);

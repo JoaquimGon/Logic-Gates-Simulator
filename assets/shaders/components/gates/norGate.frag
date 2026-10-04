@@ -1,6 +1,7 @@
 #version 330 core
 out vec4 FragColor;
 in vec4 instanceTint;
+uniform float uOutlineScale = 1.0;
 in vec2 localPos; // Range: -0.5 .. 0.5
 
 float sdCircle(vec2 p, vec2 center, float r)
@@ -28,6 +29,15 @@ float sdOrGate(vec2 p)
     return max(lens, -backCut);
 }
 
+// Taper the inset outline below normal zoom; cap it at 1.5 framebuffer pixels.
+float outlineFactor(float distance)
+{
+    float pixelWidth = max(length(vec2(dFdx(distance), dFdy(distance))), 0.000001);
+    float strokeWidth = 1.5 * uOutlineScale;
+    return smoothstep(-(strokeWidth + 0.5) * pixelWidth,
+                      -max(strokeWidth - 0.5, 0.0) * pixelWidth, distance);
+}
+
 void main()
 {
     vec2 p = vec2(localPos.x * 1.5, localPos.y);
@@ -41,5 +51,10 @@ void main()
     float aa = fwidth(d);
     float fillFactor = 1.0 - smoothstep(0.0, aa, d);
 
-    FragColor = vec4(instanceTint.rgb, fillFactor * instanceTint.a);
+    float outline = outlineFactor(d);
+    // Preserve the bubble's complete rim where it meets the gate body.
+    float bubbleCoverage = 1.0 - smoothstep(0.0, max(fwidth(bubble), 0.000001), bubble);
+    outline = max(outline, outlineFactor(bubble) * bubbleCoverage);
+    vec3 color = mix(instanceTint.rgb, vec3(0.12, 0.15, 0.20), outline);
+    FragColor = vec4(color, fillFactor * instanceTint.a);
 }

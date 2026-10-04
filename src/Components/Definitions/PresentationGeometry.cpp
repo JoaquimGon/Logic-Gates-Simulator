@@ -81,7 +81,7 @@ float bodyContourDistance(const BodyStyle& style, float x, float y)
     switch (style.contour)
     {
     case BodyContour::And:
-        d = x > 0.08f ? circle(x, y, 0.08f, 0, 0.42f) : box(x + 0.21f, y, 0.29f, 0.42f, 0);
+        d = std::min(circle(x, y, 0.08f, 0, 0.42f), box(x + 0.21f, y, 0.29f, 0.42f, 0));
         break;
     case BodyContour::Or:
     case BodyContour::Xor:

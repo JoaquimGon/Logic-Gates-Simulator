@@ -1,7 +1,17 @@
 #version 330 core
 out vec4 FragColor;
 in vec4 instanceTint;
+uniform float uOutlineScale = 1.0;
 in vec2 localPos;
+
+// Taper the inset outline below normal zoom; cap it at 1.5 framebuffer pixels.
+float outlineFactor(float distance)
+{
+    float pixelWidth = max(length(vec2(dFdx(distance), dFdy(distance))), 0.000001);
+    float strokeWidth = 1.5 * uOutlineScale;
+    return smoothstep(-(strokeWidth + 0.5) * pixelWidth,
+                      -max(strokeWidth - 0.5, 0.0) * pixelWidth, distance);
+}
 
 void main()
 {
@@ -30,5 +40,10 @@ void main()
     float aa = fwidth(d);
     float fillFactor = 1.0 - smoothstep(-aa, aa, d);
 
-    FragColor = vec4(instanceTint.rgb, fillFactor * instanceTint.a);
+    float outline = outlineFactor(d);
+    // Preserve the bubble's complete rim where it meets the gate body.
+    float bubbleCoverage = 1.0 - smoothstep(0.0, max(fwidth(bubble), 0.000001), bubble);
+    outline = max(outline, outlineFactor(bubble) * bubbleCoverage);
+    vec3 color = mix(instanceTint.rgb, vec3(0.12, 0.15, 0.20), outline);
+    FragColor = vec4(color, fillFactor * instanceTint.a);
 }

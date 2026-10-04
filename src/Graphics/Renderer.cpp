@@ -207,6 +207,8 @@ bool Renderer::useCanvasShader(Shader& shader)
         return false;
     shader.use();
     shader.setMat4("uViewProjection", m_currentCamera.viewProjection);
+    // The camera projection stores zoom on Y; UI previews set their scale separately.
+    shader.setFloat("uOutlineScale", std::min(m_currentCamera.viewProjection[1][1], 1.0f));
     return true;
 }
 
@@ -513,6 +515,7 @@ void Renderer::drawScreenComponent(const ComponentBodyInstance& body)
             1.0f
         )
     );
+    shader->setFloat("uOutlineScale", 1.0f);
     auto instance = body;
     instance.size.y = -instance.size.y; // Preserve the shader's upward local Y in screen space.
     m_gateMesh->setInstanceData(packComponentInstances({&instance, 1}), {2, 2, 4}, 1);

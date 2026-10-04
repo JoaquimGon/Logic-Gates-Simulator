@@ -1,6 +1,7 @@
 #version 330 core
 out vec4 FragColor;
 in vec4 instanceTint;
+uniform float uOutlineScale = 1.0;
 in vec2 localPos; // -0.5 .. 0.5
 
 // Box distance field
@@ -16,6 +17,15 @@ float sdSegment(vec2 p, vec2 a, vec2 b)
     vec2 pa = p - a, ba = b - a;
     float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
     return length(pa - ba * h);
+}
+
+// Taper the inset outline below normal zoom; cap it at 1.5 framebuffer pixels.
+float outlineFactor(float distance)
+{
+    float pixelWidth = max(length(vec2(dFdx(distance), dFdy(distance))), 0.000001);
+    float strokeWidth = 1.5 * uOutlineScale;
+    return smoothstep(-(strokeWidth + 0.5) * pixelWidth,
+                      -max(strokeWidth - 0.5, 0.0) * pixelWidth, distance);
 }
 
 void main()
@@ -41,5 +51,7 @@ void main()
     float fillFactor = 1.0 - smoothstep(0.0, aa, d);
 
     // Slate / Dark cyan tone for clocks
-    FragColor = vec4(instanceTint.rgb, fillFactor * instanceTint.a);
+    float outline = outlineFactor(body);
+    vec3 color = mix(instanceTint.rgb, vec3(0.12, 0.15, 0.20), outline);
+    FragColor = vec4(color, fillFactor * instanceTint.a);
 }

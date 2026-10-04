@@ -79,6 +79,11 @@ void instances()
 
 void bodyGeometry()
 {
+    require(
+        bodyContourDistance({BodyContour::And, false, {}}, 0.08f, 0) < -0.4f &&
+            bodyContourDistance({BodyContour::And, true, {}}, 0.08f / 1.5f, 0) < -0.4f,
+        "AND distance field exposes its internal box/cap join as a surface."
+    );
     Scene scene;
     auto layout = scene.getComponentCatalog().find(BuiltinComponentIds::Nand)->layout;
     layout.width = 0.173f;
