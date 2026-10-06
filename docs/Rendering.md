@@ -125,8 +125,11 @@ The output bulb's normalized radius is 0.32 in both CPU contact geometry and its
 shader. Its tint comes from synchronized incoming pin state: green for HIGH,
 dark for LOW, and gray for unavailable signals. Presentation needs no logic pointer.
 
-`layoutDebugOverlay()` produces right-aligned screen runs. Feedback/rejection
-warnings remain visible with F3 metrics disabled. `TextPainter` shares glyph
+`layoutDebugOverlay()` produces right-aligned screen runs. Diagnostics draw
+after all UI, including popups, on a padded black background with 50% opacity.
+They use the full window regardless of canvas/UI clipping. Feedback/rejection
+warnings remain visible with F3 metrics disabled; hiding healthy diagnostics
+also hides their background. `TextPainter` shares glyph
 generation and upload for world coordinates (Y up) and screen pixels (Y down).
 For another text presentation, produce `TextRun` values and call
 `Renderer::drawText(runs, TextSpace::Screen)` after the canvas pass.

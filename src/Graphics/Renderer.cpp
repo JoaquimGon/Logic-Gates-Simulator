@@ -559,16 +559,34 @@ void Renderer::drawLabels(std::span<const ComponentRenderData> components)
 
 void Renderer::drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics)
 {
-    drawText(
-        layoutDebugOverlay(
-            metrics,
-            showMetrics,
-            m_currentCamera.surface.windowWidth,
-            m_currentCamera.surface.windowHeight,
-            m_text.metrics()
-        ),
-        TextSpace::Screen
+    const auto runs = layoutDebugOverlay(
+        metrics,
+        showMetrics,
+        m_currentCamera.surface.windowWidth,
+        m_currentCamera.surface.windowHeight,
+        m_text.metrics()
     );
+    if (runs.empty())
+        return;
+    setScreenClip(std::nullopt);
+    float left = runs.front().baseline.x;
+    float top = runs.front().baseline.y;
+    float right = left, bottom = top;
+    for (const auto& run : runs)
+    {
+        const float lineHeight = m_text.metrics().fontHeight * run.scale;
+        left = std::min(left, run.baseline.x);
+        top = std::min(top, run.baseline.y - lineHeight);
+        right =
+            std::max(right, run.baseline.x + getTextWidth(run.text, run.scale, m_text.metrics()));
+        bottom = std::max(bottom, run.baseline.y + lineHeight * 0.25f);
+    }
+    constexpr float padding = 8;
+    drawScreenRect(
+        {left - padding, top - padding, right - left + 2 * padding, bottom - top + 2 * padding},
+        {0, 0, 0, 0.5f}
+    );
+    drawText(runs, TextSpace::Screen);
 }
 
 void Renderer::drawCanvas(const CanvasFrame& frame)

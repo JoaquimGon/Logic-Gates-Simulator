@@ -1,5 +1,5 @@
 {
-  "definition_version": 2,
+  "definition_version": 3,
   "design": {
     "components": [
       {
@@ -101,7 +101,7 @@
     ],
     "definitions": [],
     "format": "logic-gates-circuit",
-    "name": "unnamed",
+    "name": "test",
     "version": 1,
     "wires": [
       [

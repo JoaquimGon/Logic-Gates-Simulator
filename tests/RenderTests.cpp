@@ -1229,6 +1229,29 @@ void circuitViewsPresentation(Renderer& renderer)
         "Subcircuit File menu retained Main's commands."
     );
     saveImage("subcircuit-file-menu.ppm");
+    for (int scale : {1, 2})
+    {
+        surface = {extent / scale, extent / scale, extent, extent};
+        draw();
+        const auto behind = screenPixel(surface.windowWidth - 10, 24);
+        // Diagnostics must ignore any remaining UI clipping and blend over the UI itself.
+        renderer.setScreenClip(CanvasViewport{0, 0, 10, 10});
+        renderer.drawDebugOverlay(DebugMetrics{});
+        const auto shaded = screenPixel(surface.windowWidth - 10, 24);
+        for (int channel = 0; channel < 3; ++channel)
+            require(
+                std::abs(2 * static_cast<int>(shaded[channel]) - behind[channel]) <= 2,
+                "Debug background did not blend at 50% over the UI at this display scale."
+            );
+        require(glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE, "Debug overlay retained UI clipping.");
+        saveImage(scale == 1 ? "debug-overlay-ui.ppm" : "debug-overlay-ui-2x.ppm");
+        draw();
+        renderer.drawDebugOverlay(DebugMetrics{}, false);
+        require(
+            screenPixel(surface.windowWidth - 10, 24) == behind,
+            "Hidden F3 diagnostics left a background visible."
+        );
+    }
     ui.dismissPopups(input);
     ui.setCircuitViews(nullptr, nullptr);
     input.setScene(nullptr);

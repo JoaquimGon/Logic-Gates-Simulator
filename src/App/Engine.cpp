@@ -313,8 +313,9 @@ void Engine::run()
             frame.hoveredDirection = input.getHoveredPinType();
         }
         m_renderer.drawCanvas(frame);
+        m_ui.draw(m_renderer, scene, input.getCameraFrame(window));
 
-        // Debugging
+        // Diagnostics stay above the canvas, panels and popups.
         if (m_showDebugOverlay || scene.getLastEvalResult() != SimulationResult::OK)
         {
             DebugMetrics metrics;
@@ -345,7 +346,6 @@ void Engine::run()
             m_renderer.drawDebugOverlay(metrics, m_showDebugOverlay);
         }
 
-        m_ui.draw(m_renderer, scene, input.getCameraFrame(window));
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
