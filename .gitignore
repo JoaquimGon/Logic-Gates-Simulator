@@ -62,3 +62,4 @@ external/*
 !external/stb_truetype.h
 # Local contributor notes and planning
 /.local/
+/output/relatorio
