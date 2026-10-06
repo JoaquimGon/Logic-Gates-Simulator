@@ -13,6 +13,17 @@ class Input;
 class CircuitViews
 {
   public:
+    enum class Role
+    {
+        Workspace,
+        Subcircuit
+    };
+
+    static const char* roleName(Role role)
+    {
+        return role == Role::Subcircuit ? "Subcircuit editor" : "Workspace";
+    }
+
     CircuitViews();
 
     std::size_t size() const { return m_views.size(); }
@@ -27,8 +38,13 @@ class CircuitViews
 
     const std::string& name(std::size_t index) const { return m_views.at(index).name; }
 
+    Role role(std::size_t index) const { return m_views.at(index).role; }
+
+    /** Changes authoring intent only; Main always remains a workspace. */
+    bool setRole(std::size_t index, Role role);
+
     /** Adds an empty scene and switches to it, cancelling unfinished editor gestures. */
-    void create(Input& input);
+    void create(Input& input, Role role = Role::Workspace);
     /** Saves the outgoing camera and restores the destination camera and scene. */
     bool select(std::size_t index, Input& input);
     /** Removes a circuit; active removal switches left before freeing its scene. Main stays. */
@@ -39,6 +55,7 @@ class CircuitViews
     struct View
     {
         std::string name;
+        Role role = Role::Workspace;
         std::unique_ptr<Scene> scene = std::make_unique<Scene>();
         glm::vec2 pan{0};
         float zoom = 1;

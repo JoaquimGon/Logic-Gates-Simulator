@@ -2,6 +2,7 @@
 
 #include "Editor/Input.h"
 
+#include <stdexcept>
 #include <utility>
 
 CircuitViews::CircuitViews()
@@ -9,10 +10,21 @@ CircuitViews::CircuitViews()
     m_views.push_back(View{"Main"});
 }
 
-void CircuitViews::create(Input& input)
+void CircuitViews::create(Input& input, Role role)
 {
-    m_views.push_back(View{"unnamed"});
+    if (role != Role::Workspace && role != Role::Subcircuit)
+        throw std::invalid_argument("Unknown viewpoint role.");
+    m_views.push_back(View{"unnamed", role});
     select(m_views.size() - 1, input);
+}
+
+bool CircuitViews::setRole(std::size_t index, Role role)
+{
+    if (index >= m_views.size() || (role != Role::Workspace && role != Role::Subcircuit) ||
+        (index == 0 && role != Role::Workspace))
+        return false;
+    m_views[index].role = role;
+    return true;
 }
 
 bool CircuitViews::select(std::size_t index, Input& input)

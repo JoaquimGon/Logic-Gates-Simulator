@@ -28,6 +28,9 @@ class CircuitTabs
 
     CanvasViewport tabBounds(std::size_t index) const;
     CanvasViewport addBounds() const;
+    CanvasViewport createMenuBounds() const;
+    CanvasViewport createOptionBounds(int index) const;
+    CanvasViewport roleBounds() const;
     CanvasViewport closeBounds(std::size_t index) const;
     CanvasViewport popupBounds() const;
     CanvasViewport nameBounds() const;
@@ -35,6 +38,11 @@ class CircuitTabs
     CanvasViewport cancelDeleteBounds() const;
     bool contains(double x, double y) const;
     std::string tabName(std::size_t index) const;
+    std::string activeViewLabel() const;
+
+    bool popupOpen() const { return m_popup.has_value() || m_createMenu; }
+
+    bool choosingRole() const { return m_createMenu; }
 
     std::optional<std::size_t> popupIndex() const { return m_popup; }
 
@@ -54,5 +62,6 @@ class CircuitTabs
     std::optional<std::size_t> m_hover, m_popup, m_lastActive;
     bool m_editing = false, m_selectAll = false, m_escapePressed = false;
     bool m_confirmDelete = false;
+    bool m_createMenu = false, m_popupMousePressed = false;
     std::string m_draft;
 };

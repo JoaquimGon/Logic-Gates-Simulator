@@ -147,6 +147,23 @@ void run(GLFWwindow* window)
         "Plus is not an independent square after Main."
     );
     click(add);
+    require(
+        views.size() == 1 && ui.circuitTabs().choosingRole() &&
+            input.getUiCapture() == UiInputCapture{true, true} &&
+            views.role(0) == CircuitViews::Role::Workspace &&
+            !views.setRole(0, CircuitViews::Role::Subcircuit),
+        "Plus created a view without a role choice or Main allowed conversion."
+    );
+    key(GLFW_KEY_F2);
+    require(input.getMode() == EditorMode::Selection, "Creation menu leaked a shortcut.");
+    key(GLFW_KEY_ESCAPE);
+    require(
+        !ui.circuitTabs().choosingRole() && views.size() == 1 &&
+            input.getUiCapture() == UiInputCapture{},
+        "Escape did not cancel view creation."
+    );
+    click(add);
+    click(ui.circuitTabs().createOptionBounds(0));
     const auto circuitTab = ui.circuitTabs().tabBounds(1);
     require(
         std::abs(ui.circuitTabs().addBounds().x - (circuitTab.x + circuitTab.width)) < 0.01,
@@ -154,7 +171,8 @@ void run(GLFWwindow* window)
     );
     require(
         views.size() == 2 && views.activeIndex() == 1 && views.name(1) == "unnamed" &&
-            views.activeScene().getComponentCount() == 0,
+            views.activeScene().getComponentCount() == 0 &&
+            views.role(1) == CircuitViews::Role::Workspace,
         "Plus did not create and select an empty named scene."
     );
     require(
@@ -270,7 +288,10 @@ void run(GLFWwindow* window)
     );
 
     for (int i = 0; i < 12; ++i)
+    {
         click(ui.circuitTabs().addBounds());
+        click(ui.circuitTabs().createOptionBounds(0));
+    }
     const auto last = ui.circuitTabs().tabBounds(views.activeIndex());
     require(
         last.x < 800 && last.x + last.width <= 800.01 && ui.circuitTabs().tabBounds(0).x == 220,
@@ -390,9 +411,31 @@ void run(GLFWwindow* window)
         "Removing the final circuit did not leave Main and its trailing plus."
     );
     main.addComponent(BuiltinComponentIds::And, {0, 0});
-    views.create(input);
+    click(ui.circuitTabs().addBounds());
+    click(ui.circuitTabs().createOptionBounds(1));
     Scene& separate = views.activeScene();
     separate.addComponent(BuiltinComponentIds::Or, {0, 0});
+    const auto separateRevision = separate.getRevision();
+    views.rename(1, "Workspace");
+    require(
+        views.role(1) == CircuitViews::Role::Subcircuit &&
+            ui.circuitTabs().activeViewLabel() == "Subcircuit editor: Workspace",
+        "Subcircuit intent was not explicit or changed with its name."
+    );
+    click(ui.circuitTabs().tabBounds(1), GLFW_MOUSE_BUTTON_RIGHT);
+    click(ui.circuitTabs().roleBounds());
+    require(
+        views.role(1) == CircuitViews::Role::Workspace && &views.activeScene() == &separate &&
+            separate.getRevision() == separateRevision && separate.getComponentCount() == 1,
+        "Role conversion recreated or edited the circuit."
+    );
+    click(ui.circuitTabs().roleBounds());
+    require(
+        views.role(1) == CircuitViews::Role::Subcircuit &&
+            views.role(0) == CircuitViews::Role::Workspace,
+        "Workspace could not be converted to a subcircuit editor."
+    );
+    key(GLFW_KEY_ESCAPE);
     auto savedMain = circuitFromJson(circuitToJson(views.mainScene(), "Saved Main"));
     require(
         savedMain.scene.getComponentCount() == 1 &&

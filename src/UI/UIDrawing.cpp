@@ -164,6 +164,13 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
     renderer.setScreenClip(std::nullopt);
+    if (m_bottomTab == BottomTab::First && m_circuitTabs.enabled())
+        label(
+            m_circuitTabs.activeViewLabel(),
+            {m_bottom.x + 8, m_bottom.y + 42, std::max(0.0, m_bottom.width - 16), 26},
+            0.45f,
+            ink
+        );
     if (dragging())
     {
         const auto* definition = scene.getComponentCatalog().find(m_dragDefinition);

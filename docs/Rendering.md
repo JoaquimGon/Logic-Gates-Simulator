@@ -243,7 +243,11 @@ headless AddressSanitizer groups pass.
 ## Circuit viewpoints
 
 `Editor/CircuitViews` owns a small vector of named, independent scenes and their
-last pan/zoom values. Main exists from startup; creation adds an empty scene.
+last pan/zoom values. Main exists from startup as a permanent Workspace. Each viewpoint stores an
+explicit `CircuitViews::Role` (Workspace or Subcircuit); creation adds an empty
+scene with the chosen role. Role changes preserve the scene, camera, signals,
+and name. Main rejects the Subcircuit role. Names and port components do not
+infer authoring intent; the role is separate from component behavior.
 Switching reuses `Input::setScene()` to cancel previews, clear selection and
 queued shortcuts, then restores the destination camera. Existing EditorActions
 and scene snapshots continue to operate on one scene. Only the active scene is
@@ -254,7 +258,10 @@ Renderer rectangles/text. The shared canvas viewport excludes the 30-pixel
 application bar and the 30-pixel circuit header below it. Each tab measures `unnamed` at 0.42 font scale with 10-pixel side
 padding and a 24-pixel close-button slot; longer names replace the last fitting
 characters with `...`. Main remains pinned while the other tabs scroll. A separate square plus button
-follows the last circuit tab; creation and resizing reveal it with the newest
+follows the last circuit tab and opens New workspace/New subcircuit choices.
+Escape, outside clicks, focus loss, and resize discard the menu without creating
+a scene. It captures input and suppresses hover popups until dismissed.
+Creation and resizing reveal the plus with the newest
 active tab. Other active tabs are revealed when switching.
 
 A one-second hover or right-click opens a popup with the full name and a
@@ -262,7 +269,12 @@ prefilled field. Clicking the field selects its contents; Enter saves, Backspace
 and Ctrl+A edit, and Escape/outside click/focus loss/resize discard drafts.
 Keyboard capture blocks canvas shortcuts while typing. Names are metadata,
 limited by the field to 64 printable ASCII characters; blank names use the
-`unnamed` default (or Main for the main tab).
+`unnamed` default (or Main for the main tab). The popup displays the role and
+offers Convert to subcircuit/Use as workspace on non-main views. These change
+metadata only; an unfinished rename draft is discarded when changing purpose.
+Subcircuit editors have a small SUB badge without widening the compact tabs.
+The first bottom tab shows the active role/name. These are authoring drafts;
+interface validation, packaging, and component registration are still future work.
 
 Non-main tabs show an X at their right edge. It opens a Delete/Cancel popup
 that captures pointer and keyboard input until confirmed or dismissed. Escape,
@@ -311,8 +323,8 @@ rendering, picking, panning, and palette placement aligned after resize. The
 left component panel retains its full height.
 
 Two permanent placeholder tabs, Tab 1 and Tab 2, reuse screen rectangles/text
-and the existing active underline. Their bodies are empty and switching changes
-only local UI selection; no names, content controllers, simulation logic, or
+and the existing active underline. The first body shows the active viewpoint role/name; the second remains empty.
+Switching changes only local UI selection; no names, content controllers, simulation logic, or
 closing/creation controls are implemented. Pointer events and scrolling over
 the panel are consumed, and palette drops there are cancelled by canvas bounds.
 Floating component/name/File popups retain their normal overlay priority.
@@ -320,3 +332,9 @@ Floating component/name/File popups retain their normal overlay priority.
 Existing layout/input and framebuffer checks cover separation from the palette
 and canvas, tab selection without edits/zoom, and normal/2x display scaling.
 `bottom-panel.ppm` and `bottom-panel-2x.ppm` were visually reviewed.
+
+Viewpoint-role regressions verify both creation choices, menu capture/cancellation,
+Main protection, name-independent intent, conversion without scene mutation,
+and preservation through Main loading. Five targeted Debug groups pass;
+`circuit-view-create.ppm`, `circuit-view-role.ppm`, and normal/2x role-popup
+previews were visually reviewed.

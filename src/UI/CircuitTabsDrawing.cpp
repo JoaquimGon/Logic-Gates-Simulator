@@ -60,7 +60,17 @@ void CircuitTabs::draw(Renderer& renderer) const
             icon("X", close, 0.38f);
             bounds.width -= close.width;
         }
-        label(tabName(index), bounds, 0.42f);
+        if (m_views->role(index) == CircuitViews::Role::Subcircuit)
+        {
+            auto title = bounds;
+            title.height = 18;
+            label(tabName(index), title, 0.38f);
+            const CanvasViewport badge{bounds.x + 10, bounds.y + 18, 32, 10};
+            renderer.drawScreenRect(badge, {0.32f, 0.25f, 0.47f, 1});
+            icon("SUB", badge, 0.2f);
+        }
+        else
+            label(tabName(index), bounds, 0.42f);
     };
     renderer.setScreenClip(m_tabList);
     for (std::size_t index = 1; index < m_views->size(); ++index)
@@ -84,6 +94,24 @@ void CircuitTabs::draw(Renderer& renderer) const
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
     renderer.setScreenClip(std::nullopt);
+    if (m_createMenu)
+    {
+        const auto menu = createMenuBounds();
+        renderer.drawScreenRect(menu, {0.3f, 0.45f, 0.6f, 1});
+        renderer.drawScreenRect(
+            {menu.x + 1, menu.y + 1, menu.width - 2, menu.height - 2}, {0.08f, 0.12f, 0.17f, 1}
+        );
+        int index = 0;
+        for (const auto* name : {"New workspace", "New subcircuit"})
+        {
+            const auto bounds = createOptionBounds(index++);
+            if (bounds.contains(m_pointerX, m_pointerY))
+                renderer.drawScreenRect(bounds, {0.16f, 0.3f, 0.46f, 1});
+            label(name, bounds, 0.42f);
+        }
+        renderer.drawText(text, TextSpace::Screen);
+        text.clear();
+    }
     if (m_popup)
     {
         const auto popup = popupBounds();
@@ -104,7 +132,12 @@ void CircuitTabs::draw(Renderer& renderer) const
         }
         else
         {
-            label(m_views->name(*m_popup), {popup.x, popup.y, popup.width, 34}, 0.5f);
+            label(m_views->name(*m_popup), {popup.x, popup.y, popup.width, 28}, 0.5f);
+            label(
+                CircuitViews::roleName(m_views->role(*m_popup)),
+                {popup.x, popup.y + 28, popup.width, 18},
+                0.33f
+            );
             const auto field = nameBounds();
             renderer.drawScreenRect(
                 field,
@@ -118,9 +151,21 @@ void CircuitTabs::draw(Renderer& renderer) const
             label(m_editing ? m_draft + "|" : m_views->name(*m_popup), field, 0.43f);
             label(
                 m_editing ? "Enter: save; Esc: cancel" : "Click name to edit; Esc: close",
-                {popup.x, popup.y + 80, popup.width, 26},
+                {popup.x, popup.y + 82, popup.width, 24},
                 0.33f
             );
+            if (*m_popup != 0)
+            {
+                const auto role = roleBounds();
+                renderer.drawScreenRect(role, {0.16f, 0.3f, 0.46f, 1});
+                label(
+                    m_views->role(*m_popup) == CircuitViews::Role::Workspace
+                        ? "Convert to subcircuit"
+                        : "Use as workspace",
+                    role,
+                    0.38f
+                );
+            }
         }
         renderer.drawText(text, TextSpace::Screen);
     }

@@ -73,7 +73,11 @@ Long titles end in `...`; scroll over the strip when the tabs do not fit.
 Hover a title for one second or right-click it to show its full name and a
 prefilled name field. Click the field to replace the name, then Enter to save;
 Backspace and Ctrl+A edit, while Escape, outside clicks, resize, and focus loss
-cancel the draft. Names accept up to 64 printable ASCII characters. Click a circuit tab's **X**
+cancel the draft. Names accept up to 64 printable ASCII characters. The popup
+also shows its role; non-main views offer **Convert to subcircuit** or **Use as
+workspace**, preserving the scene and its camera. Names and input/output
+components never determine that role. Packaging into a reusable component is
+not implemented yet. Click a circuit tab's **X**
 to open a **Delete / Cancel** confirmation. Closing the active circuit switches
 to the tab on its left; Main cannot be deleted. Escape or an outside click
 cancels deletion. There is no saved-state check yet. Main is
@@ -84,8 +88,8 @@ included. Subcircuit interfaces, packaging, and saving remain future work.
 See [circuit files](docs/CircuitFiles.md) for the format and loading behavior.
 
 A bottom panel sits beneath the simulator, beside the full-height component
-panel. Its permanent **Tab 1** and **Tab 2** tabs are placeholders with empty
-content; clicking them only changes the active highlight. The panel is up to
+panel. Its permanent **Tab 1** and **Tab 2** tabs retain placeholder names.
+Tab 1 shows the active viewpoint's role and full name; Tab 2 is empty. The panel is up to
 180 pixels tall and shrinks in shorter windows. It reserves canvas space and
 consumes pointer/scroll events, so it cannot draw wires, place components, or
 zoom the canvas. Functional tab names and contents will be added later.

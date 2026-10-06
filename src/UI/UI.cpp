@@ -91,7 +91,7 @@ void UI::update(double now, Input& input)
     if (m_fileMenuOpen)
         return;
     m_circuitTabs.update(now, input);
-    if (m_circuitTabs.popupIndex())
+    if (m_circuitTabs.popupOpen())
         closeInfo(input);
 }
 

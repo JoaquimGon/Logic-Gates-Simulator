@@ -1035,6 +1035,13 @@ void circuitViewsPresentation(Renderer& renderer)
         "Visual Save option changed the scene."
     );
     click(ui.circuitTabs().addBounds(), GLFW_MOUSE_BUTTON_LEFT);
+    require(
+        ui.circuitTabs().choosingRole() && views.size() == 1,
+        "Plus did not open the viewpoint role menu."
+    );
+    draw();
+    saveImage("circuit-view-create.ppm");
+    click(ui.circuitTabs().createOptionBounds(1), GLFW_MOUSE_BUTTON_LEFT);
     const auto emptyFrame = draw();
     require(
         views.activeIndex() == 1 && cameraPixel(emptyFrame, {0, 0})[2] < 100,
@@ -1046,6 +1053,18 @@ void circuitViewsPresentation(Renderer& renderer)
     require(
         gate[0] > 150 && gate[2] < 100, "New circuit component was not rendered on its own canvas."
     );
+    const auto subTab = ui.circuitTabs().tabBounds(1);
+    const auto badgeColor = screenPixel(subTab.x + 11, subTab.y + 20);
+    require(
+        views.role(1) == CircuitViews::Role::Subcircuit && badgeColor[0] > 65 &&
+            badgeColor[2] > 100,
+        "Subcircuit authoring tab did not show its badge."
+    );
+    click(ui.bottomTabBounds(UI::BottomTab::First), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    saveImage("circuit-view-role.ppm");
+    click(ui.bottomTabBounds(UI::BottomTab::Second), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
     const auto add = ui.circuitTabs().addBounds();
     const auto addFill = screenPixel(add.x + 3, add.y + 3);
     require(
