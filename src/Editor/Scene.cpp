@@ -38,6 +38,11 @@ Component* Scene::getLogicComponent(int componentId)
     return m_circuit.getComponent(componentId);
 }
 
+const Component* Scene::getLogicComponent(int componentId) const
+{
+    return m_circuit.getComponent(componentId);
+}
+
 WireId Scene::insertWire(Wire wire)
 {
     // Ids are handed out in order and never recycled: that is what makes a

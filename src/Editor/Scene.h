@@ -80,6 +80,7 @@ class Scene
     // Borrowed views expire on committed edits or preview transitions; reacquire by ID.
     ComponentView* getComponentView(int componentId);
     Component* getLogicComponent(int componentId);
+    const Component* getLogicComponent(int componentId) const;
 
     const std::unordered_map<int, std::unique_ptr<ComponentView>>& getComponentViewMap() const
     {

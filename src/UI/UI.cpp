@@ -132,6 +132,25 @@ void UI::closeFileMenu(Input& input)
     }
 }
 
+std::optional<UI::FileCommand> UI::takeFileCommand()
+{
+    return std::exchange(m_fileCommand, std::nullopt);
+}
+
+void UI::setFileStatus(std::string message, bool error)
+{
+    m_fileStatus = std::move(message);
+    m_fileError = error;
+}
+
+void UI::dismissPopups(Input& input)
+{
+    closeFileMenu(input);
+    cancel(input);
+    closeInfo(input);
+    m_circuitTabs.cancel(input);
+}
+
 bool UI::handleFileMenu(const UiInputEvent& event, Input& input)
 {
     if (event.kind == UiInputKind::WindowFocus && !event.focused)
@@ -159,7 +178,10 @@ bool UI::handleFileMenu(const UiInputEvent& event, Input& input)
         if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS)
         {
             m_fileMousePressed = true;
-            // Menu choices only dismiss the menu; file operations will be added separately.
+            if (event.code == GLFW_MOUSE_BUTTON_LEFT)
+                for (int index = 0; index < 3; ++index)
+                    if (fileOptionBounds(index).contains(event.x, event.y))
+                        m_fileCommand = static_cast<FileCommand>(index);
             closeFileMenu(input);
         }
         return true;

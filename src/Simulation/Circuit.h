@@ -58,6 +58,7 @@ class Circuit
     int addComponent(std::unique_ptr<Component> component);
 
     Component* getComponent(int id);
+    const Component* getComponent(int id) const;
     void delComponent(int id);
 
     /**

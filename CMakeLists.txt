@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 project(LogicGateSimulator VERSION 1.0 LANGUAGES C CXX)
 
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -46,6 +50,9 @@ add_library(simulator_scene STATIC
 target_link_libraries(simulator_scene PUBLIC
     simulator_simulation simulator_geometry simulator_views simulator_component_factory
 )
+
+add_library(simulator_files STATIC src/Persistence/CircuitFile.cpp)
+target_link_libraries(simulator_files PUBLIC simulator_scene PRIVATE nlohmann_json::nlohmann_json)
 
 if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
     add_library(simulator_input STATIC
@@ -102,8 +109,11 @@ if(BUILD_SIMULATOR_APP)
 
     target_sources(simulator_ui PRIVATE src/UI/UIDrawing.cpp src/UI/CircuitTabsDrawing.cpp)
     target_link_libraries(simulator_ui PRIVATE simulator_graphics)
-    add_executable(${PROJECT_NAME} src/App/main.cpp src/App/Engine.cpp)
-    target_link_libraries(${PROJECT_NAME} PRIVATE simulator_ui simulator_graphics glfw)
+    add_executable(${PROJECT_NAME} src/App/main.cpp src/App/Engine.cpp src/App/FileDialog.cpp)
+    target_link_libraries(${PROJECT_NAME} PRIVATE simulator_ui simulator_graphics simulator_files glfw)
+    if(WIN32)
+        target_link_libraries(${PROJECT_NAME} PRIVATE comdlg32)
+    endif()
     target_compile_definitions(${PROJECT_NAME} PRIVATE GLFW_INCLUDE_NONE)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
@@ -113,6 +123,12 @@ if(BUILD_SIMULATOR_APP)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(CircuitFileTests tests/CircuitFileTests.cpp)
+    target_link_libraries(CircuitFileTests PRIVATE simulator_files nlohmann_json::nlohmann_json)
+    foreach(test_name IN ITEMS circuit_json_roundtrip circuit_json_validation circuit_file_io)
+        add_test(NAME ${test_name} COMMAND CircuitFileTests ${test_name})
+    endforeach()
+
     add_executable(CameraTests tests/CameraTests.cpp)
     target_link_libraries(CameraTests PRIVATE simulator_geometry)
     foreach(test_name IN ITEMS camera_transforms camera_viewport_layout)
@@ -182,7 +198,7 @@ if(BUILD_TESTING)
     endforeach()
 
     add_executable(CircuitViewsTests tests/CircuitViewsTests.cpp)
-    target_link_libraries(CircuitViewsTests PRIVATE simulator_ui glfw)
+    target_link_libraries(CircuitViewsTests PRIVATE simulator_ui simulator_files glfw)
     target_compile_definitions(CircuitViewsTests PRIVATE GLFW_INCLUDE_NONE)
     add_test(NAME circuit_views COMMAND CircuitViewsTests)
 endif()

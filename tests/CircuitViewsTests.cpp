@@ -3,6 +3,7 @@
 #include "Editor/CircuitViews.h"
 #include "Editor/Input.h"
 #include "Graphics/Text/TextGeometry.h"
+#include "Persistence/CircuitFile.h"
 #include "UI/UI.h"
 
 #include <GLFW/glfw3.h>
@@ -91,6 +92,10 @@ void run(GLFWwindow* window)
         key(GLFW_KEY_F2);
         require(input.getMode() == EditorMode::Selection, "File menu leaked a canvas shortcut.");
         click(ui.fileOptionBounds(option));
+        require(
+            ui.takeFileCommand() == static_cast<UI::FileCommand>(option) && !ui.takeFileCommand(),
+            "File option did not queue exactly one command."
+        );
         require(
             !ui.fileMenuOpen() && input.getUiCapture() == UiInputCapture{} &&
                 main.getRevision() == beforeMenu,
@@ -367,6 +372,32 @@ void run(GLFWwindow* window)
             ui.circuitTabs().addBounds().x ==
                 ui.circuitTabs().tabBounds(0).x + ui.circuitTabs().tabBounds(0).width,
         "Removing the final circuit did not leave Main and its trailing plus."
+    );
+    main.addComponent(BuiltinComponentIds::And, {0, 0});
+    views.create(input);
+    Scene& separate = views.activeScene();
+    separate.addComponent(BuiltinComponentIds::Or, {0, 0});
+    auto savedMain = circuitFromJson(circuitToJson(views.mainScene(), "Saved Main"));
+    require(
+        savedMain.scene.getComponentCount() == 1 &&
+            savedMain.scene.getCommittedComponentView(0)->getDefinitionIdentity().id ==
+                BuiltinComponentIds::And,
+        "Main save included the active separate circuit."
+    );
+    savedMain.scene.addComponent(BuiltinComponentIds::Input, {20, 0});
+    ui.dismissPopups(input);
+    views.select(0, input);
+    const auto opened =
+        EditorActions(views.mainScene()).restore(savedMain.scene, main.getRevision());
+    require(static_cast<bool>(opened), "Saved Main could not be restored through editor actions.");
+    layout();
+    input.process(window);
+    require(
+        main.getComponentCount() == 2 && separate.getComponentCount() == 1 &&
+            separate.getCommittedComponentView(0)->getDefinitionIdentity().id ==
+                BuiltinComponentIds::Or &&
+            input.isIdle() && input.getSelectedComponentId() == -1,
+        "Main load replaced another view or retained stale editing state."
     );
     ui.setCircuitViews(nullptr, nullptr);
     input.setUiInputHandler({});

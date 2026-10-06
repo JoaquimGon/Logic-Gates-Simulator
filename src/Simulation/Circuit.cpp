@@ -75,6 +75,12 @@ Component* Circuit::getComponent(int id)
     return it != m_components.end() ? it->second.get() : nullptr;
 }
 
+const Component* Circuit::getComponent(int id) const
+{
+    auto it = m_components.find(id);
+    return it != m_components.end() ? it->second.get() : nullptr;
+}
+
 void Circuit::delComponent(int id)
 {
     Component* comp = getComponent(id);

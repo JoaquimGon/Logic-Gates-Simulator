@@ -269,8 +269,9 @@ that captures pointer and keyboard input until confirmed or dismissed. Escape,
 outside clicks, focus loss, and resize cancel it. Active deletion switches to
 the left neighbor before destroying the scene; deleting an inactive tab preserves
 the current scene and camera. Main is protected in both the UI and model.
-There are no saved-state checks. Subcircuit I/O panels, validation, packaging, nesting, and persistence
-remain separate future work.
+There are no saved-state checks. Main circuit JSON persistence is described in
+[CircuitFiles.md](CircuitFiles.md); subcircuit I/O panels, validation, packaging,
+nesting, and subcircuit persistence remain separate future work.
 
 `CircuitViewsTests` checks independent contents/signals/cameras, scene-local
 snapshot restoration, cancelled gestures, header drop cancellation, hover timing,
@@ -286,14 +287,17 @@ previews were visually reviewed.
 
 `UI` draws a 30-pixel bar across the window with one File button and a small
 dropdown: Save, Save As, Open. It reuses the existing rectangle/text helpers;
-there are no file commands or persistence handlers. Clicking an entry only
-dismisses the menu. Hover highlights its row. The panel and circuit tabs start
+each entry queues a single typed `FileCommand` for Engine to consume before
+processing/rendering the next scene frame. Engine owns the current Main file path
+and the native picker; Persistence handles JSON/file IO. UI only routes commands
+and displays success/errors in the bar. Hover highlights its row. The panel and
+circuit tabs start
 below the bar, and the canvas viewport follows that layout.
 
 The open menu captures pointer and keyboard events, cancelling existing gestures
 and dismissing other popups. Escape, an outside click, focus loss, or resizing
 closes it. The dismissal click is consumed so it cannot start a canvas edit.
 Circuit deletion confirmation keeps priority over the menu. Regression checks
-cover menu capture/dismissal and unchanged scene revisions for all three entries;
+cover menu capture/dismissal, one-shot commands, and Main-only reconstruction;
 framebuffer checks cover placement, hover, and normal/2x display scaling.
-All 47 Debug checks pass. `file-menu.ppm` and `file-menu-2x.ppm` were visually reviewed.
+All 50 Debug checks pass. `file-menu.ppm` and `file-menu-2x.ppm` were visually reviewed.

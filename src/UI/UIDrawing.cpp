@@ -233,6 +233,13 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     if (m_fileMenuOpen || fileBounds().contains(m_pointer.x, m_pointer.y))
         renderer.drawScreenRect(fileBounds(), {0.16f, 0.3f, 0.46f, 1});
     label("File", fileBounds(), 0.42f, ink, true);
+    if (!m_fileStatus.empty())
+        label(
+            m_fileStatus,
+            {76, 0, std::max(0.0, m_bar.width - 80), m_bar.height},
+            0.35f,
+            m_fileError ? glm::vec4{1, 0.55f, 0.4f, 1} : glm::vec4{0.55f, 0.75f, 0.9f, 1}
+        );
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
     if (m_fileMenuOpen)

@@ -55,9 +55,12 @@ loss, or resizing cancels the drag. Scroll inside the panel in shorter windows.
 Debug metrics start hidden; F3 shows them.
 
 The full-width top bar reserves 30 pixels. Click **File** to expand **Save**,
-**Save As**, and **Open**. These entries are visual only and dismiss the menu;
-file operations are not implemented yet. Escape, outside clicks, focus loss,
-and resizing also dismiss it.
+**Save As**, and **Open**, all operating on **Main only**. Save asks for a JSON
+path the first time, then updates that file; Save As always asks for a path.
+Open validates the file before replacing Main and switches to its tab. Other
+views stay untouched. Windows uses the native file picker; cancelling it changes
+nothing. Success/errors appear in the bar, with error details in the console.
+Escape, outside clicks, focus loss, and resizing dismiss the dropdown.
 
 The circuit strip reserves another 30 pixels below the top bar and above the canvas. Click the square **+**
 after the last circuit tab to create and open an empty `unnamed`; click a
@@ -73,9 +76,12 @@ Backspace and Ctrl+A edit, while Escape, outside clicks, resize, and focus loss
 cancel the draft. Names accept up to 64 printable ASCII characters. Click a circuit tab's **X**
 to open a **Delete / Cancel** confirmation. Closing the active circuit switches
 to the tab on its left; Main cannot be deleted. Escape or an outside click
-cancels deletion. There is no saved-state check yet. Views are
-currently kept in memory; subcircuit interfaces, validation, packaging, and
-saving remain future work.
+cancels deletion. There is no saved-state check yet. Main is
+saved as a single circuit design in JSON, including labels, settings, pin
+layouts, manual input values, and wire bends. Clock phase, latch memory, and
+derived signals reset on load. Subcircuit views remain in memory and are not
+included. Subcircuit interfaces, packaging, and saving remain future work.
+See [circuit files](docs/CircuitFiles.md) for the format and loading behavior.
 
 Right-click an idle component or its pin to open a small information popup in
 either mode. It shows the component name, body label when present, and live
@@ -146,7 +152,8 @@ src/
   Graphics/            OpenGL drawing, meshes, shaders, and wire vertices
     Presentation/      Typed canvas instances, batching, labels, and HUD layout
     Text/              CPU glyph geometry and context-owned atlas/text submission
-  UI/                  Small component palette: buttons, layout, input, and drawing
+  UI/                  Component palette, popups, tabs, and File menu
+  Persistence/         Circuit JSON and file reading/writing without graphics dependencies
 cmake/                 Dependencies, compiler options, and font discovery
 assets/shaders/        GLSL presentations and live-reload sources
 tests/                 Logic, editor, catalog, input, presentation, and pixel regressions
@@ -208,6 +215,8 @@ See [rendering contracts and validation](docs/Rendering.md).
 - GLFW 3.4 and GLM 1.0.1: fetched by CMake; the first configure needs network
   access unless local sources are supplied through `FETCHCONTENT_SOURCE_DIR_GLFW`
   and `FETCHCONTENT_SOURCE_DIR_GLM`.
+- nlohmann/json 3.12.0: fetched from a release archive with a SHA-256 check;
+  local sources can use `FETCHCONTENT_SOURCE_DIR_JSON`.
 - GLAD: vendored in `external/glad/` for OpenGL 3.3 Core.
 - stb_truetype 1.26: vendored in `external/stb_truetype.h`, including its license.
 - OpenGL: supplied by the system driver for the application.

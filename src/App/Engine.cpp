@@ -1,10 +1,12 @@
 #include "Engine.h"
 
+#include "App/FileDialog.h"
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/CircuitViews.h"
 #include "Editor/Scene.h"
 #include "Graphics/Presentation/ComponentPresentation.h"
+#include "Persistence/CircuitFile.h"
 
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
@@ -158,9 +160,50 @@ void Engine::run()
     glfwSetWindowTitle(window, titleForMode().c_str());
     auto displayedMode = input.getMode();
     double lastFrameTime = glfwGetTime();
+    std::filesystem::path mainFile;
 
     while (!glfwWindowShouldClose(window))
     {
+        if (const auto command = m_ui.takeFileCommand())
+        {
+            try
+            {
+                const bool opening = *command == UI::FileCommand::Open;
+                const auto chosen =
+                    !opening && *command == UI::FileCommand::Save && !mainFile.empty()
+                        ? std::optional{mainFile}
+                        : chooseCircuitFile(window, !opening, mainFile);
+                if (chosen)
+                {
+                    if (opening)
+                    {
+                        auto loaded = loadCircuit(*chosen);
+                        m_ui.dismissPopups(input);
+                        circuits.select(0, input);
+                        const auto result =
+                            EditorActions(circuits.mainScene())
+                                .restore(loaded.scene, circuits.mainScene().getRevision());
+                        if (!result)
+                            throw std::runtime_error(result.message);
+                        circuits.rename(0, std::move(loaded.name));
+                        circuits.mainScene().propagate();
+                        circuits.mainScene().syncVisuals();
+                    }
+                    else
+                        saveCircuit(*chosen, circuits.mainScene(), circuits.name(0));
+                    mainFile = *chosen;
+                    m_ui.setFileStatus(opening ? "Opened Main circuit" : "Saved Main circuit");
+                }
+            }
+            catch (const std::exception& error)
+            {
+                m_ui.setFileStatus(error.what(), true);
+                std::cerr << "[File] " << error.what() << '\n';
+            }
+            input.setCanvasFocused(true);
+            // Time spent in a modal file picker is not simulated clock time.
+            lastFrameTime = glfwGetTime();
+        }
         double currentFrameTime = glfwGetTime();
         float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);
         lastFrameTime = currentFrameTime;

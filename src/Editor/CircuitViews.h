@@ -23,6 +23,8 @@ class CircuitViews
 
     const Scene& activeScene() const { return *m_views[m_active].scene; }
 
+    Scene& mainScene() { return *m_views[0].scene; }
+
     const std::string& name(std::size_t index) const { return m_views.at(index).name; }
 
     /** Adds an empty scene and switches to it, cancelling unfinished editor gestures. */

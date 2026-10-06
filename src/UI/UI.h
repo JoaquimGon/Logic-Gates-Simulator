@@ -18,6 +18,12 @@ class Scene;
 class UI
 {
   public:
+    enum class FileCommand
+    {
+        Save,
+        SaveAs,
+        Open
+    };
     enum class Tab
     {
         Native,
@@ -42,6 +48,10 @@ class UI
     CanvasViewport fileOptionBounds(int index) const;
 
     bool fileMenuOpen() const { return m_fileMenuOpen; }
+
+    std::optional<FileCommand> takeFileCommand();
+    void setFileStatus(std::string message, bool error = false);
+    void dismissPopups(Input& input);
 
     bool handleInput(
         const UiInputEvent& event, Scene& scene, Input& input, const CanvasCameraFrame& camera
@@ -96,4 +106,7 @@ class UI
     std::string m_nameDraft, m_nameError;
     CircuitTabs m_circuitTabs;
     bool m_fileMenuOpen = false, m_fileMousePressed = false, m_fileEscapePressed = false;
+    std::optional<FileCommand> m_fileCommand;
+    std::string m_fileStatus;
+    bool m_fileError = false;
 };

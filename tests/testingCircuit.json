@@ -1,0 +1,304 @@
+{
+  "components": [
+    {
+      "clock_frequency": 1.0,
+      "clock_paused": false,
+      "definition": "native.clock",
+      "label": "",
+      "layout": {
+        "pins": [
+          {
+            "anchor": [
+              1,
+              0
+            ],
+            "direction": "output",
+            "id": "out",
+            "index": 0,
+            "label": "Out",
+            "lead": []
+          }
+        ],
+        "size": [
+          0.15000000596046448,
+          0.15000000596046448
+        ]
+      },
+      "position": [
+        -9,
+        -3
+      ],
+      "version": 1
+    },
+    {
+      "definition": "native.sr-latch",
+      "label": "SR LATCH",
+      "layout": {
+        "pins": [
+          {
+            "anchor": [
+              -3,
+              1
+            ],
+            "direction": "input",
+            "id": "s",
+            "index": 0,
+            "label": "S",
+            "lead": []
+          },
+          {
+            "anchor": [
+              -3,
+              -1
+            ],
+            "direction": "input",
+            "id": "r",
+            "index": 1,
+            "label": "R",
+            "lead": []
+          },
+          {
+            "anchor": [
+              3,
+              1
+            ],
+            "direction": "output",
+            "id": "q",
+            "index": 0,
+            "label": "Q",
+            "lead": []
+          },
+          {
+            "anchor": [
+              3,
+              -1
+            ],
+            "direction": "output",
+            "id": "not-q",
+            "index": 1,
+            "label": "~Q",
+            "lead": []
+          }
+        ],
+        "size": [
+          0.30000001192092896,
+          0.20000000298023224
+        ]
+      },
+      "position": [
+        6,
+        -3
+      ],
+      "version": 1
+    },
+    {
+      "definition": "native.and",
+      "inverted": false,
+      "label": "",
+      "layout": {
+        "pins": [
+          {
+            "anchor": [
+              -2,
+              1
+            ],
+            "direction": "input",
+            "id": "in.0",
+            "index": 0,
+            "label": "A",
+            "lead": []
+          },
+          {
+            "anchor": [
+              -2,
+              -1
+            ],
+            "direction": "input",
+            "id": "in.1",
+            "index": 1,
+            "label": "B",
+            "lead": []
+          },
+          {
+            "anchor": [
+              2,
+              0
+            ],
+            "direction": "output",
+            "id": "out",
+            "index": 0,
+            "label": "Y",
+            "lead": []
+          }
+        ],
+        "size": [
+          0.20000000298023224,
+          0.20000000298023224
+        ]
+      },
+      "position": [
+        -2,
+        -2
+      ],
+      "version": 1
+    },
+    {
+      "definition": "native.input",
+      "input_state": false,
+      "label": "",
+      "layout": {
+        "pins": [
+          {
+            "anchor": [
+              1,
+              0
+            ],
+            "direction": "output",
+            "id": "out",
+            "index": 0,
+            "label": "Out",
+            "lead": []
+          }
+        ],
+        "size": [
+          0.15000000596046448,
+          0.15000000596046448
+        ]
+      },
+      "position": [
+        -9,
+        1
+      ],
+      "version": 1
+    },
+    {
+      "definition": "native.input",
+      "input_state": false,
+      "label": "",
+      "layout": {
+        "pins": [
+          {
+            "anchor": [
+              1,
+              0
+            ],
+            "direction": "output",
+            "id": "out",
+            "index": 0,
+            "label": "Out",
+            "lead": []
+          }
+        ],
+        "size": [
+          0.15000000596046448,
+          0.15000000596046448
+        ]
+      },
+      "position": [
+        -5,
+        -8
+      ],
+      "version": 1
+    },
+    {
+      "definition": "native.output",
+      "label": "",
+      "layout": {
+        "pins": [
+          {
+            "anchor": [
+              -1,
+              0
+            ],
+            "direction": "input",
+            "id": "in",
+            "index": 0,
+            "label": "Signal",
+            "lead": []
+          }
+        ],
+        "size": [
+          0.15000000596046448,
+          0.15000000596046448
+        ]
+      },
+      "position": [
+        14,
+        -2
+      ],
+      "version": 1
+    }
+  ],
+  "definitions": [],
+  "format": "logic-gates-circuit",
+  "name": "Main",
+  "version": 1,
+  "wires": [
+    [
+      [
+        -8,
+        -3
+      ],
+      [
+        -4,
+        -3
+      ]
+    ],
+    [
+      [
+        -8,
+        1
+      ],
+      [
+        -7,
+        1
+      ],
+      [
+        -7,
+        -1
+      ],
+      [
+        -4,
+        -1
+      ]
+    ],
+    [
+      [
+        0,
+        -2
+      ],
+      [
+        3,
+        -2
+      ]
+    ],
+    [
+      [
+        -4,
+        -8
+      ],
+      [
+        0,
+        -8
+      ],
+      [
+        0,
+        -4
+      ],
+      [
+        3,
+        -4
+      ]
+    ],
+    [
+      [
+        9,
+        -2
+      ],
+      [
+        13,
+        -2
+      ]
+    ]
+  ]
+}
