@@ -514,23 +514,23 @@ void palettePresentation(Renderer& renderer)
         screenPixel(andCenter, 2) == blueGate, "Native shader preview ignored framebuffer scaling."
     );
     saveImage("component-palette-dpi.ppm");
-    ui.handleInput({UiInputKind::Cursor, 0, 0, 0, 0, 30, 120}, scene, input, dpi);
+    ui.handleInput({UiInputKind::Cursor, 0, 0, 0, 0, 30, 150}, scene, input, dpi);
     ui.handleInput({UiInputKind::Scroll, 0, 0, 0, 0, 0, -20}, scene, input, dpi);
     const auto partial = std::find_if(
         ui.buttons().begin(),
         ui.buttons().end(),
         [](const auto& item)
-        { return item.bounds.y < 112 && item.bounds.y + item.bounds.height > 112; }
+        { return item.bounds.y < 142 && item.bounds.y + item.bounds.height > 142; }
     );
     require(partial != ui.buttons().end(), "Framebuffer scroll fixture has no partial card.");
     renderer.beginFrame(dpi);
     renderer.drawCanvas({components, scene.getWires(), junctions});
     ui.draw(renderer, scene, dpi);
     const double edgeX = partial->bounds.x + 3;
-    const auto cardEdge = screenPixel({edgeX, 115}, 2);
-    const auto panelBackground = screenPixel({5, 115}, 2);
+    const auto cardEdge = screenPixel({edgeX, 145}, 2);
+    const auto panelBackground = screenPixel({5, 145}, 2);
     require(
-        cardEdge[2] > panelBackground[2] && screenPixel({edgeX, 110}, 2) == panelBackground &&
+        cardEdge[2] > panelBackground[2] && screenPixel({edgeX, 140}, 2) == panelBackground &&
             screenPixel({edgeX, dpiSurface.windowHeight - 45.0}, 2) == panelBackground &&
             glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE,
         "Scrolling hid partial cards, leaked into header/footer, or retained UI clipping."
@@ -977,8 +977,8 @@ void circuitViewsPresentation(Renderer& renderer)
         event.action = GLFW_PRESS;
         event.x = bounds.x + bounds.width / 2;
         event.y = bounds.y + bounds.height / 2;
-        if (bounds.y == 0 && bounds != ui.circuitTabs().tabBounds(0) &&
-            bounds != ui.circuitTabs().addBounds())
+        if (bounds.y == ui.circuitTabs().tabBounds(0).y &&
+            bounds != ui.circuitTabs().tabBounds(0) && bounds != ui.circuitTabs().addBounds())
         {
             const auto main = ui.circuitTabs().tabBounds(0);
             const double left = std::max(bounds.x, main.x + main.width);
@@ -994,13 +994,34 @@ void circuitViewsPresentation(Renderer& renderer)
     };
     auto mainFrame = draw();
     require(
-        mainFrame.viewport.y == 30 && cameraPixel(mainFrame, {0, 0})[2] > 150,
+        mainFrame.viewport.y == 60 && cameraPixel(mainFrame, {0, 0})[2] > 150,
         "Main tab canvas is not clipped below the header or lost its component."
     );
     const auto mainBounds = ui.circuitTabs().tabBounds(0);
-    const auto mainColor = screenPixel(mainBounds.x + 4, 5);
+    const auto mainColor = screenPixel(mainBounds.x + 4, mainBounds.y + 5);
     require(
         mainColor[2] > mainColor[0] + 50, "Active Main circuit tab did not draw above the canvas."
+    );
+    click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
+    const auto menu = ui.fileMenuBounds();
+    const auto saveAs = ui.fileOptionBounds(1);
+    ui.handleInput(
+        {UiInputKind::Cursor, 0, 0, 0, 0, saveAs.x + 8, saveAs.y + 8},
+        views.activeScene(),
+        input,
+        frame()
+    );
+    draw();
+    require(
+        ui.fileMenuOpen() && screenPixel(menu.x + 3, menu.y + 3)[2] > 30 &&
+            screenPixel(saveAs.x + 3, saveAs.y + 3)[2] > 100,
+        "File dropdown or hovered menu row did not render above the palette."
+    );
+    saveImage("file-menu.ppm");
+    click(ui.fileOptionBounds(0), GLFW_MOUSE_BUTTON_LEFT);
+    require(
+        !ui.fileMenuOpen() && views.activeScene().getComponentCount() == 1,
+        "Visual Save option changed the scene."
     );
     click(ui.circuitTabs().addBounds(), GLFW_MOUSE_BUTTON_LEFT);
     const auto emptyFrame = draw();
@@ -1037,6 +1058,15 @@ void circuitViewsPresentation(Renderer& renderer)
     saveImage("circuit-tab-name.ppm");
     surface = {512, 512, extent, extent};
     layout();
+    click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    const auto dpiMenu = ui.fileMenuBounds();
+    require(
+        screenPixel(dpiMenu.x + 3, dpiMenu.y + 3)[2] > 30,
+        "File dropdown ignored 2x framebuffer scaling."
+    );
+    saveImage("file-menu-2x.ppm");
+    click(ui.fileOptionBounds(2), GLFW_MOUSE_BUTTON_LEFT);
     click(ui.circuitTabs().tabBounds(1), GLFW_MOUSE_BUTTON_RIGHT);
     require(
         ui.circuitTabs().popupIndex() == 1, "Partially clipped tab could not open its name popup."

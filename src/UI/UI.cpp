@@ -22,6 +22,7 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
 {
     if (surface != m_surface)
     {
+        closeFileMenu(input);
         closeInfo(input);
         m_circuitTabs.cancel(input);
     }
@@ -31,13 +32,17 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     m_canCreate = input.getMode() == EditorMode::Selection;
     const double width = std::max(0, surface.windowWidth);
     const double height = std::max(0, surface.windowHeight);
-    m_panel = {0, 0, std::min(220.0, width * 0.45), height};
-    const double top = m_circuitTabs.enabled() ? std::min(30.0, height) : 0;
-    m_circuitTabs.layout({m_panel.width, 0, width - m_panel.width, top});
+    m_bar = {0, 0, width, std::min(30.0, height)};
+    m_panel = {0, m_bar.height, std::min(220.0, width * 0.45), height - m_bar.height};
+    const double tabs = m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0;
+    const double top = m_bar.height + tabs;
+    m_circuitTabs.layout({m_panel.width, m_bar.height, width - m_panel.width, tabs});
     input.setCanvasViewport(
         CanvasViewport{m_panel.width, top, width - m_panel.width, height - top}
     );
-    m_list = {12, 112, std::max(0.0, m_panel.width - 24), std::max(0.0, height - 160)};
+    m_list = {
+        12, m_panel.y + 112, std::max(0.0, m_panel.width - 24), std::max(0.0, m_panel.height - 160)
+    };
     m_buttons.clear();
     auto add = [&](const ComponentDefinition& definition)
     {
@@ -81,6 +86,8 @@ void UI::setCircuitViews(CircuitViews* views, const FontMetrics* font)
 
 void UI::update(double now, Input& input)
 {
+    if (m_fileMenuOpen)
+        return;
     m_circuitTabs.update(now, input);
     if (m_circuitTabs.popupIndex())
         closeInfo(input);
@@ -89,7 +96,95 @@ void UI::update(double now, Input& input)
 CanvasViewport UI::tabBounds(Tab tab) const
 {
     const double width = std::max(0.0, (m_panel.width - 32) / 2);
-    return {12 + (tab == Tab::Custom ? width + 8 : 0), 70, width, 28};
+    return {12 + (tab == Tab::Custom ? width + 8 : 0), m_panel.y + 70, width, 28};
+}
+
+CanvasViewport UI::fileBounds() const
+{
+    return {0, 0, std::min(64.0, m_bar.width), m_bar.height};
+}
+
+CanvasViewport UI::fileMenuBounds() const
+{
+    return {0, m_bar.height, std::min(180.0, m_bar.width), std::min(92.0, m_panel.height)};
+}
+
+CanvasViewport UI::fileOptionBounds(int index) const
+{
+    if (index < 0 || index >= 3)
+        return {};
+    const auto menu = fileMenuBounds();
+    return {
+        menu.x + 1,
+        menu.y + 1 + index * 30,
+        std::max(0.0, menu.width - 2),
+        std::clamp(menu.height - 1 - index * 30, 0.0, 30.0)
+    };
+}
+
+void UI::closeFileMenu(Input& input)
+{
+    if (m_fileMenuOpen)
+    {
+        m_fileMenuOpen = false;
+        input.setUiCapture({});
+        input.setCanvasFocused(true);
+    }
+}
+
+bool UI::handleFileMenu(const UiInputEvent& event, Input& input)
+{
+    if (event.kind == UiInputKind::WindowFocus && !event.focused)
+    {
+        closeFileMenu(input);
+        m_fileMousePressed = m_fileEscapePressed = false;
+        return false;
+    }
+    if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE &&
+        m_fileMousePressed)
+    {
+        m_fileMousePressed = false;
+        input.setCanvasFocused(true);
+        return true;
+    }
+    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
+        (m_fileMenuOpen || m_fileEscapePressed))
+    {
+        closeFileMenu(input);
+        m_fileEscapePressed = event.action != GLFW_RELEASE;
+        return true;
+    }
+    if (m_fileMenuOpen)
+    {
+        if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS)
+        {
+            m_fileMousePressed = true;
+            // Menu choices only dismiss the menu; file operations will be added separately.
+            closeFileMenu(input);
+        }
+        return true;
+    }
+    if (event.kind == UiInputKind::MouseButton && m_bar.contains(event.x, event.y))
+    {
+        cancel(input);
+        closeInfo(input);
+        m_circuitTabs.cancel(input);
+        if (event.action == GLFW_PRESS)
+        {
+            input.cancelCurrentAction();
+            m_fileMousePressed = true;
+            if (event.code == GLFW_MOUSE_BUTTON_LEFT && fileBounds().contains(event.x, event.y))
+            {
+                m_fileMenuOpen = true;
+                input.setUiCapture({true, true});
+            }
+        }
+        if (event.action == GLFW_RELEASE)
+            input.setCanvasFocused(true);
+        return true;
+    }
+    return (event.kind == UiInputKind::Cursor || event.kind == UiInputKind::Scroll) &&
+           m_bar.contains(m_pointer.x, m_pointer.y);
 }
 
 const UI::Button* UI::buttonAt(glm::dvec2 point) const
@@ -220,6 +315,10 @@ bool UI::handleInput(
     const UiInputEvent& event, Scene& scene, Input& input, const CanvasCameraFrame& camera
 )
 {
+    if (event.kind == UiInputKind::Cursor || event.kind == UiInputKind::MouseButton)
+        m_pointer = {event.x, event.y};
+    if (!m_circuitTabs.confirmingDelete() && handleFileMenu(event, input))
+        return true;
     if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS &&
         m_circuitTabs.contains(event.x, event.y))
     {

@@ -1003,7 +1003,7 @@ void componentPalette(GLFWwindow* window)
         }
     );
     require(
-        editor.input.getCameraFrame(window).viewport == CanvasViewport{220, 0, 580, 800},
+        editor.input.getCameraFrame(window).viewport == CanvasViewport{220, 30, 580, 770},
         "Palette did not reserve the left side of the canvas."
     );
     const auto buttons = ui.buttons();
@@ -1125,7 +1125,7 @@ void componentPalette(GLFWwindow* window)
         );
     }
     const auto zoom = editor.input.getZoom();
-    editor.cursorPixels(30, 120);
+    editor.cursorPixels(30, 150);
     Input::scrollCallback(window, 0, -20);
     require(
         editor.input.getZoom() == zoom && ui.buttons().back().bounds.y < 350,
@@ -1135,16 +1135,16 @@ void componentPalette(GLFWwindow* window)
         ui.buttons().begin(),
         ui.buttons().end(),
         [](const auto& item)
-        { return item.bounds.y < 112 && item.bounds.y + item.bounds.height > 112; }
+        { return item.bounds.y < 142 && item.bounds.y + item.bounds.height > 142; }
     );
     require(partial != ui.buttons().end(), "Scroll fixture did not leave a partly visible card.");
     const double partialX = partial->bounds.x + 4;
-    editor.cursorPixels(partialX, 116);
+    editor.cursorPixels(partialX, 146);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     require(ui.dragging(), "Visible part of a scrolled card could not be dragged.");
     editor.key(GLFW_KEY_ESCAPE);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
-    editor.cursorPixels(partialX, 108);
+    editor.cursorPixels(partialX, 138);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     require(!ui.dragging(), "Hidden card area above the list accepted a drag.");
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
@@ -1161,7 +1161,7 @@ void componentPalette(GLFWwindow* window)
     switchTab(UI::Tab::Custom);
     require(ui.buttons().empty(), "Custom tab included native components.");
     switchTab(UI::Tab::Native);
-    require(ui.buttons().front().bounds.y == 112, "Tab switch retained stale scroll position.");
+    require(ui.buttons().front().bounds.y == 142, "Tab switch retained stale scroll position.");
     editor.key(GLFW_KEY_F2);
     require(
         editor.input.getMode() == EditorMode::Selection,

@@ -79,7 +79,40 @@ void run(GLFWwindow* window)
     main.syncVisuals();
     input.setPanOffset({0.12f, -0.2f});
     input.setZoom(1.75f);
-    require(input.getCanvasViewport()->y == 30, "Tabs did not reserve canvas space.");
+    require(input.getCanvasViewport()->y == 60, "Tabs did not reserve canvas space.");
+    const auto beforeMenu = main.getRevision();
+    for (int option = 0; option < 3; ++option)
+    {
+        click(ui.fileBounds());
+        require(
+            ui.fileMenuOpen() && input.getUiCapture() == UiInputCapture{true, true},
+            "File menu did not open and capture canvas input."
+        );
+        key(GLFW_KEY_F2);
+        require(input.getMode() == EditorMode::Selection, "File menu leaked a canvas shortcut.");
+        click(ui.fileOptionBounds(option));
+        require(
+            !ui.fileMenuOpen() && input.getUiCapture() == UiInputCapture{} &&
+                main.getRevision() == beforeMenu,
+            "Visual file option changed the circuit or retained input capture."
+        );
+    }
+    click(ui.fileBounds());
+    key(GLFW_KEY_ESCAPE);
+    require(!ui.fileMenuOpen(), "Escape did not dismiss the File menu.");
+    click(ui.fileBounds());
+    click({400, 250, 20, 20});
+    require(
+        !ui.fileMenuOpen() && input.isIdle() && main.getRevision() == beforeMenu,
+        "Outside dismissal started a canvas edit."
+    );
+    click(ui.fileBounds());
+    input.handleFocus(false);
+    input.handleFocus(true);
+    require(
+        !ui.fileMenuOpen() && input.getUiCapture() == UiInputCapture{},
+        "Focus loss retained the File menu or input capture."
+    );
     const double width = static_cast<double>(getTextWidth("unnamed", 0.42f, font)) + 44;
     require(
         std::abs(ui.circuitTabs().tabBounds(0).width - width) < 0.01,
@@ -115,7 +148,7 @@ void run(GLFWwindow* window)
     cursor(paletteButton.x + 20, paletteButton.y + 20);
     mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     require(ui.dragging(), "Palette drag fixture did not begin.");
-    cursor(500, 15);
+    cursor(500, 45);
     mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
         !ui.dragging() && !input.getUiCapture().pointer &&
@@ -242,7 +275,7 @@ void run(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 600);
     layout();
     const float zoom = input.getZoom();
-    cursor(650, 15);
+    cursor(650, 45);
     input.handleScroll(window, 0, 100);
     require(
         input.getZoom() == zoom && ui.circuitTabs().tabBounds(1).x >= 220,

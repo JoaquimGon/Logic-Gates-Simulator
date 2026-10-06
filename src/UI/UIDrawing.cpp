@@ -33,10 +33,15 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     };
     // Rectangles and text serve the panel, tabs, cards, custom rows and drag badge.
     renderer.drawScreenRect(m_panel, {0.075f, 0.09f, 0.12f, 1});
-    renderer.drawScreenRect({m_panel.width - 1, 0, 1, m_panel.height}, {0.18f, 0.23f, 0.3f, 1});
-    label("COMPONENTS", {6, 12, m_panel.width - 12, 26}, 0.65f, ink);
+    renderer.drawScreenRect(
+        {m_panel.width - 1, m_panel.y, 1, m_panel.height}, {0.18f, 0.23f, 0.3f, 1}
+    );
+    label("COMPONENTS", {6, m_panel.y + 12, m_panel.width - 12, 26}, 0.65f, ink);
     label(
-        "Drag a component to place", {6, 42, m_panel.width - 12, 18}, 0.4f, {0.55f, 0.65f, 0.76f, 1}
+        "Drag a component to place",
+        {6, m_panel.y + 42, m_panel.width - 12, 18},
+        0.4f,
+        {0.55f, 0.65f, 0.76f, 1}
     );
     for (const auto tab : {Tab::Native, Tab::Custom})
     {
@@ -134,7 +139,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                                             : "Release on the canvas";
     label(
         footer,
-        {6, m_panel.height - 36, m_panel.width - 12, 22},
+        {6, m_panel.y + m_panel.height - 36, m_panel.width - 12, 22},
         0.35f,
         m_message.empty() ? glm::vec4{0.55f, 0.65f, 0.76f, 1} : glm::vec4{1, 0.55f, 0.4f, 1}
     );
@@ -222,4 +227,31 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     }
     renderer.drawText(text, TextSpace::Screen);
     m_circuitTabs.draw(renderer);
+    text.clear();
+    renderer.drawScreenRect(m_bar, {0.075f, 0.09f, 0.12f, 1});
+    renderer.drawScreenRect({0, m_bar.height - 1, m_bar.width, 1}, {0.18f, 0.23f, 0.3f, 1});
+    if (m_fileMenuOpen || fileBounds().contains(m_pointer.x, m_pointer.y))
+        renderer.drawScreenRect(fileBounds(), {0.16f, 0.3f, 0.46f, 1});
+    label("File", fileBounds(), 0.42f, ink, true);
+    renderer.drawText(text, TextSpace::Screen);
+    text.clear();
+    if (m_fileMenuOpen)
+    {
+        const auto menu = fileMenuBounds();
+        renderer.setScreenClip(menu);
+        renderer.drawScreenRect(menu, {0.3f, 0.45f, 0.6f, 1});
+        renderer.drawScreenRect(
+            {menu.x + 1, menu.y + 1, menu.width - 2, menu.height - 2}, {0.08f, 0.12f, 0.17f, 1}
+        );
+        int index = 0;
+        for (const auto* name : {"Save", "Save As", "Open"})
+        {
+            const auto bounds = fileOptionBounds(index++);
+            if (bounds.contains(m_pointer.x, m_pointer.y))
+                renderer.drawScreenRect(bounds, {0.16f, 0.3f, 0.46f, 1});
+            label(name, bounds, 0.42f, ink);
+        }
+        renderer.drawText(text, TextSpace::Screen);
+        renderer.setScreenClip(std::nullopt);
+    }
 }

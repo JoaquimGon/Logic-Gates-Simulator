@@ -54,7 +54,12 @@ occupied space rejects the drop and shows a message. Escape, right-click, focus
 loss, or resizing cancels the drag. Scroll inside the panel in shorter windows.
 Debug metrics start hidden; F3 shows them.
 
-The top circuit strip reserves 30 pixels above the canvas. Click the square **+**
+The full-width top bar reserves 30 pixels. Click **File** to expand **Save**,
+**Save As**, and **Open**. These entries are visual only and dismiss the menu;
+file operations are not implemented yet. Escape, outside clicks, focus loss,
+and resizing also dismiss it.
+
+The circuit strip reserves another 30 pixels below the top bar and above the canvas. Click the square **+**
 after the last circuit tab to create and open an empty `unnamed`; click a
 tab to switch.
 Each circuit retains its components, wires, signal state, pan, and zoom. Only

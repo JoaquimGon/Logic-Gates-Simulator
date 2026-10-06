@@ -250,8 +250,8 @@ and scene snapshots continue to operate on one scene. Only the active scene is
 simulated; inactive clock phases/signals are retained without wall-time catch-up.
 
 `UI/CircuitTabs` provides the top strip and its rename popup using existing
-Renderer rectangles/text. The shared canvas viewport excludes its 30-pixel
-header. Each tab measures `unnamed` at 0.42 font scale with 10-pixel side
+Renderer rectangles/text. The shared canvas viewport excludes the 30-pixel
+application bar and the 30-pixel circuit header below it. Each tab measures `unnamed` at 0.42 font scale with 10-pixel side
 padding and a 24-pixel close-button slot; longer names replace the last fitting
 characters with `...`. Main remains pinned while the other tabs scroll. A separate square plus button
 follows the last circuit tab; creation and resizing reveal it with the newest
@@ -281,3 +281,19 @@ normal and 2x DPI; review artifacts are `circuit-tabs.ppm`,
 `circuit-tab-name.ppm`, `circuit-tab-delete.ppm`, and `circuit-tabs-2x.ppm`.
 All 47 Debug and 46 headless AddressSanitizer checks pass; the tab and popup
 previews were visually reviewed.
+
+## Application bar
+
+`UI` draws a 30-pixel bar across the window with one File button and a small
+dropdown: Save, Save As, Open. It reuses the existing rectangle/text helpers;
+there are no file commands or persistence handlers. Clicking an entry only
+dismisses the menu. Hover highlights its row. The panel and circuit tabs start
+below the bar, and the canvas viewport follows that layout.
+
+The open menu captures pointer and keyboard events, cancelling existing gestures
+and dismissing other popups. Escape, an outside click, focus loss, or resizing
+closes it. The dismissal click is consumed so it cannot start a canvas edit.
+Circuit deletion confirmation keeps priority over the menu. Regression checks
+cover menu capture/dismissal and unchanged scene revisions for all three entries;
+framebuffer checks cover placement, hover, and normal/2x display scaling.
+All 47 Debug checks pass. `file-menu.ppm` and `file-menu-2x.ppm` were visually reviewed.

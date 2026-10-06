@@ -37,6 +37,12 @@ class UI
 
     const CircuitTabs& circuitTabs() const { return m_circuitTabs; }
 
+    CanvasViewport fileBounds() const;
+    CanvasViewport fileMenuBounds() const;
+    CanvasViewport fileOptionBounds(int index) const;
+
+    bool fileMenuOpen() const { return m_fileMenuOpen; }
+
     bool handleInput(
         const UiInputEvent& event, Scene& scene, Input& input, const CanvasCameraFrame& camera
     );
@@ -62,6 +68,8 @@ class UI
     CanvasViewport nameBounds(const Scene& scene) const;
 
   private:
+    bool handleFileMenu(const UiInputEvent& event, Input& input);
+    void closeFileMenu(Input& input);
     const Button* buttonAt(glm::dvec2 point) const;
     std::optional<GridCoords> dropPosition(const CanvasCameraFrame& camera) const;
     void closeInfo(Input& input);
@@ -74,7 +82,7 @@ class UI
     static constexpr double infoNameHeight = 64;
 
     CanvasSurface m_surface{};
-    CanvasViewport m_panel{}, m_list{};
+    CanvasViewport m_bar{}, m_panel{}, m_list{};
     std::vector<Button> m_buttons;
     Tab m_tab = Tab::Native;
     glm::dvec2 m_pointer{0};
@@ -87,4 +95,5 @@ class UI
     bool m_nameEditing = false;
     std::string m_nameDraft, m_nameError;
     CircuitTabs m_circuitTabs;
+    bool m_fileMenuOpen = false, m_fileMousePressed = false, m_fileEscapePressed = false;
 };
