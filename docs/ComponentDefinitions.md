@@ -12,7 +12,7 @@ Views receive resolved data and contain no creation presets.
 Native behavior implementations remain under `Components/`; Circuit owns their
 simulation. Adding a presentation/default variant uses a new declaration. Adding
 an entirely new behavior family also requires its implementation, a
-`NativeBehavior` alternative, and a factory dispatch branch.
+`ComponentBehavior` alternative, and a factory dispatch branch.
 
 ## Definition and instance data
 
@@ -115,10 +115,12 @@ Lightweight instance edits use explicit ConfigureComponentProperties fields;
 see [editor actions](EditorActions.md). Catalog defaults remain immutable. Native
 inversion changes the instance's paired gate behavior and shader; its creation
 definition ID remains intact. No generic schemas or configuration codec are used.
-Definition files/import/export remain RM-C5; external truth-table behaviors and
-subcircuits remain RM-C6. UI capture and viewport transforms are complete.
+Standalone subcircuit files now provide composed behavior and editable authored
+designs; see [Subcircuits.md](Subcircuits.md). Generic standalone native-box
+exports and external truth-table behaviors remain RM-C5/RM-C6. UI capture and
+viewport transforms are complete.
 The information popup shows live values and edits input/output names; highlighted
-truth tables and other controls remain RM-U3. Whole-circuit persistence remains RM-F1.
+truth tables and other controls remain RM-U3. Whole-circuit JSON persistence is documented in [CircuitFiles.md](CircuitFiles.md).
 
 `native.output` uses `OutputBehavior`: exactly one input (`in`, displayed as
 `Signal`) and zero outputs. It observes its input without driving another net.
@@ -137,3 +139,20 @@ mixed-size rendering. Output tests cover signal propagation and label restoratio
 input tests cover naming capture/cancellation. Current validation passes 46 Debug groups and 45 headless
 AddressSanitizer groups. Neutral descriptor/catalog headers require no graphics
 include paths.
+
+
+## Composed behavior
+
+`ComponentBehavior` also accepts `SubcircuitBehavior`: an immutable authored Scene,
+a simulation template, and ordered input/output component IDs. `makeSubcircuit`
+validates names/connectivity/containment and builds the box interface.
+`ComponentFactory` creates a `BoxView` with arbitrary indexed pins and a
+`Subcircuit` with private simulation state. No property schemas or reflection
+system is involved.
+
+`RegisterComponentDefinition{definition, true}` stages a custom definition update.
+For used subcircuits, the external interface must match; instances are replaced
+under their existing IDs and topology is rebuilt. Incompatible updates return
+an error without changing the catalog, wiring, or runtime. `CircuitViews` stages
+publication across open views before committing any of them. Normal registration
+still rejects duplicate/native IDs.

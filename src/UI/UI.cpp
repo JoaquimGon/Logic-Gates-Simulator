@@ -5,6 +5,7 @@
 #include "Editor/Input.h"
 #include "Editor/InterfaceComponents.h"
 #include "Editor/Scene.h"
+#include "Editor/Subcircuits.h"
 #include "Geometry/GridMetrics.h"
 #include "Geometry/GridSystem.h"
 
@@ -142,11 +143,12 @@ std::vector<std::string> UI::subcircuitInfo(const Scene& scene) const
     if (!m_showSubcircuit)
         return {};
     const auto components = interfaceComponents(scene);
-    int inputs = 0, outputs = 0, clocks = 0;
-    bool named = true;
+    int inputs = 0, outputs = 0;
     std::vector<std::string> entries;
     for (const auto& component : components)
     {
+        if (component.kind == InterfaceKind::Clock)
+            continue;
         const char* kind = component.kind == InterfaceKind::Input    ? "Input"
                            : component.kind == InterfaceKind::Output ? "Output"
                                                                      : "Clock";
@@ -154,18 +156,17 @@ std::vector<std::string> UI::subcircuitInfo(const Scene& scene) const
             ++inputs;
         else if (component.kind == InterfaceKind::Output)
             ++outputs;
-        else
-            ++clocks;
-        if (component.kind != InterfaceKind::Clock && blankComponentName(component.name))
-            named = false;
         entries.push_back(std::string(kind) + ": " + component.name);
     }
+    const auto clockNames = subcircuitClockNames(scene);
+    for (const auto& name : clockNames)
+        entries.push_back("Clock: " + name);
+    const auto problem = subcircuitProblem(scene);
     std::vector<std::string> lines{
         "Name: " + m_circuitTabs.activeViewName(),
-        inputs > 0 && outputs > 0 && named ? "Valid subcircuit: input/output interface ready"
-                                           : "Invalid: needs a named input and output",
+        problem.empty() ? "Valid subcircuit: input/output interface ready" : "Invalid: " + problem,
         "Inputs: " + std::to_string(inputs) + " | Outputs: " + std::to_string(outputs) +
-            " | Clocks: " + std::to_string(clocks)
+            " | Clocks: " + std::to_string(clockNames.size())
     };
     lines.insert(lines.end(), entries.begin(), entries.end());
     return lines;
@@ -178,12 +179,17 @@ CanvasViewport UI::fileBounds() const
 
 CanvasViewport UI::fileMenuBounds() const
 {
-    return {0, m_bar.height, std::min(180.0, m_bar.width), std::min(92.0, m_panel.height)};
+    return {
+        0,
+        m_bar.height,
+        std::min(240.0, m_bar.width),
+        std::min(2.0 + fileOptions().size() * 30, m_panel.height)
+    };
 }
 
 CanvasViewport UI::fileOptionBounds(int index) const
 {
-    if (index < 0 || index >= 3)
+    if (index < 0 || index >= static_cast<int>(fileOptions().size()))
         return {};
     const auto menu = fileMenuBounds();
     return {
@@ -207,6 +213,18 @@ void UI::closeFileMenu(Input& input)
 std::optional<UI::FileCommand> UI::takeFileCommand()
 {
     return std::exchange(m_fileCommand, std::nullopt);
+}
+
+std::vector<std::string> UI::fileOptions() const
+{
+    if (m_showSubcircuit)
+        return {"Save (subcircuit)", "Save As (subcircuit)"};
+    return {"Save", "Save As", "Open", "Load subcircuit"};
+}
+
+std::optional<std::string> UI::takeEditSubcircuit()
+{
+    return std::exchange(m_editSubcircuit, std::nullopt);
 }
 
 void UI::setFileStatus(std::string message, bool error)
@@ -251,7 +269,7 @@ bool UI::handleFileMenu(const UiInputEvent& event, Input& input)
         {
             m_fileMousePressed = true;
             if (event.code == GLFW_MOUSE_BUTTON_LEFT)
-                for (int index = 0; index < 3; ++index)
+                for (int index = 0; index < static_cast<int>(fileOptions().size()); ++index)
                     if (fileOptionBounds(index).contains(event.x, event.y))
                         m_fileCommand = static_cast<FileCommand>(index);
             closeFileMenu(input);
@@ -348,6 +366,22 @@ CanvasViewport UI::nameBounds(const Scene& scene) const
     return {bounds.x + 10, bounds.y + infoHeaderHeight + 18, bounds.width - 20, 28};
 }
 
+bool UI::canEditSubcircuit(const Scene& scene) const
+{
+    const auto* view = scene.getCommittedComponentView(m_infoComponent);
+    const auto* definition =
+        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    return definition && std::holds_alternative<SubcircuitBehavior>(definition->behavior);
+}
+
+CanvasViewport UI::editSubcircuitBounds(const Scene& scene) const
+{
+    if (!canEditSubcircuit(scene))
+        return {};
+    const auto bounds = infoBounds(scene);
+    return {bounds.x + 10, bounds.y + bounds.height - infoFooterHeight - 28, bounds.width - 20, 26};
+}
+
 std::vector<std::string> UI::componentInfo(const Scene& scene) const
 {
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
@@ -384,6 +418,7 @@ CanvasViewport UI::infoBounds(const Scene& scene) const
     const double width = std::min(280.0, std::max(0.0, m_surface.windowWidth - 16.0));
     const double height = std::min(
         infoHeaderHeight + infoFooterHeight + (canName(scene) ? infoNameHeight : 0) +
+            (canEditSubcircuit(scene) ? 28 : 0) +
             static_cast<double>(lines.size() - 1) * infoRowHeight,
         std::max(0.0, m_surface.windowHeight - 16.0)
     );
@@ -401,7 +436,7 @@ int UI::infoVisibleRows(const Scene& scene) const
         0,
         static_cast<int>(
             (infoBounds(scene).height - infoHeaderHeight - infoFooterHeight -
-             (canName(scene) ? infoNameHeight : 0)) /
+             (canName(scene) ? infoNameHeight : 0) - (canEditSubcircuit(scene) ? 28 : 0)) /
             infoRowHeight
         )
     );
@@ -413,6 +448,13 @@ bool UI::handleInput(
 {
     if (event.kind == UiInputKind::Cursor || event.kind == UiInputKind::MouseButton)
         m_pointer = {event.x, event.y};
+    // A queued operation belongs to this view; do not switch/delete tabs before it runs.
+    if (m_fileCommand || m_editSubcircuit)
+    {
+        if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE)
+            m_fileMousePressed = m_infoRightPressed = false;
+        return true;
+    }
     if (!m_circuitTabs.confirmingDelete() && handleFileMenu(event, input))
         return true;
     if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS &&
@@ -519,6 +561,15 @@ bool UI::handleInput(
         {
             if (infoBounds(scene).contains(event.x, event.y))
             {
+                if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
+                    editSubcircuitBounds(scene).contains(event.x, event.y))
+                {
+                    m_editSubcircuit = scene.getCommittedComponentView(m_infoComponent)
+                                           ->getDefinitionIdentity()
+                                           .id;
+                    dismissPopups(input);
+                    return true;
+                }
                 if (m_canCreate && event.code == GLFW_MOUSE_BUTTON_LEFT &&
                     event.action == GLFW_PRESS && nameBounds(scene).contains(event.x, event.y) &&
                     !m_nameEditing)

@@ -10,7 +10,8 @@ one input. Feedback, including self-connections, is accepted.
 receivers whose inputs changed. Each step evaluates its components using the
 current input values, collects output changes, and delivers the complete step
 before the next evaluation. Component IDs provide deterministic ordering;
-there is no topological sort or recursive traversal.
+there is no topological sort. Contained subcircuits settle their private circuit
+using the same evaluation budget, then publish their external outputs.
 
 The circuit settles when the queue is empty. A call stops after 1,024 steps or
 100,000 component evaluations. Reaching either limit returns
@@ -65,3 +66,19 @@ No new native flip-flop or component UI is added by this change.
 oscillation and recovery, chronological/simultaneous clocks, retained catch-up,
 rising/falling receivers, register ordering, generated clocks, and a master/slave
 circuit built from existing D latches.
+
+
+## Contained circuits
+
+Each `Subcircuit` owns a deep copy of its definition's simulation template.
+External input states drive the authored InputPins; authored OutputPins provide
+indexed external output states. Layout and definitions remain separate from
+runtime state. Scene connectivity rebuilds only the visible box's connections,
+leaving its internal connections intact.
+
+`collectClocks()` includes clocks inside nested instances in deterministic order.
+The enclosing Circuit advances every clock at each chronological transition
+before settling. Child circuits never consume frame time independently. Native
+and contained evaluations share a 100,000-evaluation allowance; a child failure
+marks the enclosing circuit non-convergent. Existing step and clock-time limits
+still apply. See [Subcircuits.md](Subcircuits.md).

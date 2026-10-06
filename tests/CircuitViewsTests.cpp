@@ -101,7 +101,7 @@ void run(GLFWwindow* window)
         ui.bottomTabBounds(UI::BottomTab::Subcircuit).width == 0 && ui.subcircuitInfo(main).empty(),
         "Workspace exposed a Subcircuit tab."
     );
-    for (int option = 0; option < 3; ++option)
+    for (int option = 0; option < 4; ++option)
     {
         click(ui.fileBounds());
         require(

@@ -17,7 +17,8 @@ A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 C
 - **Clock Edges:** Every elapsed rising/falling transition settles the circuit before the next transition; simultaneous clocks advance together.
 - **SDF Graphics Pipeline:** Resolution-independent gate geometry rendered on dynamic quads with sub-pixel screen-space anti-aliasing (`fwidth`).
 - **Component Outlines:** Thin slate edges on basic components, inversion bubbles, pins, and latches, matching the unpowered output bulb fill.
-- **Circuit Tabs:** Independent named scenes with retained cameras, a permanent Main tab, and simple rename/delete popups.
+- **Circuit Tabs:** Independent named workspaces/subcircuit editors with retained cameras, a permanent Main tab, and rename/delete popups.
+- **Reusable Subcircuits:** Save authored designs to JSON, import them into Custom, place independent instances, and reopen their original layout for editing. Main embeds used definitions and dependencies.
 - **Live Shader Hot-Reloading:** Edit `.frag` or `.vert` files on disk; shaders recompile automatically at runtime.
 
 ---
@@ -55,10 +56,13 @@ loss, or resizing cancels the drag. Scroll inside the panel in shorter windows.
 Debug metrics start hidden; F3 shows them.
 
 The full-width top bar reserves 30 pixels. Click **File** to expand **Save**,
-**Save As**, and **Open**, all operating on **Main only**. Save asks for a JSON
+**Save As**, **Open**, and **Load subcircuit** in a workspace. Save/Open operate on **Main only**. Save asks for a JSON
 path the first time, then updates that file; Save As always asks for a path.
 Open validates the file before replacing Main and switches to its tab. Other
-views stay untouched. Windows uses the native file picker; cancelling it changes
+authored scenes are retained. Subcircuit editors instead show **Save (subcircuit)**
+and **Save As (subcircuit)**, using their own file paths. Valid saves/imports appear
+in Custom; right-click a placed box to **Edit subcircuit**. See
+[subcircuit behavior and save rules](docs/Subcircuits.md). Windows uses the native file picker; cancelling it changes
 nothing. Success/errors appear in the bar, with error details in the console.
 Escape, outside clicks, focus loss, and resizing dismiss the dropdown.
 
@@ -76,15 +80,15 @@ Backspace and Ctrl+A edit, while Escape, outside clicks, resize, and focus loss
 cancel the draft. Names accept up to 64 printable ASCII characters. The popup
 also shows its role; non-main views offer **Convert to subcircuit** or **Use as
 workspace**, preserving the scene and its camera. Names and input/output
-components never determine that role. Packaging into a reusable component is
-not implemented yet. Click a circuit tab's **X**
+components never determine that role. Saving a valid subcircuit publishes its
+reusable box in Custom. Click a circuit tab's **X**
 to open a **Delete / Cancel** confirmation. Closing the active circuit switches
 to the tab on its left; Main cannot be deleted. Escape or an outside click
 cancels deletion. There is no saved-state check yet. Main is
 saved as a single circuit design in JSON, including labels, settings, pin
 layouts, manual input values, and wire bends. Clock phase, latch memory, and
-derived signals reset on load. Subcircuit views remain in memory and are not
-included. Subcircuit interfaces, packaging, and saving remain future work.
+derived signals reset on load. Used subcircuit definitions and their authored
+dependencies are embedded; unused editor drafts are saved separately.
 See [circuit files](docs/CircuitFiles.md) for the format and loading behavior.
 
 A bottom panel sits beneath the simulator, beside the full-height component
@@ -101,8 +105,9 @@ defaults skip names already in use. Empty/whitespace input/output edits are
 rejected only in subcircuit editors. Right-click a vital component to rename it
 in Selection mode; clocks also have a name field in this context. Converting
 a workspace fills missing names; returning to Workspace keeps labels but
-allows optional names again. Interface readiness does not validate wiring or
-publish a reusable component.
+allows optional names again. Publication also requires unique interface names
+per direction and settling, unshorted wiring. The panel includes clocks inside
+saved nested components; publishing occurs on explicit Save.
 
 Right-click an idle component or its pin to open a small information popup in
 either mode. It shows the component name, body label when present, and live
@@ -120,8 +125,9 @@ To name an input or output in Selection mode, right-click it, click the **Name**
 field, type, and press Enter to save. Backspace edits; Escape, outside clicks,
 resize, or focus loss discard unfinished typing. Names accept up to 32 printable
 ASCII characters; an empty name clears the label. Interaction mode shows the
-name without editing it. Names preserve pin identities and wiring, and do not
-need to be unique yet. Subcircuit interfaces and packaging remain future work.
+name without editing it. Names preserve pin identities and wiring. Workspace
+labels remain optional; subcircuit input/output labels must be nonempty and
+unique within each direction before publication.
 Output bulbs have one incoming pin and no outgoing pins; unavailable signals
 appear gray.
 

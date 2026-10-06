@@ -1,10 +1,12 @@
 #include "Components/ComponentFactory.h"
 
+#include "Components/Views/BoxView.h"
 #include "Components/Views/ClockView.h"
 #include "Components/Views/GateView.h"
 #include "Components/Views/InputPinView.h"
 #include "Components/Views/LatchView.h"
 #include "Components/Views/OutputPinView.h"
+#include "Simulation/Subcircuit.h"
 
 #include <cstdint>
 #include <limits>
@@ -90,6 +92,13 @@ CreatedComponent ComponentFactory::create(
         id = circuit.addOutputPin();
         view = std::make_unique<OutputPinView>(
             position, id, layout.size, layout.shader, layout.inputs
+        );
+    }
+    else if (const auto* sub = std::get_if<SubcircuitBehavior>(&resolved.behavior))
+    {
+        id = circuit.addComponent(std::make_unique<Subcircuit>(*sub));
+        view = std::make_unique<BoxView>(
+            position, id, layout.size, layout.shader, layout.inputs, layout.outputs
         );
     }
     else

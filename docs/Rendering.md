@@ -274,8 +274,9 @@ limited by the field to 64 printable ASCII characters; blank names use the
 offers Convert to subcircuit/Use as workspace on non-main views. These change
 metadata only; an unfinished rename draft is discarded when changing purpose.
 Subcircuit editors have a small SUB badge without widening the compact tabs.
-The Subcircuit bottom tab shows the authoring interface overview. These are drafts;
-interface validation, packaging, and component registration are still future work.
+The Subcircuit bottom tab shows the authoring interface overview. Valid saves
+publish boxed components in Custom; placed boxes offer Edit subcircuit in their
+right-click popup. See [Subcircuits.md](Subcircuits.md).
 
 Non-main tabs show an X at their right edge. It opens a Delete/Cancel popup
 that captures pointer and keyboard input until confirmed or dismissed. Escape,
@@ -283,8 +284,7 @@ outside clicks, focus loss, and resize cancel it. Active deletion switches to
 the left neighbor before destroying the scene; deleting an inactive tab preserves
 the current scene and camera. Main is protected in both the UI and model.
 There are no saved-state checks. Main circuit JSON persistence is described in
-[CircuitFiles.md](CircuitFiles.md); subcircuit I/O panels, validation, packaging,
-nesting, and subcircuit persistence remain separate future work.
+[CircuitFiles.md](CircuitFiles.md) and [Subcircuits.md](Subcircuits.md).
 
 `CircuitViewsTests` checks independent contents/signals/cameras, scene-local
 snapshot restoration, cancelled gestures, header drop cancellation, hover timing,
@@ -299,13 +299,15 @@ previews were visually reviewed.
 ## Application bar
 
 `UI` draws a 30-pixel bar across the window with one File button and a small
-dropdown: Save, Save As, Open. It reuses the existing rectangle/text helpers;
+dropdown: Save, Save As, Open, Load subcircuit in workspaces; Save (subcircuit)
+and Save As (subcircuit) in subcircuit editors. It reuses rectangle/text helpers;
 each entry queues a single typed `FileCommand` for Engine to consume before
 processing/rendering the next scene frame. Engine owns the current Main file path
-and the native picker; Persistence handles JSON/file IO. UI only routes commands
+while each subcircuit editor owns its own path. App/CircuitFiles handles
+file-command execution and the native picker; Persistence handles JSON/file IO.
+UI only routes commands
 and displays success/errors in the bar. Hover highlights its row. The panel and
-circuit tabs start
-below the bar, and the canvas viewport follows that layout.
+circuit tabs start below the bar, and the canvas viewport follows that layout.
 
 The open menu captures pointer and keyboard events, cancelling existing gestures
 and dismissing other popups. Escape, an outside click, focus loss, or resizing
@@ -360,9 +362,9 @@ turn a subcircuit into a workspace or restore unnamed ports. Workspace labels
 remain optional. Clock names can be edited in subcircuit component popups and
 native clock labels render beneath the glyph.
 
-Validity here checks at least one named input and one named output. It does not
-check electrical correctness, duplicate custom labels, packaging, or simulation
-representations; those remain separate subcircuit work. Name/count/status/list
+Validity checks named inputs/outputs, unique names per direction, and shorted,
+rejected, or non-converging wiring. Save also checks containment and expansion
+limits before publishing. See [Subcircuits.md](Subcircuits.md). Name/count/status/list
 rows update from the committed scene after creation, deletion, edits, or restore.
 All 50 Debug groups and four targeted AddressSanitizer checks pass.
 Normal/2x, invalid-interface, and scrolled list previews

@@ -202,40 +202,30 @@ SimulationResult Scene::propagate()
 
 void Scene::togglePauseAllClocks()
 {
-    for (auto& [id, view] : m_componentViews)
-    {
-        if (auto* clk = dynamic_cast<Clock*>(m_circuit.getComponent(id)))
-        {
-            clk->togglePause();
-        }
-    }
+    std::vector<Clock*> clocks;
+    m_circuit.collectClocks(clocks);
+    for (auto* clock : clocks)
+        clock->togglePause();
 }
 
 void Scene::stepAllClocks()
 {
-    bool anyStepped = false;
-    for (auto& [id, view] : m_componentViews)
-    {
-        if (auto* clk = dynamic_cast<Clock*>(m_circuit.getComponent(id)))
-        {
-            anyStepped |= clk->step();
-        }
-    }
-    if (anyStepped)
-    {
+    std::vector<Clock*> clocks;
+    m_circuit.collectClocks(clocks);
+    bool stepped = false;
+    for (auto* clock : clocks)
+        stepped |= clock->step();
+    if (stepped)
         markSimulationDirty();
-    }
 }
 
 void Scene::setAllClocksFrequency(float hz)
 {
-    for (auto& [id, view] : m_componentViews)
-    {
-        if (auto* clk = dynamic_cast<Clock*>(m_circuit.getComponent(id)))
-        {
-            clk->setFrequency(hz);
-        }
-    }
+    validateClockFrequency(hz);
+    std::vector<Clock*> clocks;
+    m_circuit.collectClocks(clocks);
+    for (auto* clock : clocks)
+        clock->setFrequency(hz);
 }
 
 void Scene::syncVisuals()

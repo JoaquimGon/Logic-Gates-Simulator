@@ -6,5 +6,9 @@
 struct GLFWwindow;
 
 /** Native JSON-file picker; cancellation returns no path, dialog failures throw. */
-std::optional<std::filesystem::path>
-chooseCircuitFile(GLFWwindow* window, bool saving, const std::filesystem::path& current = {});
+std::optional<std::filesystem::path> chooseCircuitFile(
+    GLFWwindow* window,
+    bool saving,
+    const std::filesystem::path& current = {},
+    bool subcircuit = false
+);

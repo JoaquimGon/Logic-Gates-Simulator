@@ -22,7 +22,8 @@ class UI
     {
         Save,
         SaveAs,
-        Open
+        Open,
+        LoadSubcircuit
     };
     enum class Tab
     {
@@ -55,6 +56,8 @@ class UI
     bool fileMenuOpen() const { return m_fileMenuOpen; }
 
     std::optional<FileCommand> takeFileCommand();
+    std::optional<std::string> takeEditSubcircuit();
+    std::vector<std::string> fileOptions() const;
     void setFileStatus(std::string message, bool error = false);
     void dismissPopups(Input& input);
 
@@ -74,7 +77,7 @@ class UI
 
     CanvasViewport bottomTabBounds(BottomTab tab) const;
     CanvasViewport subcircuitListBounds() const;
-    /** Basic interface validity only: at least one named input and one named output. */
+    /** Interface readiness and vital names, including clocks inside saved nested components. */
     std::vector<std::string> subcircuitInfo(const Scene& scene) const;
 
     BottomTab activeBottomTab() const { return m_bottomTab; }
@@ -90,6 +93,7 @@ class UI
     std::vector<std::string> componentInfo(const Scene& scene) const;
     CanvasViewport infoBounds(const Scene& scene) const;
     CanvasViewport nameBounds(const Scene& scene) const;
+    CanvasViewport editSubcircuitBounds(const Scene& scene) const;
 
   private:
     bool handleFileMenu(const UiInputEvent& event, Input& input);
@@ -98,6 +102,7 @@ class UI
     std::optional<GridCoords> dropPosition(const CanvasCameraFrame& camera) const;
     void closeInfo(Input& input);
     bool canName(const Scene& scene) const;
+    bool canEditSubcircuit(const Scene& scene) const;
     int infoVisibleRows(const Scene& scene) const;
 
     static constexpr double infoRowHeight = 22;
@@ -125,6 +130,7 @@ class UI
     CircuitTabs m_circuitTabs;
     bool m_fileMenuOpen = false, m_fileMousePressed = false, m_fileEscapePressed = false;
     std::optional<FileCommand> m_fileCommand;
+    std::optional<std::string> m_editSubcircuit;
     std::string m_fileStatus;
     bool m_fileError = false;
 };

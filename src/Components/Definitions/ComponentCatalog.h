@@ -9,10 +9,11 @@ class ComponentCatalog
 {
   public:
     ComponentCatalog();
-    /** @brief Registers validated box definitions referencing supported native behavior.
+    /** @brief Registers validated custom box definitions with supported behavior.
      * Duplicate IDs and the native.* namespace are rejected before mutation.
      */
     void registerDefinition(ComponentDefinition definition);
+    void replaceDefinition(ComponentDefinition definition);
 
     const std::map<std::string, ComponentDefinition, std::less<>>& definitions() const
     {

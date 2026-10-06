@@ -6,6 +6,7 @@
 #include "Geometry/GridCoords.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -23,8 +24,24 @@ struct OutputBehavior
 {
 };
 
-using NativeBehavior =
-    std::variant<GateType, ManualInputBehavior, ClockBehavior, LatchType, OutputBehavior>;
+class Scene;
+class Circuit;
+
+/** Authored design and a simulation template; instances clone the latter. */
+struct SubcircuitBehavior
+{
+    std::shared_ptr<const Scene> authored;
+    std::shared_ptr<const Circuit> circuit;
+    std::vector<int> inputs, outputs;
+};
+
+using ComponentBehavior = std::variant<
+    GateType,
+    ManualInputBehavior,
+    ClockBehavior,
+    LatchType,
+    OutputBehavior,
+    SubcircuitBehavior>;
 
 struct DefinitionIdentity
 {
@@ -80,7 +97,7 @@ struct ComponentDefinition
 {
     DefinitionIdentity identity;
     std::string displayName;
-    NativeBehavior behavior;
+    ComponentBehavior behavior;
     DefinitionLayout layout;
     PinLayoutRule pinLayoutRule = PinLayoutRule::Fixed;
     PresentationDefinition presentation;
@@ -102,7 +119,7 @@ struct ComponentOverrides
 struct ResolvedComponent
 {
     DefinitionIdentity identity;
-    NativeBehavior behavior;
+    ComponentBehavior behavior;
     DefinitionLayout layout;
     PresentationDefinition presentation;
     bool inputState;
@@ -112,7 +129,7 @@ struct ResolvedComponent
 
 /** @brief Rejects inconsistent metadata/interfaces and unsupported presentation features. */
 void validateDefinition(const ComponentDefinition& definition);
-/** @brief Applies options to a copy; validates stable pin identities and native behavior counts. */
+/** @brief Applies options to a copy; validates stable pin identities and behavior pin counts. */
 ResolvedComponent
 resolveDefinition(const ComponentDefinition& definition, const ComponentOverrides& overrides = {});
 void validateClockFrequency(float hz);

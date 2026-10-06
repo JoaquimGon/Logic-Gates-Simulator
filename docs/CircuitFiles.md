@@ -1,9 +1,13 @@
 # Circuit files
 
-File → Save, Save As, and Open operate on **Main**, including while another tab
-is active. Save remembers its last successful path; Save As always chooses one.
-Open validates/builds a separate scene before restoring Main with EditorActions
-and switching to that tab. Other viewpoints are neither saved nor replaced.
+In workspace views, File -> Save, Save As, and Open operate on **Main**.
+Save remembers its last successful path; Save As always chooses one. Open
+validates/builds a separate scene before restoring Main and switching to that tab.
+Other authored scenes are retained; compatible embedded definition updates also
+reach their placed subcircuits. File -> Load subcircuit imports standalone designs.
+In subcircuit editors, the menu instead saves the active subcircuit; each editor
+remembers its own path. See [Subcircuits.md](Subcircuits.md) for draft publication,
+interface changes, nested dependencies, and editing placed components.
 There is no unsaved-change prompt yet. Camera position/zoom remain editor state.
 
 The Windows application uses native JSON file pickers. Cancelling a picker has
@@ -39,10 +43,11 @@ clocks store `clock_frequency` and `clock_paused`. Each wire is an array of
 absolute grid `[x, y]` points, retaining bends and disconnected routes.
 
 Native definitions come from the catalog and are referenced by ID/version.
-Only used custom box definitions are embedded, with their supported native
-behavior, pin layout/defaults, labels, resize rule, and tint. They do not contain
-subcircuit scenes or nested circuit behavior. Shader paths are resolved from the
-application's registered presentations rather than loaded from JSON.
+Used custom definitions are embedded, including native-behavior boxes and
+subcircuits. Subcircuit definitions carry complete editable designs and ordered
+port mappings; nested dependencies are embedded with their saved versions.
+Metadata retains layouts/defaults, labels, resize rules, and tint. Shader paths
+come from the application's registered presentations rather than JSON.
 
 ## Rebuilding and failure behavior
 
@@ -60,7 +65,7 @@ cannot settle remain editable and receive the existing simulation status.
 Malformed JSON, unsupported format/definition versions, invalid settings/pins,
 and invalid routes fail before Main is replaced. Loading retains valid saved
 overlaps rather than relocating components. Limits are 16 MiB per file, 4096
-components, 16384 routes, and 64 levels of JSON nesting. Saving checks the same
+components, 16384 routes, and 128 levels of JSON nesting. Saving checks the same
 size/count limits. A complete temporary sibling is written before replacing
 the destination; failed writes/replacements preserve the previous save and
 remove the temporary file.
@@ -72,8 +77,8 @@ all native types, edited gate arity/inversion, labels, source/clock settings,
 custom boxes/leads, independent latch outputs, feedback, runtime reset, preview
 exclusion, invalid data, Unicode paths, replacement, and failed-write cleanup.
 `circuit_views` checks one-shot File commands and loading Main without replacing
-another viewpoint. All 50 Debug groups and four targeted AddressSanitizer checks pass. Native
-picker interaction requires an application smoke test.
+another viewpoint. Subcircuit-specific checks are described in [Subcircuits.md](Subcircuits.md).
+Native picker interaction requires an application smoke test.
 
 ```sh
 ctest --test-dir out/build/x64-debug -R "circuit_json|circuit_file|circuit_views" --output-on-failure

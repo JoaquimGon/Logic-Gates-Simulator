@@ -24,7 +24,7 @@ add_library(simulator_components STATIC
 )
 target_link_libraries(simulator_components PUBLIC project_options)
 
-add_library(simulator_simulation STATIC src/Simulation/Circuit.cpp)
+add_library(simulator_simulation STATIC src/Simulation/Circuit.cpp src/Simulation/Subcircuit.cpp)
 target_link_libraries(simulator_simulation PUBLIC simulator_components)
 
 add_library(simulator_geometry STATIC
@@ -45,6 +45,7 @@ add_library(simulator_scene STATIC
     src/Editor/Scene.cpp
     src/Editor/SceneEditing.cpp
     src/Editor/InterfaceComponents.cpp
+    src/Editor/Subcircuits.cpp
     src/Editor/Connectivity/ConnectivityBuilder.cpp
     src/Editor/Actions/EditorActions.cpp
 )
@@ -110,7 +111,7 @@ if(BUILD_SIMULATOR_APP)
 
     target_sources(simulator_ui PRIVATE src/UI/UIDrawing.cpp src/UI/CircuitTabsDrawing.cpp)
     target_link_libraries(simulator_ui PRIVATE simulator_graphics)
-    add_executable(${PROJECT_NAME} src/App/main.cpp src/App/Engine.cpp src/App/FileDialog.cpp)
+    add_executable(${PROJECT_NAME} src/App/main.cpp src/App/Engine.cpp src/App/FileDialog.cpp src/App/CircuitFiles.cpp)
     target_link_libraries(${PROJECT_NAME} PRIVATE simulator_ui simulator_graphics simulator_files glfw)
     if(WIN32)
         target_link_libraries(${PROJECT_NAME} PRIVATE comdlg32)
@@ -124,6 +125,15 @@ if(BUILD_SIMULATOR_APP)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(SubcircuitTests tests/SubcircuitTests.cpp src/App/CircuitFiles.cpp src/App/FileDialog.cpp)
+    target_link_libraries(SubcircuitTests PRIVATE simulator_files simulator_ui nlohmann_json::nlohmann_json glfw)
+    target_compile_definitions(SubcircuitTests PRIVATE GLFW_INCLUDE_NONE)
+    if(WIN32)
+        target_link_libraries(SubcircuitTests PRIVATE comdlg32)
+    endif()
+    foreach(test_name IN ITEMS subcircuit_runtime subcircuit_clocks subcircuit_files subcircuit_editing subcircuit_file_commands subcircuit_ui)
+        add_test(NAME ${test_name} COMMAND SubcircuitTests ${test_name})
+    endforeach()
     add_executable(CircuitFileTests tests/CircuitFileTests.cpp)
     target_link_libraries(CircuitFileTests PRIVATE simulator_files nlohmann_json::nlohmann_json)
     foreach(test_name IN ITEMS circuit_json_roundtrip circuit_json_validation circuit_file_io)

@@ -43,6 +43,16 @@ const ComponentDefinition* ComponentCatalog::find(std::string_view id) const
     return found == m_definitions.end() ? nullptr : &found->second;
 }
 
+void ComponentCatalog::replaceDefinition(ComponentDefinition definition)
+{
+    validateDefinition(definition);
+    if (definition.identity.id.starts_with("native.") ||
+        definition.presentation.kind != PresentationKind::Box)
+        throw std::invalid_argument("Only custom box definitions can be replaced.");
+    const auto id = definition.identity.id;
+    m_definitions.insert_or_assign(id, std::move(definition));
+}
+
 ResolvedComponent ComponentCatalog::resolve(
     std::string_view id, const ComponentOverrides& overrides, std::uint32_t version
 ) const

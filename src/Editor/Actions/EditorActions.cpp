@@ -4,6 +4,7 @@
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/InterfaceComponents.h"
 #include "Editor/Scene.h"
+#include "Simulation/Subcircuit.h"
 
 #include <algorithm>
 #include <cmath>
@@ -190,7 +191,54 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                         if (!stagedCatalog)
                             stagedCatalog =
                                 std::make_shared<ComponentCatalog>(*candidate.m_catalog);
-                        stagedCatalog->registerDefinition(op.definition);
+                        if (op.replace)
+                        {
+                            const auto* old = candidate.m_catalog->find(op.definition.identity.id);
+                            for (auto& [id, view] : candidate.m_componentViews)
+                            {
+                                if (view->getDefinitionIdentity().id != op.definition.identity.id)
+                                    continue;
+                                if (!old ||
+                                    !std::holds_alternative<SubcircuitBehavior>(old->behavior) ||
+                                    !std::holds_alternative<SubcircuitBehavior>(
+                                        op.definition.behavior
+                                    ))
+                                    throw std::invalid_argument(
+                                        "Only subcircuit placements support definition updates."
+                                    );
+                                const auto& a = old->layout;
+                                const auto& b = op.definition.layout;
+                                if (a.width != b.width || a.height != b.height ||
+                                    a.pins.size() != b.pins.size())
+                                    throw std::invalid_argument(
+                                        "Interface changed: remove placed instances before "
+                                        "publishing this draft."
+                                    );
+                                for (std::size_t i = 0; i < a.pins.size(); ++i)
+                                    if (a.pins[i].id != b.pins[i].id ||
+                                        a.pins[i].label != b.pins[i].label ||
+                                        a.pins[i].direction != b.pins[i].direction ||
+                                        a.pins[i].index != b.pins[i].index ||
+                                        a.pins[i].anchor != b.pins[i].anchor)
+                                        throw std::invalid_argument(
+                                            "Interface changed: remove placed instances before "
+                                            "publishing this draft."
+                                        );
+                                candidate.m_circuit.replaceComponent(
+                                    id,
+                                    std::make_unique<Subcircuit>(
+                                        std::get<SubcircuitBehavior>(op.definition.behavior)
+                                    )
+                                );
+                                view->m_definition = op.definition.identity;
+                                if (view->m_bodyLabel == old->presentation.bodyLabel)
+                                    view->m_bodyLabel = op.definition.presentation.bodyLabel;
+                                topologyChanged = true;
+                            }
+                            stagedCatalog->replaceDefinition(op.definition);
+                        }
+                        else
+                            stagedCatalog->registerDefinition(op.definition);
                         candidate.m_catalog = stagedCatalog;
                         changed = true;
                     }

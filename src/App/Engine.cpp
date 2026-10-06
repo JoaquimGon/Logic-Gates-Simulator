@@ -1,6 +1,6 @@
 #include "Engine.h"
 
-#include "App/FileDialog.h"
+#include "App/CircuitFiles.h"
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/CircuitViews.h"
@@ -168,32 +168,7 @@ void Engine::run()
         {
             try
             {
-                const bool opening = *command == UI::FileCommand::Open;
-                const auto chosen =
-                    !opening && *command == UI::FileCommand::Save && !mainFile.empty()
-                        ? std::optional{mainFile}
-                        : chooseCircuitFile(window, !opening, mainFile);
-                if (chosen)
-                {
-                    if (opening)
-                    {
-                        auto loaded = loadCircuit(*chosen);
-                        m_ui.dismissPopups(input);
-                        circuits.select(0, input);
-                        const auto result =
-                            EditorActions(circuits.mainScene())
-                                .restore(loaded.scene, circuits.mainScene().getRevision());
-                        if (!result)
-                            throw std::runtime_error(result.message);
-                        circuits.rename(0, std::move(loaded.name));
-                        circuits.mainScene().propagate();
-                        circuits.mainScene().syncVisuals();
-                    }
-                    else
-                        saveCircuit(*chosen, circuits.mainScene(), circuits.name(0));
-                    mainFile = *chosen;
-                    m_ui.setFileStatus(opening ? "Opened Main circuit" : "Saved Main circuit");
-                }
+                performFileCommand(*command, window, m_ui, circuits, input, mainFile);
             }
             catch (const std::exception& error)
             {
@@ -203,6 +178,23 @@ void Engine::run()
             input.setCanvasFocused(true);
             // Time spent in a modal file picker is not simulated clock time.
             lastFrameTime = glfwGetTime();
+        }
+        if (const auto id = m_ui.takeEditSubcircuit())
+        {
+            try
+            {
+                const auto* source = circuits.activeScene().getComponentCatalog().find(*id);
+                if (!source)
+                    throw std::invalid_argument("Subcircuit definition no longer exists.");
+                const auto definition = *source;
+                m_ui.dismissPopups(input);
+                input.cancelCurrentAction();
+                circuits.editSubcircuit(definition, input);
+            }
+            catch (const std::exception& error)
+            {
+                m_ui.setFileStatus(error.what(), true);
+            }
         }
         double currentFrameTime = glfwGetTime();
         float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);

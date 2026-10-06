@@ -24,7 +24,7 @@ int countPins(const DefinitionLayout& layout, PinType direction)
 }
 
 void validateLayout(
-    const NativeBehavior& behavior, const DefinitionLayout& layout, bool requireIdentity = true
+    const ComponentBehavior& behavior, const DefinitionLayout& layout, bool requireIdentity = true
 )
 {
     if (!std::isfinite(layout.width) || !std::isfinite(layout.height) || layout.width <= 0 ||
@@ -85,6 +85,14 @@ void validateLayout(
     {
         if (inputs.size() != 1 || !outputs.empty())
             throw std::invalid_argument("Outputs require one input and no outgoing pins.");
+    }
+    else if (const auto* sub = std::get_if<SubcircuitBehavior>(&behavior))
+    {
+        if (!sub->authored || !sub->circuit || inputs.empty() || outputs.empty() ||
+            inputs.size() != sub->inputs.size() || outputs.size() != sub->outputs.size())
+            throw std::invalid_argument(
+                "Subcircuits require a design and matching input/output ports."
+            );
     }
     else if (!inputs.empty() || outputs.size() != 1)
         throw std::invalid_argument("Native sources require no inputs and one output.");

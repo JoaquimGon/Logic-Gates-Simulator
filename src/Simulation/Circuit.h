@@ -56,6 +56,8 @@ class Circuit
     int addLatch(LatchType type);
     /** @brief Takes ownership of a logical component and assigns its circuit-local ID. */
     int addComponent(std::unique_ptr<Component> component);
+    void replaceComponent(int id, std::unique_ptr<Component> component);
+    void collectClocks(std::vector<Clock*>& clocks);
 
     Component* getComponent(int id);
     const Component* getComponent(int id) const;
@@ -100,6 +102,8 @@ class Circuit
     bool updateClocks(float deltaTime);
 
     SimulationResult propagate();
+    /** Shares the evaluation limit with contained circuits. */
+    SimulationResult propagate(std::size_t& remainingEvaluations);
 
     // Debugging:
     float getLastPropagateTimeMs() const { return m_lastPropagateDurationMs; }

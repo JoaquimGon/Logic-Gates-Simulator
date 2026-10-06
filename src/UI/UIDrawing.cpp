@@ -264,6 +264,16 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                 0.43f,
                 ink
             );
+        if (canEditSubcircuit(scene))
+        {
+            const auto edit = editSubcircuitBounds(scene);
+            renderer.drawScreenRect(
+                edit,
+                edit.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                                        : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+            );
+            label("Edit subcircuit", edit, 0.4f, ink, true);
+        }
         label(
             !m_nameError.empty()                       ? m_nameError
             : m_nameEditing                            ? "Enter: save; Esc: cancel"
@@ -302,7 +312,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             {menu.x + 1, menu.y + 1, menu.width - 2, menu.height - 2}, {0.08f, 0.12f, 0.17f, 1}
         );
         int index = 0;
-        for (const auto* name : {"Save", "Save As", "Open"})
+        for (const auto& name : fileOptions())
         {
             const auto bounds = fileOptionBounds(index++);
             if (bounds.contains(m_pointer.x, m_pointer.y))

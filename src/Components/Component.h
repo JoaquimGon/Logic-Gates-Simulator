@@ -1,4 +1,5 @@
 #pragma once
+#include "Simulation/SimulationStatus.h"
 
 #include <algorithm>
 #include <memory>
@@ -17,6 +18,7 @@ struct Connection
 };
 
 class Circuit;
+class Clock;
 
 /**
  * @brief Owns fixed-size, zero-based input/output state for any component shape.
@@ -41,6 +43,12 @@ class Component
     virtual std::unique_ptr<Component> clone() const = 0;
 
     virtual void evaluate() = 0;
+
+    virtual void evaluate(std::size_t& remainingEvaluations) { evaluate(); }
+
+    virtual void collectClocks(std::vector<Clock*>& clocks) {}
+
+    virtual SimulationResult simulationResult() const { return SimulationResult::OK; }
 
     bool getStateOutPin(int outIndex = 0) const { return m_stateOutPins.at(outIndex); }
 

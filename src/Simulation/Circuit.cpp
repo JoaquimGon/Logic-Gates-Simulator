@@ -197,6 +197,31 @@ int Circuit::addClock(float frequencyHz)
     return addComponent(std::make_unique<Clock>(-1, frequencyHz));
 }
 
+void Circuit::replaceComponent(int id, std::unique_ptr<Component> component)
+{
+    if (!component || !m_components.contains(id))
+        throw std::invalid_argument("Cannot replace a missing component.");
+    delComponent(id); // Remove both endpoints' old edges; Scene rebuilds them from its wires.
+    component->m_id = id;
+    m_components.emplace(id, std::move(component));
+}
+
+void Circuit::collectClocks(std::vector<Clock*>& clocks)
+{
+    std::vector<int> ids;
+    for (const auto& [id, component] : m_components)
+        ids.push_back(id);
+    std::sort(ids.begin(), ids.end());
+    for (int id : ids)
+    {
+        auto* component = getComponent(id);
+        if (auto* clock = dynamic_cast<Clock*>(component))
+            clocks.push_back(clock);
+        else
+            component->collectClocks(clocks);
+    }
+}
+
 int Circuit::addLatch(LatchType type)
 {
     return addComponent(std::make_unique<Latch>(-1, type));
@@ -246,6 +271,12 @@ void Circuit::publishOutputs(const std::vector<int>& components, std::vector<int
 
 SimulationResult Circuit::propagate()
 {
+    std::size_t remaining = 100000;
+    return propagate(remaining);
+}
+
+SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
+{
     const auto start = std::chrono::steady_clock::now();
     if (m_structureDirty)
     {
@@ -259,21 +290,36 @@ SimulationResult Circuit::propagate()
     std::vector<int> dirty = m_componentOrder, next;
     publishOutputs(m_componentOrder, next);
     constexpr int maxSteps = 1024;
-    constexpr std::size_t maxEvaluations = 100000;
-    std::size_t evaluations = 0;
+    bool failed = false;
     int steps = 0;
-    while (!dirty.empty() && steps++ < maxSteps && evaluations + dirty.size() <= maxEvaluations)
+    while (!dirty.empty() && steps++ < maxSteps && !failed)
     {
         next.clear();
         for (int id : dirty)
-            getComponent(id)->evaluate();
-        evaluations += dirty.size();
+        {
+            if (remainingEvaluations == 0)
+            {
+                failed = true;
+                break;
+            }
+            --remainingEvaluations;
+            auto* component = getComponent(id);
+            component->evaluate(remainingEvaluations);
+            if (component->simulationResult() != SimulationResult::OK)
+            {
+                failed = true;
+                break;
+            }
+        }
+        if (failed)
+            break;
         publishOutputs(dirty, next);
         std::sort(next.begin(), next.end());
         next.erase(std::unique(next.begin(), next.end()), next.end());
         dirty.swap(next);
     }
-    m_lastEvalResult = dirty.empty() ? SimulationResult::OK : SimulationResult::NON_CONVERGENT;
+    m_lastEvalResult =
+        !failed && dirty.empty() ? SimulationResult::OK : SimulationResult::NON_CONVERGENT;
     m_stateDirty = false;
     m_lastPropagateDurationMs =
         std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - start).count();
@@ -292,9 +338,7 @@ bool Circuit::updateClocks(float deltaTime)
         return false;
     }
     std::vector<Clock*> clocks;
-    for (int id : m_componentOrder)
-        if (auto* clock = dynamic_cast<Clock*>(getComponent(id)))
-            clocks.push_back(clock);
+    collectClocks(clocks);
     m_pendingClockTime += deltaTime;
     bool changed = false;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(4);

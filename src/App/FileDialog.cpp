@@ -14,12 +14,15 @@
 #include <commdlg.h>
 #endif
 
-std::optional<std::filesystem::path>
-chooseCircuitFile(GLFWwindow* window, bool saving, const std::filesystem::path& current)
+std::optional<std::filesystem::path> chooseCircuitFile(
+    GLFWwindow* window, bool saving, const std::filesystem::path& current, bool subcircuit
+)
 {
 #ifdef _WIN32
     wchar_t path[32768]{};
-    const auto suggested = current.empty() ? std::wstring{L"circuit.json"} : current.wstring();
+    const auto suggested = current.empty()
+                               ? std::wstring{subcircuit ? L"subcircuit.json" : L"circuit.json"}
+                               : current.wstring();
     if (suggested.size() >= std::size(path))
         throw std::invalid_argument("Circuit file path is too long.");
     if (saving)
@@ -31,7 +34,8 @@ chooseCircuitFile(GLFWwindow* window, bool saving, const std::filesystem::path& 
     dialog.lpstrFile = path;
     dialog.nMaxFile = static_cast<DWORD>(std::size(path));
     dialog.lpstrDefExt = L"json";
-    dialog.lpstrTitle = saving ? L"Save Main circuit" : L"Open Main circuit";
+    dialog.lpstrTitle = subcircuit ? (saving ? L"Save subcircuit" : L"Load subcircuit")
+                                   : (saving ? L"Save Main circuit" : L"Open Main circuit");
     dialog.Flags =
         OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST | (saving ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
     if (saving ? GetSaveFileNameW(&dialog) : GetOpenFileNameW(&dialog))

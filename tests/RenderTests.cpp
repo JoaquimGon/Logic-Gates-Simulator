@@ -3,6 +3,7 @@
 #include "Editor/CircuitViews.h"
 #include "Editor/Input.h"
 #include "Editor/Scene.h"
+#include "Editor/Subcircuits.h"
 #include "Graphics/Presentation/ComponentPresentation.h"
 #include "Graphics/Renderer.h"
 #include "UI/UI.h"
@@ -1030,6 +1031,7 @@ void circuitViewsPresentation(Renderer& renderer)
     );
     saveImage("file-menu.ppm");
     click(ui.fileOptionBounds(0), GLFW_MOUSE_BUTTON_LEFT);
+    ui.takeFileCommand();
     require(
         !ui.fileMenuOpen() && views.activeScene().getComponentCount() == 1,
         "Visual Save option changed the scene."
@@ -1136,7 +1138,8 @@ void circuitViewsPresentation(Renderer& renderer)
         "File dropdown ignored 2x framebuffer scaling."
     );
     saveImage("file-menu-2x.ppm");
-    click(ui.fileOptionBounds(2), GLFW_MOUSE_BUTTON_LEFT);
+    click(ui.fileOptionBounds(0), GLFW_MOUSE_BUTTON_LEFT);
+    ui.takeFileCommand();
     click(ui.circuitTabs().tabBounds(1), GLFW_MOUSE_BUTTON_RIGHT);
     require(
         ui.circuitTabs().popupIndex() == 1, "Partially clipped tab could not open its name popup."
@@ -1180,6 +1183,53 @@ void circuitViewsPresentation(Renderer& renderer)
         glGetError() == GL_NO_ERROR && glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE,
         "Circuit tab drawing left a clipping or OpenGL error."
     );
+    surface = {extent, extent, extent, extent};
+    Scene authored;
+    authored.addComponent(BuiltinComponentIds::Input, {-12, 0});
+    authored.addComponent(BuiltinComponentIds::Output, {12, 0});
+    require(
+        static_cast<bool>(EditorActions(authored).apply({AddWire{{{-11, 0}, {11, 0}}}})),
+        "Subcircuit rendering fixture failed."
+    );
+    authored.setInterfaceNamingRequired(true);
+    const auto custom = makeSubcircuit(authored, {"subcircuit.render", 1}, "Pass-through");
+    views.publishSubcircuits({custom});
+    views.mainScene().addComponent(custom.identity.id, {-8, 0});
+    views.mainScene().propagate();
+    views.mainScene().syncVisuals();
+    layout();
+    click(ui.tabBounds(UI::Tab::Custom), GLFW_MOUSE_BUTTON_LEFT);
+    const auto customFrame = draw();
+    require(
+        ui.buttons().size() == 1 && ui.buttons()[0].label == "Pass-through",
+        "Saved subcircuit was not listed in Custom."
+    );
+    saveImage("subcircuit-custom.ppm");
+    const auto center = *customFrame.worldToWindow({-.4f, 0});
+    click({center.x - 1, center.y - 1, 2, 2}, GLFW_MOUSE_BUTTON_RIGHT);
+    draw();
+    const auto edit = ui.editSubcircuitBounds(views.mainScene());
+    require(
+        edit.width > 0 && screenPixel(edit.x + 3, edit.y + 3)[2] > 35,
+        "Subcircuit information popup did not render its Edit button."
+    );
+    saveImage("subcircuit-edit.ppm");
+    click(edit, GLFW_MOUSE_BUTTON_LEFT);
+    require(
+        ui.takeEditSubcircuit() == custom.identity.id, "Rendered Edit button did not dispatch."
+    );
+    views.editSubcircuit(custom, input);
+    views.activeScene().propagate();
+    views.activeScene().syncVisuals();
+    draw();
+    click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    require(
+        ui.fileOptions().size() == 2 && ui.fileOptionBounds(2).width == 0,
+        "Subcircuit File menu retained Main's commands."
+    );
+    saveImage("subcircuit-file-menu.ppm");
+    ui.dismissPopups(input);
     ui.setCircuitViews(nullptr, nullptr);
     input.setScene(nullptr);
 }

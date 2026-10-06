@@ -32,6 +32,7 @@ enum class RemovedPinPolicy
 struct RegisterComponentDefinition
 {
     ComponentDefinition definition;
+    bool replace = false;
 };
 
 struct CreateComponent

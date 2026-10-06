@@ -49,7 +49,7 @@ ComponentDefinition gate(
 ComponentDefinition source(
     const char* id,
     const char* name,
-    NativeBehavior behavior,
+    ComponentBehavior behavior,
     const char* shader,
     const char* fragment
 )
