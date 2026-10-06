@@ -29,6 +29,11 @@ class UI
         Native,
         Custom
     };
+    enum class BottomTab
+    {
+        First,
+        Second
+    };
 
     struct Button
     {
@@ -65,6 +70,12 @@ class UI
 
     CanvasViewport tabBounds(Tab tab) const;
 
+    CanvasViewport bottomBounds() const { return m_bottom; }
+
+    CanvasViewport bottomTabBounds(BottomTab tab) const;
+
+    BottomTab activeBottomTab() const { return m_bottomTab; }
+
     bool dragging() const { return !m_dragDefinition.empty(); }
 
     const std::string& message() const { return m_message; }
@@ -92,9 +103,10 @@ class UI
     static constexpr double infoNameHeight = 64;
 
     CanvasSurface m_surface{};
-    CanvasViewport m_bar{}, m_panel{}, m_list{};
+    CanvasViewport m_bar{}, m_panel{}, m_list{}, m_bottom{};
     std::vector<Button> m_buttons;
     Tab m_tab = Tab::Native;
+    BottomTab m_bottomTab = BottomTab::First;
     glm::dvec2 m_pointer{0};
     std::string m_dragDefinition, m_message;
     double m_scroll = 0, m_maxScroll = 0;

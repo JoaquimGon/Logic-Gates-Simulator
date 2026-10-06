@@ -83,6 +83,13 @@ derived signals reset on load. Subcircuit views remain in memory and are not
 included. Subcircuit interfaces, packaging, and saving remain future work.
 See [circuit files](docs/CircuitFiles.md) for the format and loading behavior.
 
+A bottom panel sits beneath the simulator, beside the full-height component
+panel. Its permanent **Tab 1** and **Tab 2** tabs are placeholders with empty
+content; clicking them only changes the active highlight. The panel is up to
+180 pixels tall and shrinks in shorter windows. It reserves canvas space and
+consumes pointer/scroll events, so it cannot draw wires, place components, or
+zoom the canvas. Functional tab names and contents will be added later.
+
 Right-click an idle component or its pin to open a small information popup in
 either mode. It shows the component name, body label when present, and live
 input/output states (`0 (OFF)` or `1 (ON)`), with pin names or numbered fallbacks.

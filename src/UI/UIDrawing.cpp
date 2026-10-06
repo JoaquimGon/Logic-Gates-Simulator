@@ -143,6 +143,27 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         0.35f,
         m_message.empty() ? glm::vec4{0.55f, 0.65f, 0.76f, 1} : glm::vec4{1, 0.55f, 0.4f, 1}
     );
+    renderer.drawText(text, TextSpace::Screen);
+    text.clear();
+    renderer.setScreenClip(m_bottom);
+    renderer.drawScreenRect(m_bottom, {0.075f, 0.09f, 0.12f, 1});
+    renderer.drawScreenRect({m_bottom.x, m_bottom.y, m_bottom.width, 1}, {0.18f, 0.23f, 0.3f, 1});
+    for (const auto tab : {BottomTab::First, BottomTab::Second})
+    {
+        const auto bounds = bottomTabBounds(tab);
+        const bool active = tab == m_bottomTab;
+        renderer.drawScreenRect(
+            bounds, active ? glm::vec4{0.16f, 0.3f, 0.46f, 1} : glm::vec4{0.11f, 0.15f, 0.21f, 1}
+        );
+        if (active)
+            renderer.drawScreenRect(
+                {bounds.x, bounds.y + bounds.height - 2, bounds.width, 2}, {0.3f, 0.65f, 0.95f, 1}
+            );
+        label(tab == BottomTab::First ? "Tab 1" : "Tab 2", bounds, 0.42f, ink, true);
+    }
+    renderer.drawText(text, TextSpace::Screen);
+    text.clear();
+    renderer.setScreenClip(std::nullopt);
     if (dragging())
     {
         const auto* definition = scene.getComponentCatalog().find(m_dragDefinition);

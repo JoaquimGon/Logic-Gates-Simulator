@@ -37,8 +37,10 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     const double tabs = m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0;
     const double top = m_bar.height + tabs;
     m_circuitTabs.layout({m_panel.width, m_bar.height, width - m_panel.width, tabs});
+    const double bottomHeight = std::min(180.0, (height - top) * 0.4);
+    m_bottom = {m_panel.width, height - bottomHeight, width - m_panel.width, bottomHeight};
     input.setCanvasViewport(
-        CanvasViewport{m_panel.width, top, width - m_panel.width, height - top}
+        CanvasViewport{m_panel.width, top, width - m_panel.width, height - top - bottomHeight}
     );
     m_list = {
         12, m_panel.y + 112, std::max(0.0, m_panel.width - 24), std::max(0.0, m_panel.height - 160)
@@ -97,6 +99,17 @@ CanvasViewport UI::tabBounds(Tab tab) const
 {
     const double width = std::max(0.0, (m_panel.width - 32) / 2);
     return {12 + (tab == Tab::Custom ? width + 8 : 0), m_panel.y + 70, width, 28};
+}
+
+CanvasViewport UI::bottomTabBounds(BottomTab tab) const
+{
+    const double width = std::min(148.0, std::max(0.0, (m_bottom.width - 24) / 2));
+    return {
+        m_bottom.x + 8 + static_cast<int>(tab) * (width + 8),
+        m_bottom.y + 6,
+        width,
+        std::min(28.0, std::max(0.0, m_bottom.height - 12))
+    };
 }
 
 CanvasViewport UI::fileBounds() const
@@ -486,6 +499,20 @@ bool UI::handleInput(
                 }
             return true;
         }
+        if (m_bottom.contains(event.x, event.y))
+        {
+            if (event.action == GLFW_PRESS)
+            {
+                input.cancelCurrentAction();
+                if (event.code == GLFW_MOUSE_BUTTON_LEFT)
+                    for (const auto tab : {BottomTab::First, BottomTab::Second})
+                        if (bottomTabBounds(tab).contains(event.x, event.y))
+                            m_bottomTab = tab;
+            }
+            if (event.action == GLFW_RELEASE)
+                input.setCanvasFocused(true);
+            return true;
+        }
         if (event.code == GLFW_MOUSE_BUTTON_RIGHT && event.action == GLFW_PRESS && input.isIdle() &&
             camera.valid() && camera.viewport.contains(event.x, event.y))
             if (const auto world = camera.windowToWorld(m_pointer))
@@ -526,5 +553,8 @@ bool UI::handleInput(
         }
         return true;
     }
-    return dragging() || (event.kind == UiInputKind::Cursor && m_panel.contains(event.x, event.y));
+    return dragging() ||
+           ((event.kind == UiInputKind::Cursor || event.kind == UiInputKind::Scroll) &&
+            m_bottom.contains(m_pointer.x, m_pointer.y)) ||
+           (event.kind == UiInputKind::Cursor && m_panel.contains(event.x, event.y));
 }

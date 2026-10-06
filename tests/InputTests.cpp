@@ -1003,7 +1003,7 @@ void componentPalette(GLFWwindow* window)
         }
     );
     require(
-        editor.input.getCameraFrame(window).viewport == CanvasViewport{220, 30, 580, 770},
+        editor.input.getCameraFrame(window).viewport == CanvasViewport{220, 30, 580, 590},
         "Palette did not reserve the left side of the canvas."
     );
     const auto buttons = ui.buttons();
@@ -1366,7 +1366,9 @@ void componentInformation(GLFWwindow* window)
     editor.input.handleFocus(true);
     require(ui.infoComponentId() == -1, "Focus loss left the popup open.");
     open(gate);
-    editor.cursorPixels(240, 580);
+    const auto emptyCanvas = editor.input.getCameraFrame(window).viewport;
+    const double panStartY = emptyCanvas.y + emptyCanvas.height - 25;
+    editor.cursorPixels(240, panStartY);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
@@ -1375,14 +1377,14 @@ void componentInformation(GLFWwindow* window)
     );
     const auto beforePan = editor.input.getPanOffset();
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
-    editor.cursorPixels(280, 550);
+    editor.cursorPixels(280, panStartY - 30);
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
     require(
         editor.input.getPanOffset() == beforePan && ui.infoComponentId() == -1,
         "Empty-canvas right-drag still pans."
     );
     editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS);
-    editor.cursorPixels(320, 520);
+    editor.cursorPixels(320, panStartY - 60);
     editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE);
     require(editor.input.getPanOffset() != beforePan, "Empty-canvas middle-drag did not pan.");
     open(gate);

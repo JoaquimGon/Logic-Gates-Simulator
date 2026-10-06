@@ -82,6 +82,22 @@ void run(GLFWwindow* window)
     input.setZoom(1.75f);
     require(input.getCanvasViewport()->y == 60, "Tabs did not reserve canvas space.");
     const auto beforeMenu = main.getRevision();
+    const auto bottom = ui.bottomBounds();
+    const auto canvas = *input.getCanvasViewport();
+    require(
+        bottom.x == canvas.x && bottom.width == canvas.width &&
+            bottom.y == canvas.y + canvas.height && bottom.y + bottom.height == 600,
+        "Bottom panel overlaps the palette or canvas."
+    );
+    click(ui.bottomTabBounds(UI::BottomTab::Second));
+    const auto bottomZoom = input.getZoom();
+    input.handleScroll(window, 0, 1);
+    require(
+        ui.activeBottomTab() == UI::BottomTab::Second && main.getRevision() == beforeMenu &&
+            input.isIdle() && input.getZoom() == bottomZoom,
+        "Bottom tab interaction edited or zoomed the circuit."
+    );
+    click(ui.bottomTabBounds(UI::BottomTab::First));
     for (int option = 0; option < 3; ++option)
     {
         click(ui.fileBounds());

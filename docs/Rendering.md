@@ -301,3 +301,22 @@ Circuit deletion confirmation keeps priority over the menu. Regression checks
 cover menu capture/dismissal, one-shot commands, and Main-only reconstruction;
 framebuffer checks cover placement, hover, and normal/2x display scaling.
 All 50 Debug checks pass. `file-menu.ppm` and `file-menu-2x.ppm` were visually reviewed.
+
+## Bottom panel
+
+`UI` reserves a bottom rectangle aligned to the right of the component palette.
+Its height is the smaller of 180 logical pixels or 40% of the available space
+below the top bars. The shared canvas viewport ends at its upper edge, keeping
+rendering, picking, panning, and palette placement aligned after resize. The
+left component panel retains its full height.
+
+Two permanent placeholder tabs, Tab 1 and Tab 2, reuse screen rectangles/text
+and the existing active underline. Their bodies are empty and switching changes
+only local UI selection; no names, content controllers, simulation logic, or
+closing/creation controls are implemented. Pointer events and scrolling over
+the panel are consumed, and palette drops there are cancelled by canvas bounds.
+Floating component/name/File popups retain their normal overlay priority.
+
+Existing layout/input and framebuffer checks cover separation from the palette
+and canvas, tab selection without edits/zoom, and normal/2x display scaling.
+`bottom-panel.ppm` and `bottom-panel-2x.ppm` were visually reviewed.

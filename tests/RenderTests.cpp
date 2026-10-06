@@ -1002,6 +1002,17 @@ void circuitViewsPresentation(Renderer& renderer)
     require(
         mainColor[2] > mainColor[0] + 50, "Active Main circuit tab did not draw above the canvas."
     );
+    const auto bottom = ui.bottomBounds();
+    const auto firstBottomTab = ui.bottomTabBounds(UI::BottomTab::First);
+    require(
+        bottom.x == mainFrame.viewport.x &&
+            bottom.y == mainFrame.viewport.y + mainFrame.viewport.height &&
+            screenPixel(firstBottomTab.x + 3, firstBottomTab.y + 3)[2] > 100,
+        "Bottom panel was not reserved beneath the canvas or its active tab was not drawn."
+    );
+    click(ui.bottomTabBounds(UI::BottomTab::Second), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    saveImage("bottom-panel.ppm");
     click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
     const auto menu = ui.fileMenuBounds();
     const auto saveAs = ui.fileOptionBounds(1);
@@ -1058,6 +1069,13 @@ void circuitViewsPresentation(Renderer& renderer)
     saveImage("circuit-tab-name.ppm");
     surface = {512, 512, extent, extent};
     layout();
+    draw();
+    const auto dpiBottomTab = ui.bottomTabBounds(UI::BottomTab::Second);
+    require(
+        screenPixel(dpiBottomTab.x + 3, dpiBottomTab.y + 3)[2] > 100,
+        "Bottom panel tab did not follow 2x display scaling."
+    );
+    saveImage("bottom-panel-2x.ppm");
     click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     const auto dpiMenu = ui.fileMenuBounds();
