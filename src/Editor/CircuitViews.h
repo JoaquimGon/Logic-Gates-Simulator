@@ -38,9 +38,13 @@ class CircuitViews
 
     const std::string& name(std::size_t index) const { return m_views.at(index).name; }
 
-    Role role(std::size_t index) const { return m_views.at(index).role; }
+    Role role(std::size_t index) const
+    {
+        return m_views.at(index).scene->requiresInterfaceNames() ? Role::Subcircuit
+                                                                 : Role::Workspace;
+    }
 
-    /** Changes authoring intent only; Main always remains a workspace. */
+    /** Sets authoring intent; subcircuit conversion fills missing vital names. Main stays a workspace. */
     bool setRole(std::size_t index, Role role);
 
     /** Adds an empty scene and switches to it, cancelling unfinished editor gestures. */
@@ -55,7 +59,6 @@ class CircuitViews
     struct View
     {
         std::string name;
-        Role role = Role::Workspace;
         std::unique_ptr<Scene> scene = std::make_unique<Scene>();
         glm::vec2 pan{0};
         float zoom = 1;

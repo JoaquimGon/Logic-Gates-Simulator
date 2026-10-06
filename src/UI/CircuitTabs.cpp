@@ -116,6 +116,21 @@ std::string CircuitTabs::activeViewLabel() const
     return std::string(CircuitViews::roleName(m_views->role(index))) + ": " + m_views->name(index);
 }
 
+std::string CircuitTabs::activeViewName() const
+{
+    return enabled() ? m_views->name(m_views->activeIndex()) : std::string{};
+}
+
+bool CircuitTabs::activeIsSubcircuit() const
+{
+    return enabled() && m_views->role(m_views->activeIndex()) == CircuitViews::Role::Subcircuit;
+}
+
+std::size_t CircuitTabs::activeViewIndex() const
+{
+    return enabled() ? m_views->activeIndex() : 0;
+}
+
 CanvasViewport CircuitTabs::closeBounds(std::size_t index) const
 {
     if (!enabled() || index == 0 || index >= m_views->size())

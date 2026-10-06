@@ -31,7 +31,7 @@ class UI
     };
     enum class BottomTab
     {
-        First,
+        Subcircuit,
         Second
     };
 
@@ -73,6 +73,9 @@ class UI
     CanvasViewport bottomBounds() const { return m_bottom; }
 
     CanvasViewport bottomTabBounds(BottomTab tab) const;
+    CanvasViewport subcircuitListBounds() const;
+    /** Basic interface validity only: at least one named input and one named output. */
+    std::vector<std::string> subcircuitInfo(const Scene& scene) const;
 
     BottomTab activeBottomTab() const { return m_bottomTab; }
 
@@ -106,7 +109,10 @@ class UI
     CanvasViewport m_bar{}, m_panel{}, m_list{}, m_bottom{};
     std::vector<Button> m_buttons;
     Tab m_tab = Tab::Native;
-    BottomTab m_bottomTab = BottomTab::First;
+    BottomTab m_bottomTab = BottomTab::Second;
+    bool m_showSubcircuit = false;
+    int m_subcircuitScroll = 0;
+    std::size_t m_overviewView = 0;
     glm::dvec2 m_pointer{0};
     std::string m_dragDefinition, m_message;
     double m_scroll = 0, m_maxScroll = 0;

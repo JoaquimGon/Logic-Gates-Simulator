@@ -1003,7 +1003,7 @@ void circuitViewsPresentation(Renderer& renderer)
         mainColor[2] > mainColor[0] + 50, "Active Main circuit tab did not draw above the canvas."
     );
     const auto bottom = ui.bottomBounds();
-    const auto firstBottomTab = ui.bottomTabBounds(UI::BottomTab::First);
+    const auto firstBottomTab = ui.bottomTabBounds(UI::BottomTab::Second);
     require(
         bottom.x == mainFrame.viewport.x &&
             bottom.y == mainFrame.viewport.y + mainFrame.viewport.height &&
@@ -1044,6 +1044,11 @@ void circuitViewsPresentation(Renderer& renderer)
     click(ui.circuitTabs().createOptionBounds(1), GLFW_MOUSE_BUTTON_LEFT);
     const auto emptyFrame = draw();
     require(
+        ui.subcircuitInfo(views.activeScene())[1].starts_with("Invalid"),
+        "Empty subcircuit reported a valid interface."
+    );
+    saveImage("subcircuit-panel-invalid.ppm");
+    require(
         views.activeIndex() == 1 && cameraPixel(emptyFrame, {0, 0})[2] < 100,
         "New circuit still rendered the outgoing scene."
     );
@@ -1060,9 +1065,34 @@ void circuitViewsPresentation(Renderer& renderer)
             badgeColor[2] > 100,
         "Subcircuit authoring tab did not show its badge."
     );
-    click(ui.bottomTabBounds(UI::BottomTab::First), GLFW_MOUSE_BUTTON_LEFT);
+    click(ui.bottomTabBounds(UI::BottomTab::Subcircuit), GLFW_MOUSE_BUTTON_LEFT);
+    views.activeScene().addComponent(BuiltinComponentIds::Input, {-10, 0});
+    views.activeScene().addComponent(BuiltinComponentIds::Output, {10, 0});
+    views.activeScene().addComponent(BuiltinComponentIds::Clock, {20, 0});
     draw();
+    require(
+        ui.subcircuitInfo(views.activeScene())[1].starts_with("Valid"),
+        "Subcircuit panel did not report its named interface as valid."
+    );
     saveImage("circuit-view-role.ppm");
+    saveImage("subcircuit-panel.ppm");
+    views.activeScene().addComponent(BuiltinComponentIds::Input, {-20, 0});
+    views.activeScene().addComponent(BuiltinComponentIds::Input, {-30, 0});
+    const auto listBounds = ui.subcircuitListBounds();
+    ui.handleInput(
+        {UiInputKind::Cursor, 0, 0, 0, 0, listBounds.x + 10, listBounds.y + 10},
+        views.activeScene(),
+        input,
+        frame()
+    );
+    const auto scrollRevision = views.activeScene().getRevision();
+    ui.handleInput({UiInputKind::Scroll, 0, 0, 0, 0, 0, -20}, views.activeScene(), input, frame());
+    draw();
+    require(
+        views.activeScene().getRevision() == scrollRevision && input.getZoom() == 1,
+        "Subcircuit list scrolling changed the circuit or camera."
+    );
+    saveImage("subcircuit-panel-scrolled.ppm");
     click(ui.bottomTabBounds(UI::BottomTab::Second), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     const auto add = ui.circuitTabs().addBounds();
@@ -1095,6 +1125,9 @@ void circuitViewsPresentation(Renderer& renderer)
         "Bottom panel tab did not follow 2x display scaling."
     );
     saveImage("bottom-panel-2x.ppm");
+    click(ui.bottomTabBounds(UI::BottomTab::Subcircuit), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    saveImage("subcircuit-panel-2x.ppm");
     click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     const auto dpiMenu = ui.fileMenuBounds();

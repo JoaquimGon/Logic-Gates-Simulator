@@ -14,7 +14,9 @@ void CircuitViews::create(Input& input, Role role)
 {
     if (role != Role::Workspace && role != Role::Subcircuit)
         throw std::invalid_argument("Unknown viewpoint role.");
-    m_views.push_back(View{"unnamed", role});
+    View view{"unnamed"};
+    view.scene->setInterfaceNamingRequired(role == Role::Subcircuit);
+    m_views.push_back(std::move(view));
     select(m_views.size() - 1, input);
 }
 
@@ -23,8 +25,7 @@ bool CircuitViews::setRole(std::size_t index, Role role)
     if (index >= m_views.size() || (role != Role::Workspace && role != Role::Subcircuit) ||
         (index == 0 && role != Role::Workspace))
         return false;
-    m_views[index].role = role;
-    return true;
+    return m_views[index].scene->setInterfaceNamingRequired(role == Role::Subcircuit);
 }
 
 bool CircuitViews::select(std::size_t index, Input& input)

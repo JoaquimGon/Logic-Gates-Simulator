@@ -44,6 +44,7 @@ target_link_libraries(simulator_component_factory PUBLIC simulator_views)
 add_library(simulator_scene STATIC
     src/Editor/Scene.cpp
     src/Editor/SceneEditing.cpp
+    src/Editor/InterfaceComponents.cpp
     src/Editor/Connectivity/ConnectivityBuilder.cpp
     src/Editor/Actions/EditorActions.cpp
 )

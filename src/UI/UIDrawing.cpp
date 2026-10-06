@@ -148,8 +148,10 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     renderer.setScreenClip(m_bottom);
     renderer.drawScreenRect(m_bottom, {0.075f, 0.09f, 0.12f, 1});
     renderer.drawScreenRect({m_bottom.x, m_bottom.y, m_bottom.width, 1}, {0.18f, 0.23f, 0.3f, 1});
-    for (const auto tab : {BottomTab::First, BottomTab::Second})
+    for (const auto tab : {BottomTab::Subcircuit, BottomTab::Second})
     {
+        if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
+            continue;
         const auto bounds = bottomTabBounds(tab);
         const bool active = tab == m_bottomTab;
         renderer.drawScreenRect(
@@ -159,18 +161,39 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             renderer.drawScreenRect(
                 {bounds.x, bounds.y + bounds.height - 2, bounds.width, 2}, {0.3f, 0.65f, 0.95f, 1}
             );
-        label(tab == BottomTab::First ? "Tab 1" : "Tab 2", bounds, 0.42f, ink, true);
+        label(tab == BottomTab::Subcircuit ? "Subcircuit" : "Tab 2", bounds, 0.42f, ink, true);
     }
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
-    renderer.setScreenClip(std::nullopt);
-    if (m_bottomTab == BottomTab::First && m_circuitTabs.enabled())
-        label(
-            m_circuitTabs.activeViewLabel(),
-            {m_bottom.x + 8, m_bottom.y + 42, std::max(0.0, m_bottom.width - 16), 26},
-            0.45f,
-            ink
+    if (m_bottomTab == BottomTab::Subcircuit && m_showSubcircuit)
+    {
+        const auto info = subcircuitInfo(scene);
+        for (int row = 0; row < 3; ++row)
+            label(
+                info[row],
+                {m_bottom.x + 8,
+                 m_bottom.y + 40 + row * 22,
+                 std::max(0.0, m_bottom.width - 16),
+                 22},
+                0.4f,
+                row == 1 ? (info[row].starts_with("Valid") ? glm::vec4{0.4f, 0.85f, 0.6f, 1}
+                                                           : glm::vec4{1, 0.55f, 0.4f, 1})
+                         : ink
+            );
+        renderer.drawText(text, TextSpace::Screen);
+        text.clear();
+        const auto list = subcircuitListBounds();
+        renderer.setScreenClip(list);
+        const int rows = static_cast<int>(list.height / 22);
+        const int offset = std::clamp(
+            m_subcircuitScroll, 0, std::max(0, static_cast<int>(info.size()) - 3 - rows)
         );
+        for (int row = 0; row < rows && row + offset + 3 < static_cast<int>(info.size()); ++row)
+            label(info[row + offset + 3], {list.x, list.y + row * 22, list.width, 22}, 0.4f, ink);
+        renderer.drawText(text, TextSpace::Screen);
+        text.clear();
+    }
+    renderer.setScreenClip(std::nullopt);
     if (dragging())
     {
         const auto* definition = scene.getComponentCatalog().find(m_dragDefinition);

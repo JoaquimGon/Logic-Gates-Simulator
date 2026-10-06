@@ -1,5 +1,6 @@
 #include "Actions/EditorActions.h"
 #include "Components/ComponentFactory.h"
+#include "Editor/InterfaceComponents.h"
 #include "Scene.h"
 
 #include <stdexcept>
@@ -18,7 +19,8 @@ int createdComponent(EditResult result)
 Scene::Scene() : m_catalog(std::make_shared<ComponentCatalog>()) {}
 
 Scene::Scene(const Scene& other)
-    : m_revision(other.m_revision), m_topologyBuildCount(other.m_topologyBuildCount),
+    : m_requireInterfaceNames(other.m_requireInterfaceNames), m_revision(other.m_revision),
+      m_topologyBuildCount(other.m_topologyBuildCount),
       m_nextPreviewToken(other.m_nextPreviewToken), m_catalog(other.m_catalog),
       m_circuit(other.m_circuit), m_rejectedConnections(other.m_rejectedConnections),
       m_topologyResult(other.m_topologyResult),
@@ -28,6 +30,26 @@ Scene::Scene(const Scene& other)
 {
     for (const auto& [id, view] : other.m_componentViews)
         m_componentViews.emplace(id, view->clone());
+}
+
+bool Scene::setInterfaceNamingRequired(bool required)
+{
+    if (m_previewToken != 0)
+        return false;
+    const bool previous = m_requireInterfaceNames;
+    m_requireInterfaceNames = required;
+    try
+    {
+        if (!required || EditorActions(*this).apply(missingInterfaceNames(*this)))
+            return true;
+    }
+    catch (...)
+    {
+        m_requireInterfaceNames = previous;
+        throw;
+    }
+    m_requireInterfaceNames = previous;
+    return false;
 }
 
 Scene& Scene::operator=(const Scene& other)

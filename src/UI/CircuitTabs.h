@@ -39,6 +39,9 @@ class CircuitTabs
     bool contains(double x, double y) const;
     std::string tabName(std::size_t index) const;
     std::string activeViewLabel() const;
+    std::string activeViewName() const;
+    bool activeIsSubcircuit() const;
+    std::size_t activeViewIndex() const;
 
     bool popupOpen() const { return m_popup.has_value() || m_createMenu; }
 

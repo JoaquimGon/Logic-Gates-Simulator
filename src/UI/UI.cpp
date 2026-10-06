@@ -3,6 +3,7 @@
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/Input.h"
+#include "Editor/InterfaceComponents.h"
 #include "Editor/Scene.h"
 #include "Geometry/GridMetrics.h"
 #include "Geometry/GridSystem.h"
@@ -37,6 +38,18 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     const double tabs = m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0;
     const double top = m_bar.height + tabs;
     m_circuitTabs.layout({m_panel.width, m_bar.height, width - m_panel.width, tabs});
+    if (m_overviewView != m_circuitTabs.activeViewIndex())
+    {
+        m_overviewView = m_circuitTabs.activeViewIndex();
+        m_subcircuitScroll = 0;
+    }
+    const bool subcircuit = m_circuitTabs.activeIsSubcircuit();
+    if (subcircuit != m_showSubcircuit)
+    {
+        m_bottomTab = subcircuit ? BottomTab::Subcircuit : BottomTab::Second;
+        m_subcircuitScroll = 0;
+    }
+    m_showSubcircuit = subcircuit;
     const double bottomHeight = std::min(180.0, (height - top) * 0.4);
     m_bottom = {m_panel.width, height - bottomHeight, width - m_panel.width, bottomHeight};
     input.setCanvasViewport(
@@ -103,13 +116,59 @@ CanvasViewport UI::tabBounds(Tab tab) const
 
 CanvasViewport UI::bottomTabBounds(BottomTab tab) const
 {
+    if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
+        return {};
     const double width = std::min(148.0, std::max(0.0, (m_bottom.width - 24) / 2));
     return {
-        m_bottom.x + 8 + static_cast<int>(tab) * (width + 8),
+        m_bottom.x + 8 + (m_showSubcircuit ? static_cast<int>(tab) : 0) * (width + 8),
         m_bottom.y + 6,
         width,
         std::min(28.0, std::max(0.0, m_bottom.height - 12))
     };
+}
+
+CanvasViewport UI::subcircuitListBounds() const
+{
+    return {
+        m_bottom.x + 8,
+        m_bottom.y + 106,
+        std::max(0.0, m_bottom.width - 16),
+        std::max(0.0, m_bottom.height - 114)
+    };
+}
+
+std::vector<std::string> UI::subcircuitInfo(const Scene& scene) const
+{
+    if (!m_showSubcircuit)
+        return {};
+    const auto components = interfaceComponents(scene);
+    int inputs = 0, outputs = 0, clocks = 0;
+    bool named = true;
+    std::vector<std::string> entries;
+    for (const auto& component : components)
+    {
+        const char* kind = component.kind == InterfaceKind::Input    ? "Input"
+                           : component.kind == InterfaceKind::Output ? "Output"
+                                                                     : "Clock";
+        if (component.kind == InterfaceKind::Input)
+            ++inputs;
+        else if (component.kind == InterfaceKind::Output)
+            ++outputs;
+        else
+            ++clocks;
+        if (component.kind != InterfaceKind::Clock && blankComponentName(component.name))
+            named = false;
+        entries.push_back(std::string(kind) + ": " + component.name);
+    }
+    std::vector<std::string> lines{
+        "Name: " + m_circuitTabs.activeViewName(),
+        inputs > 0 && outputs > 0 && named ? "Valid subcircuit: input/output interface ready"
+                                           : "Invalid: needs a named input and output",
+        "Inputs: " + std::to_string(inputs) + " | Outputs: " + std::to_string(outputs) +
+            " | Clocks: " + std::to_string(clocks)
+    };
+    lines.insert(lines.end(), entries.begin(), entries.end());
+    return lines;
 }
 
 CanvasViewport UI::fileBounds() const
@@ -275,8 +334,10 @@ bool UI::canName(const Scene& scene) const
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
     const auto* definition =
         view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
-    return definition && (std::holds_alternative<ManualInputBehavior>(definition->behavior) ||
-                          std::holds_alternative<OutputBehavior>(definition->behavior));
+    return definition &&
+           (std::holds_alternative<ManualInputBehavior>(definition->behavior) ||
+            std::holds_alternative<OutputBehavior>(definition->behavior) ||
+            (m_showSubcircuit && std::holds_alternative<ClockBehavior>(definition->behavior)));
 }
 
 CanvasViewport UI::nameBounds(const Scene& scene) const
@@ -505,7 +566,7 @@ bool UI::handleInput(
             {
                 input.cancelCurrentAction();
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT)
-                    for (const auto tab : {BottomTab::First, BottomTab::Second})
+                    for (const auto tab : {BottomTab::Subcircuit, BottomTab::Second})
                         if (bottomTabBounds(tab).contains(event.x, event.y))
                             m_bottomTab = tab;
             }
@@ -551,6 +612,17 @@ bool UI::handleInput(
             m_scroll = std::clamp(m_scroll - event.y * step, 0.0, m_maxScroll);
             layout(scene.getComponentCatalog(), m_surface, input);
         }
+        return true;
+    }
+    if (event.kind == UiInputKind::Scroll && m_showSubcircuit &&
+        m_bottomTab == BottomTab::Subcircuit && m_bottom.contains(m_pointer.x, m_pointer.y) &&
+        std::isfinite(event.y))
+    {
+        const int rows = static_cast<int>(subcircuitListBounds().height / 22);
+        const int maximum = std::max(0, static_cast<int>(subcircuitInfo(scene).size()) - 3 - rows);
+        m_subcircuitScroll = static_cast<int>(
+            std::clamp(m_subcircuitScroll - event.y, 0.0, static_cast<double>(maximum))
+        );
         return true;
     }
     return dragging() ||

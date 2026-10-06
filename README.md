@@ -88,11 +88,21 @@ included. Subcircuit interfaces, packaging, and saving remain future work.
 See [circuit files](docs/CircuitFiles.md) for the format and loading behavior.
 
 A bottom panel sits beneath the simulator, beside the full-height component
-panel. Its permanent **Tab 1** and **Tab 2** tabs retain placeholder names.
-Tab 1 shows the active viewpoint's role and full name; Tab 2 is empty. The panel is up to
+panel. **Subcircuit** is visible only in subcircuit editors; **Tab 2** remains
+an empty placeholder. The Subcircuit tab shows its name, basic interface
+validity (at least one named input and one named output), input/output/clock
+counts, and a list of each vital component's name. Scroll the list for more
+entries; the name, status, and counts stay visible. The panel is up to
 180 pixels tall and shrinks in shorter windows. It reserves canvas space and
 consumes pointer/scroll events, so it cannot draw wires, place components, or
-zoom the canvas. Functional tab names and contents will be added later.
+zoom the canvas. Subcircuit inputs, outputs, and clocks receive editable defaults
+like `input 1`, `output 1`, and `clock 1`. Existing names are preserved and
+defaults skip names already in use. Empty/whitespace input/output edits are
+rejected only in subcircuit editors. Right-click a vital component to rename it
+in Selection mode; clocks also have a name field in this context. Converting
+a workspace fills missing names; returning to Workspace keeps labels but
+allows optional names again. Interface readiness does not validate wiring or
+publish a reusable component.
 
 Right-click an idle component or its pin to open a small information popup in
 either mode. It shows the component name, body label when present, and live

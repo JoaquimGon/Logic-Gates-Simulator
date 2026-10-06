@@ -2,6 +2,7 @@
 
 #include "Components/ComponentFactory.h"
 #include "Components/Definitions/NativeDefinitions.h"
+#include "Editor/InterfaceComponents.h"
 #include "Editor/Scene.h"
 
 #include <algorithm>
@@ -261,6 +262,14 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                         auto* clock = dynamic_cast<Clock*>(component);
                         const auto* definition =
                             candidate.m_catalog->find(view.getDefinitionIdentity().id);
+                        if (op.label && candidate.m_requireInterfaceNames &&
+                            blankComponentName(*op.label) &&
+                            (dynamic_cast<InputPin*>(component) ||
+                             dynamic_cast<OutputPin*>(component)))
+                            throw EditFailure(
+                                EditError::InvalidConfiguration,
+                                "Subcircuit inputs and outputs require a name."
+                            );
                         if (op.inputCount)
                         {
                             if (!gate)
@@ -462,6 +471,13 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                             );
             }
         }
+        if (candidate.m_requireInterfaceNames)
+            for (const auto& operation : missingInterfaceNames(candidate))
+            {
+                const auto& name = std::get<ConfigureComponentProperties>(operation);
+                getView(name.componentId).m_bodyLabel = *name.label;
+                changed = true;
+            }
         if (!changed)
             return {};
         if (topologyChanged)
@@ -551,6 +567,13 @@ EditResult EditorActions::restore(const Scene& snapshot, std::uint64_t expectedR
     {
         auto before = std::make_shared<Scene>(m_scene);
         Scene candidate(snapshot);
+        candidate.m_requireInterfaceNames = m_scene.m_requireInterfaceNames;
+        if (candidate.m_requireInterfaceNames)
+            for (const auto& operation : missingInterfaceNames(candidate))
+            {
+                const auto& name = std::get<ConfigureComponentProperties>(operation);
+                candidate.m_componentViews.at(name.componentId)->m_bodyLabel = *name.label;
+            }
         candidate.m_nextWireId = std::max(candidate.m_nextWireId, m_scene.m_nextWireId);
         candidate.m_nextNetId = std::max(candidate.m_nextNetId, m_scene.m_nextNetId);
         candidate.m_nextPreviewToken = m_scene.m_nextPreviewToken;

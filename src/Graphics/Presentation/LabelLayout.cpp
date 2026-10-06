@@ -31,7 +31,8 @@ layoutComponentLabels(std::span<const ComponentRenderData> components, const Fon
         if (!component.bodyLabel.empty())
         {
             const bool below = body.style.contour == BodyContour::Input ||
-                               body.style.contour == BodyContour::Output;
+                               body.style.contour == BodyContour::Output ||
+                               body.style.contour == BodyContour::Clock;
             float scale = fitScale(
                 component.bodyLabel,
                 body.size.x * (below ? 2.5f : 0.8f),

@@ -246,7 +246,8 @@ headless AddressSanitizer groups pass.
 last pan/zoom values. Main exists from startup as a permanent Workspace. Each viewpoint stores an
 explicit `CircuitViews::Role` (Workspace or Subcircuit); creation adds an empty
 scene with the chosen role. Role changes preserve the scene, camera, signals,
-and name. Main rejects the Subcircuit role. Names and port components do not
+and existing names. Enabling subcircuit editing assigns defaults to unnamed
+inputs, outputs, and clocks. Main rejects the Subcircuit role. Names and port components do not
 infer authoring intent; the role is separate from component behavior.
 Switching reuses `Input::setScene()` to cancel previews, clear selection and
 queued shortcuts, then restores the destination camera. Existing EditorActions
@@ -273,7 +274,7 @@ limited by the field to 64 printable ASCII characters; blank names use the
 offers Convert to subcircuit/Use as workspace on non-main views. These change
 metadata only; an unfinished rename draft is discarded when changing purpose.
 Subcircuit editors have a small SUB badge without widening the compact tabs.
-The first bottom tab shows the active role/name. These are authoring drafts;
+The Subcircuit bottom tab shows the authoring interface overview. These are drafts;
 interface validation, packaging, and component registration are still future work.
 
 Non-main tabs show an X at their right edge. It opens a Delete/Cancel popup
@@ -322,10 +323,12 @@ below the top bars. The shared canvas viewport ends at its upper edge, keeping
 rendering, picking, panning, and palette placement aligned after resize. The
 left component panel retains its full height.
 
-Two permanent placeholder tabs, Tab 1 and Tab 2, reuse screen rectangles/text
-and the existing active underline. The first body shows the active viewpoint role/name; the second remains empty.
-Switching changes only local UI selection; no names, content controllers, simulation logic, or
-closing/creation controls are implemented. Pointer events and scrolling over
+The Subcircuit tab is visible only for subcircuit editors; workspaces retain
+only the Tab 2 placeholder. Both reuse screen rectangles/text and the existing
+active underline. There are no closing/creation controls. The Subcircuit body
+shows the full circuit name, basic named-input/output validity, vital-component
+counts, and ordered Input/Output/Clock name rows. Header rows remain fixed while
+the list scrolls. Switching viewpoints resets its list scroll position. Pointer events and scrolling over
 the panel are consumed, and palette drops there are cancelled by canvas bounds.
 Floating component/name/File popups retain their normal overlay priority.
 
@@ -338,3 +341,30 @@ Main protection, name-independent intent, conversion without scene mutation,
 and preservation through Main loading. Five targeted Debug groups pass;
 `circuit-view-create.ppm`, `circuit-view-role.ppm`, and normal/2x role-popup
 previews were visually reviewed.
+
+## Subcircuit naming and overview
+
+`Editor/InterfaceComponents` reads committed logical InputPin/OutputPin/Clock
+instances, including custom boxes with those native behaviors. It orders rows
+by kind and component ID and generates missing labels using the first available
+`input N`, `output N`, or `clock N`. Defaults are actual editable instance labels,
+not display-only hints. Existing labels are preserved.
+
+Scene carries the explicitly enabled interface-naming policy; CircuitViews
+derives its Workspace/Subcircuit role from that policy, avoiding a second role
+flag. Conversion fills missing labels through existing editor operations.
+EditorActions assigns defaults within creation/edit batches and rejects blank
+input/output property edits atomically. Restore retains the destination editing
+policy and names missing vital components, so an older snapshot cannot silently
+turn a subcircuit into a workspace or restore unnamed ports. Workspace labels
+remain optional. Clock names can be edited in subcircuit component popups and
+native clock labels render beneath the glyph.
+
+Validity here checks at least one named input and one named output. It does not
+check electrical correctness, duplicate custom labels, packaging, or simulation
+representations; those remain separate subcircuit work. Name/count/status/list
+rows update from the committed scene after creation, deletion, edits, or restore.
+All 50 Debug groups and four targeted AddressSanitizer checks pass.
+Normal/2x, invalid-interface, and scrolled list previews
+are `subcircuit-panel.ppm`, `subcircuit-panel-2x.ppm`,
+`subcircuit-panel-invalid.ppm`, and `subcircuit-panel-scrolled.ppm`.

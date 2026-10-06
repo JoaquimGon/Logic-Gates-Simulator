@@ -97,7 +97,10 @@ void run(GLFWwindow* window)
             input.isIdle() && input.getZoom() == bottomZoom,
         "Bottom tab interaction edited or zoomed the circuit."
     );
-    click(ui.bottomTabBounds(UI::BottomTab::First));
+    require(
+        ui.bottomTabBounds(UI::BottomTab::Subcircuit).width == 0 && ui.subcircuitInfo(main).empty(),
+        "Workspace exposed a Subcircuit tab."
+    );
     for (int option = 0; option < 3; ++option)
     {
         click(ui.fileBounds());
@@ -429,11 +432,85 @@ void run(GLFWwindow* window)
             separate.getRevision() == separateRevision && separate.getComponentCount() == 1,
         "Role conversion recreated or edited the circuit."
     );
+    const int portIn = separate.addComponent(BuiltinComponentIds::Input, {20, 0});
+    const int portOut = separate.addComponent(BuiltinComponentIds::Output, {40, 0});
+    const int clock = separate.addComponent(BuiltinComponentIds::Clock, {60, 0});
+    const int namedIn = separate.addComponent(BuiltinComponentIds::Input, {80, 0});
+    require(
+        static_cast<bool>(EditorActions(separate).apply(
+            {ConfigureComponentProperties{.componentId = namedIn, .label = "input 1"}}
+        )),
+        "Named input fixture failed."
+    );
+    Scene unnamedSnapshot(separate);
+    require(
+        separate.getCommittedComponentView(portIn)->getBodyLabel().empty(),
+        "Workspace assigned mandatory interface labels."
+    );
     click(ui.circuitTabs().roleBounds());
     require(
         views.role(1) == CircuitViews::Role::Subcircuit &&
             views.role(0) == CircuitViews::Role::Workspace,
         "Workspace could not be converted to a subcircuit editor."
+    );
+    key(GLFW_KEY_ESCAPE);
+    require(
+        separate.getCommittedComponentView(portIn)->getBodyLabel() == "input 2" &&
+            separate.getCommittedComponentView(portOut)->getBodyLabel() == "output 1" &&
+            separate.getCommittedComponentView(clock)->getBodyLabel() == "clock 1" &&
+            ui.activeBottomTab() == UI::BottomTab::Subcircuit,
+        "Subcircuit conversion did not assign non-conflicting vital names."
+    );
+    const auto oldRevision = separate.getRevision();
+    const auto invalidName = EditorActions(separate).apply(
+        {MoveComponent{portIn, {20, 10}},
+         ConfigureComponentProperties{.componentId = portIn, .label = " \t "}}
+    );
+    require(
+        !invalidName && separate.getRevision() == oldRevision &&
+            separate.getCommittedComponentView(portIn)->getGridPosition() == GridCoords{20, 0},
+        "Empty interface name was accepted or partially committed."
+    );
+    const auto restoredNames =
+        EditorActions(separate).restore(unnamedSnapshot, separate.getRevision());
+    require(
+        static_cast<bool>(restoredNames) && views.role(1) == CircuitViews::Role::Subcircuit &&
+            separate.getCommittedComponentView(portIn)->getBodyLabel() == "input 2",
+        "Snapshot restoration bypassed subcircuit naming or changed viewpoint intent."
+    );
+    const int addedIn = separate.addComponent(BuiltinComponentIds::Input, {100, 0});
+    require(
+        separate.getCommittedComponentView(addedIn)->getBodyLabel() == "input 3",
+        "New subcircuit input did not receive its default name in the creation edit."
+    );
+    const auto panelInfo = ui.subcircuitInfo(separate);
+    require(
+        panelInfo.size() == 8 && panelInfo[1].starts_with("Valid") &&
+            panelInfo[2] == "Inputs: 3 | Outputs: 1 | Clocks: 1" &&
+            panelInfo.back() == "Clock: clock 1",
+        "Subcircuit panel omitted validity, counts, or vital component names."
+    );
+    const auto separateCount = separate.getComponentCount();
+    input.setPanOffset({3, 0});
+    const auto clockPoint = input.getCameraFrame(window).worldToWindow(
+        separate.getCommittedComponentView(clock)->getPosition()
+    );
+    cursor(clockPoint->x, clockPoint->y);
+    mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+    mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+    require(
+        ui.infoComponentId() == clock && ui.nameBounds(separate).width > 0,
+        "Subcircuit clock did not expose its name field."
+    );
+    click(ui.nameBounds(separate));
+    for (int i = 0; i < 7; ++i)
+        key(GLFW_KEY_BACKSPACE);
+    type("tick");
+    key(GLFW_KEY_ENTER);
+    require(
+        separate.getCommittedComponentView(clock)->getBodyLabel() == "tick" &&
+            ui.subcircuitInfo(separate).back() == "Clock: tick",
+        "Clock rename did not update the Subcircuit list."
     );
     key(GLFW_KEY_ESCAPE);
     auto savedMain = circuitFromJson(circuitToJson(views.mainScene(), "Saved Main"));
@@ -452,7 +529,7 @@ void run(GLFWwindow* window)
     layout();
     input.process(window);
     require(
-        main.getComponentCount() == 2 && separate.getComponentCount() == 1 &&
+        main.getComponentCount() == 2 && separate.getComponentCount() == separateCount &&
             separate.getCommittedComponentView(0)->getDefinitionIdentity().id ==
                 BuiltinComponentIds::Or &&
             input.isIdle() && input.getSelectedComponentId() == -1,

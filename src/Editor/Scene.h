@@ -29,6 +29,11 @@ class Scene
 
     const ComponentCatalog& getComponentCatalog() const { return *m_catalog; }
 
+    bool requiresInterfaceNames() const { return m_requireInterfaceNames; }
+
+    /** Enables subcircuit authoring names; existing unnamed vital components receive defaults. */
+    bool setInterfaceNamingRequired(bool required);
+
     int addComponent(
         const std::string& definitionId,
         GridCoords position,
@@ -216,6 +221,7 @@ class Scene
 
   private:
     friend class EditorActions;
+    bool m_requireInterfaceNames = false;
 
     std::uint64_t m_revision = 0;
     std::uint64_t m_topologyBuildCount = 0;
