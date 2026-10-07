@@ -320,6 +320,20 @@ cover menu capture/dismissal, one-shot commands, and Main-only reconstruction;
 framebuffer checks cover placement, hover, and normal/2x display scaling.
 All 50 Debug checks pass. `file-menu.ppm` and `file-menu-2x.ppm` were visually reviewed.
 
+## Editor mode buttons
+
+Compact Sel. and Int. buttons sit just above the bottom feature panel. Their
+backgrounds cover only each button, with no full-width bar. The controls overlay
+a small 144-pixel-wide canvas area; the rest remains available for circuit edits.
+Their hover help uses the full Selection and Interaction names. Pointer/scroll
+events and palette drops on the controls stay in the UI. Buttons use the
+existing rectangles/text and Input::setMode; switching mode cancels unfinished
+canvas gestures just like F2. The current button is faded and underlined;
+the other remains bright and clickable. Hovering the exact button shows a
+small informational popup above the row, explaining editing or input/clock
+operation. Leaving, focus loss, resize, and other popups hide the tooltip.
+F2 and the buttons share the same mode state.
+
 ## Bottom panel
 
 `UI` reserves a bottom rectangle aligned to the right of the component palette.

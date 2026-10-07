@@ -145,6 +145,36 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     );
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
+    renderer.setScreenClip(m_modes);
+    for (const auto mode : {EditorMode::Selection, EditorMode::Interaction})
+    {
+        const auto bounds = modeButtonBounds(mode);
+        if (bounds.width <= 0 || bounds.height <= 0)
+            continue;
+        const bool active = m_canCreate == (mode == EditorMode::Selection);
+        renderer.drawScreenRect(
+            bounds,
+            active                  ? glm::vec4{0.11f, 0.15f, 0.21f, 1}
+            : hoveredMode() == mode ? glm::vec4{0.2f, 0.4f, 0.6f, 1}
+                                    : glm::vec4{0.16f, 0.3f, 0.46f, 1}
+        );
+        if (active)
+            renderer.drawScreenRect(
+                {bounds.x, bounds.y + bounds.height - 2, bounds.width, 2},
+                {0.3f, 0.65f, 0.95f, 0.5f}
+            );
+        label(
+            mode == EditorMode::Selection ? "Sel." : "Int.",
+            bounds,
+            0.42f,
+            active                  ? glm::vec4{0.5f, 0.57f, 0.65f, 1}
+            : hoveredMode() == mode ? glm::vec4{0.5f, 0.78f, 1, 1}
+                                    : ink,
+            true
+        );
+    }
+    renderer.drawText(text, TextSpace::Screen);
+    text.clear();
     renderer.setScreenClip(m_bottom);
     renderer.drawScreenRect(m_bottom, {0.075f, 0.09f, 0.12f, 1});
     renderer.drawScreenRect({m_bottom.x, m_bottom.y, m_bottom.width, 1}, {0.18f, 0.23f, 0.3f, 1});
@@ -321,5 +351,42 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         }
         renderer.drawText(text, TextSpace::Screen);
         renderer.setScreenClip(std::nullopt);
+    }
+    if (const auto mode = hoveredMode())
+    {
+        const auto bounds = modeTooltipBounds();
+        renderer.drawScreenRect(bounds, {0.3f, 0.45f, 0.6f, 1});
+        renderer.drawScreenRect(
+            {bounds.x + 1, bounds.y + 1, bounds.width - 2, bounds.height - 2},
+            {0.08f, 0.12f, 0.17f, 1}
+        );
+        const bool selection = *mode == EditorMode::Selection;
+        const bool active = m_canCreate == selection;
+        label(
+            std::string(editorModeName(*mode)) + " mode" + (active ? " (active)" : ""),
+            {bounds.x, bounds.y + 4, bounds.width, 24},
+            0.48f,
+            ink
+        );
+        label(
+            selection ? "Move, select, edit and wire components."
+                      : "Toggle inputs and operate clock controls.",
+            {bounds.x, bounds.y + 30, bounds.width, 20},
+            0.38f,
+            ink
+        );
+        label(
+            selection ? "Inputs stay unchanged when moved." : "Components stay in place.",
+            {bounds.x, bounds.y + 50, bounds.width, 20},
+            0.38f,
+            ink
+        );
+        label(
+            "F2 also switches modes.",
+            {bounds.x, bounds.y + 74, bounds.width, 18},
+            0.33f,
+            {0.55f, 0.65f, 0.76f, 1}
+        );
+        renderer.drawText(text, TextSpace::Screen);
     }
 }

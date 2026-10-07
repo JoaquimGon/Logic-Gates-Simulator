@@ -1367,7 +1367,8 @@ void componentInformation(GLFWwindow* window)
     require(ui.infoComponentId() == -1, "Focus loss left the popup open.");
     open(gate);
     const auto emptyCanvas = editor.input.getCameraFrame(window).viewport;
-    const double panStartY = emptyCanvas.y + emptyCanvas.height - 25;
+    const double panStartY =
+        std::min(emptyCanvas.y + emptyCanvas.height - 25, ui.modeBarBounds().y - 25);
     editor.cursorPixels(240, panStartY);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);

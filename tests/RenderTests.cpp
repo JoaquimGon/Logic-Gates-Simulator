@@ -1014,6 +1014,36 @@ void circuitViewsPresentation(Renderer& renderer)
     click(ui.bottomTabBounds(UI::BottomTab::Second), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     saveImage("bottom-panel.ppm");
+    const auto selectionMode = ui.modeButtonBounds(EditorMode::Selection);
+    const auto interactionMode = ui.modeButtonBounds(EditorMode::Interaction);
+    require(
+        screenPixel(selectionMode.x + 3, selectionMode.y + 3)[2] <
+            screenPixel(interactionMode.x + 3, interactionMode.y + 3)[2],
+        "Compact mode controls lost their local faded/available backgrounds."
+    );
+    require(
+        selectionMode.width <= 60 && interactionMode.width <= 60 &&
+            screenPixel(selectionMode.x + 3, selectionMode.y + selectionMode.height - 1)[2] >
+                screenPixel(
+                    interactionMode.x + 3, interactionMode.y + interactionMode.height - 1
+                )[2],
+        "Compact mode controls lost their active underline."
+    );
+    click(interactionMode, GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    require(
+        input.getMode() == EditorMode::Interaction && ui.hoveredMode() == EditorMode::Interaction,
+        "Interaction mode button did not update its state or show its popup."
+    );
+    saveImage("interaction-mode-button.ppm");
+    click(selectionMode, GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    require(
+        input.getMode() == EditorMode::Selection && ui.hoveredMode() == EditorMode::Selection,
+        "Selection mode button did not update its state or show its popup."
+    );
+    saveImage("selection-mode-button.ppm");
+
     click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
     const auto menu = ui.fileMenuBounds();
     const auto saveAs = ui.fileOptionBounds(1);
@@ -1127,6 +1157,17 @@ void circuitViewsPresentation(Renderer& renderer)
         "Bottom panel tab did not follow 2x display scaling."
     );
     saveImage("bottom-panel-2x.ppm");
+    click(ui.modeButtonBounds(EditorMode::Interaction), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    const auto tooltip = ui.modeTooltipBounds();
+    require(
+        tooltip.width > 0 && screenPixel(tooltip.x + 3, tooltip.y + 3)[2] > 30,
+        "Mode tooltip did not render at 2x display scaling."
+    );
+    saveImage("mode-buttons-2x.ppm");
+    click(ui.modeButtonBounds(EditorMode::Selection), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+
     click(ui.bottomTabBounds(UI::BottomTab::Subcircuit), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     saveImage("subcircuit-panel-2x.ppm");

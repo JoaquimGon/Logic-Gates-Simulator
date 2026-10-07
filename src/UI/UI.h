@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Editor/EditorMode.h"
 #include "Editor/UiInput.h"
 #include "Geometry/CanvasCamera.h"
 #include "Geometry/GridCoords.h"
@@ -75,6 +76,12 @@ class UI
 
     CanvasViewport bottomBounds() const { return m_bottom; }
 
+    CanvasViewport modeBarBounds() const { return m_modes; }
+
+    CanvasViewport modeButtonBounds(EditorMode mode) const;
+    std::optional<EditorMode> hoveredMode() const;
+    CanvasViewport modeTooltipBounds() const;
+
     CanvasViewport bottomTabBounds(BottomTab tab) const;
     CanvasViewport subcircuitListBounds() const;
     /** Interface readiness and vital names, including clocks inside saved nested components. */
@@ -111,7 +118,7 @@ class UI
     static constexpr double infoNameHeight = 64;
 
     CanvasSurface m_surface{};
-    CanvasViewport m_bar{}, m_panel{}, m_list{}, m_bottom{};
+    CanvasViewport m_bar{}, m_panel{}, m_list{}, m_bottom{}, m_modes{};
     std::vector<Button> m_buttons;
     Tab m_tab = Tab::Native;
     BottomTab m_bottomTab = BottomTab::Second;

@@ -31,6 +31,10 @@ toggles its value. **Interaction mode** operates inputs and clock controls while
 blocking structural edits. Simulation continues in both modes; pan and zoom are
 available in both. The window title shows the mode and F2 shortcut.
 
+Compact Sel. and Int. buttons above the bottom feature panel also switch
+modes. The active button is faded and underlined; hover either button for
+a short explanation of its behavior.
+
 F2 changes modes immediately and cancels unfinished dragging, wire drawing,
 branching, and panning. Escape, right-click, focus loss, and scene switching also
 discard unfinished gestures; a later mouse release cannot commit them.

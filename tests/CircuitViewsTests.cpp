@@ -89,6 +89,56 @@ void run(GLFWwindow* window)
             bottom.y == canvas.y + canvas.height && bottom.y + bottom.height == 600,
         "Bottom panel overlaps the palette or canvas."
     );
+    const auto modes = ui.modeBarBounds();
+    require(
+        modes.x == canvas.x && modes.y >= canvas.y && modes.width <= 144 &&
+            modes.width < canvas.width && modes.y + modes.height == bottom.y,
+        "Compact mode controls did not leave the rest of the canvas available."
+    );
+    const auto interaction = ui.modeButtonBounds(EditorMode::Interaction);
+    cursor(interaction.x + 10, interaction.y + 10);
+    require(
+        ui.hoveredMode() == EditorMode::Interaction && ui.modeTooltipBounds().height > 0,
+        "Interaction button did not show its explanatory popup."
+    );
+    const auto modeZoom = input.getZoom();
+    input.handleScroll(window, 0, 1);
+    click(interaction);
+    require(
+        input.getMode() == EditorMode::Interaction && input.isIdle() &&
+            main.getRevision() == beforeMenu && input.getZoom() == modeZoom,
+        "Mode click edited/zoomed the circuit or failed to switch."
+    );
+    click(interaction);
+    require(input.getMode() == EditorMode::Interaction, "Clicking the active mode toggled it off.");
+    click(ui.modeButtonBounds(EditorMode::Selection));
+    require(input.getMode() == EditorMode::Selection, "Selection button did not switch back.");
+    const auto sourcePoint =
+        *input.getCameraFrame(window).worldToWindow(main.getComponentView(source)->getPosition());
+    click({sourcePoint.x - 1, sourcePoint.y - 1, 2, 2});
+    require(
+        input.getSelectedComponentId() == source, "Mode no-op fixture could not select an input."
+    );
+    click(ui.modeButtonBounds(EditorMode::Selection));
+    require(
+        input.getSelectedComponentId() == source, "Clicking the active mode discarded selection."
+    );
+    click({sourcePoint.x - 1, sourcePoint.y - 1, 2, 2}, GLFW_MOUSE_BUTTON_RIGHT);
+    require(
+        ui.infoComponentId() == source, "Mode popup fixture could not open component information."
+    );
+    click(interaction);
+    require(
+        input.getMode() == EditorMode::Interaction && ui.infoComponentId() == -1,
+        "Mode button needed a second click after dismissing component information."
+    );
+    click(ui.modeButtonBounds(EditorMode::Selection));
+    key(GLFW_KEY_F2);
+    require(input.getMode() == EditorMode::Interaction, "Mode buttons disrupted F2 switching.");
+    key(GLFW_KEY_F2);
+    input.handleFocus(false);
+    require(!ui.hoveredMode(), "Mode popup survived focus loss.");
+    input.handleFocus(true);
     click(ui.bottomTabBounds(UI::BottomTab::Second));
     const auto bottomZoom = input.getZoom();
     input.handleScroll(window, 0, 1);

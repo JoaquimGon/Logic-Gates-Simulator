@@ -24,6 +24,7 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
 {
     if (surface != m_surface)
     {
+        m_pointer = {-1, -1};
         closeFileMenu(input);
         closeInfo(input);
         m_circuitTabs.cancel(input);
@@ -53,8 +54,10 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     m_showSubcircuit = subcircuit;
     const double bottomHeight = std::min(180.0, (height - top) * 0.4);
     m_bottom = {m_panel.width, height - bottomHeight, width - m_panel.width, bottomHeight};
+    const double modeHeight = std::min(36.0, std::max(0.0, m_bottom.y - top));
+    m_modes = {m_panel.width, m_bottom.y - modeHeight, std::min(144.0, m_bottom.width), modeHeight};
     input.setCanvasViewport(
-        CanvasViewport{m_panel.width, top, width - m_panel.width, height - top - bottomHeight}
+        CanvasViewport{m_panel.width, top, width - m_panel.width, m_bottom.y - top}
     );
     m_list = {
         12, m_panel.y + 112, std::max(0.0, m_panel.width - 24), std::max(0.0, m_panel.height - 160)
@@ -102,6 +105,7 @@ void UI::setCircuitViews(CircuitViews* views, const FontMetrics* font)
 
 void UI::update(double now, Input& input)
 {
+    m_canCreate = input.getMode() == EditorMode::Selection;
     if (m_fileMenuOpen)
         return;
     m_circuitTabs.update(now, input);
@@ -125,6 +129,47 @@ CanvasViewport UI::bottomTabBounds(BottomTab tab) const
         m_bottom.y + 6,
         width,
         std::min(28.0, std::max(0.0, m_bottom.height - 12))
+    };
+}
+
+CanvasViewport UI::modeButtonBounds(EditorMode mode) const
+{
+    if (m_modes.height <= 8)
+        return {};
+    const double width = std::min(60.0, std::max(0.0, (m_modes.width - 24) / 2));
+    return {
+        m_modes.x + 8 + (mode == EditorMode::Interaction ? width + 8 : 0),
+        m_modes.y + 4,
+        width,
+        m_modes.height - 8
+    };
+}
+
+std::optional<EditorMode> UI::hoveredMode() const
+{
+    if (dragging() || m_fileMenuOpen || m_circuitTabs.popupOpen() || m_infoComponent != -1 ||
+        m_fileCommand || m_editSubcircuit)
+        return std::nullopt;
+    for (const auto mode : {EditorMode::Selection, EditorMode::Interaction})
+        if (modeButtonBounds(mode).contains(m_pointer.x, m_pointer.y))
+            return mode;
+    return std::nullopt;
+}
+
+CanvasViewport UI::modeTooltipBounds() const
+{
+    const auto mode = hoveredMode();
+    if (!mode)
+        return {};
+    const double width = std::min(360.0, std::max(0.0, m_surface.windowWidth - 16.0));
+    const double height = std::min(96.0, std::max(0.0, m_surface.windowHeight - 16.0));
+    return {
+        std::clamp(
+            modeButtonBounds(*mode).x, 8.0, std::max(8.0, m_surface.windowWidth - width - 8)
+        ),
+        std::max(8.0, m_modes.y - height - 8),
+        width,
+        height
     };
 }
 
@@ -311,7 +356,8 @@ const UI::Button* UI::buttonAt(glm::dvec2 point) const
 
 std::optional<GridCoords> UI::dropPosition(const CanvasCameraFrame& camera) const
 {
-    if (!camera.valid() || !camera.viewport.contains(m_pointer.x, m_pointer.y))
+    if (!camera.valid() || !camera.viewport.contains(m_pointer.x, m_pointer.y) ||
+        m_modes.contains(m_pointer.x, m_pointer.y))
         return std::nullopt;
     const auto world = camera.windowToWorld(m_pointer);
     if (!world)
@@ -448,6 +494,8 @@ bool UI::handleInput(
 {
     if (event.kind == UiInputKind::Cursor || event.kind == UiInputKind::MouseButton)
         m_pointer = {event.x, event.y};
+    if (event.kind == UiInputKind::WindowFocus && !event.focused)
+        m_pointer = {-1, -1};
     // A queued operation belongs to this view; do not switch/delete tabs before it runs.
     if (m_fileCommand || m_editSubcircuit)
     {
@@ -584,7 +632,7 @@ bool UI::handleInput(
             if (event.action == GLFW_PRESS)
             {
                 closeInfo(input);
-                if (event.code == GLFW_MOUSE_BUTTON_LEFT)
+                if (event.code == GLFW_MOUSE_BUTTON_LEFT && !m_modes.contains(event.x, event.y))
                     return true;
             }
         }
@@ -609,6 +657,19 @@ bool UI::handleInput(
                     m_message.clear();
                     input.setUiCapture({true, true});
                 }
+            return true;
+        }
+        if (m_modes.contains(event.x, event.y))
+        {
+            if (event.action == GLFW_PRESS)
+            {
+                if (event.code == GLFW_MOUSE_BUTTON_LEFT)
+                    for (const auto mode : {EditorMode::Selection, EditorMode::Interaction})
+                        if (modeButtonBounds(mode).contains(event.x, event.y))
+                            input.setMode(mode);
+                m_canCreate = input.getMode() == EditorMode::Selection;
+            }
+            input.setCanvasFocused(true);
             return true;
         }
         if (m_bottom.contains(event.x, event.y))
@@ -678,6 +739,7 @@ bool UI::handleInput(
     }
     return dragging() ||
            ((event.kind == UiInputKind::Cursor || event.kind == UiInputKind::Scroll) &&
-            m_bottom.contains(m_pointer.x, m_pointer.y)) ||
+            (m_bottom.contains(m_pointer.x, m_pointer.y) ||
+             m_modes.contains(m_pointer.x, m_pointer.y))) ||
            (event.kind == UiInputKind::Cursor && m_panel.contains(event.x, event.y));
 }
