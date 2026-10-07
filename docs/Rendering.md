@@ -387,3 +387,12 @@ All 50 Debug groups and four targeted AddressSanitizer checks pass.
 Normal/2x, invalid-interface, and scrolled list previews
 are `subcircuit-panel.ppm`, `subcircuit-panel-2x.ppm`,
 `subcircuit-panel-invalid.ppm`, and `subcircuit-panel-scrolled.ppm`.
+
+## Saved-state indicator
+
+The top navigation bar draws the active view's **Unsaved changes** message in muted
+amber at the far right. Subcircuit editors add **save for Custom**. The message uses
+existing text rendering and reserves its width, so File operation status text on
+the left cannot overlap it. It neither flashes nor captures input. Saving/loading
+clears it; new views and later persisted edits restore it. Normal and 2x framebuffer
+checks cover visibility, clearing, and return after edits.

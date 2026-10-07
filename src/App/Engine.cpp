@@ -160,7 +160,6 @@ void Engine::run()
     glfwSetWindowTitle(window, titleForMode().c_str());
     auto displayedMode = input.getMode();
     double lastFrameTime = glfwGetTime();
-    std::filesystem::path mainFile;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -168,7 +167,7 @@ void Engine::run()
         {
             try
             {
-                performFileCommand(*command, window, m_ui, circuits, input, mainFile);
+                performFileCommand(*command, window, m_ui, circuits, input);
             }
             catch (const std::exception& error)
             {

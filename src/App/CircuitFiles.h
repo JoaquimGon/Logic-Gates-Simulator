@@ -8,12 +8,7 @@ struct GLFWwindow;
 
 /** Runs a queued File command after input callbacks; cancellation preserves file associations. */
 void performFileCommand(
-    UI::FileCommand command,
-    GLFWwindow* window,
-    UI& ui,
-    CircuitViews& views,
-    Input& input,
-    std::filesystem::path& mainFile
+    UI::FileCommand command, GLFWwindow* window, UI& ui, CircuitViews& views, Input& input
 );
 /** Applies a chosen path; a cancelled picker has no side effects. */
 void applyFileCommand(
@@ -21,6 +16,5 @@ void applyFileCommand(
     const std::optional<std::filesystem::path>& chosen,
     UI& ui,
     CircuitViews& views,
-    Input& input,
-    std::filesystem::path& mainFile
+    Input& input
 );

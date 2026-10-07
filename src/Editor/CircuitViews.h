@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -65,6 +66,10 @@ class CircuitViews
     void setActiveFile(std::filesystem::path path);
     void rememberSubcircuitFile(const std::string& id, std::filesystem::path path);
     void replaceMain(Scene scene, std::string name, Input& input);
+    void replaceWorkspace(Scene scene, std::string name, Input& input);
+    /** Tracks persisted design data; simulation memory and camera changes are excluded. */
+    bool hasUnsavedChanges(std::size_t index) const;
+    void markSaved(std::size_t index);
     /** Stages updates in every view before replacing any; changed used interfaces reject
      * atomically. */
     void publishSubcircuits(const std::vector<ComponentDefinition>& definitions);
@@ -79,6 +84,15 @@ class CircuitViews
     void includeLibrary(Scene& scene) const;
 
   private:
+    struct SourceSettings
+    {
+        int componentId;
+        bool inputState = false;
+        float clockFrequency = 0;
+        bool clockPaused = false;
+        bool operator==(const SourceSettings&) const = default;
+    };
+
     struct View
     {
         std::string name;
@@ -87,7 +101,17 @@ class CircuitViews
         float zoom = 1;
         DefinitionIdentity definition;
         std::filesystem::path file;
+        std::optional<std::string> savedDesign;
+        Role savedRole = Role::Workspace;
+        mutable std::uint64_t checkedRevision = 0;
+        mutable std::string checkedName;
+        mutable Role checkedRole = Role::Workspace;
+        mutable std::vector<SourceSettings> checkedSources;
+        mutable bool unsaved = true;
     };
+
+    static std::vector<SourceSettings> sourceSettings(const Scene& scene);
+    void replaceWorkspaceAt(std::size_t index, Scene scene, std::string name, Input& input);
 
     std::vector<View> m_views;
     std::size_t m_active = 0;

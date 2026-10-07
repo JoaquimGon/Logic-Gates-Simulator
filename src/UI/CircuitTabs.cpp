@@ -431,3 +431,8 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
     }
     return false;
 }
+
+bool CircuitTabs::activeHasUnsavedChanges() const
+{
+    return m_views && m_views->hasUnsavedChanges(m_views->activeIndex());
+}

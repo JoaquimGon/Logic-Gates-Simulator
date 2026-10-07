@@ -1,14 +1,76 @@
 #include "Editor/CircuitViews.h"
 
+#include "Components/Clock.h"
+#include "Components/InputPin.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/Input.h"
+#include "Persistence/CircuitFile.h"
 
+#include <algorithm>
 #include <stdexcept>
 #include <utility>
 
 CircuitViews::CircuitViews()
 {
     m_views.push_back(View{"Main"});
+}
+
+std::vector<CircuitViews::SourceSettings> CircuitViews::sourceSettings(const Scene& scene)
+{
+    std::vector<SourceSettings> result;
+    for (const auto& [id, view] : scene.getComponentViewMap())
+    {
+        const auto* logic = scene.getLogicComponent(id);
+        if (const auto* clock = dynamic_cast<const Clock*>(logic))
+            result.push_back({id, false, clock->getFrequency(), clock->isPaused()});
+        else if (const auto* input = dynamic_cast<const InputPin*>(logic))
+            result.push_back({id, input->getState()});
+    }
+    std::sort(
+        result.begin(),
+        result.end(),
+        [](const auto& a, const auto& b) { return a.componentId < b.componentId; }
+    );
+    return result;
+}
+
+bool CircuitViews::hasUnsavedChanges(std::size_t index) const
+{
+    const auto& view = m_views.at(index);
+    if (!view.savedDesign)
+        return true;
+    auto sources = sourceSettings(*view.scene);
+    const auto currentRole = role(index);
+    if (view.checkedRevision == view.scene->getRevision() && view.checkedName == view.name &&
+        view.checkedRole == currentRole && view.checkedSources == sources)
+        return view.unsaved;
+    // Serialize only after a design edit or source setting changes, never for clock edges.
+    try
+    {
+        view.unsaved = currentRole != view.savedRole ||
+                       circuitToJson(*view.scene, view.name) != *view.savedDesign;
+    }
+    catch (const std::exception&)
+    {
+        view.unsaved = true; // A design which cannot be saved must not appear saved.
+    }
+    view.checkedRevision = view.scene->getRevision();
+    view.checkedName = view.name;
+    view.checkedRole = currentRole;
+    view.checkedSources = std::move(sources);
+    return view.unsaved;
+}
+
+void CircuitViews::markSaved(std::size_t index)
+{
+    auto& view = m_views.at(index);
+    view.savedDesign = circuitToJson(*view.scene, view.name);
+    view.savedRole = role(index);
+    view.checkedRevision = view.scene->getRevision();
+    view.checkedName = view.name;
+    view.checkedRole = view.savedRole;
+    view.checkedSources = sourceSettings(*view.scene);
+    view.unsaved = false;
 }
 
 void CircuitViews::create(Input& input, Role role)
@@ -27,7 +89,12 @@ bool CircuitViews::setRole(std::size_t index, Role role)
     if (index >= m_views.size() || (role != Role::Workspace && role != Role::Subcircuit) ||
         (index == 0 && role != Role::Workspace))
         return false;
-    return m_views[index].scene->setInterfaceNamingRequired(role == Role::Subcircuit);
+    const auto previous = this->role(index);
+    if (!m_views[index].scene->setInterfaceNamingRequired(role == Role::Subcircuit))
+        return false;
+    if (previous != role)
+        m_views[index].file.clear(); // The old path holds a different file format.
+    return true;
 }
 
 bool CircuitViews::select(std::size_t index, Input& input)
@@ -97,6 +164,18 @@ void CircuitViews::rememberSubcircuitFile(const std::string& id, std::filesystem
 
 void CircuitViews::replaceMain(Scene scene, std::string name, Input& input)
 {
+    replaceWorkspaceAt(0, std::move(scene), std::move(name), input);
+}
+
+void CircuitViews::replaceWorkspace(Scene scene, std::string name, Input& input)
+{
+    replaceWorkspaceAt(m_active, std::move(scene), std::move(name), input);
+}
+
+void CircuitViews::replaceWorkspaceAt(
+    std::size_t index, Scene scene, std::string name, Input& input
+)
+{
     std::vector<ComponentDefinition> imported;
     for (const auto& [id, definition] : scene.getComponentCatalog().definitions())
         if (std::holds_alternative<SubcircuitBehavior>(definition.behavior))
@@ -106,26 +185,27 @@ void CircuitViews::replaceMain(Scene scene, std::string name, Input& input)
     for (const auto& definition : imported)
         updates.push_back(RegisterComponentDefinition{definition, true});
     std::vector<Scene> staged;
-    staged.push_back(std::move(scene));
-    for (std::size_t i = 1; i < m_views.size(); ++i)
+    for (std::size_t i = 0; i < m_views.size(); ++i)
     {
-        staged.push_back(*m_views[i].scene);
+        staged.push_back(i == index ? std::move(scene) : *m_views[i].scene);
         const auto result = EditorActions(staged.back()).apply(updates);
         if (!result)
             throw std::invalid_argument(result.message);
     }
-    const auto result =
-        EditorActions(mainScene()).restore(staged.front(), mainScene().getRevision());
+    const auto result = EditorActions(*m_views[index].scene)
+                            .restore(staged[index], m_views[index].scene->getRevision());
     if (!result)
         throw std::invalid_argument(result.message);
-    for (std::size_t i = 1; i < m_views.size(); ++i)
-        *m_views[i].scene = std::move(staged[i]);
+    for (std::size_t i = 0; i < m_views.size(); ++i)
+        if (i != index)
+            *m_views[i].scene = std::move(staged[i]);
     for (const auto& definition : imported)
         m_library.insert_or_assign(definition.identity.id, definition);
-    rename(0, std::move(name));
-    select(0, input);
-    mainScene().propagate();
-    mainScene().syncVisuals();
+    rename(index, std::move(name));
+    select(index, input);
+    activeScene().propagate();
+    activeScene().syncVisuals();
+    markSaved(index);
 }
 
 void CircuitViews::publishSubcircuits(const std::vector<ComponentDefinition>& definitions)
@@ -171,6 +251,7 @@ void CircuitViews::openSubcircuit(
     view.definition = std::move(identity);
     view.file = std::move(file);
     m_views.push_back(std::move(view));
+    markSaved(m_views.size() - 1);
     select(m_views.size() - 1, input);
 }
 

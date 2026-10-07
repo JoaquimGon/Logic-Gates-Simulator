@@ -392,7 +392,6 @@ void fileCommands()
     CircuitViews views;
     views.select(0, input);
     UI ui;
-    std::filesystem::path mainFile;
     views.create(input, CircuitViews::Role::Subcircuit);
     edit(
         views.activeScene(),
@@ -401,37 +400,36 @@ void fileCommands()
          AddWire{{{-19, 0}, {19, 0}}}}
     );
     views.rename(1, "Reusable");
-    applyFileCommand(UI::FileCommand::SaveAs, std::nullopt, ui, views, input, mainFile);
+    require(views.hasUnsavedChanges(1), "New subcircuit was shown as saved.");
+    applyFileCommand(UI::FileCommand::SaveAs, std::nullopt, ui, views, input);
     require(
-        views.activeDefinition().id.empty() && views.activeFile().empty(),
+        views.activeDefinition().id.empty() && views.activeFile().empty() &&
+            views.hasUnsavedChanges(1),
         "Cancelled first save assigned an identity/path."
     );
-    applyFileCommand(UI::FileCommand::Save, first, ui, views, input, mainFile);
+    applyFileCommand(UI::FileCommand::Save, first, ui, views, input);
     const auto identity = views.activeDefinition();
     require(
-        views.activeFile() == first && mainFile.empty() &&
+        views.activeFile() == first && !views.hasUnsavedChanges(1) && views.hasUnsavedChanges(0) &&
             views.mainScene().getComponentCatalog().find(identity.id),
         "Successful subcircuit save lost its path or did not publish."
     );
     views.rename(1, "Renamed");
-    performFileCommand(UI::FileCommand::Save, nullptr, ui, views, input, mainFile);
+    require(views.hasUnsavedChanges(1), "Rename did not mark the subcircuit unsaved.");
+    performFileCommand(UI::FileCommand::Save, nullptr, ui, views, input);
     require(loadSubcircuit(first).design.name == "Renamed", "Save did not reuse the current file.");
-    applyFileCommand(UI::FileCommand::SaveAs, second, ui, views, input, mainFile);
+    applyFileCommand(UI::FileCommand::SaveAs, second, ui, views, input);
     require(
         views.activeFile() == second && std::filesystem::exists(first),
         "Save As did not preserve the previous file/change association."
     );
     const auto goodIdentity = views.activeDefinition();
+    views.rename(1, "Edited before failure");
     bool failed = false;
     try
     {
         applyFileCommand(
-            UI::FileCommand::SaveAs,
-            directory / "missing" / "failure.json",
-            ui,
-            views,
-            input,
-            mainFile
+            UI::FileCommand::SaveAs, directory / "missing" / "failure.json", ui, views, input
         );
     }
     catch (const std::exception&)
@@ -439,60 +437,97 @@ void fileCommands()
         failed = true;
     }
     require(
-        failed && views.activeFile() == second &&
+        failed && views.activeFile() == second && views.hasUnsavedChanges(1) &&
             views.activeDefinition().version == goodIdentity.version,
         "Failed Save As changed path or definition identity."
     );
-    applyFileCommand(UI::FileCommand::SaveAs, std::nullopt, ui, views, input, mainFile);
-    require(views.activeFile() == second, "Cancelled Save As changed association.");
+    applyFileCommand(UI::FileCommand::SaveAs, std::nullopt, ui, views, input);
+    require(
+        views.activeFile() == second && views.hasUnsavedChanges(1),
+        "Cancelled Save As changed association or saved status."
+    );
     const int custom = views.mainScene().addComponent(identity.id, {0, 0});
     // An incompatible draft must be saved, while all placed wiring/interfaces stay untouched.
     views.activeScene().addComponent(BuiltinComponentIds::Input, {-40, 10});
     const auto publishedVersion =
         views.mainScene().getComponentCatalog().find(identity.id)->identity.version;
-    performFileCommand(UI::FileCommand::Save, nullptr, ui, views, input, mainFile);
+    performFileCommand(UI::FileCommand::Save, nullptr, ui, views, input);
     require(
-        loadSubcircuit(second).design.scene.getComponentCount() == 3 &&
+        !views.hasUnsavedChanges(1) &&
+            loadSubcircuit(second).design.scene.getComponentCount() == 3 &&
             views.mainScene().getComponentCatalog().find(identity.id)->identity.version ==
                 publishedVersion &&
             views.mainScene().getLogicComponent(custom)->getInputPinCount() == 1,
         "Rejected publication lost its saved draft or changed placed interfaces."
     );
     views.select(0, input);
-    applyFileCommand(UI::FileCommand::SaveAs, mainPath, ui, views, input, mainFile);
-    require(mainFile == mainPath, "Main lost its independent save association.");
+    applyFileCommand(UI::FileCommand::SaveAs, mainPath, ui, views, input);
+    require(
+        views.activeFile() == mainPath && !views.hasUnsavedChanges(0),
+        "Main lost its independent save association."
+    );
+    const auto workspacePath = directory / "workspace.json";
+    views.create(input);
+    require(
+        views.hasUnsavedChanges(2) && views.activeFile().empty(),
+        "New workspace reused another tab's file/status."
+    );
+    views.activeScene().addComponent(BuiltinComponentIds::Not, {0, 0});
+    applyFileCommand(UI::FileCommand::SaveAs, workspacePath, ui, views, input);
+    require(
+        !views.hasUnsavedChanges(2) && loadCircuit(workspacePath).scene.getComponentCount() == 1 &&
+            loadCircuit(mainPath).scene.getLogicComponent(custom),
+        "Saving an active workspace overwrote Main or saved the wrong scene."
+    );
+    views.rename(2, "Another workspace");
+    performFileCommand(UI::FileCommand::Save, nullptr, ui, views, input);
+    require(
+        loadCircuit(workspacePath).name == "Another workspace",
+        "Workspace Save did not reuse its own file."
+    );
+    applyFileCommand(UI::FileCommand::Open, mainPath, ui, views, input);
+    require(
+        views.activeIndex() == 2 && !views.hasUnsavedChanges(2) && views.activeFile() == mainPath &&
+            views.activeScene().getLogicComponent(custom),
+        "Open did not replace/clean the active workspace."
+    );
+    views.select(0, input);
+    require(
+        views.activeFile() == mainPath && !views.hasUnsavedChanges(0),
+        "Other workspace changed Main's path/status."
+    );
+    views.select(1, input);
+    views.activeScene().handleClick(0);
+    performFileCommand(UI::FileCommand::Save, nullptr, ui, views, input);
+    require(!views.hasUnsavedChanges(1), "Saved draft remained unsaved.");
     CircuitViews imported;
     Input importInput;
     imported.select(0, importInput);
-    std::filesystem::path importedMainFile;
-    applyFileCommand(
-        UI::FileCommand::LoadSubcircuit, first, ui, imported, importInput, importedMainFile
-    );
+    applyFileCommand(UI::FileCommand::LoadSubcircuit, first, ui, imported, importInput);
     require(
         imported.size() == 1 && imported.mainScene().getComponentCatalog().find(identity.id) &&
-            importedMainFile.empty(),
+            imported.activeFile().empty(),
         "Valid import did not populate Custom or modified Main's file association."
     );
     const auto draftPath = directory / "draft.json";
     saveSubcircuit(draftPath, Scene{}, {"subcircuit.empty", 1}, "Empty draft");
-    applyFileCommand(
-        UI::FileCommand::LoadSubcircuit, draftPath, ui, imported, importInput, importedMainFile
-    );
+    applyFileCommand(UI::FileCommand::LoadSubcircuit, draftPath, ui, imported, importInput);
     require(
         imported.size() == 2 &&
             imported.role(imported.activeIndex()) == CircuitViews::Role::Subcircuit &&
-            !imported.mainScene().getComponentCatalog().find("subcircuit.empty"),
+            !imported.mainScene().getComponentCatalog().find("subcircuit.empty") &&
+            !imported.hasUnsavedChanges(1),
         "Draft import became a palette entry."
     );
-    applyFileCommand(UI::FileCommand::Open, mainPath, ui, imported, importInput, importedMainFile);
+    applyFileCommand(UI::FileCommand::Open, mainPath, ui, imported, importInput);
     require(
-        importedMainFile == mainPath && imported.activeIndex() == 0 &&
-            imported.mainScene().getLogicComponent(custom),
+        imported.activeFile() == mainPath && !imported.hasUnsavedChanges(0) &&
+            imported.activeIndex() == 0 && imported.mainScene().getLogicComponent(custom),
         "Opening Main did not restore embedded subcircuits."
     );
     importInput.setScene(nullptr);
     input.setScene(nullptr);
-    for (const auto& path : {first, second, mainPath, draftPath})
+    for (const auto& path : {first, second, mainPath, draftPath, workspacePath})
         std::filesystem::remove(path);
     std::filesystem::remove(directory);
 }

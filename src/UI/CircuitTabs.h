@@ -41,6 +41,7 @@ class CircuitTabs
     std::string activeViewLabel() const;
     std::string activeViewName() const;
     bool activeIsSubcircuit() const;
+    bool activeHasUnsavedChanges() const;
     std::size_t activeViewIndex() const;
 
     bool popupOpen() const { return m_popup.has_value() || m_createMenu; }

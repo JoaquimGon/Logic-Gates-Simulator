@@ -993,6 +993,30 @@ void circuitViewsPresentation(Renderer& renderer)
         event.action = GLFW_RELEASE;
         ui.handleInput(event, views.activeScene(), input, frame());
     };
+    auto unsavedPixels = [&]
+    {
+        int count = 0;
+        for (int y = 3; y < 27; ++y)
+            for (int x = surface.windowWidth / 2; x < surface.windowWidth - 8; ++x)
+            {
+                const auto pixel = screenPixel(x, y);
+                if (pixel[0] > 120 && pixel[1] > 90 && pixel[0] > pixel[2] + 50)
+                    ++count;
+            }
+        return count;
+    };
+    draw();
+    require(
+        unsavedPixels() > 30, "Unsaved message did not render at the right of the navigation bar."
+    );
+    saveImage("unsaved-workspace.ppm");
+    views.markSaved(0);
+    draw();
+    require(unsavedPixels() == 0, "Saved workspace retained the unsaved message.");
+    views.rename(0, "Main edited");
+    draw();
+    require(unsavedPixels() > 30, "Editing a saved workspace did not restore the message.");
+    views.rename(0, "Main");
     auto mainFrame = draw();
     require(
         mainFrame.viewport.y == 60 && cameraPixel(mainFrame, {0, 0})[2] > 150,
@@ -1170,6 +1194,7 @@ void circuitViewsPresentation(Renderer& renderer)
 
     click(ui.bottomTabBounds(UI::BottomTab::Subcircuit), GLFW_MOUSE_BUTTON_LEFT);
     draw();
+    require(unsavedPixels() > 30, "Unsaved subcircuit message did not follow 2x display scaling.");
     saveImage("subcircuit-panel-2x.ppm");
     click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
     draw();

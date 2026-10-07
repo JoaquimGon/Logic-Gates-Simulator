@@ -10,22 +10,17 @@
 #include <stdexcept>
 
 void performFileCommand(
-    UI::FileCommand command,
-    GLFWwindow* window,
-    UI& ui,
-    CircuitViews& views,
-    Input& input,
-    std::filesystem::path& mainFile
+    UI::FileCommand command, GLFWwindow* window, UI& ui, CircuitViews& views, Input& input
 )
 {
     const bool subEditor = views.role(views.activeIndex()) == CircuitViews::Role::Subcircuit;
     const bool importing = command == UI::FileCommand::LoadSubcircuit;
     const bool opening = importing || command == UI::FileCommand::Open;
-    const auto current = subEditor ? views.activeFile() : mainFile;
+    const auto current = views.activeFile();
     const auto chosen = !opening && command == UI::FileCommand::Save && !current.empty()
                             ? std::optional{current}
                             : chooseCircuitFile(window, !opening, current, subEditor || importing);
-    applyFileCommand(command, chosen, ui, views, input, mainFile);
+    applyFileCommand(command, chosen, ui, views, input);
 }
 
 void applyFileCommand(
@@ -33,8 +28,7 @@ void applyFileCommand(
     const std::optional<std::filesystem::path>& chosen,
     UI& ui,
     CircuitViews& views,
-    Input& input,
-    std::filesystem::path& mainFile
+    Input& input
 )
 {
     if (!chosen)
@@ -79,9 +73,11 @@ void applyFileCommand(
     else if (opening)
     {
         auto loaded = loadCircuit(*chosen);
-        views.replaceMain(std::move(loaded.scene), std::move(loaded.name), input);
-        mainFile = *chosen;
-        ui.setFileStatus("Opened Main circuit");
+        if (subEditor)
+            views.select(0, input);
+        views.replaceWorkspace(std::move(loaded.scene), std::move(loaded.name), input);
+        views.setActiveFile(*chosen);
+        ui.setFileStatus("Opened workspace");
     }
     else if (subEditor)
     {
@@ -108,6 +104,7 @@ void applyFileCommand(
             problem = error.what();
         }
         saveSubcircuit(*chosen, views.activeScene(), identity, name);
+        views.markSaved(views.activeIndex());
         views.activeDefinition() = identity;
         views.setActiveFile(*chosen);
         if (definition)
@@ -129,8 +126,9 @@ void applyFileCommand(
     }
     else
     {
-        saveCircuit(*chosen, views.mainScene(), views.name(0));
-        mainFile = *chosen;
-        ui.setFileStatus("Saved Main circuit");
+        saveCircuit(*chosen, views.activeScene(), views.name(views.activeIndex()));
+        views.setActiveFile(*chosen);
+        views.markSaved(views.activeIndex());
+        ui.setFileStatus("Saved workspace");
     }
 }

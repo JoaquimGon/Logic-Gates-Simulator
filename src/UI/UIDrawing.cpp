@@ -324,10 +324,28 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     if (m_fileMenuOpen || fileBounds().contains(m_pointer.x, m_pointer.y))
         renderer.drawScreenRect(fileBounds(), {0.16f, 0.3f, 0.46f, 1});
     label("File", fileBounds(), 0.42f, ink, true);
+    const std::string unsaved = !m_circuitTabs.activeHasUnsavedChanges() ? ""
+                                : m_circuitTabs.activeIsSubcircuit()
+                                    ? "Unsaved changes - save for Custom"
+                                    : "Unsaved changes";
+    const double unsavedWidth =
+        unsaved.empty()
+            ? 0
+            : std::min(
+                  std::max(0.0, m_bar.width - 76),
+                  static_cast<double>(getTextWidth(unsaved, 0.35f, renderer.fontMetrics())) + 20
+              );
+    if (!unsaved.empty())
+        label(
+            unsaved,
+            {m_bar.width - unsavedWidth, 0, unsavedWidth, m_bar.height},
+            0.35f,
+            {0.9f, 0.72f, 0.38f, 1}
+        );
     if (!m_fileStatus.empty())
         label(
             m_fileStatus,
-            {76, 0, std::max(0.0, m_bar.width - 80), m_bar.height},
+            {76, 0, std::max(0.0, m_bar.width - unsavedWidth - 80), m_bar.height},
             0.35f,
             m_fileError ? glm::vec4{1, 0.55f, 0.4f, 1} : glm::vec4{0.55f, 0.75f, 0.9f, 1}
         );

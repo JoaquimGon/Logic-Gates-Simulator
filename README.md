@@ -59,11 +59,16 @@ occupied space rejects the drop and shows a message. Escape, right-click, focus
 loss, or resizing cancels the drag. Scroll inside the panel in shorter windows.
 Debug metrics start hidden; F3 shows them.
 
-The full-width top bar reserves 30 pixels. Click **File** to expand **Save**,
-**Save As**, **Open**, and **Load subcircuit** in a workspace. Save/Open operate on **Main only**. Save asks for a JSON
-path the first time, then updates that file; Save As always asks for a path.
-Open validates the file before replacing Main and switches to its tab. Other
-authored scenes are retained. Subcircuit editors instead show **Save (subcircuit)**
+The full-width top bar reserves 30 pixels. A quiet amber **Unsaved changes** message
+on the right tracks the active tab, including new empty scenes. It clears after a successful
+save/open and returns after edits; clock edges, camera movement, and selection do not count.
+Subcircuits also show a reminder to save for Custom. A saved invalid draft is clean but
+remains unpublished, as explained by the file status message. Click **File** to expand **Save**,
+**Save As**, **Open**, and **Load subcircuit** in a workspace. Save/Open operate on
+the **active workspace**. Save asks for a JSON path the first time, then updates
+that file; Save As always asks for a path.
+Each workspace remembers its own file. Open validates the file before replacing the active
+workspace; other authored scenes are retained. Subcircuit editors instead show **Save (subcircuit)**
 and **Save As (subcircuit)**, using their own file paths. Valid saves/imports appear
 in Custom; right-click a placed box to **Edit subcircuit**. See
 [subcircuit behavior and save rules](docs/Subcircuits.md). Windows uses the native file picker; cancelling it changes
@@ -88,7 +93,7 @@ components never determine that role. Saving a valid subcircuit publishes its
 reusable box in Custom. Click a circuit tab's **X**
 to open a **Delete / Cancel** confirmation. Closing the active circuit switches
 to the tab on its left; Main cannot be deleted. Escape or an outside click
-cancels deletion. There is no saved-state check yet. Main is
+cancels deletion. Deletion does not check for unsaved changes yet. Main is
 saved as a single circuit design in JSON, including labels, settings, pin
 layouts, manual input values, and wire bends. Clock phase, latch memory, and
 derived signals reset on load. Used subcircuit definitions and their authored

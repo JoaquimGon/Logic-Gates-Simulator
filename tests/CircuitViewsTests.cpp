@@ -2,6 +2,7 @@
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/CircuitViews.h"
 #include "Editor/Input.h"
+#include "Editor/Subcircuits.h"
 #include "Graphics/Text/TextGeometry.h"
 #include "Persistence/CircuitFile.h"
 #include "UI/UI.h"
@@ -17,6 +18,121 @@ void require(bool condition, const char* message)
 {
     if (!condition)
         throw std::runtime_error(message);
+}
+
+void savedStatus(GLFWwindow* window)
+{
+    Input input;
+    CircuitViews views;
+    views.select(0, input);
+    require(views.hasUnsavedChanges(0), "New Main must be unsaved.");
+    auto& scene = views.activeScene();
+    const int source = scene.addComponent(BuiltinComponentIds::Input, {0, 0});
+    scene.addComponent(BuiltinComponentIds::Clock, {20, 0});
+    views.markSaved(0);
+    Scene saved(scene);
+    require(!views.hasUnsavedChanges(0), "Saved design did not become clean.");
+    scene.updateClocks(0.75f);
+    scene.propagate();
+    scene.syncVisuals();
+    input.setPanOffset({0.5f, 0});
+    input.setZoom(1.2f);
+    input.setMode(EditorMode::Interaction);
+    require(!views.hasUnsavedChanges(0), "Simulation, camera, or mode changes dirtied a save.");
+    scene.handleClick(source);
+    require(views.hasUnsavedChanges(0), "Manual source change was ignored.");
+    scene.handleClick(source);
+    require(!views.hasUnsavedChanges(0), "Restoring saved input state stayed unsaved.");
+    scene.togglePauseAllClocks();
+    require(views.hasUnsavedChanges(0), "Clock pause setting was ignored.");
+    scene.togglePauseAllClocks();
+    require(!views.hasUnsavedChanges(0), "Restoring saved clock settings stayed unsaved.");
+    scene.setAllClocksFrequency(2);
+    require(views.hasUnsavedChanges(0), "Clock frequency setting was ignored.");
+    scene.setAllClocksFrequency(1);
+    require(!views.hasUnsavedChanges(0), "Restoring frequency stayed unsaved.");
+    views.rename(0, "Renamed");
+    require(views.hasUnsavedChanges(0), "View name change was ignored.");
+    views.rename(0, "Main");
+    require(!views.hasUnsavedChanges(0), "Restoring saved name stayed unsaved.");
+    EditorActions actions(scene);
+    const auto preview = actions.beginMove(source);
+    require(
+        preview && actions.previewMove(*preview, {0, 10}) && !views.hasUnsavedChanges(0),
+        "Presentation-only move preview dirtied the save."
+    );
+    require(actions.cancelMove(*preview), "Move preview fixture could not be cancelled.");
+    const auto moved = actions.apply({MoveComponent{source, {0, 10}}});
+    require(static_cast<bool>(moved) && views.hasUnsavedChanges(0), "Committed move was ignored.");
+    const auto undone = EditorActions(scene).restore(saved, scene.getRevision());
+    require(
+        static_cast<bool>(undone) && !views.hasUnsavedChanges(0),
+        "Undo to saved design stayed unsaved."
+    );
+    const auto configured =
+        actions.apply({ConfigureComponentProperties{.componentId = source, .label = "Signal"}});
+    require(
+        static_cast<bool>(configured) && views.hasUnsavedChanges(0),
+        "Component label edit was ignored."
+    );
+    require(
+        static_cast<bool>(actions.restore(saved, scene.getRevision())) &&
+            !views.hasUnsavedChanges(0),
+        "Restoring component properties stayed unsaved."
+    );
+    require(
+        static_cast<bool>(actions.apply({AddWire{{{0, 40}, {10, 40}}}})) &&
+            views.hasUnsavedChanges(0),
+        "Wire edit was ignored."
+    );
+    require(
+        static_cast<bool>(actions.restore(saved, scene.getRevision())) &&
+            !views.hasUnsavedChanges(0),
+        "Restoring saved wiring stayed unsaved."
+    );
+    const int extra = scene.addComponent(BuiltinComponentIds::And, {40, 0});
+    require(views.hasUnsavedChanges(0), "New component was ignored.");
+    require(
+        static_cast<bool>(actions.apply({DeleteComponent{extra}})) && !views.hasUnsavedChanges(0),
+        "Deleting the new component did not restore saved content."
+    );
+    views.create(input);
+    require(
+        views.hasUnsavedChanges(1) && !views.hasUnsavedChanges(0),
+        "New workspace inherited another tab's status."
+    );
+    views.setActiveFile("workspace.json");
+    views.markSaved(1);
+    views.setRole(1, CircuitViews::Role::Subcircuit);
+    require(
+        views.activeFile().empty(), "Role conversion reused a path with the wrong file format."
+    );
+    require(views.hasUnsavedChanges(1), "Changing authoring role was ignored.");
+    views.setRole(1, CircuitViews::Role::Workspace);
+    require(!views.hasUnsavedChanges(1), "Restoring saved role stayed unsaved.");
+    views.create(input, CircuitViews::Role::Subcircuit);
+    require(views.hasUnsavedChanges(2), "New subcircuit must be unsaved.");
+    views.select(0, input);
+    Scene authored;
+    const int portIn = authored.addComponent(BuiltinComponentIds::Input, {-20, 0});
+    authored.addComponent(BuiltinComponentIds::Output, {20, 0});
+    authored.setInterfaceNamingRequired(true);
+    require(
+        static_cast<bool>(EditorActions(authored).apply({AddWire{{{-19, 0}, {19, 0}}}})),
+        "Subcircuit fixture wire failed."
+    );
+    auto definition = makeSubcircuit(authored, {"subcircuit.saved-status", 1}, "Reusable");
+    views.publishSubcircuits({definition});
+    require(!views.hasUnsavedChanges(0), "Unused library import dirtied a saved workspace.");
+    scene.addComponent(definition.identity.id, {40, 0});
+    views.markSaved(0);
+    authored.handleClick(portIn);
+    definition = makeSubcircuit(authored, {"subcircuit.saved-status", 2}, "Reusable");
+    views.publishSubcircuits({definition});
+    require(
+        views.hasUnsavedChanges(0), "Updating an embedded subcircuit did not dirty its workspace."
+    );
+    input.setScene(nullptr);
 }
 
 void run(GLFWwindow* window)
@@ -602,6 +718,7 @@ int main()
     try
     {
         require(window != nullptr, "Cannot create headless test window.");
+        savedStatus(window);
         run(window);
         std::cout << "PASS: circuit_views\n";
     }

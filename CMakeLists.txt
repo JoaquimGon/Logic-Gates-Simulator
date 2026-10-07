@@ -66,7 +66,7 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
         src/Editor/Gestures/WireGesture.cpp
         src/Editor/Gestures/Selection.cpp
     )
-    target_link_libraries(simulator_input PUBLIC simulator_scene PRIVATE glfw)
+    target_link_libraries(simulator_input PUBLIC simulator_scene PRIVATE simulator_files glfw)
     target_compile_definitions(simulator_input PRIVATE GLFW_INCLUDE_NONE)
     add_library(simulator_ui STATIC src/UI/UI.cpp src/UI/CircuitTabs.cpp)
     target_link_libraries(simulator_ui PUBLIC simulator_input PRIVATE glfw)
