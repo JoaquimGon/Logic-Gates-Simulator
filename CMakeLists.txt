@@ -189,7 +189,7 @@ if(BUILD_TESTING)
     endforeach()
 
     if(BUILD_SIMULATOR_APP)
-        add_executable(RenderTests tests/RenderTests.cpp)
+        add_executable(RenderTests tests/RenderTests.cpp tests/RenderResourceTests.cpp)
         target_link_libraries(RenderTests PRIVATE simulator_graphics simulator_scene simulator_ui glfw)
         target_compile_definitions(RenderTests PRIVATE GLFW_INCLUDE_NONE
             RENDER_ARTIFACTS_DIR="${CMAKE_BINARY_DIR}/render-artifacts")

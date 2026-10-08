@@ -1,33 +1,10 @@
 #version 330 core
+
+#include "common/sdf.glsl"
+#include "common/outline.glsl"
 out vec4 FragColor;
 in vec4 instanceTint;
-uniform float uOutlineScale = 1.0;
 in vec2 localPos; // -0.5..0.5, independent of camera (same contract as the gates)
-
-// Rounded box SDF â€” the terminal's body silhouette.
-float sdRoundBox(vec2 p, vec2 b, float r)
-{
-    vec2 q = abs(p) - b + r;
-    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
-}
-
-// Right-pointing triangle (flat back edge at -x, tip at +x). Same approximate
-// metric style notGate.frag uses: cheap, and stable under fwidth().
-float sdRightTriangle(vec2 p, float halfW, float halfH)
-{
-    float backEdge = -p.x - halfW;
-    float slopedEdges = abs(p.y) - halfH * (halfW - p.x) / (2.0 * halfW);
-    return max(backEdge, slopedEdges);
-}
-
-// Taper the inset outline below normal zoom; cap it at 1.5 framebuffer pixels.
-float outlineFactor(float distance)
-{
-    float pixelWidth = max(length(vec2(dFdx(distance), dFdy(distance))), 0.000001);
-    float strokeWidth = 1.5 * uOutlineScale;
-    return smoothstep(-(strokeWidth + 0.5) * pixelWidth,
-                      -max(strokeWidth - 0.5, 0.0) * pixelWidth, distance);
-}
 
 void main()
 {
@@ -43,8 +20,7 @@ void main()
     float glyph = sdRightTriangle(p, 0.28, 0.32);
     float d = max(body, -glyph);
 
-    float aa = fwidth(d);
-    float fillFactor = 1.0 - smoothstep(-aa, aa, d);
+    float fillFactor = centeredFillCoverage(d);
 
     // Warm yellow colour
     float outline = outlineFactor(body);

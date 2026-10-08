@@ -18,7 +18,11 @@ class Mesh
     bool usesEBO;
     unsigned int defaultDrawMode;
 
-    unsigned int instanceVBO = 0; // Holds the per-instance data
+    unsigned int instanceVBO = 0;
+    std::size_t m_vertexCapacity = 0, m_instanceCapacity = 0;
+    std::vector<float> m_uploadedVertices, m_uploadedInstances;
+    std::vector<int> m_instanceAttributes;
+    int m_instanceAttributeStart = -1;
 
   public:
     Mesh(const Mesh&) = delete;

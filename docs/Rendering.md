@@ -407,3 +407,58 @@ Scene's presentation-only translated paths during group previews; persisted path
 and simulation topology remain committed until release. No screen-space widget or
 shader framework is involved. Group and rectangle framebuffer previews cover faint
 versus opaque outlines and normal/panned/zoomed 2x drawing.
+
+## Shared shaders and reusable buffers
+
+Native shaders include `components/common/sdf.glsl` for their existing distance
+functions and `outline.glsl` for outlines and antialiasing. Each native fragment
+keeps its own silhouette composition and material; the output bulb and point
+markers retain their separate materials. CPU silhouette/contact equations remain
+in `Components/Definitions/PresentationGeometry.cpp` and must match GLSL.
+
+Shader loading expands standalone quoted includes relative to the including file.
+It tracks roots and nested dependencies, including missing files, and uses GLSL
+`#line` source IDs with an ID/path diagnostic map. Hot reload checks every 200 ms,
+compares against the last attempted timestamps, and retries after another edit
+or a missing file reappears. Failed reads, compilation, or linking keep the valid
+program. Uniform locations (including absent uniforms) are cached per program;
+only a successfully linked replacement clears that cache.
+
+Mesh keeps allocated vertex/instance capacity, grows it when needed, and uses
+`glBufferSubData` for changed contents. Identical packed values skip uploading;
+instance attributes are configured again only when their layout changes. Smaller
+submissions update their draw count without shrinking storage. Renderer reuses
+wire, lead, pin, and junction staging vectors; wire geometry appends directly
+without a temporary vector per wire. Leads have their own mesh so wire/UI drawing
+cannot overwrite their retained data. Text reuses its glyph staging vector.
+
+The renderer still rebuilds staging from current presentation values. Comparing
+complete packed data makes movement, size/arity/lead changes, routing/topology,
+signal colors, hover colors, and tints update naturally, without a separate
+invalidation/revision system. Camera and shader changes update uniforms; previews
+and overlays continue submitting current values. Component body batching retains
+stable ID order and groups only adjacent equal shaders. UI/shared transient meshes
+can still upload between different draws; this is deliberately a limited buffer
+reuse optimization, not a cache of entire scenes or every UI batch.
+
+`RenderTests --profile` measures 80 warmed drawing frames with 160 bodies (four
+pins each) and 160 wires, excluding scene/presentation construction, labels, and
+UI. Edited frames change size, lead geometry, pin state, and wire state. On the
+local Debug build/OpenGL 3.3 NVIDIA 581.57, the initial before/after run was:
+
+| Drawing pass | Before | After |
+| --- | --- | --- |
+| Static elapsed time | 527 ms | 425 ms |
+| Edited elapsed time | 531 ms | 434 ms |
+| Buffer storage replacements, either pass | 320 | 0 |
+| Static uploads / uniform lookups | 320 / 800 | 0 / 0 |
+| Edited uploads / uniform lookups | 320 / 800 | 318 / 0 |
+
+Timings vary with the machine and do not predict total application frame time.
+Tests assert deterministic storage/upload/lookup behavior rather than speed.
+Resource regressions cover vertex growth/shrink/empty restoration, instance color
+changes, present/missing uniform caching, failed compile/link retention, nested
+include reloads, backward timestamps, missing-file recovery, and include cycles.
+Existing native/contact/arity, overlay, preview, signal, and DPI framebuffer tests
+remain in place. All existing generated framebuffer previews match the baseline
+byte for byte; native, NXOR-outline, and palette previews were visually reviewed.

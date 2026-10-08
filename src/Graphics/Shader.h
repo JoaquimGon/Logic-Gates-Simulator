@@ -1,10 +1,13 @@
 #pragma once
 
-#include <glad/glad.h>
 #include <chrono>
 #include <filesystem>
+#include <glad/glad.h>
 #include <glm/glm.hpp>
+#include <optional>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 /**
  * @brief Class that handles shader files, compilation, linking, and live
@@ -19,17 +22,23 @@ class Shader
      * @param type OpenGL stage type (GL_VERTEX_SHADER, GL_FRAGMENT_SHADER,
      * ...).
      * @param stageName Stage tag used in error messages, e.g. "VERTEX".
-     * @param path File the source was read from, used in error messages.
+     * @param files Source ID to path mapping used in compiler diagnostics.
      * @return The compiled stage object, or 0 when compilation failed.
      */
-    unsigned int compile(const char* src, GLenum type, const char* stageName, const char* path);
+    unsigned int compile(
+        const char* src, GLenum type, const char* stageName, const std::vector<std::string>& files
+    );
 
     /*
-     * @brief Reads a shader source file.
+     * @brief Expands quoted relative includes and retains source lines/dependencies.
      * @param path File path of the shader source.
-     * @return The file contents, or an empty string when it could not be read.
+     * @param files Source ID to path mapping for this stage.
+     * @param stack Active include chain for detecting cycles.
+     * @return Expanded GLSL; throws when reading or include expansion fails.
      */
-    std::string readFile(const char* path);
+    std::string readFile(
+        const std::string& path, std::vector<std::string>& files, std::vector<std::string>& stack
+    );
 
     /*
      * @brief Converts a relative asset path into an absolute file path using
@@ -59,8 +68,10 @@ class Shader
     // Hot-reload tracking
     std::string m_vertPath = "";
     std::string m_fragPath = "";
-    std::filesystem::file_time_type m_lastVertTime{};
-    std::filesystem::file_time_type m_lastFragTime{};
+    // Track the last attempted source revision, including missing includes.
+    std::unordered_map<std::string, std::optional<std::filesystem::file_time_type>>
+        m_attemptedSources;
+    mutable std::unordered_map<std::string, int> m_uniformLocations;
     std::chrono::steady_clock::time_point m_lastCheckTime{}; // Per-instance poll throttle
 
     /*

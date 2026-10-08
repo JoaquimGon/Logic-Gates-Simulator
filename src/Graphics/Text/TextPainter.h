@@ -23,4 +23,5 @@ class TextPainter
   private:
     FontAtlas m_font;
     std::unique_ptr<Mesh> m_mesh;
+    std::vector<TextVertex> m_vertices;
 };

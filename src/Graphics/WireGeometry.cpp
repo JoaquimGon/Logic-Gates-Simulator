@@ -22,10 +22,16 @@ glm::vec4 wireColor(PinState state)
 
 std::vector<float> buildWireVertices(const Wire& wire)
 {
-    const auto& path = wire.getPath();
     std::vector<float> data;
+    appendWireVertices(wire, data);
+    return data;
+}
+
+void appendWireVertices(const Wire& wire, std::vector<float>& data)
+{
+    const auto& path = wire.getPath();
     if (path.size() < 2)
-        return data;
+        return;
 
     glm::vec4 color = wireColor(wire.getState());
 
@@ -90,8 +96,6 @@ std::vector<float> buildWireVertices(const Wire& wire)
         pushVertex(v3);
         pushVertex(v4);
     }
-
-    return data;
 }
 
 std::vector<float> buildBoundsVertices(BodyBounds bounds, float padding, float alpha)

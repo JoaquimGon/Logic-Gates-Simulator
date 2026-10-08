@@ -1,14 +1,27 @@
 ﻿#include "Shader.h"
 
+#include <algorithm>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <system_error>
 #include <vector>
 
 #ifndef PROJECT_ASSETS_DIR
 #define PROJECT_ASSETS_DIR "assets"
 #endif
+
+namespace
+{
+std::optional<std::filesystem::file_time_type> sourceTime(const std::string& path)
+{
+    std::error_code error;
+    const auto time = std::filesystem::last_write_time(path, error);
+    return error ? std::nullopt : std::optional{time};
+}
+} // namespace
 
 std::string Shader::resolvePath(const std::string& path)
 {
@@ -25,23 +38,26 @@ std::string Shader::resolvePath(const std::string& path)
     return fullPath.lexically_normal().string();
 }
 
-
 bool Shader::buildProgram(bool isReload)
 {
-    std::string vCode = readFile(m_vertPath.c_str());
-    std::string fCode = readFile(m_fragPath.c_str());
-
-    if (vCode.empty() || fCode.empty())
+    m_attemptedSources.clear();
+    m_attemptedSources[m_vertPath] = sourceTime(m_vertPath);
+    m_attemptedSources[m_fragPath] = sourceTime(m_fragPath);
+    std::vector<std::string> vertexFiles, fragmentFiles, stack;
+    std::string vCode, fCode;
+    try
     {
-        std::cerr << "ERROR::SHADER::BUILD_SKIPPED: missing source for \"" << m_vertPath
-                  << "\" / \"" << m_fragPath << "\".\n";
+        vCode = readFile(m_vertPath, vertexFiles, stack);
+        fCode = readFile(m_fragPath, fragmentFiles, stack);
+    }
+    catch (const std::runtime_error& error)
+    {
+        std::cerr << "ERROR::SHADER::SOURCE: " << error.what() << '\n';
         return false;
     }
-
-    unsigned int vertexShader =
-        compile(vCode.c_str(), GL_VERTEX_SHADER, "VERTEX", m_vertPath.c_str());
+    unsigned int vertexShader = compile(vCode.c_str(), GL_VERTEX_SHADER, "VERTEX", vertexFiles);
     unsigned int fragmentShader =
-        compile(fCode.c_str(), GL_FRAGMENT_SHADER, "FRAGMENT", m_fragPath.c_str());
+        compile(fCode.c_str(), GL_FRAGMENT_SHADER, "FRAGMENT", fragmentFiles);
 
     if (vertexShader == 0 || fragmentShader == 0)
     {
@@ -74,10 +90,7 @@ bool Shader::buildProgram(bool isReload)
     }
     ID = newID;
 
-    // Cache initial/updated write times
-    std::error_code ecV, ecF;
-    m_lastVertTime = std::filesystem::last_write_time(m_vertPath, ecV);
-    m_lastFragTime = std::filesystem::last_write_time(m_fragPath, ecF);
+    m_uniformLocations.clear(); // Locations belong to the newly linked program.
 
     if (isReload)
     {
@@ -87,7 +100,6 @@ bool Shader::buildProgram(bool isReload)
     return true;
 }
 
-
 Shader::Shader(const char* vertexPath, const char* fragmentPath)
 {
     // Resolve both paths to machine-independent absolute paths
@@ -96,7 +108,6 @@ Shader::Shader(const char* vertexPath, const char* fragmentPath)
 
     buildProgram(false);
 }
-
 
 void Shader::checkAndReload()
 {
@@ -111,21 +122,15 @@ void Shader::checkAndReload()
     }
     m_lastCheckTime = now;
 
-    std::error_code ecV, ecF;
-    auto curVertTime = std::filesystem::last_write_time(m_vertPath, ecV);
-    auto curFragTime = std::filesystem::last_write_time(m_fragPath, ecF);
-
-    // If an editor holds a temporary write lock, wait for next frame
-    if (ecV || ecF)
-        return;
-
-    if (curVertTime > m_lastVertTime || curFragTime > m_lastFragTime)
+    for (const auto& [path, attemptedTime] : m_attemptedSources)
     {
-        std::cout << "[Shader] Disk modification detected in: " << m_fragPath << '\n';
-        buildProgram(true);
+        if (sourceTime(path) != attemptedTime)
+        {
+            buildProgram(true);
+            break;
+        }
     }
 }
-
 
 void Shader::use() const
 {
@@ -134,42 +139,42 @@ void Shader::use() const
     glUseProgram(ID);
 }
 
-
 int Shader::uniformLocation(const std::string& name) const
 {
-    return (ID == 0) ? -1 : glGetUniformLocation(ID, name.c_str());
+    if (ID == 0)
+        return -1;
+    const auto found = m_uniformLocations.find(name);
+    if (found != m_uniformLocations.end())
+        return found->second;
+    const int location = glGetUniformLocation(ID, name.c_str());
+    m_uniformLocations.emplace(name, location); // Cache -1 as well.
+    return location;
 }
-
 
 void Shader::setBool(const std::string& name, bool value) const
 {
     glUniform1i(uniformLocation(name), (int)value);
 }
 
-
 void Shader::setFloat(const std::string& name, float value) const
 {
     glUniform1f(uniformLocation(name), value);
 }
-
 
 void Shader::setMat3(const std::string& name, const glm::mat3& mat) const
 {
     glUniformMatrix3fv(uniformLocation(name), 1, GL_FALSE, &mat[0][0]);
 }
 
-
 void Shader::setMat4(const std::string& name, const glm::mat4& mat) const
 {
     glUniformMatrix4fv(uniformLocation(name), 1, GL_FALSE, &mat[0][0]);
 }
 
-
 void Shader::setVec2(const std::string& name, float value1, float value2) const
 {
     glUniform2f(uniformLocation(name), value1, value2);
 }
-
 
 void Shader::setVec4(
     const std::string& name, float value1, float value2, float value3, float value4
@@ -178,15 +183,15 @@ void Shader::setVec4(
     glUniform4f(uniformLocation(name), value1, value2, value3, value4);
 }
 
-
 Shader::~Shader()
 {
     if (ID != 0)
         glDeleteProgram(ID);
 }
 
-
-unsigned int Shader::compile(const char* src, GLenum type, const char* stageName, const char* path)
+unsigned int Shader::compile(
+    const char* src, GLenum type, const char* stageName, const std::vector<std::string>& files
+)
 {
     unsigned int stage = glCreateShader(type);
     glShaderSource(stage, 1, &src, NULL);
@@ -203,35 +208,69 @@ unsigned int Shader::compile(const char* src, GLenum type, const char* stageName
     glGetShaderInfoLog(stage, static_cast<GLsizei>(infoLog.size()), NULL, infoLog.data());
 
     std::cerr << "ERROR::SHADER::" << stageName << "::COMPILATION_FAILED\n"
-              << " file : " << path << "\n"
-              << infoLog.data() << std::endl;
-    std::cerr << "--- source of " << path << " ---\n" << src << "\n--- end ---" << std::endl;
+              << infoLog.data() << '\n';
+    // GLSL diagnostics identify files by the numeric IDs supplied through #line.
+    for (std::size_t i = 0; i < files.size(); ++i)
+        std::cerr << " source " << i << ": " << files[i] << '\n';
 
     glDeleteShader(stage);
     return 0;
 }
 
-
-std::string Shader::readFile(const char* path)
+std::string Shader::readFile(
+    const std::string& path, std::vector<std::string>& files, std::vector<std::string>& stack
+)
 {
-    std::ifstream file;
-    file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-
-    try
+    m_attemptedSources[path] = sourceTime(path);
+    if (std::find(stack.begin(), stack.end(), path) != stack.end())
+        throw std::runtime_error("Cyclic shader include: " + path);
+    std::ifstream file(path);
+    if (!file)
+        throw std::runtime_error("Cannot read shader: " + path);
+    const auto found = std::find(files.begin(), files.end(), path);
+    const auto sourceId = found == files.end() ? files.size() : found - files.begin();
+    if (found == files.end())
+        files.push_back(path);
+    stack.push_back(path);
+    std::ostringstream source;
+    std::string line;
+    int lineNumber = 0;
+    while (std::getline(file, line))
     {
-        file.open(path);
-        std::stringstream stream;
-        stream << file.rdbuf();
-        file.close();
-        return stream.str();
+        ++lineNumber;
+        std::istringstream directive(line);
+        std::string token;
+        directive >> token;
+        if (token != "#include")
+        {
+            source << line << '\n';
+            continue;
+        }
+        directive >> std::ws;
+        std::string relative, trailing;
+        if (directive.peek() != '"' || !(directive >> std::quoted(relative)))
+            throw std::runtime_error(
+                "Expected quoted include at " + path + ":" + std::to_string(lineNumber)
+            );
+        std::getline(directive >> std::ws, trailing);
+        if (!trailing.empty() && !trailing.starts_with("//"))
+            throw std::runtime_error(
+                "Invalid include at " + path + ":" + std::to_string(lineNumber)
+            );
+        const auto child =
+            (std::filesystem::path(path).parent_path() / relative).lexically_normal().string();
+        // readFile registers a stable source ID before expanding nested includes.
+        const auto childFound = std::find(files.begin(), files.end(), child);
+        const auto childId = childFound == files.end() ? files.size() : childFound - files.begin();
+        source << "#line 1 " << childId << '\n'
+               << readFile(child, files, stack) << "#line " << lineNumber + 1 << ' ' << sourceId
+               << '\n';
     }
-    catch (std::ifstream::failure&)
-    {
-        std::cerr << "ERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ: " << path << std::endl;
-        return "";
-    }
+    if (file.bad())
+        throw std::runtime_error("Failed reading shader: " + path);
+    stack.pop_back();
+    return source.str();
 }
-
 
 bool Shader::checkLinkErrors(unsigned int program)
 {

@@ -27,7 +27,8 @@ int TextPainter::draw(
 {
     if (!m_mesh || !m_font.textureId || !shader.isValid())
         return 0;
-    std::vector<TextVertex> vertices;
+    auto& vertices = m_vertices;
+    vertices.clear();
     for (const auto& run : runs)
         buildTextGeometry(
             run.text, run.baseline.x, run.baseline.y, run.scale, run.color, m_font, vertices, space

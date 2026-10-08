@@ -62,7 +62,9 @@ class Renderer
     Shader* acquireShader(const std::string& name);
     ShaderManager m_sm;
     std::unordered_set<std::string> m_missingShaderWarned;
-    std::unique_ptr<Mesh> m_gateMesh, m_gridMesh, m_pointMesh, m_wireMesh, m_boundsMesh;
+    std::unique_ptr<Mesh> m_gateMesh, m_gridMesh, m_pointMesh, m_wireMesh, m_leadMesh, m_boundsMesh;
+    // Reused per-pass staging; contents are rebuilt from current presentation values.
+    std::vector<float> m_wireData, m_leadData, m_pinData, m_intersectionData;
     TextPainter m_text;
     CanvasCameraFrame m_currentCamera{};
     std::optional<PixelViewport> m_screenClip;

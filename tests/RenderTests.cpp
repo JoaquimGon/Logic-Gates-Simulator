@@ -11,6 +11,7 @@
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -22,6 +23,9 @@ static_assert(!std::is_copy_constructible_v<Mesh>);
 static_assert(!std::is_copy_constructible_v<Shader>);
 static_assert(!std::is_copy_constructible_v<FontAtlas>);
 static_assert(!std::is_copy_constructible_v<Renderer>);
+
+void drawingProfile(Renderer&, const CanvasCameraFrame&);
+void renderResourceChecks();
 
 namespace
 {
@@ -1438,9 +1442,10 @@ void circuitViewsPresentation(Renderer& renderer)
     input.setScene(nullptr);
 }
 
+
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
     if (!glfwInit())
         return 77;
@@ -1482,20 +1487,27 @@ int main()
             );
             require(renderer.init(), "Renderer could not initialize required resources.");
             const auto camera = CanvasCamera{}.frame({extent, extent, extent, extent});
-            mixedInstances(renderer, camera);
-            nativeContacts(renderer, camera);
-            editedGate(renderer, camera);
-            preview(renderer, camera);
-            canvasViewport(renderer);
-            wireMarkers(renderer, camera);
-            roundedBounds(renderer, camera);
-            componentOutlines(renderer);
-            palettePresentation(renderer);
-            outputPresentation(renderer);
-            componentInformationPresentation(renderer);
-            groupSelectionPresentation(renderer, camera);
-            routedWiresPresentation(renderer, camera);
-            circuitViewsPresentation(renderer);
+            if (argc > 1 && std::string(argv[1]) == "--profile")
+                drawingProfile(renderer, camera);
+            else
+            {
+                renderResourceChecks();
+                drawingProfile(renderer, camera);
+                mixedInstances(renderer, camera);
+                nativeContacts(renderer, camera);
+                editedGate(renderer, camera);
+                preview(renderer, camera);
+                canvasViewport(renderer);
+                wireMarkers(renderer, camera);
+                roundedBounds(renderer, camera);
+                componentOutlines(renderer);
+                palettePresentation(renderer);
+                outputPresentation(renderer);
+                componentInformationPresentation(renderer);
+                groupSelectionPresentation(renderer, camera);
+                routedWiresPresentation(renderer, camera);
+                circuitViewsPresentation(renderer);
+            }
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";
         }
         catch (const std::exception& error)

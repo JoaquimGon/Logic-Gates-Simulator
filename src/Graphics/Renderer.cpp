@@ -28,6 +28,7 @@ void Renderer::shutdown()
     m_gridMesh.reset();
     m_pointMesh.reset();
     m_wireMesh.reset();
+    m_leadMesh.reset();
     m_boundsMesh.reset();
     m_text.shutdown();
 
@@ -128,6 +129,10 @@ bool Renderer::init()
     wireLayout.addAttribute(3); // Location 0: Position (X, Y, Z)
     wireLayout.addAttribute(4); // Location 1: Color (R, G, B, A)
     m_wireMesh = std::make_unique<Mesh>(
+        std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_TRIANGLES
+    );
+
+    m_leadMesh = std::make_unique<Mesh>(
         std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_TRIANGLES
     );
 
@@ -234,18 +239,17 @@ void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* active
     if (!useCanvasShader(*shader))
         return;
 
-    std::vector<float> allWiresData;
+    auto& allWiresData = m_wireData;
+    allWiresData.clear();
 
     for (const auto& [id, wire] : wires)
     {
-        std::vector<float> singleWireData = buildWireVertices(wire);
-        allWiresData.insert(allWiresData.end(), singleWireData.begin(), singleWireData.end());
+        appendWireVertices(wire, allWiresData);
     }
 
     if (activeWire != nullptr)
     {
-        std::vector<float> singleWireData = buildWireVertices(*activeWire);
-        allWiresData.insert(allWiresData.end(), singleWireData.begin(), singleWireData.end());
+        appendWireVertices(*activeWire, allWiresData);
     }
 
     if (!allWiresData.empty())
@@ -299,7 +303,8 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components)
     auto* shader = acquireShader("wire");
     if (!shader)
         return;
-    std::vector<float> data;
+    auto& data = m_leadData;
+    data.clear();
     auto vertex = [&](glm::vec2 p)
     { data.insert(data.end(), {p.x, p.y, 0, 0.75f, 0.85f, 0.95f, 1}); };
     for (const auto& component : components)
@@ -323,8 +328,8 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components)
         return;
     if (!useCanvasShader(*shader))
         return;
-    m_wireMesh->updateData(data, 7);
-    m_wireMesh->draw();
+    m_leadMesh->updateData(data, 7);
+    m_leadMesh->draw();
     ++m_drawCallCount;
 }
 
@@ -345,7 +350,8 @@ void Renderer::drawPins(
     // World-space diameter: ~half a grid cell (0.05 * 0.48 = 0.024f)
     shader->setFloat("uPointSize", 0.024f);
 
-    std::vector<float> pinInstanceData;
+    auto& pinInstanceData = m_pinData;
+    pinInstanceData.clear();
     int totalPins = 0;
 
     for (const auto& component : components)
@@ -423,7 +429,8 @@ void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
     // Increased size so the outer dark rim extends past the wire boundaries
     shader->setFloat("uPointSize", 0.034f);
 
-    std::vector<float> instancedData;
+    auto& instancedData = m_intersectionData;
+    instancedData.clear();
     instancedData.reserve(intersectionData.size() * 6);
 
     for (const auto& data : intersectionData)
@@ -506,8 +513,8 @@ void Renderer::drawScreenRect(CanvasViewport bounds, glm::vec4 color)
              color.b,
              color.a}
         );
-    m_wireMesh->updateData(vertices, 7);
-    m_wireMesh->draw();
+    m_boundsMesh->updateData(vertices, 7);
+    m_boundsMesh->draw();
     ++m_drawCallCount;
 }
 
