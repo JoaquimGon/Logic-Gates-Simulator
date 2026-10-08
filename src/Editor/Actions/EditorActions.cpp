@@ -45,6 +45,16 @@ bool samePins(const std::vector<PinUI>& a, const std::vector<PinUI>& b)
     return true;
 }
 
+GridCoords translated(GridCoords point, GridCoords offset)
+{
+    const auto x = std::int64_t(point.x) + offset.x;
+    const auto y = std::int64_t(point.y) + offset.y;
+    if (x < std::numeric_limits<int>::min() || x > std::numeric_limits<int>::max() ||
+        y < std::numeric_limits<int>::min() || y > std::numeric_limits<int>::max())
+        throw std::invalid_argument("Move exceeds the grid coordinate range.");
+    return {static_cast<int>(x), static_cast<int>(y)};
+}
+
 Wire makeWire(const std::vector<GridCoords>& path)
 {
     Wire wire;
@@ -105,6 +115,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
         Scene candidate(*before);
         std::vector<int> components;
         std::vector<int> moved;
+        std::vector<WireId> translatedWires;
         std::vector<WireId> wires;
         std::map<int, PlacementPolicy> placement;
         std::shared_ptr<ComponentCatalog> stagedCatalog;
@@ -432,6 +443,21 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     {
                         insert(makeWire(op.path));
                     }
+                    else if constexpr (std::is_same_v<T, MoveWire>)
+                    {
+                        auto found = candidate.m_wires.find(op.wireId);
+                        if (found == candidate.m_wires.end())
+                            throw EditFailure(EditError::InvalidWire, "Wire no longer exists.");
+                        if (op.offset != GridCoords{})
+                        {
+                            auto path = found->second.getPath();
+                            for (auto& point : path)
+                                point = translated(point, op.offset);
+                            found->second.setPath(path);
+                            translatedWires.push_back(op.wireId);
+                            changed = topologyChanged = true;
+                        }
+                    }
                     else if constexpr (std::is_same_v<T, DeleteWire>)
                     {
                         if (candidate.m_wires.erase(op.wireId) == 0)
@@ -538,7 +564,8 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                       before->committedGeometry(),
                                       candidate.committedGeometry(),
                                       moved,
-                                      candidate.m_wires
+                                      candidate.m_wires,
+                                      translatedWires
                                   ))
                 throw EditFailure(
                     EditError::InvalidWire,
@@ -564,13 +591,34 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
 
 std::optional<MovePreviewHandle> EditorActions::beginMove(int componentId)
 {
-    if (m_scene.m_previewToken != 0 || !m_scene.m_componentViews.contains(componentId))
+    return beginMove({&componentId, 1}, {});
+}
+
+std::optional<MovePreviewHandle>
+EditorActions::beginMove(std::span<const int> components, std::span<const WireId> wires)
+{
+    if (m_scene.m_previewToken != 0 || (components.empty() && wires.empty()))
         return std::nullopt;
+    for (int id : components)
+        if (!m_scene.m_componentViews.contains(id))
+            return std::nullopt;
+    for (WireId id : wires)
+        if (!m_scene.m_wires.contains(id))
+            return std::nullopt;
     std::unordered_map<int, std::unique_ptr<ComponentView>> views;
     for (const auto& [id, view] : m_scene.m_componentViews)
         views.emplace(id, view->clone());
     m_scene.m_previewViews = std::move(views);
-    m_scene.m_previewComponentId = componentId;
+    m_scene.m_previewComponentIds.assign(components.begin(), components.end());
+    m_scene.m_previewWireIds.assign(wires.begin(), wires.end());
+    for (auto* ids : {&m_scene.m_previewComponentIds, &m_scene.m_previewWireIds})
+    {
+        std::sort(ids->begin(), ids->end());
+        ids->erase(std::unique(ids->begin(), ids->end()), ids->end());
+    }
+    m_scene.m_previewComponentId = components.empty() ? -1 : components.front();
+    m_scene.m_previewOffset = {};
+    m_scene.m_previewWires = wires.empty() ? std::map<WireId, Wire>{} : m_scene.m_wires;
     m_scene.m_previewBaseRevision = m_scene.m_revision;
     m_scene.m_previewToken = ++m_scene.m_nextPreviewToken;
     return MovePreviewHandle{m_scene.m_previewToken};
@@ -578,20 +626,49 @@ std::optional<MovePreviewHandle> EditorActions::beginMove(int componentId)
 
 bool EditorActions::previewMove(MovePreviewHandle handle, GridCoords position)
 {
+    if (handle.token != m_scene.m_previewToken || m_scene.m_previewComponentId == -1)
+        return false;
+    const auto origin =
+        m_scene.m_componentViews.at(m_scene.m_previewComponentId)->getGridPosition();
+    const auto x = std::int64_t(position.x) - origin.x, y = std::int64_t(position.y) - origin.y;
+    if (x < std::numeric_limits<int>::min() || x > std::numeric_limits<int>::max() ||
+        y < std::numeric_limits<int>::min() || y > std::numeric_limits<int>::max())
+        return false;
+    return previewMoveBy(handle, {static_cast<int>(x), static_cast<int>(y)});
+}
+
+bool EditorActions::previewMoveBy(MovePreviewHandle handle, GridCoords offset)
+{
     if (handle.token == 0 || handle.token != m_scene.m_previewToken ||
         m_scene.m_previewBaseRevision != m_scene.m_revision)
         return false;
-    auto& view = *m_scene.m_previewViews.at(m_scene.m_previewComponentId);
     try
     {
-        ComponentFactory::validatePosition(view, position);
+        for (int id : m_scene.m_previewComponentIds)
+        {
+            const auto& view = *m_scene.m_componentViews.at(id);
+            ComponentFactory::validatePosition(view, translated(view.getGridPosition(), offset));
+        }
+        auto wires = m_scene.m_previewWireIds.empty() ? std::map<WireId, Wire>{} : m_scene.m_wires;
+        for (WireId id : m_scene.m_previewWireIds)
+        {
+            auto path = wires.at(id).getPath();
+            for (auto& point : path)
+                point = translated(point, offset);
+            wires.at(id).setPath(path);
+        }
+        for (int id : m_scene.m_previewComponentIds)
+            m_scene.m_previewViews.at(id)->setGridPosition(
+                translated(m_scene.m_componentViews.at(id)->getGridPosition(), offset)
+            );
+        m_scene.m_previewWires = std::move(wires);
+        m_scene.m_previewOffset = offset;
+        return true;
     }
     catch (const std::invalid_argument&)
     {
         return false;
     }
-    view.setGridPosition(position);
-    return true;
 }
 
 bool EditorActions::cancelMove(MovePreviewHandle handle)
@@ -599,6 +676,10 @@ bool EditorActions::cancelMove(MovePreviewHandle handle)
     if (handle.token == 0 || handle.token != m_scene.m_previewToken)
         return false;
     m_scene.m_previewViews.clear();
+    m_scene.m_previewWires.clear();
+    m_scene.m_previewComponentIds.clear();
+    m_scene.m_previewWireIds.clear();
+    m_scene.m_previewOffset = {};
     m_scene.m_previewToken = 0;
     m_scene.m_previewComponentId = -1;
     return true;
@@ -612,9 +693,14 @@ EditResult EditorActions::commitMove(MovePreviewHandle handle, bool reroute)
         cancelMove(handle);
         return failure(EditError::StaleRevision, "The move preview no longer matches the scene.");
     }
-    const int id = m_scene.m_previewComponentId;
-    const auto position = m_scene.m_previewViews.at(id)->getGridPosition();
-    auto result = applyImpl({MoveComponent{id, position, reroute}}, true);
+    EditBatch batch;
+    for (int id : m_scene.m_previewComponentIds)
+        batch.push_back(
+            MoveComponent{id, m_scene.m_previewViews.at(id)->getGridPosition(), reroute}
+        );
+    for (WireId id : m_scene.m_previewWireIds)
+        batch.push_back(MoveWire{id, m_scene.m_previewOffset});
+    auto result = applyImpl(batch, true);
     cancelMove(handle);
     return result;
 }

@@ -214,6 +214,13 @@ if(BUILD_TESTING)
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
     endforeach()
 
+    add_executable(BoxSelectionTests tests/BoxSelectionTests.cpp)
+    target_link_libraries(BoxSelectionTests PRIVATE simulator_ui simulator_files glfw)
+    target_compile_definitions(BoxSelectionTests PRIVATE GLFW_INCLUDE_NONE)
+    foreach(test_name IN ITEMS box_selection group_movement group_deletion group_cancellation)
+        add_test(NAME ${test_name} COMMAND BoxSelectionTests ${test_name})
+    endforeach()
+
     add_executable(CircuitViewsTests tests/CircuitViewsTests.cpp)
     target_link_libraries(CircuitViewsTests PRIVATE simulator_ui simulator_files glfw)
     target_compile_definitions(CircuitViewsTests PRIVATE GLFW_INCLUDE_NONE)

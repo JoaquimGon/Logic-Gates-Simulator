@@ -37,4 +37,7 @@ struct CanvasFrame
     int hoveredComponent = -1;
     int hoveredPin = -1;
     PinType hoveredDirection = PinType::INPUT;
+    std::span<const BodyHighlight> selectedBodies;
+    std::span<const SegmentHighlight> selectedSegments;
+    std::optional<BodyBounds> selectionBox;
 };

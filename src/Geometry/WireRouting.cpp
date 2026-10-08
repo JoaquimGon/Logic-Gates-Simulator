@@ -236,7 +236,8 @@ bool rerouteMovedWires(
     std::span<const ComponentGeometry> before,
     std::span<const ComponentGeometry> after,
     std::span<const int> moved,
-    std::map<WireId, Wire>& wires
+    std::map<WireId, Wire>& wires,
+    std::span<const WireId> translatedWires
 )
 {
     std::map<Key, GridCoords> endpoints;
@@ -262,14 +263,17 @@ bool rerouteMovedWires(
     for (const auto& [id, wire] : wires)
     {
         const auto& path = wire.getPath();
-        if (path.size() >= 2 &&
+        if (std::find(translatedWires.begin(), translatedWires.end(), id) ==
+                translatedWires.end() &&
+            path.size() >= 2 &&
             (endpoints.contains(key(path.front())) || endpoints.contains(key(path.back()))))
             reserved.erase(id);
     }
     for (auto& [id, wire] : staged)
     {
         const auto path = wire.getPath();
-        if (path.size() < 2)
+        if (path.size() < 2 ||
+            std::find(translatedWires.begin(), translatedWires.end(), id) != translatedWires.end())
             continue;
         auto start = endpoints.find(key(path.front())), end = endpoints.find(key(path.back()));
         if (start == endpoints.end() && end == endpoints.end())

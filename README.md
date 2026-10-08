@@ -35,8 +35,17 @@ Compact Sel. and Int. buttons above the bottom feature panel also switch
 modes. The active button is faded and underlined; hover either button for
 a short explanation of its behavior.
 
+Hold **Shift** and drag the left mouse button in Selection mode to box-select
+fully enclosed component bodies and wire sections. The box works in either direction.
+**Ctrl-click** toggles individual whole wire sections without starting a branch.
+Drag a selected body or selected wire to move the group; relative placement and
+explicitly selected wire bends stay intact. **Delete/Backspace** removes all selected
+objects. Faint rounded outlines show every selected body and wire segment.
+Connected wires outside the selection follow moved pins; **Alt on drop** leaves
+those wires fixed. Escape clears selection and cancels unfinished movement.
+
 F2 changes modes immediately and cancels unfinished dragging, wire drawing,
-branching, and panning. Escape, right-click, focus loss, and scene switching also
+branching, box selection, and panning. Escape, right-click, focus loss, and scene switching also
 discard unfinished gestures; a later mouse release cannot commit them.
 Ctrl+Shift was avoided because Windows can reserve it for keyboard-layout changes.
 Pin/wire routing, Delete/Backspace, and component spawn shortcuts below apply only

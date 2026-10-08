@@ -269,19 +269,38 @@ void Engine::run()
         m_renderer.beginFrame(input.getCameraFrame(window));
         const auto components = buildComponentPresentation(scene.getComponentViewMap());
         const auto junctions = scene.getWireIntersections();
-        CanvasFrame frame{components, scene.getWires(), junctions};
-        const int selected = input.getSelectedComponentId();
-        const int highlighted = selected != -1 ? selected : input.getHoveredComponentId();
-        if (const auto* view = scene.getComponentView(highlighted))
-            frame.bodyHighlight =
-                BodyHighlight{view->getBodyBounds(), selected != -1 ? 1.0f : 0.4f};
+        CanvasFrame frame{components, scene.getVisibleWires(), junctions};
+        std::vector<BodyHighlight> selectedBodies;
+        std::vector<SegmentHighlight> selectedSegments;
+        for (int id : input.getSelectedComponents())
+            if (const auto* view = scene.getComponentView(id))
+                selectedBodies.push_back({view->getBodyBounds(), 0.35f});
+        for (WireId id : input.getSelectedWires())
+        {
+            auto found = scene.getVisibleWires().find(id);
+            if (found == scene.getVisibleWires().end())
+                continue;
+            const auto& path = found->second.getPath();
+            for (std::size_t i = 1; i < path.size(); ++i)
+                selectedSegments.push_back({path[i - 1], path[i], 0.35f});
+        }
+        frame.selectedBodies = selectedBodies;
+        frame.selectedSegments = selectedSegments;
+        frame.selectionBox = input.getSelectionBox();
+        const int hovered = input.getHoveredComponentId();
+        if (!input.getSelectedComponents().contains(hovered))
+            if (const auto* view = scene.getComponentView(hovered))
+                frame.bodyHighlight = BodyHighlight{view->getBodyBounds(), 0.4f};
         if (!input.isCurrentlyDrawingWire())
         {
             if (input.hasSelectedSegment())
                 frame.segmentHighlight = SegmentHighlight{
                     input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 1
                 };
-            else if (input.hasHoveredSegment())
+            else if (
+                input.hasHoveredSegment() &&
+                !input.getSelectedWires().contains(input.getHoveredWireId())
+            )
                 frame.segmentHighlight = SegmentHighlight{
                     input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.4f
                 };

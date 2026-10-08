@@ -446,6 +446,25 @@ void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
     m_drawCallCount++;
 }
 
+void Renderer::drawWorldRect(BodyBounds bounds, glm::vec4 color)
+{
+    auto* shader = acquireShader("wire");
+    if (!shader || bounds.width() <= 0 || bounds.height() <= 0 || !useCanvasShader(*shader))
+        return;
+    std::vector<float> vertices;
+    for (const auto point :
+         {glm::vec2{bounds.left, bounds.bottom},
+          glm::vec2{bounds.right, bounds.bottom},
+          glm::vec2{bounds.right, bounds.top},
+          glm::vec2{bounds.left, bounds.bottom},
+          glm::vec2{bounds.right, bounds.top},
+          glm::vec2{bounds.left, bounds.top}})
+        vertices.insert(vertices.end(), {point.x, point.y, 0, color.r, color.g, color.b, color.a});
+    m_boundsMesh->updateData(vertices, 7);
+    m_boundsMesh->draw();
+    ++m_drawCallCount;
+}
+
 void Renderer::drawScreenRect(CanvasViewport bounds, glm::vec4 color)
 {
     const auto& surface = m_currentCamera.surface;
@@ -597,6 +616,15 @@ void Renderer::drawCanvas(const CanvasFrame& frame)
     drawComponents(frame.components);
     drawWires(frame.wires, frame.activeWire);
     drawIntersections(frame.junctions);
+    if (frame.selectionBox)
+    {
+        drawWorldRect(*frame.selectionBox, {0.3f, 0.65f, 0.95f, 0.06f});
+        drawComponentBoundingBox(*frame.selectionBox, 0, 0.55f);
+    }
+    for (const auto& selected : frame.selectedBodies)
+        drawComponentBoundingBox(selected.bounds, 0.01f, selected.opacity);
+    for (const auto& selected : frame.selectedSegments)
+        drawWireSegmentBoundingBox(selected.start, selected.end, 0.01f, selected.opacity);
     if (frame.bodyHighlight)
         drawComponentBoundingBox(frame.bodyHighlight->bounds, 0.01f, frame.bodyHighlight->opacity);
     if (frame.segmentHighlight)

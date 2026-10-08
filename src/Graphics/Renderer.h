@@ -38,6 +38,7 @@ class Renderer
         const GridCoords& start, const GridCoords& end, float padding = 0.03f, float alpha = 1
     );
     void drawComponentBoundingBox(BodyBounds bounds, float padding = 0.01f, float alpha = 1);
+    void drawWorldRect(BodyBounds bounds, glm::vec4 color);
     void drawGridPointHighlight(GridCoords position, float opacity);
     void drawIntersections(std::span<const glm::vec3> intersections);
     /** @brief Submits generic world/screen text, reusable by later UI adapters. */

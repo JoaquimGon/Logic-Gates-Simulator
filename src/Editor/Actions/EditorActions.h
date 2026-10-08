@@ -3,6 +3,7 @@
 #include "EditTypes.h"
 
 #include <optional>
+#include <span>
 
 class Scene;
 
@@ -21,6 +22,10 @@ class EditorActions
 
     /** @brief Starts a presentation-only move preview, leaving committed topology unchanged. */
     std::optional<MovePreviewHandle> beginMove(int componentId);
+    std::optional<MovePreviewHandle>
+    beginMove(std::span<const int> components, std::span<const WireId> wires);
+    /** Previews a shared grid offset for a selected group without changing committed data. */
+    bool previewMoveBy(MovePreviewHandle handle, GridCoords offset);
     /** @brief Updates a matching preview without rebuilding or changing committed geometry. */
     bool previewMove(MovePreviewHandle handle, GridCoords position);
     /** @brief Commits the final preview position once, or cancels it on validation failure. */

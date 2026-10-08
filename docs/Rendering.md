@@ -396,3 +396,14 @@ existing text rendering and reserves its width, so File operation status text on
 the left cannot overlap it. It neither flashes nor captures input. Saving/loading
 clears it; new views and later persisted edits restore it. Normal and 2x framebuffer
 checks cover visibility, clearing, and return after edits.
+
+## Group selection overlays
+
+CanvasFrame borrows selected body and wire-segment highlights plus an optional
+selection rectangle. Renderer reuses the rounded bounds geometry at 35% opacity
+for each selected object and clips it with the canvas camera. The pending rectangle
+uses a 6% blue world-space fill and a faint outline. Selected wires render from
+Scene's presentation-only translated paths during group previews; persisted paths
+and simulation topology remain committed until release. No screen-space widget or
+shader framework is involved. Group and rectangle framebuffer previews cover faint
+versus opaque outlines and normal/panned/zoomed 2x drawing.

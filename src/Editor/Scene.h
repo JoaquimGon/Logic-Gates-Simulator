@@ -107,6 +107,12 @@ class Scene
     // stable.
     const std::map<WireId, Wire>& getWires() const { return m_wires; }
 
+    /** Presentation-only translated wires during a group move; saves keep committed paths. */
+    const std::map<WireId, Wire>& getVisibleWires() const
+    {
+        return m_previewToken != 0 && !m_previewWireIds.empty() ? m_previewWires : m_wires;
+    }
+
     // Ids of every stored wire, for callers that walk the container while
     // reshaping it.
     std::vector<WireId> getWireIds() const;
@@ -231,6 +237,10 @@ class Scene
     std::uint64_t m_previewToken = 0;
     std::uint64_t m_previewBaseRevision = 0;
     int m_previewComponentId = -1;
+    std::vector<int> m_previewComponentIds;
+    std::vector<WireId> m_previewWireIds;
+    GridCoords m_previewOffset{};
+    std::map<WireId, Wire> m_previewWires;
     std::unordered_map<int, std::unique_ptr<ComponentView>> m_previewViews;
 
     // Only the action service calls these while constructing an isolated candidate.

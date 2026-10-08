@@ -95,3 +95,34 @@ ctest --preset x64-debug -R "ui_input_routing|ui_gesture_cancellation|canvas_inp
 
 These require no display or OpenGL context. They establish the routing contract;
 toolkit-specific focus and widget behavior need integration checks when UI is added.
+
+## Area and group selection
+
+In Selection mode, Shift-left-drag starts an axis-aligned world-space rectangle.
+The existing CanvasCamera converts pointer positions, so pan, zoom, viewport
+bounds and DPI agree with drawing. Starting the rectangle over a component or pin
+still selects instead of moving/connecting it. Release replaces the selection
+with fully contained visible body bounds and whole wire paths; partial overlap
+is excluded. Direction does not change containment. The gesture remains owned
+until left release, even if Shift is released first.
+
+Ctrl-left-click toggles a whole normalized wire section, preserving selected
+components/other wires and avoiding branch creation. Ordinary wire clicks keep
+the existing single-segment/branch behaviour. Dragging a selected component or
+Ctrl/box-selected wire moves the selected objects by one snapped offset.
+Explicitly selected wires keep their bends and translate with the group; external
+wires follow selected pin positions. Alt at release disables pin-following routing,
+while explicitly selected wires still move as selected objects. Moving a wire section by itself leaves unselected neighbouring sections fixed;
+matching geometry reconnects on drop. Delete/Backspace submits the entire selection in one edit.
+
+World-space rectangles reuse the existing rounded outlines at 35% opacity; the
+pending rectangle adds a 6% fill. UI capture, focus loss, Escape, scene/mode changes
+and canvas layout changes cancel unfinished gestures. UI capture/layout interruption
+preserves the prior completed selection; Escape/mode/scene changes clear it.
+Simulation and saving read committed geometry throughout a group preview.
+
+`box_selection`, `group_movement`, `group_deletion`, `group_cancellation`, and
+framebuffer checks cover selection boundaries, reverse direction, modifiers,
+relative movement, translated wire shape, external rerouting, normalized wire
+selection, one-rebuild deletion, overlap rollback, focus/capture cancellation,
+and unobtrusive outlines/rectangle fill at normal and 2x scaling.

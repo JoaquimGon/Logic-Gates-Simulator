@@ -55,6 +55,7 @@ class Input
     EditError m_lastEditError = EditError::None;
     std::string m_lastEditMessage;
     bool applyEdit(EditOperation operation);
+    void beginSelectionDrag(GridCoords pointer);
     void recordEdit(const EditResult& result);
 
     int hoveredComponentId = -1;
@@ -124,7 +125,11 @@ class Input
     void updateHoverState(GLFWwindow* window);
     void cancelCurrentAction();
 
-    bool isIdle() const { return !m_drag.active() && !m_wire.ownsPointer() && !m_pan.active(); }
+    bool isIdle() const
+    {
+        return !m_drag.active() && !m_wire.ownsPointer() && !m_pan.active() &&
+               !m_selection.boxing();
+    }
 
     glm::vec2 getMouseWorldCoord(GLFWwindow* window) const;
     CanvasCameraFrame getCameraFrame(GLFWwindow* window) const;
@@ -172,6 +177,12 @@ class Input
     int getHoveredPinComponentId() const { return hoveredPinComponentId; }
 
     PinType getHoveredPinType() const { return hoveredPinType; }
+
+    const std::set<int>& getSelectedComponents() const { return m_selection.components(); }
+
+    const std::set<WireId>& getSelectedWires() const { return m_selection.wires(); }
+
+    std::optional<BodyBounds> getSelectionBox() const { return m_selection.boxBounds(); }
 
     int getSelectedComponentId() const { return m_selection.component(); }
 

@@ -82,6 +82,10 @@ void Scene::rebuildNets()
     m_previewViews.clear();
     m_previewToken = 0;
     m_previewComponentId = -1;
+    m_previewComponentIds.clear();
+    m_previewWireIds.clear();
+    m_previewWires.clear();
+    m_previewOffset = {};
     ++m_revision;
     ++m_topologyBuildCount;
 
@@ -283,6 +287,9 @@ void Scene::syncVisuals()
         const Net* net = getNet(wire.getNet());
         wire.setState(net ? net->getState() : PinState::DISCONNECTED);
     }
+    for (auto& [id, wire] : m_previewWires)
+        if (const auto* committed = getWire(id))
+            wire.setState(committed->getState());
 }
 
 bool Scene::handleClick(int componentId)
@@ -303,10 +310,16 @@ bool Scene::handleClick(int componentId)
 std::vector<glm::vec3> Scene::getWireIntersections() const
 {
     std::vector<PinAnchor> pins;
-    for (const auto& component : committedGeometry())
-        pins.insert(pins.end(), component.pins.begin(), component.pins.end());
+    for (const auto& [id, view] : getComponentViewMap())
+        for (const auto* group : {&view->getInputPins(), &view->getOutputPins()})
+            for (const auto& pin : *group)
+                pins.push_back(
+                    {{id, static_cast<int>(pin.pin_index)},
+                     pin.type,
+                     view->getAbsolutePinGridPos(pin)}
+                );
     std::vector<glm::vec3> intersections;
-    for (const auto& junction : wireJunctions(m_wires, pins))
+    for (const auto& junction : wireJunctions(getVisibleWires(), pins))
     {
         const float state = junction.state == PinState::ON    ? 1.0f
                             : junction.state == PinState::OFF ? 2.0f

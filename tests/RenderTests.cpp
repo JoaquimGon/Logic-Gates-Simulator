@@ -927,6 +927,75 @@ void canvasViewport(Renderer& renderer)
     );
 }
 
+void groupSelectionPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    Scene scene;
+    const int a = scene.addComponent(BuiltinComponentIds::Not, {-6, 0});
+    const int b = scene.addComponent(BuiltinComponentIds::Not, {6, 0});
+    require(
+        static_cast<bool>(EditorActions(scene).apply({AddWire{{{-5, 0}, {4, 0}}}})),
+        "Group rendering fixture failed."
+    );
+    scene.propagate();
+    scene.syncVisuals();
+    const auto components = buildComponentPresentation(scene.getComponentViewMap());
+    const auto junctions = scene.getWireIntersections();
+    std::vector<BodyHighlight> selected{
+        {scene.getCommittedComponentView(a)->getBodyBounds(), 1},
+        {scene.getCommittedComponentView(b)->getBodyBounds(), 1}
+    };
+    std::vector<SegmentHighlight> wires{{{-5, 0}, {4, 0}, 0.35f}};
+    CanvasFrame frame{components, scene.getWires(), junctions};
+    frame.selectedBodies = selected;
+    frame.selectedSegments = wires;
+    auto draw = [&](const CanvasCameraFrame& view)
+    {
+        renderer.beginFrame(view);
+        renderer.drawCanvas(frame);
+    };
+    draw(camera);
+    const auto bounds = selected.front().bounds;
+    glm::vec2 edge{bounds.centerX(), bounds.top + 0.01f};
+    unsigned char strong = 0;
+    for (int i = -4; i <= 4; ++i)
+    {
+        const glm::vec2 sample{edge.x, bounds.top + 0.01f + i * 2.0f / extent};
+        const auto red = pixel(sample)[0];
+        if (red > strong)
+        {
+            strong = red;
+            edge = sample;
+        }
+    }
+    frame.selectedBodies = {};
+    draw(camera);
+    const auto background = pixel(edge)[0];
+    for (auto& body : selected)
+        body.opacity = 0.35f;
+    frame.selectedBodies = selected;
+    draw(camera);
+    const auto faint = pixel(edge)[0];
+    require(
+        strong > 180 && faint > background + 25 && faint + 60 < strong,
+        "Selected component outlines were missing or as strong as opaque highlights."
+    );
+    saveImage("group-selection.ppm");
+    const auto without = pixel({0, 0.12f});
+    frame.selectionBox = BodyBounds{-0.5f, -0.25f, 0.5f, 0.25f};
+    draw(camera);
+    const auto withBox = pixel({0, 0.12f});
+    require(
+        withBox[2] > without[2] + 5 && withBox[2] < without[2] + 25,
+        "Selection rectangle fill was missing or hid the canvas."
+    );
+    saveImage("box-selection.ppm");
+    CanvasCamera zoomed;
+    zoomed.setZoom(0.8f);
+    zoomed.setCenter({0.08f, -0.05f});
+    draw(zoomed.frame({512, 512, extent, extent}));
+    saveImage("box-selection-2x.ppm");
+}
+
 void routedWiresPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
@@ -1424,6 +1493,7 @@ int main()
             palettePresentation(renderer);
             outputPresentation(renderer);
             componentInformationPresentation(renderer);
+            groupSelectionPresentation(renderer, camera);
             routedWiresPresentation(renderer, camera);
             circuitViewsPresentation(renderer);
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";

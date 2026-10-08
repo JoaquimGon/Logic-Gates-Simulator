@@ -58,15 +58,24 @@ Invalid connections retain separate rejection diagnostics. See [simulation](Simu
 ## Preview, commit, and cancel
 
 `beginMove(id)` returns a token. `previewMove(token, position)` updates only
-presentation views. Committed positions, wire routes, nets, and simulation remain
+presentation views. `beginMove(componentIds, wireIds)` starts a group preview;
+`previewMoveBy(token, offset)` applies one shared grid offset. Explicitly selected
+wires preview through `getVisibleWires()` while `getWires()` stays committed.
+Committed positions, wire routes, nets, and simulation remain
 unchanged. `getComponentViewMap()`/`getComponentView()` include previews;
 `getCommittedComponentView()` reads model placement.
 
-`commitMove(token)` validates and commits the final position once; failure
+`commitMove(token)` submits every selected component/wire in one batch and commits once; failure
 discards the preview. `cancelMove(token)` performs no topology rebuild or history
 operation. Tokens protect against stale gestures cancelling a newer preview.
 Other edits/restores are rejected while a preview owns the scene. Input cancels
 its preview before switching scenes; keep the previous Scene alive until then.
+
+`MoveWire{id, offset}` translates a complete wire section with checked integer
+coordinates. Explicitly translated wires are excluded from pin-following rerouting
+to prevent double movement. Other attached wires reroute from final selected pin
+positions. Normalization still runs once and may split/merge wire IDs; selection
+retains replaced sections wholly covered by the selected translated paths.
 
 ## Configuration and pin migration
 

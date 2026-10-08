@@ -133,6 +133,12 @@ struct AddWire
     std::vector<GridCoords> path;
 };
 
+struct MoveWire
+{
+    WireId wireId;
+    GridCoords offset;
+};
+
 struct DeleteWire
 {
     WireId wireId;
@@ -159,6 +165,7 @@ using EditOperation = std::variant<
     ConfigureInput,
     ConfigureClock,
     AddWire,
+    MoveWire,
     DeleteWire,
     DeleteWireSegment>;
 using EditBatch = std::vector<EditOperation>;

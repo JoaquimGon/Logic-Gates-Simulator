@@ -25,5 +25,6 @@ bool rerouteMovedWires(
     std::span<const ComponentGeometry> before,
     std::span<const ComponentGeometry> after,
     std::span<const int> moved,
-    std::map<WireId, Wire>& wires
+    std::map<WireId, Wire>& wires,
+    std::span<const WireId> translatedWires = {}
 );

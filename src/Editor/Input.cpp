@@ -25,6 +25,15 @@ bool Input::applyEdit(EditOperation operation)
     return static_cast<bool>(result);
 }
 
+void Input::beginSelectionDrag(GridCoords pointer)
+{
+    const auto& components = m_selection.components();
+    const auto& wires = m_selection.wires();
+    const std::vector<int> componentIds(components.begin(), components.end());
+    const std::vector<WireId> wireIds(wires.begin(), wires.end());
+    m_drag.begin(*m_scene, componentIds, wireIds, pointer);
+}
+
 void Input::setScene(Scene* scene)
 {
     if (m_scene == scene)
@@ -203,16 +212,45 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                 m_scene->handleClick(hit.componentId);
             return;
         }
+        const bool shift = (mods & GLFW_MOD_SHIFT) || m_pressedKeys.contains(GLFW_KEY_LEFT_SHIFT) ||
+                           m_pressedKeys.contains(GLFW_KEY_RIGHT_SHIFT);
+        const bool control = (mods & GLFW_MOD_CONTROL) ||
+                             m_pressedKeys.contains(GLFW_KEY_LEFT_CONTROL) ||
+                             m_pressedKeys.contains(GLFW_KEY_RIGHT_CONTROL);
+        if (shift)
+        {
+            m_selection.beginBox(getMouseWorldCoord(window));
+            clearHover();
+            return;
+        }
+        if (control)
+        {
+            WireId wireId = hit.wireId;
+            if (wireId == INVALID_WIRE_ID)
+                for (const auto& [id, wire] : m_scene->getWires())
+                    if (wire.containsPoint(mouseGridCoords))
+                    {
+                        wireId = id;
+                        break;
+                    }
+            if (wireId != INVALID_WIRE_ID)
+            {
+                m_selection.toggleWire(wireId);
+                return;
+            }
+        }
         if (hit.type == HitType::COMPONENT_BODY)
         {
             if (m_selection.selectComponent(hit.componentId))
-                m_drag.begin(*m_scene, hit.componentId);
+                beginSelectionDrag(mouseGridCoords);
         }
         else if (hit.type == HitType::COMPONENT_PIN)
         {
             m_selection.selectPinOwner(hit.componentId);
             m_wire.begin(mouseGridCoords, {hit.componentId, hit.pinIndex}, hit.pinType);
         }
+        else if (hit.wireId != INVALID_WIRE_ID && m_selection.containsWire(hit.wireId))
+            beginSelectionDrag(mouseGridCoords);
         else if (hit.wireId != INVALID_WIRE_ID)
         {
             m_selection.selectWire(*m_scene, hit.wireId, mouseGridCoords);
@@ -226,12 +264,31 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     }
     else if (action == GLFW_RELEASE)
     {
-        if (m_drag.active())
-            recordEdit(m_drag.finish(
+        if (m_selection.boxing())
+        {
+            m_selection.updateBox(getMouseWorldCoord(window));
+            m_selection.finishBox(*m_scene);
+        }
+        else if (m_drag.active())
+        {
+            std::vector<Wire> selectedPaths;
+            for (WireId id : m_selection.wires())
+            {
+                auto found = m_scene->getVisibleWires().find(id);
+                if (found != m_scene->getVisibleWires().end())
+                    selectedPaths.push_back(found->second);
+            }
+            const auto result = m_drag.finish(
                 *m_scene,
                 !(mods & GLFW_MOD_ALT) && !m_pressedKeys.contains(GLFW_KEY_LEFT_ALT) &&
                     !m_pressedKeys.contains(GLFW_KEY_RIGHT_ALT)
-            ));
+            );
+            recordEdit(result);
+            if (result && result.change)
+                m_selection.retainMovedWires(*m_scene, result.change->addedWireIds, selectedPaths);
+            else
+                m_selection.prune(*m_scene);
+        }
         else if (m_wire.ownsPointer())
         {
             updateHoverState(window);
@@ -272,7 +329,9 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
     mouseGridCoords = GridSystem::worldToGrid(getMouseWorldCoord(window));
     if (m_committedWirePoint && mouseGridCoords != *m_committedWirePoint)
         m_committedWirePoint.reset();
-    if (m_drag.active())
+    if (m_selection.boxing())
+        m_selection.updateBox(getMouseWorldCoord(window));
+    else if (m_drag.active())
     {
         if (!m_scene || !m_drag.update(*m_scene, mouseGridCoords))
             cancelCurrentAction();
@@ -298,6 +357,8 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
 void Input::process(GLFWwindow* window)
 {
     synchronizeSurface(window);
+    if (m_scene)
+        m_selection.prune(*m_scene);
     if (!isCanvasPointerAvailable(window))
     {
         cancelGestures();
@@ -348,9 +409,14 @@ void Input::process(GLFWwindow* window)
             if (wire->getSegmentAt(mouseGridCoords, segment.start, segment.end))
                 hovered = segment;
         }
-        if (auto command = m_selection.deletion(hit, hovered))
-            if (applyEdit(std::move(*command)))
+        const auto batch = m_selection.deletions(hit, hovered);
+        if (!batch.empty())
+        {
+            const auto result = EditorActions(*m_scene).apply(batch);
+            recordEdit(result);
+            if (result)
                 m_selection.clear();
+        }
     }
     updateHoverState(window);
 }
@@ -378,6 +444,11 @@ void Input::handleScroll(GLFWwindow* window, double x, double y)
 void Input::updateHoverState(GLFWwindow* window)
 {
     if (!isCanvasPointerAvailable(window))
+    {
+        clearHover();
+        return;
+    }
+    if (m_selection.boxing())
     {
         clearHover();
         return;
