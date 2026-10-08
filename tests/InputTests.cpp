@@ -207,7 +207,7 @@ void dragCommit(GLFWwindow* window)
         editor.verifyPinLocations();
         editor.scene.propagate();
         editor.scene.syncVisuals();
-        const bool connected = target != GridCoords{6, 4};
+        const bool connected = true;
         require(
             editor.scene.getLogicComponent(sink)->getStateInPin(0) == connected,
             "Committed drag did not reconnect or disconnect its input."
@@ -217,6 +217,94 @@ void dragCommit(GLFWwindow* window)
             "Committed drag propagated a stale signal."
         );
     }
+}
+
+void altDrag(GLFWwindow* window)
+{
+    for (bool rightAlt : {false, true})
+    {
+        Editor editor(window);
+        editor.scene.addInputPin({-8, 0}, {0.15f, 0.15f}, "inputPin", true);
+        const int gate = editor.inverter({0, 0});
+        editor.wire({{-7, 0}, {-2, 0}});
+        const auto original = editor.scene.getWires().begin()->second.getPath();
+        editor.cursor({0, 0});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.cursor({6, 4});
+        const int alt = rightAlt ? GLFW_KEY_RIGHT_ALT : GLFW_KEY_LEFT_ALT;
+        // Press during the drag; the current modifier at release determines rerouting.
+        Input::keyCallback(window, alt, 0, GLFW_PRESS, GLFW_MOD_ALT);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        Input::keyCallback(window, alt, 0, GLFW_RELEASE, 0);
+        require(
+            editor.scene.getWires().begin()->second.getPath() == original &&
+                editor.scene.netOfPin({gate, 0}, PinType::INPUT) == INVALID_NET_ID,
+            "Alt movement changed the wiring or retained the old attachment."
+        );
+        editor.input.cancelCurrentAction();
+        editor.cursor({6, 4});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.cursor({0, 0});
+        // Test modifiers supplied by the mouse callback even without a key callback.
+        Input::mouseButtonCallback(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, GLFW_MOD_ALT);
+        editor.scene.propagate();
+        require(
+            editor.scene.getWires().begin()->second.getPath() == original &&
+                editor.scene.getLogicComponent(gate)->getStateInPin(0),
+            "Alt drop onto original wiring did not reconnect geometrically."
+        );
+        editor.input.cancelCurrentAction();
+        editor.cursor({0, 0});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        Input::keyCallback(window, alt, 0, GLFW_PRESS, GLFW_MOD_ALT);
+        editor.cursor({6, 4});
+        Input::keyCallback(window, alt, 0, GLFW_RELEASE, 0);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        editor.scene.propagate();
+        require(
+            editor.scene.getLogicComponent(gate)->getStateInPin(0),
+            "Releasing Alt before the drop did not restore automatic routing."
+        );
+    }
+    Editor editor(window);
+    const int first =
+        editor.scene.addComponent(BuiltinComponentIds::Input, {-8, 0}, {.inputState = true});
+    const int second = editor.scene.addComponent(BuiltinComponentIds::Input, {-8, 4});
+    const int gate = editor.inverter({0, 0});
+    editor.wire({{-7, 0}, {-2, 0}});
+    editor.wire({{-7, 4}, {4, 4}});
+    editor.cursor({0, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({6, 4});
+    Input::mouseButtonCallback(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, GLFW_MOD_ALT);
+    require(
+        editor.scene.netOfPin({gate, 0}, PinType::INPUT) ==
+                editor.scene.netOfPin({second, 0}, PinType::OUTPUT) &&
+            editor.scene.netOfPin({gate, 0}, PinType::INPUT) !=
+                editor.scene.netOfPin({first, 0}, PinType::OUTPUT),
+        "Alt drop at a new wire endpoint did not reconnect to that wire."
+    );
+    editor.input.cancelCurrentAction();
+    const auto revision = editor.scene.getRevision();
+    editor.cursor({6, 4});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    Input::mouseButtonCallback(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, GLFW_MOD_ALT);
+    require(
+        editor.scene.getRevision() == revision &&
+            editor.scene.netOfPin({gate, 0}, PinType::INPUT) != INVALID_NET_ID,
+        "Alt drop at the same position lost connectivity or created an unnecessary edit."
+    );
+    editor.input.cancelCurrentAction();
+    editor.cursor({8, 10});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({6, 4});
+    const auto count = editor.scene.wireCount();
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.wireCount() == count &&
+            editor.input.getLastEditError() == EditError::InvalidWire,
+        "Blocked wire gesture silently committed or failed to report its error."
+    );
 }
 
 void spawnPlacement(GLFWwindow* window)
@@ -342,9 +430,9 @@ void interactionModes(GLFWwindow* window)
     editor.verifyPinLocations();
     editor.scene.propagate();
     require(
-        !editor.scene.getLogicComponent(gate)->getStateInPin(0) &&
+        editor.scene.getLogicComponent(gate)->getStateInPin(0) &&
             editor.scene.getLogicComponent(source)->getStateOutPin(),
-        "Moving an input changed its value or left a stale attachment."
+        "Moving an input changed its value or lost its attachment."
     );
 
     editor.key(GLFW_KEY_SPACE);
@@ -501,7 +589,8 @@ void wireAndPanGestures(GLFWwindow* window)
     require(editor.input.getWireStartPoint() == GridCoords{-7, 0}, "Wire start marker is missing.");
     editor.cursor({6, 4});
     require(
-        editor.input.getActiveWire().getPath() == std::vector<GridCoords>{{-7, 0}, {6, 0}, {6, 4}},
+        editor.input.getActiveWire().getPath() ==
+            std::vector<GridCoords>{{-7, 0}, {5, 0}, {5, 4}, {6, 4}},
         "Wire bend chose the wrong initial axis."
     );
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
@@ -1602,6 +1691,7 @@ int main(int argc, char** argv)
         const std::pair<const char*, void (*)(GLFWwindow*)> tests[] = {
             {"drag_cancellation", dragCancellation},
             {"drag_commit", dragCommit},
+            {"wire_alt_drag", altDrag},
             {"spawn_placement", spawnPlacement},
             {"wire_segment_deletion", wireSegmentDeletion},
             {"interaction_modes", interactionModes},

@@ -4,6 +4,7 @@
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/InterfaceComponents.h"
 #include "Editor/Scene.h"
+#include "Geometry/WireRouting.h"
 #include "Simulation/Subcircuit.h"
 
 #include <algorithm>
@@ -103,6 +104,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
         auto before = std::make_shared<Scene>(m_scene);
         Scene candidate(*before);
         std::vector<int> components;
+        std::vector<int> moved;
         std::vector<WireId> wires;
         std::map<int, PlacementPolicy> placement;
         std::shared_ptr<ComponentCatalog> stagedCatalog;
@@ -282,6 +284,8 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                         if (view.getGridPosition() != op.position)
                         {
                             view.setGridPosition(op.position);
+                            if (op.reroute)
+                                moved.push_back(op.componentId);
                             placement[op.componentId] = PlacementPolicy::RejectOverlap;
                             changed = topologyChanged = true;
                         }
@@ -529,7 +533,19 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
         if (!changed)
             return {};
         if (topologyChanged)
+        {
+            if (!moved.empty() && !rerouteMovedWires(
+                                      before->committedGeometry(),
+                                      candidate.committedGeometry(),
+                                      moved,
+                                      candidate.m_wires
+                                  ))
+                throw EditFailure(
+                    EditError::InvalidWire,
+                    "No safe wire route. Hold Alt while moving to leave wires in place."
+                );
             candidate.rebuildNets();
+        }
         else
             ++candidate.m_revision;
         return publish(
@@ -588,7 +604,7 @@ bool EditorActions::cancelMove(MovePreviewHandle handle)
     return true;
 }
 
-EditResult EditorActions::commitMove(MovePreviewHandle handle)
+EditResult EditorActions::commitMove(MovePreviewHandle handle, bool reroute)
 {
     if (handle.token == 0 || handle.token != m_scene.m_previewToken ||
         m_scene.m_previewBaseRevision != m_scene.m_revision)
@@ -598,7 +614,7 @@ EditResult EditorActions::commitMove(MovePreviewHandle handle)
     }
     const int id = m_scene.m_previewComponentId;
     const auto position = m_scene.m_previewViews.at(id)->getGridPosition();
-    auto result = applyImpl({MoveComponent{id, position}}, true);
+    auto result = applyImpl({MoveComponent{id, position, reroute}}, true);
     cancelMove(handle);
     return result;
 }

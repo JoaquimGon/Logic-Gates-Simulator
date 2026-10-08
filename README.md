@@ -47,6 +47,14 @@ and [shared camera/viewport transforms](docs/CanvasCamera.md). Canvas layout now
 controls rendering and picking together, including framebuffer scaling; screen
 text remains independent.
 
+Connected wires follow component moves **on drop**, retaining fixed branch junctions.
+Routing avoids bodies and pins with one grid cell of clearance, except the short
+access to the intended endpoint pin, and avoids joining unrelated wires. Hold
+**Alt at drop time** to leave wiring fixed: the moved component disconnects, then
+reconnects wherever its pins touch existing wiring. Releasing Alt before the drop
+restores rerouting. New drawn wires use the same clearance. A blocked route cancels
+the move/wire and shows a panel hint; Escape/focus loss cancels without changes.
+
 The left component panel reserves 220 pixels of the window, leaving the rest for
 the simulator. Its **Native** tab shows shader-preview cards with names below,
 ordered Input, Output, Clock, NOT, AND, NAND, OR, NOR, XOR, NXOR, SR LATCH, D LATCH.

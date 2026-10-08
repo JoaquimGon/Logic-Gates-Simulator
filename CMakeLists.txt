@@ -30,6 +30,7 @@ target_link_libraries(simulator_simulation PUBLIC simulator_components)
 add_library(simulator_geometry STATIC
     src/Geometry/CanvasCamera.cpp
     src/Geometry/Wire.cpp
+    src/Geometry/WireRouting.cpp
     src/Geometry/WireNormalization.cpp
     src/Geometry/GeometryQueries.cpp
 )
@@ -125,6 +126,11 @@ if(BUILD_SIMULATOR_APP)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(WireRoutingTests tests/WireRoutingTests.cpp)
+    target_link_libraries(WireRoutingTests PRIVATE simulator_scene)
+    foreach(test_name IN ITEMS wire_routing_clearance wire_routing_moves wire_routing_rollback)
+        add_test(NAME ${test_name} COMMAND WireRoutingTests ${test_name})
+    endforeach()
     add_executable(SubcircuitTests tests/SubcircuitTests.cpp src/App/CircuitFiles.cpp src/App/FileDialog.cpp)
     target_link_libraries(SubcircuitTests PRIVATE simulator_files simulator_ui nlohmann_json::nlohmann_json glfw)
     target_compile_definitions(SubcircuitTests PRIVATE GLFW_INCLUDE_NONE)
@@ -200,7 +206,7 @@ if(BUILD_TESTING)
     target_link_libraries(InputTests PRIVATE simulator_ui glfw)
     target_compile_definitions(InputTests PRIVATE GLFW_INCLUDE_NONE)
     foreach(test_name IN ITEMS
-        drag_cancellation drag_commit spawn_placement wire_segment_deletion
+        drag_cancellation drag_commit wire_alt_drag spawn_placement wire_segment_deletion
         interaction_modes mode_cancellation wire_and_pan_gestures
         ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction
         component_palette component_information component_naming

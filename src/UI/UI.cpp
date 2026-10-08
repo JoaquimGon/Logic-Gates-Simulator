@@ -105,6 +105,7 @@ void UI::setCircuitViews(CircuitViews* views, const FontMetrics* font)
 
 void UI::update(double now, Input& input)
 {
+    m_routingError = input.getLastEditError() == EditError::InvalidWire;
     m_canCreate = input.getMode() == EditorMode::Selection;
     if (m_fileMenuOpen)
         return;

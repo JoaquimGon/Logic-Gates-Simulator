@@ -12,7 +12,7 @@ class DragGesture
   public:
     bool begin(Scene& scene, int componentId);
     bool update(Scene& scene, GridCoords position);
-    EditResult finish(Scene& scene);
+    EditResult finish(Scene& scene, bool reroute = true);
     void cancel(Scene& scene);
 
     bool active() const { return m_preview.has_value(); }

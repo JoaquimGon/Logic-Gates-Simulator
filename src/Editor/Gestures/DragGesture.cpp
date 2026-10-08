@@ -20,13 +20,13 @@ bool DragGesture::update(Scene& scene, GridCoords position)
     return false;
 }
 
-EditResult DragGesture::finish(Scene& scene)
+EditResult DragGesture::finish(Scene& scene, bool reroute)
 {
     if (!m_preview)
         return {};
     const auto handle = *m_preview;
     m_preview.reset();
-    return EditorActions(scene).commitMove(handle);
+    return EditorActions(scene).commitMove(handle, reroute);
 }
 
 void DragGesture::cancel(Scene& scene)

@@ -24,7 +24,7 @@ class EditorActions
     /** @brief Updates a matching preview without rebuilding or changing committed geometry. */
     bool previewMove(MovePreviewHandle handle, GridCoords position);
     /** @brief Commits the final preview position once, or cancels it on validation failure. */
-    EditResult commitMove(MovePreviewHandle handle);
+    EditResult commitMove(MovePreviewHandle handle, bool reroute = true);
     /** @brief Discards a matching preview; committed geometry and topology remain untouched. */
     bool cancelMove(MovePreviewHandle handle);
 

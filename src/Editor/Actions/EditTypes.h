@@ -82,6 +82,7 @@ struct MoveComponent
 {
     int componentId;
     GridCoords position;
+    bool reroute = true;
 };
 
 struct DeleteComponent

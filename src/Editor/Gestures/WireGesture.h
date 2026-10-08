@@ -20,6 +20,8 @@ class WireGesture
 
     bool active() const { return m_active; }
 
+    bool routeBlocked() const { return m_routeBlocked; }
+
     bool ownsPointer() const { return m_active || m_branch != INVALID_WIRE_ID; }
 
     std::optional<GridCoords> startPoint() const
@@ -41,6 +43,7 @@ class WireGesture
     GridCoords m_start{};
     WireId m_branch = INVALID_WIRE_ID;
     bool m_active = false;
+    bool m_routeBlocked = false;
     bool m_axisLocked = false;
     bool m_xFirst = true;
 };

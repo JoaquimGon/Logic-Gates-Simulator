@@ -227,15 +227,27 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     else if (action == GLFW_RELEASE)
     {
         if (m_drag.active())
-            recordEdit(m_drag.finish(*m_scene));
+            recordEdit(m_drag.finish(
+                *m_scene,
+                !(mods & GLFW_MOD_ALT) && !m_pressedKeys.contains(GLFW_KEY_LEFT_ALT) &&
+                    !m_pressedKeys.contains(GLFW_KEY_RIGHT_ALT)
+            ));
         else if (m_wire.ownsPointer())
         {
             updateHoverState(window);
             const bool drawing = m_wire.active();
             const auto hit = m_scene->hitTest(getMouseWorldCoord(window), mouseGridCoords);
+            const bool blocked = m_wire.routeBlocked();
             if (auto command = m_wire.finish(hit))
                 if (applyEdit(std::move(*command)))
                     m_committedWirePoint = mouseGridCoords;
+            if (blocked)
+            {
+                EditResult failure;
+                failure.error = EditError::InvalidWire;
+                failure.message = "No safe wire route; choose a clear endpoint.";
+                recordEdit(failure);
+            }
             if (drawing)
                 m_selection.clear();
         }

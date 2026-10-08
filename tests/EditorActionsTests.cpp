@@ -191,7 +191,7 @@ void movePreviews()
     require(
         accepted(actions.commitMove(*next)).change != nullptr &&
             scene.getTopologyBuildCount() == builds + 1 &&
-            scene.netOfPin({gate, 0}, PinType::INPUT) == INVALID_NET_ID,
+            scene.netOfPin({gate, 0}, PinType::INPUT) != INVALID_NET_ID,
         "Committed preview did not rebuild once from final geometry."
     );
     next = actions.beginMove(gate);

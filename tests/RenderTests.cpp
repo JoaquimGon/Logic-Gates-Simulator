@@ -927,6 +927,52 @@ void canvasViewport(Renderer& renderer)
     );
 }
 
+void routedWiresPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    Scene scene;
+    scene.addComponent(BuiltinComponentIds::Input, {-12, 0}, {.inputState = true});
+    scene.addComponent(BuiltinComponentIds::And, {0, 0});
+    const int output = scene.addComponent(BuiltinComponentIds::Output, {12, -6});
+    auto initial = EditorActions(scene).apply({AddWire{{{-11, 0}, {-6, 0}, {-6, -6}, {11, -6}}}});
+    require(static_cast<bool>(initial), "Routing visual fixture failed.");
+    const Scene before(scene);
+    auto draw = [&]
+    {
+        scene.propagate();
+        scene.syncVisuals();
+        renderer.beginFrame(camera);
+        const auto components = buildComponentPresentation(scene.getComponentViewMap());
+        const auto junctions = scene.getWireIntersections();
+        renderer.drawCanvas({components, scene.getWires(), junctions});
+    };
+    require(
+        static_cast<bool>(EditorActions(scene).apply({MoveComponent{output, {12, 0}}})),
+        "Connected visual move failed."
+    );
+    draw();
+    const auto above = pixel({0, 0.15f}), below = pixel({0, -0.15f});
+    require(
+        (above[1] > 140 && above[1] > above[0] + 50) ||
+            (below[1] > 140 && below[1] > below[0] + 50),
+        "Routed powered wire did not render one grid cell above/below the obstacle."
+    );
+    saveImage("wire-rerouting.ppm");
+    require(
+        static_cast<bool>(EditorActions(scene).restore(before, scene.getRevision())),
+        "Visual restore failed."
+    );
+    require(
+        static_cast<bool>(EditorActions(scene).apply({MoveComponent{output, {12, 0}, false}})),
+        "Fixed-wire visual move failed."
+    );
+    draw();
+    require(
+        scene.netOfPin({output, 0}, PinType::INPUT) == INVALID_NET_ID,
+        "Fixed-wire visual move retained its old attachment."
+    );
+    saveImage("wire-alt-disconnect.ppm");
+}
+
 void circuitViewsPresentation(Renderer& renderer)
 {
     CircuitViews views;
@@ -1378,6 +1424,7 @@ int main()
             palettePresentation(renderer);
             outputPresentation(renderer);
             componentInformationPresentation(renderer);
+            routedWiresPresentation(renderer, camera);
             circuitViewsPresentation(renderer);
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";
         }

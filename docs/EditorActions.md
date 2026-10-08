@@ -15,11 +15,15 @@ publishes one change and rebuilds normalized geometry/nets once for structural
 edits. Input state and clock-property edits do not rebuild topology. Failed batches
 leave geometry, runtime state, allocation counters, and revision unchanged.
 Empty batches and unchanged properties/positions produce no change record.
+Moves reroute connected sections after final placement validation, within the same
+change record. Use `MoveComponent{id, position, false}` to leave wires fixed;
+matching pin/wire positions reconnect when geometry is rebuilt. A blocked safe
+route rejects the whole edit. See [routing details](SceneTopology.md#wire-routing-on-movement).
 
 ```cpp
 EditorActions actions(scene);
 auto result = actions.apply({
-    MoveComponent{firstId, {10, 0}},
+    MoveComponent{firstId, {10, 0}}, // Follow connected pin endpoints.
     MoveComponent{secondId, {0, 0}},
     DeleteWireSegment{wireId, {4, 0}, {4, 4}}
 });

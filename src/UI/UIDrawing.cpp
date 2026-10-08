@@ -133,6 +133,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     text.clear();
     renderer.setScreenClip(std::nullopt);
     const auto footer = !m_message.empty()  ? m_message
+                        : m_routingError    ? "Route blocked; Alt-drag / retry"
                         : !m_canCreate      ? "F2: switch to Selection"
                         : m_buttons.empty() ? "No custom components"
                         : m_maxScroll > 0   ? "Scroll for more components"
@@ -141,7 +142,8 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         footer,
         {6, m_panel.y + m_panel.height - 36, m_panel.width - 12, 22},
         0.35f,
-        m_message.empty() ? glm::vec4{0.55f, 0.65f, 0.76f, 1} : glm::vec4{1, 0.55f, 0.4f, 1}
+        m_message.empty() && !m_routingError ? glm::vec4{0.55f, 0.65f, 0.76f, 1}
+                                             : glm::vec4{1, 0.55f, 0.4f, 1}
     );
     renderer.drawText(text, TextSpace::Screen);
     text.clear();

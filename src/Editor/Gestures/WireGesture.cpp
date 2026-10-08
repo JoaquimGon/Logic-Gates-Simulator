@@ -1,6 +1,7 @@
 #include "WireGesture.h"
 
 #include "Editor/Scene.h"
+#include "Geometry/WireRouting.h"
 
 #include <cmath>
 
@@ -63,16 +64,19 @@ void WireGesture::update(Scene& scene, GridCoords position)
     }
     else if (position == m_start)
         m_axisLocked = false;
-    std::vector<GridCoords> path{m_start};
-    if (position != m_start)
-    {
-        if (position.x != m_start.x && position.y != m_start.y)
-            path.push_back(
-                m_xFirst ? GridCoords{position.x, m_start.y} : GridCoords{m_start.x, position.y}
-            );
-        path.push_back(position);
-    }
-    m_wire.setPath(path);
+    auto allowedNet = scene.netOfPin(m_origin, m_direction);
+    if (allowedNet == INVALID_NET_ID)
+        for (const auto& [id, wire] : scene.getWires())
+            if (wire.containsPoint(m_start))
+            {
+                allowedNet = wire.getNet();
+                break;
+            }
+    const auto path = routeWire(
+        m_start, position, scene.committedGeometry(), scene.getWires(), allowedNet, m_xFirst
+    );
+    m_routeBlocked = !path;
+    m_wire.setPath(path.value_or(std::vector<GridCoords>{m_start}));
 }
 
 std::optional<AddWire> WireGesture::finish(const HitResult& hit)
@@ -93,6 +97,7 @@ void WireGesture::cancel()
     m_direction = PinType::INPUT;
     m_originComponent = -1;
     m_branch = INVALID_WIRE_ID;
+    m_routeBlocked = false;
     m_active = m_axisLocked = false;
     m_xFirst = true;
     m_start = {};

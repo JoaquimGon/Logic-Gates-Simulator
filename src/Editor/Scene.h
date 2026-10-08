@@ -92,6 +92,8 @@ class Scene
         return m_previewToken != 0 ? m_previewViews : m_componentViews;
     }
 
+    std::vector<ComponentGeometry> committedGeometry() const;
+
     // ----- Wires: pure geometry (the electrical side lives in Net) -----
     // Wires are stored by a stable WireId rather than by a container index.
     // Splitting and merging reshape the container, and an index cached on an
@@ -264,6 +266,4 @@ class Scene
      * @return The id the wire was stored under.
      */
     WireId insertWire(Wire wire);
-
-    std::vector<ComponentGeometry> committedGeometry() const;
 };

@@ -127,6 +127,7 @@ class UI
     std::size_t m_overviewView = 0;
     glm::dvec2 m_pointer{0};
     std::string m_dragDefinition, m_message;
+    bool m_routingError = false;
     double m_scroll = 0, m_maxScroll = 0;
     bool m_canCreate = true;
     int m_infoComponent = -1, m_infoScroll = 0;
