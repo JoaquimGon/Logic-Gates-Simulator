@@ -1280,6 +1280,18 @@ void componentPalette(GLFWwindow* window)
         editor.scene.getComponentCount() == count + 1 && !ui.dragging(),
         "Custom list entry did not retain drag-to-place behavior."
     );
+    Input::keyCallback(window, GLFW_KEY_Z, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+    Input::keyCallback(window, GLFW_KEY_Z, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+    require(
+        editor.scene.getComponentCount() == count &&
+            editor.scene.getComponentCatalog().find("test.custom-memory"),
+        "Undo did not remove a palette placement or removed its registered definition."
+    );
+    Input::keyCallback(window, GLFW_KEY_Y, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+    Input::keyCallback(window, GLFW_KEY_Y, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+    require(
+        editor.scene.getComponentCount() == count + 1, "Redo did not restore a palette placement."
+    );
     ui.cancel(editor.input);
     editor.input.setUiInputHandler({});
     glfwSetWindowSize(window, 800, 800);
@@ -1553,7 +1565,6 @@ void componentNaming(GLFWwindow* window)
     editor.wire({{-5, 0}, {5, 0}});
     editor.scene.propagate();
     editor.scene.syncVisuals();
-    const auto builds = editor.scene.getTopologyBuildCount();
     auto open = [&](int id)
     {
         editor.cursor(editor.scene.getCommittedComponentView(id)->getGridPosition());
@@ -1576,6 +1587,7 @@ void componentNaming(GLFWwindow* window)
     for (const auto& [id, name] :
          std::vector<std::pair<int, std::string>>{{source, "Data"}, {output, "Sum"}})
     {
+        const auto builds = editor.scene.getTopologyBuildCount();
         open(id);
         edit();
         require(editor.input.getUiCapture().keyboard, "Name field did not capture typing.");
@@ -1596,6 +1608,20 @@ void componentNaming(GLFWwindow* window)
                 editor.input.getUiCapture() == UiInputCapture{} &&
                 editor.scene.getTopologyBuildCount() == builds,
             "Saving a port name changed topology or retained keyboard capture."
+        );
+        const auto undoCount = editor.input.getUndoCount();
+        Input::keyCallback(window, GLFW_KEY_Z, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+        Input::keyCallback(window, GLFW_KEY_Z, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+        require(
+            editor.scene.getCommittedComponentView(id)->getBodyLabel().empty() &&
+                editor.input.getUndoCount() + 1 == undoCount,
+            "Ctrl+Z immediately after committing a UI label did not restore its previous value."
+        );
+        Input::keyCallback(window, GLFW_KEY_Y, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+        Input::keyCallback(window, GLFW_KEY_Y, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+        require(
+            editor.scene.getCommittedComponentView(id)->getBodyLabel() == name,
+            "Redo did not restore the committed UI label."
         );
         edit();
         type("Discarded");

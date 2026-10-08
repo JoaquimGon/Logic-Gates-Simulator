@@ -374,6 +374,7 @@ std::optional<GridCoords> UI::dropPosition(const CanvasCameraFrame& camera) cons
 
 void UI::cancel(Input& input)
 {
+    m_nameCommittedKey = -1;
     if (dragging() || m_nameEditing)
     {
         m_dragDefinition.clear();
@@ -517,6 +518,13 @@ bool UI::handleInput(
         return true;
     if (m_infoComponent != -1 && !scene.getCommittedComponentView(m_infoComponent))
         closeInfo(input);
+    if (event.kind == UiInputKind::Key && event.action == GLFW_RELEASE &&
+        event.code == m_nameCommittedKey)
+    {
+        m_nameCommittedKey = -1;
+        input.setCanvasFocused(true);
+        return true;
+    }
     if (event.kind == UiInputKind::WindowFocus)
     {
         if (!event.focused)
@@ -552,8 +560,12 @@ bool UI::handleInput(
                 const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
                     .componentId = m_infoComponent, .label = m_nameDraft
                 }});
+                input.recordEdit(result);
                 if (result)
+                {
                     cancel(input);
+                    m_nameCommittedKey = event.code;
+                }
                 else
                     m_nameError = result.message;
             }
@@ -597,6 +609,7 @@ bool UI::handleInput(
                 {
                     const auto result =
                         EditorActions(scene).apply({CreateComponent{id, *position}});
+                    input.recordEdit(result);
                     m_message = result ? ""
                                        : (result.error == EditError::Overlap
                                               ? "Space occupied. Try elsewhere."

@@ -126,3 +126,14 @@ framebuffer checks cover selection boundaries, reverse direction, modifiers,
 relative movement, translated wire shape, external rerouting, normalized wire
 selection, one-rebuild deletion, overlap rollback, focus/capture cancellation,
 and unobtrusive outlines/rectangle fill at normal and 2x scaling.
+
+## History shortcuts
+
+With canvas keyboard focus in Selection mode, Ctrl+Z invokes the active scene's
+history; Ctrl+Y and Ctrl+Shift+Z redo. A pending move, wire, pan or box gesture is
+cancelled first without consuming a committed history step. Selection and queued
+canvas shortcuts are cleared before restoration. UI typing/menu capture prevents
+circuit-history shortcuts from running. Committing a component name restores
+keyboard focus on Enter release so the next Ctrl+Z can undo that commit immediately.
+History recording uses the same Input result handler for keyboard, gesture,
+palette and naming edits; each tab retains its own bounded history.

@@ -44,6 +44,14 @@ objects. Faint rounded outlines show every selected body and wire segment.
 Connected wires outside the selection follow moved pins; **Alt on drop** leaves
 those wires fixed. Escape clears selection and cancels unfinished movement.
 
+In Selection mode, **Ctrl+Z** undoes and **Ctrl+Y** or **Ctrl+Shift+Z** redoes.
+Each workspace/subcircuit keeps up to **100 committed edits**, including group
+moves/deletions, wire edits, palette placement, and component-name changes. A new
+edit after undo discards redo. Failed edits, selection, camera movement and clock
+ticks do not add entries. During a pending gesture, the shortcut cancels that
+gesture first; press again to undo the last committed edit. Saving preserves
+history; Open replaces that view's history. History is kept only for this session.
+
 F2 changes modes immediately and cancels unfinished dragging, wire drawing,
 branching, box selection, and panning. Escape, right-click, focus loss, and scene switching also
 discard unfinished gestures; a later mouse release cannot commit them.

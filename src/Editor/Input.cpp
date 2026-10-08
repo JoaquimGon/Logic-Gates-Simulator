@@ -14,6 +14,7 @@ void Input::recordEdit(const EditResult& result)
 {
     m_lastEditError = result.error;
     m_lastEditMessage = result.message;
+    m_history->record(result);
 }
 
 bool Input::applyEdit(EditOperation operation)
@@ -34,14 +35,25 @@ void Input::beginSelectionDrag(GridCoords pointer)
     m_drag.begin(*m_scene, componentIds, wireIds, pointer);
 }
 
-void Input::setScene(Scene* scene)
+void Input::setScene(Scene* scene, EditHistory* history)
 {
     if (m_scene == scene)
+    {
+        if (history)
+            m_history = history;
         return;
+    }
     cancelCurrentAction();
     m_pendingKeyPresses.clear();
     m_pressedKeys.clear();
     m_scene = scene;
+    if (history)
+        m_history = history;
+    else
+    {
+        m_localHistory.clear();
+        m_history = &m_localHistory;
+    }
     hoveredComponentId = hoveredPinComponentId = hoveredPinIndex = -1;
     hoveredWireId = INVALID_WIRE_ID;
     m_hoveredSegmentValid = false;
@@ -113,6 +125,30 @@ void Input::handleKey(int key, int action, int mods, int scanCode)
     if (!canvasKeyboardAvailable())
     {
         m_pendingKeyPresses.clear();
+        return;
+    }
+    const bool control = (mods & GLFW_MOD_CONTROL) ||
+                         m_pressedKeys.contains(GLFW_KEY_LEFT_CONTROL) ||
+                         m_pressedKeys.contains(GLFW_KEY_RIGHT_CONTROL);
+    if (control && !(mods & (GLFW_MOD_ALT | GLFW_MOD_SUPER)) &&
+        (key == GLFW_KEY_Z || key == GLFW_KEY_Y))
+    {
+        if (m_scene && m_mode == EditorMode::Selection)
+        {
+            const bool pending = !isIdle();
+            cancelCurrentAction();
+            m_pendingKeyPresses.clear();
+            if (!pending)
+            {
+                const bool redo = key == GLFW_KEY_Y || (mods & GLFW_MOD_SHIFT) ||
+                                  m_pressedKeys.contains(GLFW_KEY_LEFT_SHIFT) ||
+                                  m_pressedKeys.contains(GLFW_KEY_RIGHT_SHIFT);
+                const auto result = redo ? m_history->redo(*m_scene) : m_history->undo(*m_scene);
+                // Restoring history must not record a new user edit or clear the redo stack.
+                m_lastEditError = result.error;
+                m_lastEditMessage = result.message;
+            }
+        }
         return;
     }
     if (key == GLFW_KEY_F2)

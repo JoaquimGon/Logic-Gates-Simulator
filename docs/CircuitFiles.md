@@ -19,7 +19,9 @@ changes. Names, layout, wires, manual inputs, clock frequency/pause, and updated
 used subcircuits count; automatic clock edges/latch memory, previews, selection,
 camera movement, and unused library imports do not. Converting a view between
 workspace and subcircuit clears its remembered path because the file format changes.
-There is no unsaved-change confirmation on Open/delete yet.
+Successful saves preserve edit history; Open clears history for the replaced scene.
+Undo/redo to the saved design updates the existing indicator. History is session-only
+and is not written into JSON. There is no unsaved-change confirmation on Open/delete yet.
 
 The Windows application uses native JSON file pickers. Cancelling a picker has
 no effect. The bar reports success or errors; the console retains error details.

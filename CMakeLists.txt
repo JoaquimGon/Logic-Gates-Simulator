@@ -49,6 +49,7 @@ add_library(simulator_scene STATIC
     src/Editor/Subcircuits.cpp
     src/Editor/Connectivity/ConnectivityBuilder.cpp
     src/Editor/Actions/EditorActions.cpp
+    src/Editor/Actions/EditHistory.cpp
 )
 target_link_libraries(simulator_scene PUBLIC
     simulator_simulation simulator_geometry simulator_views simulator_component_factory
@@ -212,6 +213,13 @@ if(BUILD_TESTING)
         component_palette component_information component_naming
     )
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
+    endforeach()
+
+    add_executable(EditHistoryTests tests/EditHistoryTests.cpp)
+    target_link_libraries(EditHistoryTests PRIVATE simulator_ui simulator_files glfw)
+    target_compile_definitions(EditHistoryTests PRIVATE GLFW_INCLUDE_NONE)
+    foreach(test_name IN ITEMS history_limits history_groups history_shortcuts history_views history_library)
+        add_test(NAME ${test_name} COMMAND EditHistoryTests ${test_name})
     endforeach()
 
     add_executable(BoxSelectionTests tests/BoxSelectionTests.cpp)

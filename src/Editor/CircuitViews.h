@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Editor/Actions/EditHistory.h"
 #include "Editor/Scene.h"
 
 #include <cstddef>
@@ -97,6 +98,7 @@ class CircuitViews
     {
         std::string name;
         std::unique_ptr<Scene> scene = std::make_unique<Scene>();
+        std::unique_ptr<EditHistory> history = std::make_unique<EditHistory>();
         glm::vec2 pan{0};
         float zoom = 1;
         DefinitionIdentity definition;

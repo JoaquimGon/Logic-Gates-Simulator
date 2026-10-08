@@ -134,6 +134,7 @@ class UI
     glm::dvec2 m_infoAnchor{0};
     bool m_infoRightPressed = false, m_infoEscapePressed = false;
     bool m_nameEditing = false;
+    int m_nameCommittedKey = -1;
     std::string m_nameDraft, m_nameError;
     CircuitTabs m_circuitTabs;
     bool m_fileMenuOpen = false, m_fileMousePressed = false, m_fileEscapePressed = false;

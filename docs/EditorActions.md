@@ -77,6 +77,44 @@ to prevent double movement. Other attached wires reroute from final selected pin
 positions. Normalization still runs once and may split/merge wire IDs; selection
 retains replaced sections wholly covered by the selected translated paths.
 
+## Undo and redo
+
+`EditHistory` owns two deques of existing shared EditRecords, with a maximum of
+100 retained steps total as they move between undo and redo. It copies no extra
+scenes when recording. A successful new edit clears redo and evicts the oldest
+undo entry when needed; failures/no-ops and cancelled previews leave both stacks
+unchanged. Group edits count once. Undo/redo restore a complete scene, rebuild
+connectivity once, and keep ID allocators monotonic.
+
+CircuitViews owns a stable history beside each scene; Input binds to that history
+when switching tabs and supplies a local history for standalone use. Input records
+keyboard/gesture edits through `recordEdit(result)`; UI palette and name commits
+call that same method. New UI adapters must record their successful action result.
+Startup construction, loading, and internal definition registration are not user
+history entries. The model Scene and file format contain no history.
+
+Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z operate only in Selection mode with canvas keyboard
+focus. UI text/menu capture takes priority. A pending gesture is cancelled without
+consuming history; an idle shortcut also clears selection before restoration.
+Save preserves history, Open clears the replaced scene, and closing a tab releases
+its history. Returning to the saved design updates the existing unsaved indicator.
+
+Snapshots include runtime state at each edit, so restoration may rewind latch
+memory, source values, pause settings, and clock phase. Continuous simulation and
+Interaction-mode controls do not themselves create history entries. View names,
+roles, cameras, file paths, and shared library publication are outside edit history.
+Unused session-library entries survive restoration. Publishing/loading a changed
+used definition clears only histories which referenced that definition, preventing
+undo from reintroducing an older incompatible interface. Authoring history remains
+available through saving/publishing its own subcircuit.
+
+The 100-step cap is a count limit, not a byte limit: full snapshots can be expensive
+for large or expanded circuits. Immutable definition metadata remains shared.
+`history_limits`, `history_groups`, `history_shortcuts`, `history_views`, and
+`history_library` cover retention/eviction, redo branching, restoration, focus and
+pending gestures, saved state, independent tabs, file replacement and library
+boundaries. Existing palette/naming tests verify undo/redo immediately after UI edits.
+
 ## Configuration and pin migration
 
 `ConfigureComponentProperties` accepts optional `label`, `inputCount`,

@@ -106,12 +106,12 @@ bool CircuitViews::select(std::size_t index, Input& input)
         m_views[m_active].pan = input.getPanOffset();
         m_views[m_active].zoom = input.getZoom();
         m_active = index;
-        input.setScene(&activeScene());
+        input.setScene(&activeScene(), m_views[m_active].history.get());
         input.setPanOffset(m_views[m_active].pan);
         input.setZoom(m_views[m_active].zoom);
     }
     else
-        input.setScene(&activeScene());
+        input.setScene(&activeScene(), m_views[m_active].history.get());
     input.setCanvasFocused(true);
     return true;
 }
@@ -198,13 +198,24 @@ void CircuitViews::replaceWorkspaceAt(
         throw std::invalid_argument(result.message);
     for (std::size_t i = 0; i < m_views.size(); ++i)
         if (i != index)
+        {
+            for (const auto& definition : imported)
+            {
+                const auto* old =
+                    m_views[i].scene->getComponentCatalog().find(definition.identity.id);
+                if (old && old->identity.version != definition.identity.version &&
+                    m_views[i].history->referencesDefinition(definition.identity.id))
+                    m_views[i].history->clear();
+            }
             *m_views[i].scene = std::move(staged[i]);
+        }
     for (const auto& definition : imported)
         m_library.insert_or_assign(definition.identity.id, definition);
     rename(index, std::move(name));
     select(index, input);
     activeScene().propagate();
     activeScene().syncVisuals();
+    m_views[index].history->clear();
     markSaved(index);
 }
 
@@ -223,9 +234,18 @@ void CircuitViews::publishSubcircuits(const std::vector<ComponentDefinition>& de
         if (!result)
             throw std::invalid_argument(result.message);
     }
-    // EditorActions produced complete reversible scenes; retain stable scene addresses for Input.
+    // Used external definitions change circuit behaviour outside this view's edit history.
     for (std::size_t i = 0; i < m_views.size(); ++i)
+    {
+        for (const auto& definition : definitions)
+        {
+            const auto* old = m_views[i].scene->getComponentCatalog().find(definition.identity.id);
+            if (old && old->identity.version != definition.identity.version &&
+                m_views[i].history->referencesDefinition(definition.identity.id))
+                m_views[i].history->clear();
+        }
         *m_views[i].scene = std::move(staged[i]);
+    }
     for (const auto& definition : definitions)
         m_library.insert_or_assign(definition.identity.id, definition);
 }

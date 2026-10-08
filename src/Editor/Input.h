@@ -1,4 +1,5 @@
 #pragma once
+#include "Actions/EditHistory.h"
 #include "Actions/EditTypes.h"
 #include "Components/PinTypes.h"
 #include "Editor/UiInput.h"
@@ -24,6 +25,8 @@ class Input
 {
   private:
     Scene* m_scene = nullptr;
+    EditHistory m_localHistory;
+    EditHistory* m_history = &m_localHistory;
     UiInputHandler m_uiInputHandler;
     UiInputCapture m_uiCapture;
     CanvasCamera m_camera;
@@ -56,7 +59,6 @@ class Input
     std::string m_lastEditMessage;
     bool applyEdit(EditOperation operation);
     void beginSelectionDrag(GridCoords pointer);
-    void recordEdit(const EditResult& result);
 
     int hoveredComponentId = -1;
     int hoveredPinComponentId = -1;
@@ -162,7 +164,13 @@ class Input
 
     PinType getWireOriginType() const { return m_wire.direction(); }
 
-    void setScene(Scene* scene);
+    void setScene(Scene* scene, EditHistory* history = nullptr);
+    /** Records successful user edits, including palette/property actions made by the UI. */
+    void recordEdit(const EditResult& result);
+
+    std::size_t getUndoCount() const { return m_history->undoCount(); }
+
+    std::size_t getRedoCount() const { return m_history->redoCount(); }
 
     EditError getLastEditError() const { return m_lastEditError; }
 
