@@ -4,6 +4,7 @@
 #include "Geometry/GridSystem.h"
 
 #include <algorithm>
+#include <utility>
 
 void Selection::clear()
 {
@@ -44,10 +45,14 @@ void Selection::selectWire(const Scene& scene, WireId id, GridCoords position)
 
 void Selection::toggleWire(WireId id)
 {
+    if (m_components.empty() && m_wires.empty())
+        m_areaSelected = false;
     m_segmentWire = INVALID_WIRE_ID;
     m_segment.reset();
     if (!m_wires.erase(id))
         m_wires.insert(id);
+    if (m_components.empty() && m_wires.empty())
+        m_areaSelected = false;
 }
 
 void Selection::prune(const Scene& scene)
@@ -116,14 +121,28 @@ void Selection::retainMovedWires(
 
 void Selection::beginBox(glm::vec2 point)
 {
+    cancelBox();
     m_boxStart = point;
     m_boxEnd = point;
 }
 
-void Selection::updateBox(glm::vec2 point)
+void Selection::cancelBox()
 {
-    if (boxing())
-        m_boxEnd = point;
+    m_boxStart.reset();
+    m_boxComponents.clear();
+    m_boxWires.clear();
+}
+
+void Selection::finishBox()
+{
+    if (!boxing())
+        return;
+    m_components = std::move(m_boxComponents);
+    m_wires = std::move(m_boxWires);
+    m_areaSelected = true;
+    m_segmentWire = INVALID_WIRE_ID;
+    m_segment.reset();
+    cancelBox();
 }
 
 std::optional<BodyBounds> Selection::boxBounds() const
@@ -138,13 +157,16 @@ std::optional<BodyBounds> Selection::boxBounds() const
     };
 }
 
-void Selection::finishBox(const Scene& scene)
+void Selection::updateBox(const Scene& scene, glm::vec2 point)
 {
+    if (!boxing())
+        return;
+    m_boxEnd = point;
     const auto bounds = boxBounds();
     if (!bounds)
         return;
-    clear();
-    m_areaSelected = true;
+    m_boxComponents.clear();
+    m_boxWires.clear();
     constexpr float tolerance = 1e-6f;
     auto inside = [&](float x, float y)
     {
@@ -155,7 +177,7 @@ void Selection::finishBox(const Scene& scene)
     {
         const auto body = view->getBodyBounds();
         if (inside(body.left, body.bottom) && inside(body.right, body.top))
-            m_components.insert(id);
+            m_boxComponents.insert(id);
     }
     for (const auto& [id, wire] : scene.getWires())
         if (std::all_of(
@@ -167,7 +189,7 @@ void Selection::finishBox(const Scene& scene)
                     return inside(world.x, world.y);
                 }
             ))
-            m_wires.insert(id);
+            m_boxWires.insert(id);
 }
 
 EditBatch

@@ -85,9 +85,51 @@ void selection(GLFWwindow* window)
 {
     Editor editor(window);
     const auto revision = editor.scene.getRevision();
+    editor.cursor({-5, 0});
+    editor.mouse(GLFW_PRESS);
+    editor.mouse(GLFW_RELEASE);
+    require(
+        editor.input.getSelectedComponents() == std::set<int>{editor.first} &&
+            !editor.input.isBoxSelection(),
+        "Ordinary gate selection acquired the box highlight style."
+    );
+    editor.ctrl({0, 0});
+    require(
+        !editor.input.isBoxSelection(), "Ordinary Ctrl selection acquired the box highlight style."
+    );
+
+    const auto priorComponents = editor.input.getSelectedComponents();
+    const auto priorWires = editor.input.getSelectedWires();
+    const auto undoCount = editor.input.getUndoCount();
+    const auto redoCount = editor.input.getRedoCount();
     editor.cursor({-9, -4});
     editor.mouse(GLFW_PRESS, GLFW_MOD_SHIFT);
+    require(
+        editor.input.getHighlightedComponents().empty() &&
+            editor.input.getHighlightedWires().empty() &&
+            editor.input.getSelectionHighlightOpacity() == 0.35f,
+        "Starting a new box retained old highlights instead of faint candidates."
+    );
+    editor.cursor({-2, 4});
+    require(
+        editor.input.getHighlightedComponents() == std::set<int>{editor.first} &&
+            editor.input.getHighlightedWires().empty(),
+        "Fully enclosed gate did not gain its live highlight."
+    );
+    editor.cursor({-6, -1});
+    require(
+        editor.input.getHighlightedComponents().empty(),
+        "A gate retained its live highlight after leaving full containment."
+    );
     editor.cursor({9, 4});
+    require(
+        editor.input.getHighlightedComponents() == std::set<int>{editor.first, editor.second} &&
+            editor.input.getHighlightedWires() == std::set<WireId>{editor.internal} &&
+            editor.input.getSelectedComponents() == priorComponents &&
+            editor.input.getSelectedWires() == priorWires &&
+            editor.input.getSelectionHighlightOpacity() == 0.35f,
+        "Live box candidates were missing or changed the committed selection."
+    );
     require(
         editor.input.getSelectionBox().has_value() && !editor.input.isIdle() &&
             !editor.input.isCurrentlyDrawingWire() && editor.scene.getRevision() == revision,
@@ -97,7 +139,12 @@ void selection(GLFWwindow* window)
     require(
         editor.input.getSelectedComponents() == std::set<int>{editor.first, editor.second} &&
             editor.input.getSelectedWires() == std::set<WireId>{editor.internal} &&
-            !editor.input.getSelectionBox() && editor.scene.getRevision() == revision,
+            !editor.input.getSelectionBox() && editor.input.isBoxSelection() &&
+            editor.input.getHighlightedComponents() == editor.input.getSelectedComponents() &&
+            editor.input.getHighlightedWires() == editor.input.getSelectedWires() &&
+            editor.input.getSelectionHighlightOpacity() == 1.0f &&
+            editor.input.getUndoCount() == undoCount && editor.input.getRedoCount() == redoCount &&
+            editor.scene.getRevision() == revision,
         "Box did not select precisely the fully contained objects."
     );
     editor.box({9, 4}, {-9, -4});
@@ -121,8 +168,9 @@ void selection(GLFWwindow* window)
     );
     editor.box({-9, -4}, {-2, 4});
     require(
-        editor.input.getSelectedComponents() == std::set<int>{editor.first},
-        "Single-component box fixture failed."
+        editor.input.getSelectedComponents() == std::set<int>{editor.first} &&
+            editor.input.isBoxSelection() && editor.input.getSelectionHighlightOpacity() == 1.0f,
+        "Single-component box lost its box highlight style."
     );
     editor.cursor({-5, 0});
     editor.mouse(GLFW_PRESS);
@@ -132,6 +180,15 @@ void selection(GLFWwindow* window)
         editor.scene.getCommittedComponentView(editor.first)->getGridPosition() ==
             GridCoords{-5, 6},
         "Box-selected single component was deselected instead of dragged."
+    );
+    require(editor.input.isBoxSelection(), "Moving a box selection lost its selection origin.");
+    editor.cursor({14, 0});
+    editor.mouse(GLFW_PRESS);
+    editor.mouse(GLFW_RELEASE);
+    require(
+        editor.input.getSelectedComponents() == std::set<int>{editor.outside} &&
+            !editor.input.isBoxSelection(),
+        "An ordinary selection retained the previous box highlight style."
     );
     editor.input.setMode(EditorMode::Interaction);
     editor.box();
@@ -277,12 +334,21 @@ void cancellation(GLFWwindow* window)
     editor.cursor({-10, -5});
     editor.mouse(GLFW_PRESS, GLFW_MOD_SHIFT);
     editor.cursor({2, 2});
+    require(
+        editor.input.getHighlightedComponents() == std::set<int>{editor.first} &&
+            editor.input.getSelectedComponents().size() == 2 &&
+            editor.input.getSelectionHighlightOpacity() == 0.35f,
+        "Pending replacement selection was not distinct from the prior selection."
+    );
     editor.input.setUiCapture({true, true});
     editor.input.setUiCapture({});
     editor.input.setCanvasFocused(true);
     editor.mouse(GLFW_RELEASE);
     require(
         !editor.input.getSelectionBox() && editor.input.getSelectedComponents().size() == 2 &&
+            editor.input.getHighlightedComponents() == editor.input.getSelectedComponents() &&
+            editor.input.getHighlightedWires() == editor.input.getSelectedWires() &&
+            editor.input.getSelectionHighlightOpacity() == 1.0f &&
             editor.scene.getRevision() == revision,
         "UI capture committed a pending box or destroyed the prior selection."
     );

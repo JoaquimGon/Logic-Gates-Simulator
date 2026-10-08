@@ -31,14 +31,16 @@ class Selection
         const Scene& scene, std::span<const WireId> added, std::span<const Wire> paths
     );
     void beginBox(glm::vec2 point);
-    void updateBox(glm::vec2 point);
-    void finishBox(const Scene& scene);
-
-    void cancelBox() { m_boxStart.reset(); }
+    void updateBox(const Scene& scene, glm::vec2 point);
+    void finishBox();
+    void cancelBox();
 
     std::optional<BodyBounds> boxBounds() const;
 
     bool boxing() const { return m_boxStart.has_value(); }
+
+    /** Origin of the committed selection, independent of how many objects it contains. */
+    bool fromBox() const { return m_areaSelected; }
 
     bool group() const { return m_components.size() + m_wires.size() > 1; }
 
@@ -49,6 +51,14 @@ class Selection
     const std::set<int>& components() const { return m_components; }
 
     const std::set<WireId>& wires() const { return m_wires; }
+
+    /** Pending box candidates for drawing; committed selection is unchanged until release. */
+    const std::set<int>& highlightedComponents() const
+    {
+        return boxing() ? m_boxComponents : m_components;
+    }
+
+    const std::set<WireId>& highlightedWires() const { return boxing() ? m_boxWires : m_wires; }
 
     void clearSegment() { m_segment.reset(); }
 
@@ -69,4 +79,6 @@ class Selection
     std::optional<SelectedSegment> m_segment;
     std::optional<glm::vec2> m_boxStart;
     glm::vec2 m_boxEnd{};
+    std::set<int> m_boxComponents;
+    std::set<WireId> m_boxWires;
 };

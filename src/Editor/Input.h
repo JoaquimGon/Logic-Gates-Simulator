@@ -190,6 +190,17 @@ class Input
 
     const std::set<WireId>& getSelectedWires() const { return m_selection.wires(); }
 
+    bool isBoxSelection() const { return m_selection.fromBox(); }
+
+    const std::set<int>& getHighlightedComponents() const
+    {
+        return m_selection.highlightedComponents();
+    }
+
+    const std::set<WireId>& getHighlightedWires() const { return m_selection.highlightedWires(); }
+
+    float getSelectionHighlightOpacity() const { return m_selection.boxing() ? 0.35f : 1.0f; }
+
     std::optional<BodyBounds> getSelectionBox() const { return m_selection.boxBounds(); }
 
     int getSelectedComponentId() const { return m_selection.component(); }

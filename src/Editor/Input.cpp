@@ -302,8 +302,8 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     {
         if (m_selection.boxing())
         {
-            m_selection.updateBox(getMouseWorldCoord(window));
-            m_selection.finishBox(*m_scene);
+            m_selection.updateBox(*m_scene, getMouseWorldCoord(window));
+            m_selection.finishBox();
         }
         else if (m_drag.active())
         {
@@ -366,7 +366,7 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
     if (m_committedWirePoint && mouseGridCoords != *m_committedWirePoint)
         m_committedWirePoint.reset();
     if (m_selection.boxing())
-        m_selection.updateBox(getMouseWorldCoord(window));
+        m_selection.updateBox(*m_scene, getMouseWorldCoord(window));
     else if (m_drag.active())
     {
         if (!m_scene || !m_drag.update(*m_scene, mouseGridCoords))

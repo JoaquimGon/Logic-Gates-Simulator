@@ -400,8 +400,13 @@ checks cover visibility, clearing, and return after edits.
 ## Group selection overlays
 
 CanvasFrame borrows selected body and wire-segment highlights plus an optional
-selection rectangle. Renderer reuses the rounded bounds geometry at 35% opacity
-for each selected object and clips it with the canvas camera. The pending rectangle
+selection rectangle. While dragging a box, fully enclosed objects immediately show
+rounded bounds at 35% opacity; leaving the box removes that preview. Releasing
+commits the selection and switches its outlines to the normal solid highlight.
+Hovering unselected objects stays at 40% opacity. Candidate IDs are refreshed on
+pointer movement using body bounds and wire paths; they do not edit the scene or
+history. Cancelling the gesture discards candidates and restores prior highlights.
+All overlays are clipped with the canvas camera. The pending rectangle
 uses a 6% blue world-space fill and a faint outline. Selected wires render from
 Scene's presentation-only translated paths during group previews; persisted paths
 and simulation topology remain committed until release. No screen-space widget or

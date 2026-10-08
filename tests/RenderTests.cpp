@@ -1232,8 +1232,19 @@ void groupSelectionPresentation(Renderer& renderer, const CanvasCameraFrame& cam
     const auto faint = pixel(edge)[0];
     require(
         strong > 180 && faint > background + 25 && faint + 60 < strong,
-        "Selected component outlines were missing or as strong as opaque highlights."
+        "Live selection preview was missing or as strong as committed highlights."
     );
+    for (auto& body : selected)
+        body.opacity = 1.0f;
+    frame.selectedBodies = selected;
+    wires.front().opacity = 1.0f;
+    draw(camera);
+    require(pixel(edge)[0] == strong, "Released selection did not restore solid outlines.");
+    saveImage("group-selection-committed.ppm");
+    for (auto& body : selected)
+        body.opacity = 0.35f;
+    wires.front().opacity = 0.35f;
+    draw(camera);
     saveImage("group-selection.ppm");
     const auto without = pixel({0, 0.12f});
     frame.selectionBox = BodyBounds{-0.5f, -0.25f, 0.5f, 0.25f};

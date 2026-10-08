@@ -115,8 +115,11 @@ wires follow selected pin positions. Alt at release disables pin-following routi
 while explicitly selected wires still move as selected objects. Moving a wire section by itself leaves unselected neighbouring sections fixed;
 matching geometry reconnects on drop. Delete/Backspace submits the entire selection in one edit.
 
-World-space rectangles reuse the existing rounded outlines at 35% opacity; the
-pending rectangle adds a 6% fill. UI capture, focus loss, Escape, scene/mode changes
+World-space rectangles reuse the existing rounded outlines. Fully enclosed objects
+show a live 35% opacity preview while dragging, which becomes solid on release.
+Candidate IDs update on pointer movement without changing the committed selection
+or undo history; excluding an object removes its preview. The pending rectangle
+adds a 6% fill. UI capture, focus loss, Escape, scene/mode changes
 and canvas layout changes cancel unfinished gestures. UI capture/layout interruption
 preserves the prior completed selection; Escape/mode/scene changes clear it.
 Simulation and saving read committed geometry throughout a group preview.
