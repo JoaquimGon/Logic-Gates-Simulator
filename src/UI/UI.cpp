@@ -48,10 +48,12 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     const bool subcircuit = m_circuitTabs.activeIsSubcircuit();
     if (subcircuit != m_showSubcircuit)
     {
-        m_bottomTab = subcircuit ? BottomTab::Subcircuit : BottomTab::Second;
+        m_bottomTab = subcircuit ? BottomTab::Subcircuit : BottomTab::Messages;
         m_subcircuitScroll = 0;
     }
     m_showSubcircuit = subcircuit;
+    if (m_bottomTab == BottomTab::Messages)
+        messageState().unread = false;
     const double bottomHeight = std::min(180.0, (height - top) * 0.4);
     m_bottom = {m_panel.width, height - bottomHeight, width - m_panel.width, bottomHeight};
     const double modeHeight = std::min(36.0, std::max(0.0, m_bottom.y - top));
@@ -100,6 +102,8 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
 
 void UI::setCircuitViews(CircuitViews* views, const FontMetrics* font)
 {
+    m_views = views;
+    m_font = font;
     m_circuitTabs.bind(views, font);
 }
 
@@ -124,7 +128,8 @@ CanvasViewport UI::bottomTabBounds(BottomTab tab) const
 {
     if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
         return {};
-    const double width = std::min(148.0, std::max(0.0, (m_bottom.width - 24) / 2));
+    const double width =
+        std::min(148.0, std::max(0.0, m_bottom.width - 24) / (m_showSubcircuit ? 2 : 1));
     return {
         m_bottom.x + 8 + (m_showSubcircuit ? static_cast<int>(tab) : 0) * (width + 8),
         m_bottom.y + 6,
@@ -275,8 +280,12 @@ std::optional<std::string> UI::takeEditSubcircuit()
 
 void UI::setFileStatus(std::string message, bool error)
 {
-    m_fileStatus = std::move(message);
-    m_fileError = error;
+    messageState().fileStatus = message;
+    messageState().fileError = error;
+    if (error)
+        addMessage(std::move(message));
+    else
+        clearMessages();
 }
 
 void UI::dismissPopups(Input& input)
@@ -788,11 +797,26 @@ bool UI::handleInput(
         {
             if (event.action == GLFW_PRESS)
             {
-                input.cancelCurrentAction();
+                input.setCanvasFocused(false);
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT)
-                    for (const auto tab : {BottomTab::Subcircuit, BottomTab::Second})
+                {
+                    for (const auto tab : {BottomTab::Subcircuit, BottomTab::Messages})
                         if (bottomTabBounds(tab).contains(event.x, event.y))
+                        {
                             m_bottomTab = tab;
+                            if (tab == BottomTab::Messages)
+                                messageState().unread = false;
+                        }
+                    if (m_bottomTab == BottomTab::Messages && !scene.isSimulationDirty())
+                        for (std::size_t i = 0; i < simulationIssues().size(); ++i)
+                            if (findMessageBounds(i).contains(event.x, event.y))
+                            {
+                                input.setPanOffset(
+                                    GridSystem::gridToWorld(*simulationIssues()[i].location)
+                                );
+                                break;
+                            }
+                }
             }
             if (event.action == GLFW_RELEASE)
                 input.setCanvasFocused(true);
@@ -836,6 +860,16 @@ bool UI::handleInput(
             m_scroll = std::clamp(m_scroll - event.y * step, 0.0, m_maxScroll);
             layout(scene.getComponentCatalog(), m_surface, input);
         }
+        return true;
+    }
+    if (event.kind == UiInputKind::Scroll && m_bottomTab == BottomTab::Messages &&
+        m_bottom.contains(m_pointer.x, m_pointer.y) && std::isfinite(event.y))
+    {
+        const int rows = static_cast<int>(messageBoxBounds().height / 20);
+        const int maximum = std::max(0, static_cast<int>(messageRows(m_font).size()) - rows);
+        auto& log = messageState();
+        log.scroll =
+            static_cast<int>(std::clamp(log.scroll - event.y, 0.0, static_cast<double>(maximum)));
         return true;
     }
     if (event.kind == UiInputKind::Scroll && m_showSubcircuit &&

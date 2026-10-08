@@ -309,7 +309,7 @@ processing/rendering the next scene frame. Engine owns the current Main file pat
 while each subcircuit editor owns its own path. App/CircuitFiles handles
 file-command execution and the native picker; Persistence handles JSON/file IO.
 UI only routes commands
-and displays success/errors in the bar. Hover highlights its row. The panel and
+and displays success/errors in the bar and the active view's Messages log. Hover highlights its row. The panel and
 circuit tabs start below the bar, and the canvas viewport follows that layout.
 
 The open menu captures pointer and keyboard events, cancelling existing gestures
@@ -343,7 +343,7 @@ rendering, picking, panning, and palette placement aligned after resize. The
 left component panel retains its full height.
 
 The Subcircuit tab is visible only for subcircuit editors; workspaces retain
-only the Tab 2 placeholder. Both reuse screen rectangles/text and the existing
+only the Messages tab. Both reuse screen rectangles/text and the existing
 active underline. There are no closing/creation controls. The Subcircuit body
 shows the full circuit name, basic named-input/output validity, vital-component
 counts, and ordered Input/Output/Clock name rows. Header rows remain fixed while
@@ -529,3 +529,22 @@ alpha fringe on both the colored stroke and its outline. This reuses the existin
 lead mesh/shader and avoids hard edges or overlapping feather strips at joints.
 Pixel checks verify intermediate edge coverage and matching spawned/switched
 gate silhouettes; headless checks keep input columns fixed and leads short.
+
+## Messages text box
+
+Messages is available in both view roles and uses existing screen rectangles,
+text and clipping. It lists current circuit problems, with error text in
+orange-red and warnings in amber. Repaired problems disappear; an empty problem
+list displays the green `Circuit is fine.` status. The latest failed action
+appears separately with local `[HH:MM:SS]` time rather than an accumulated history.
+A successful action dismisses its previous failure notice. Simulation problems
+clear automatically on repair; there is no Clear button or reserved button space.
+
+Long entries wrap at a fixed readable size and scroll independently of the
+Subcircuit list. Located problems place an underlined blue `FIND` at the end of
+their final wrapped row; the link sits one space after the final text, and uses those same visible-row bounds for
+hit testing, including scrolling and 2x scaling. No link is shown for global
+backlog or an unavailable location. An unread `*` marks the tab; ongoing simulation
+pause/short/backlog status appears in the navigation bar without opening F3.
+Framebuffer previews cover healthy status, live errors, camera navigation and
+normal/narrow 2x FIND layouts.

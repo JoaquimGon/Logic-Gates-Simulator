@@ -82,3 +82,12 @@ before settling. Child circuits never consume frame time independently. Native
 and contained evaluations share a 100,000-evaluation allowance; a child failure
 marks the enclosing circuit non-convergent. Existing step and clock-time limits
 still apply. See [Subcircuits.md](Subcircuits.md).
+
+## Locating unresolved activity
+
+Circuit retains one component ID when evaluation fails or bounded settling leaves
+pending work. Copies retain it, and a successful propagation clears it. Scene/UI
+use this small diagnostic to focus the enclosing visible component through FIND;
+it identifies outstanding activity, not necessarily the feedback loop's original
+cause. Shorted nets and rejected connections supply their existing pin/edge data.
+No cycle tracing or new scheduling infrastructure is introduced.

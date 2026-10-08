@@ -34,6 +34,7 @@ class Circuit
 
     float m_lastPropagateDurationMs = 0.0f;
     SimulationResult m_lastEvalResult = SimulationResult::OK;
+    int m_unsettledComponent = -1;
 
   public:
     Circuit() = default;
@@ -101,6 +102,8 @@ class Circuit
      */
     bool updateClocks(float deltaTime);
 
+    double pendingClockTime() const { return m_pendingClockTime; }
+
     SimulationResult propagate();
     /** Shares the evaluation limit with contained circuits. */
     SimulationResult propagate(std::size_t& remainingEvaluations);
@@ -109,6 +112,9 @@ class Circuit
     float getLastPropagateTimeMs() const { return m_lastPropagateDurationMs; }
 
     SimulationResult getLastEvalResult() const { return m_lastEvalResult; }
+
+    /** A component with pending activity or a failed evaluation, not necessarily the cause. */
+    int unsettledComponent() const { return m_unsettledComponent; }
 
     size_t getSimulationComponentCount() const { return m_componentOrder.size(); }
 

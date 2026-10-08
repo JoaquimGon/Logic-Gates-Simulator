@@ -12,7 +12,7 @@ Circuit::Circuit(const Circuit& other)
       m_currentId(other.m_currentId), m_structureDirty(other.m_structureDirty),
       m_stateDirty(other.m_stateDirty), m_pendingClockTime(other.m_pendingClockTime),
       m_lastPropagateDurationMs(other.m_lastPropagateDurationMs),
-      m_lastEvalResult(other.m_lastEvalResult)
+      m_lastEvalResult(other.m_lastEvalResult), m_unsettledComponent(other.m_unsettledComponent)
 {
     for (const auto& [id, component] : other.m_components)
         m_components.emplace(id, component->clone());
@@ -278,6 +278,7 @@ SimulationResult Circuit::propagate()
 SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
 {
     const auto start = std::chrono::steady_clock::now();
+    m_unsettledComponent = -1;
     if (m_structureDirty)
     {
         m_componentOrder.clear();
@@ -300,6 +301,7 @@ SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
             if (remainingEvaluations == 0)
             {
                 failed = true;
+                m_unsettledComponent = id;
                 break;
             }
             --remainingEvaluations;
@@ -308,6 +310,7 @@ SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
             if (component->simulationResult() != SimulationResult::OK)
             {
                 failed = true;
+                m_unsettledComponent = id;
                 break;
             }
         }
@@ -320,6 +323,8 @@ SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
     }
     m_lastEvalResult =
         !failed && dirty.empty() ? SimulationResult::OK : SimulationResult::NON_CONVERGENT;
+    if (m_lastEvalResult != SimulationResult::OK && m_unsettledComponent == -1 && !dirty.empty())
+        m_unsettledComponent = dirty.front();
     m_stateDirty = false;
     m_lastPropagateDurationMs =
         std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - start).count();

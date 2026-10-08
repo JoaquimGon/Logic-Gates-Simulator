@@ -13,10 +13,12 @@
 #include "Gestures/WireGesture.h"
 #include "Simulation/NetTypes.h"
 
+#include <functional>
 #include <glm/glm.hpp>
 #include <optional>
 #include <string>
 #include <unordered_set>
+#include <utility>
 
 struct GLFWwindow;
 class Scene;
@@ -54,6 +56,9 @@ class Input
     double lastMouseX = 0.0f;
     double lastMouseY = 0.0f;
     GridCoords mouseGridCoords = {0, 0};
+
+    std::function<void(const std::string&)> m_editErrorHandler;
+    void reportEditResult(const EditResult& result);
 
     EditError m_lastEditError = EditError::None;
     std::string m_lastEditMessage;
@@ -167,6 +172,12 @@ class Input
     void setScene(Scene* scene, EditHistory* history = nullptr);
     /** Records successful user edits, including palette/property actions made by the UI. */
     void recordEdit(const EditResult& result);
+
+    /** Reports failure text; empty text after success dismisses the previous action notice. */
+    void setEditErrorHandler(std::function<void(const std::string&)> handler)
+    {
+        m_editErrorHandler = std::move(handler);
+    }
 
     std::size_t getUndoCount() const { return m_history->undoCount(); }
 

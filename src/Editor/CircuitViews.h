@@ -28,6 +28,33 @@ class CircuitViews
         return role == Role::Subcircuit ? "Subcircuit editor" : "Workspace";
     }
 
+    struct SimulationIssue
+    {
+        std::string message;
+        std::optional<GridCoords> location;
+        bool warning = false;
+        bool operator==(const SimulationIssue&) const = default;
+    };
+
+    /** Session-only diagnostics belong to the view, never to the saved circuit. */
+    struct Messages
+    {
+        std::vector<std::string> entries;
+        std::vector<SimulationIssue> issues;
+        bool unread = false;
+        int scroll = 0;
+        SimulationResult simulationResult = SimulationResult::OK;
+        std::size_t shortedNets = 0;
+        double backlogSince = -1;
+        bool behind = false;
+        std::string fileStatus;
+        bool fileError = false;
+    };
+
+    Messages& activeMessages() { return m_views[m_active].messages; }
+
+    const Messages& activeMessages() const { return m_views[m_active].messages; }
+
     CircuitViews();
 
     std::size_t size() const { return m_views.size(); }
@@ -110,6 +137,7 @@ class CircuitViews
         mutable Role checkedRole = Role::Workspace;
         mutable std::vector<SourceSettings> checkedSources;
         mutable bool unsaved = true;
+        Messages messages;
     };
 
     static std::vector<SourceSettings> sourceSettings(const Scene& scene);

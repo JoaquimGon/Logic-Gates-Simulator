@@ -18,11 +18,6 @@ class Engine
     int m_windowHeight = 0;
     bool m_glfwInitialized = false;
 
-    // Last simulation status printed to the console, so a persistent condition
-    // (e.g. a combinational loop) is reported on the transition only, not once
-    // per frame.
-    SimulationResult m_lastSimulationResult = SimulationResult::OK;
-
     Input input;
 
     // NEW: The Renderer now owns all meshes, shaders, and OpenGL state

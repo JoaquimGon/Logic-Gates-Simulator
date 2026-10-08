@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Editor/CircuitViews.h"
 #include "Editor/EditorMode.h"
 #include "Editor/UiInput.h"
 #include "Geometry/CanvasCamera.h"
@@ -35,8 +36,24 @@ class UI
     enum class BottomTab
     {
         Subcircuit,
-        Second
+        Messages
     };
+
+    enum class MessageKind
+    {
+        Info,
+        Warning,
+        Error
+    };
+
+    void addMessage(std::string message, MessageKind kind = MessageKind::Error);
+    void reportSimulation(const Scene& scene, double now);
+    const std::vector<std::string>& messages() const;
+    bool hasUnreadMessages() const;
+    const std::vector<CircuitViews::SimulationIssue>& simulationIssues() const;
+    CanvasViewport findMessageBounds(std::size_t issue) const;
+    void clearMessages();
+    CanvasViewport messageBoxBounds() const;
 
     struct Button
     {
@@ -119,6 +136,18 @@ class UI
     bool canEditSubcircuit(const Scene& scene) const;
     int infoVisibleRows(const Scene& scene) const;
 
+    CircuitViews::Messages& messageState();
+    const CircuitViews::Messages& messageState() const;
+
+    struct MessageRow
+    {
+        std::string text;
+        MessageKind kind;
+        std::optional<std::size_t> issue;
+    };
+
+    std::vector<MessageRow> messageRows(const FontMetrics* font) const;
+
     static constexpr double infoRowHeight = 22;
     static constexpr double infoHeaderHeight = 42;
     static constexpr double infoFooterHeight = 30;
@@ -129,7 +158,7 @@ class UI
     CanvasViewport m_bar{}, m_panel{}, m_list{}, m_bottom{}, m_modes{};
     std::vector<Button> m_buttons;
     Tab m_tab = Tab::Native;
-    BottomTab m_bottomTab = BottomTab::Second;
+    BottomTab m_bottomTab = BottomTab::Messages;
     bool m_showSubcircuit = false;
     int m_subcircuitScroll = 0;
     std::size_t m_overviewView = 0;
@@ -148,6 +177,7 @@ class UI
     bool m_fileMenuOpen = false, m_fileMousePressed = false, m_fileEscapePressed = false;
     std::optional<FileCommand> m_fileCommand;
     std::optional<std::string> m_editSubcircuit;
-    std::string m_fileStatus;
-    bool m_fileError = false;
+    CircuitViews* m_views = nullptr;
+    const FontMetrics* m_font = nullptr;
+    CircuitViews::Messages m_messages;
 };

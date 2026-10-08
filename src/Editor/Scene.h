@@ -180,6 +180,10 @@ class Scene
 
     bool updateClocks(float deltaTime);
 
+    double pendingClockTime() const { return m_circuit.pendingClockTime(); }
+
+    int unsettledComponent() const { return m_circuit.unsettledComponent(); }
+
     bool isSimulationDirty() const
     {
         return m_topologyResult == SimulationResult::OK ? m_circuit.isStateDirty()

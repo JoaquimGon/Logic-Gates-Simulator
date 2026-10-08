@@ -140,3 +140,30 @@ circuit-history shortcuts from running. Committing a component name restores
 keyboard focus on Enter release so the next Ctrl+Z can undo that commit immediately.
 History recording uses the same Input result handler for keyboard, gesture,
 palette and naming edits; each tab retains its own bounded history.
+
+## Messages panel
+
+The bottom Messages tab is available in both workspaces and subcircuit editors.
+It shows **current circuit problems**, replacing the earlier accumulated error
+history. If none remain, it displays `Circuit is fine.` The latest failed action
+is listed separately with its local `[HH:MM:SS]` timestamp; another action replaces
+it, and a successful edit/file operation dismisses it. There is no manual Clear
+button; simulation problems disappear when their conditions are repaired. The Subcircuit tab still owns interface readiness
+and vital-component names, and remains hidden in workspaces.
+
+Simulation issues persist while their condition exists and disappear on repair,
+without keeping old errors or recovery messages. These are view-local UI state,
+excluded from circuit saving and undo history. New problems mark an unopened tab
+with `*`; ongoing pause/short/backlog status also appears in the navigation bar.
+Feedback itself is valid. Only non-convergence, rejected wiring, multiple drivers
+on one net or sustained processing backlog appear as circuit problems. Backlog
+requires more than 100 ms of pending time for one second of active processing.
+
+Located errors end with a clickable `FIND`. It centers CanvasCamera on a
+conflicting output pin, rejected connection or component with remaining simulation
+activity, preserving zoom, scene data, selection and history. Pending activity is
+not a proof of the original cause; nested failure points to the enclosing custom
+component. Global backlog has no guessed gate location. Links are disabled while
+an edited circuit awaits evaluation; removed/repaired errors lose their links.
+Wrapping, mouse-wheel scrolling and FIND hit testing share the same row geometry
+and canvas/DPI transforms. F3 remains an explicitly opened debug overlay.

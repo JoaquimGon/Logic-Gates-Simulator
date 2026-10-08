@@ -76,13 +76,20 @@ void cyclicPropagation()
     const int clock = circuit.addClock();
     require(circuit.connectComponents(oscillator, 0, oscillator, 0), "Self-feedback was rejected.");
     require(
-        circuit.propagate() == SimulationResult::NON_CONVERGENT && !circuit.isStateDirty() &&
+        circuit.propagate() == SimulationResult::NON_CONVERGENT &&
+            circuit.unsettledComponent() == oscillator && !circuit.isStateDirty() &&
             !circuit.updateClocks(0.5f) && !circuit.getComponent(clock)->getStateOutPin(),
         "Oscillation did not stop automatic simulation within its bound."
     );
+    const Circuit failedCopy = circuit;
+    require(
+        failedCopy.unsettledComponent() == oscillator,
+        "Circuit copy lost the pending-activity diagnostic."
+    );
     circuit.disconnectComponents(oscillator, 0, oscillator, 0);
     require(
-        circuit.propagate() == SimulationResult::OK && circuit.updateClocks(0.5f),
+        circuit.propagate() == SimulationResult::OK && circuit.unsettledComponent() == -1 &&
+            circuit.updateClocks(0.5f),
         "Feedback repair did not restore clocks and propagation."
     );
 

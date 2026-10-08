@@ -181,7 +181,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     renderer.setScreenClip(m_bottom);
     renderer.drawScreenRect(m_bottom, {0.075f, 0.09f, 0.12f, 1});
     renderer.drawScreenRect({m_bottom.x, m_bottom.y, m_bottom.width, 1}, {0.18f, 0.23f, 0.3f, 1});
-    for (const auto tab : {BottomTab::Subcircuit, BottomTab::Second})
+    for (const auto tab : {BottomTab::Subcircuit, BottomTab::Messages})
     {
         if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
             continue;
@@ -194,7 +194,15 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             renderer.drawScreenRect(
                 {bounds.x, bounds.y + bounds.height - 2, bounds.width, 2}, {0.3f, 0.65f, 0.95f, 1}
             );
-        label(tab == BottomTab::Subcircuit ? "Subcircuit" : "Tab 2", bounds, 0.42f, ink, true);
+        label(
+            tab == BottomTab::Subcircuit ? "Subcircuit"
+            : hasUnreadMessages()        ? "Messages *"
+                                         : "Messages",
+            bounds,
+            0.42f,
+            ink,
+            true
+        );
     }
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
@@ -223,6 +231,59 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         );
         for (int row = 0; row < rows && row + offset + 3 < static_cast<int>(info.size()); ++row)
             label(info[row + offset + 3], {list.x, list.y + row * 22, list.width, 22}, 0.4f, ink);
+        renderer.drawText(text, TextSpace::Screen);
+        text.clear();
+    }
+    if (m_bottomTab == BottomTab::Messages)
+    {
+        label(
+            "Current circuit problems",
+            {m_bottom.x + 8, m_bottom.y + 38, std::max(0.0, m_bottom.width - 16), 20},
+            0.32f,
+            {0.55f, 0.65f, 0.76f, 1}
+        );
+        renderer.drawText(text, TextSpace::Screen);
+        text.clear();
+        const auto box = messageBoxBounds();
+        renderer.drawScreenRect(box, {0.045f, 0.06f, 0.08f, 1});
+        renderer.setScreenClip(box);
+        const auto lines = messageRows(&renderer.fontMetrics());
+        const int rows = static_cast<int>(box.height / 20);
+        const int offset = std::clamp(
+            messageState().scroll, 0, std::max(0, static_cast<int>(lines.size()) - rows)
+        );
+        if (lines.empty())
+            label("Circuit is fine.", {box.x, box.y, box.width, 20}, 0.4f, {0.4f, 0.85f, 0.6f, 1});
+        for (int row = 0; row < rows && row + offset < static_cast<int>(lines.size()); ++row)
+        {
+            const auto& line = lines[row + offset];
+            const auto color = line.kind == MessageKind::Error ? glm::vec4{1, 0.55f, 0.4f, 1}
+                               : line.kind == MessageKind::Warning
+                                   ? glm::vec4{0.9f, 0.72f, 0.38f, 1}
+                                   : ink;
+            const bool find = line.issue && simulationIssues()[*line.issue].location;
+            label(
+                line.text,
+                {box.x, box.y + row * 20, box.width - (find ? 60 : 0), 20},
+                0.4f,
+                line.text == "Circuit is fine." ? glm::vec4{0.4f, 0.85f, 0.6f, 1} : color
+            );
+            if (find)
+            {
+                const auto target = findMessageBounds(*line.issue);
+                text.push_back(
+                    {"FIND",
+                     {static_cast<float>(target.x),
+                      static_cast<float>(target.y + target.height / 2) +
+                          getCapHeight(0.35f, renderer.fontMetrics()) / 2},
+                     0.35f,
+                     {0.4f, 0.75f, 1, 1}}
+                );
+                renderer.drawScreenRect(
+                    {target.x, target.y + target.height - 2, target.width, 1}, {0.4f, 0.75f, 1, 1}
+                );
+            }
+        }
         renderer.drawText(text, TextSpace::Screen);
         text.clear();
     }
@@ -397,12 +458,22 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             0.35f,
             {0.9f, 0.72f, 0.38f, 1}
         );
-    if (!m_fileStatus.empty())
+    const auto& log = messageState();
+    const std::string status = log.simulationResult != SimulationResult::OK
+                                   ? "Simulation paused - see Messages"
+                               : log.shortedNets > 0 ? "Short circuit - see Messages"
+                               : log.behind          ? "Simulation behind real time - see Messages"
+                                                     : log.fileStatus;
+    if (!status.empty())
         label(
-            m_fileStatus,
+            status,
             {76, 0, std::max(0.0, m_bar.width - unsavedWidth - 80), m_bar.height},
             0.35f,
-            m_fileError ? glm::vec4{1, 0.55f, 0.4f, 1} : glm::vec4{0.55f, 0.75f, 0.9f, 1}
+            log.simulationResult != SimulationResult::OK || log.shortedNets > 0 ||
+                    (!log.behind && log.fileError)
+                ? glm::vec4{1, 0.55f, 0.4f, 1}
+            : log.behind ? glm::vec4{0.9f, 0.72f, 0.38f, 1}
+                         : glm::vec4{0.55f, 0.75f, 0.9f, 1}
         );
     renderer.drawText(text, TextSpace::Screen);
     text.clear();

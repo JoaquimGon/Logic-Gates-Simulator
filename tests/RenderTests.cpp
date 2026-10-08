@@ -1409,16 +1409,44 @@ void circuitViewsPresentation(Renderer& renderer)
         mainColor[2] > mainColor[0] + 50, "Active Main circuit tab did not draw above the canvas."
     );
     const auto bottom = ui.bottomBounds();
-    const auto firstBottomTab = ui.bottomTabBounds(UI::BottomTab::Second);
+    const auto firstBottomTab = ui.bottomTabBounds(UI::BottomTab::Messages);
     require(
         bottom.x == mainFrame.viewport.x &&
             bottom.y == mainFrame.viewport.y + mainFrame.viewport.height &&
             screenPixel(firstBottomTab.x + 3, firstBottomTab.y + 3)[2] > 100,
         "Bottom panel was not reserved beneath the canvas or its active tab was not drawn."
     );
-    click(ui.bottomTabBounds(UI::BottomTab::Second), GLFW_MOUSE_BUTTON_LEFT);
+    click(ui.bottomTabBounds(UI::BottomTab::Messages), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     saveImage("bottom-panel.ppm");
+    ui.setFileStatus("Cannot open circuit: the file is not valid JSON.", true);
+    ui.addMessage("No safe wire route; choose a clear endpoint.");
+    draw();
+    const auto messageBox = ui.messageBoxBounds();
+    const auto messageBackground = screenPixel(messageBox.x + 2, messageBox.y + 2);
+    std::vector<unsigned char> messagePixels(extent * extent * 4);
+    glReadPixels(0, 0, extent, extent, GL_RGBA, GL_UNSIGNED_BYTE, messagePixels.data());
+    auto messageInk = [&](CanvasViewport area, bool error)
+    {
+        int count = 0;
+        for (int y = static_cast<int>(area.y); y < area.y + area.height; ++y)
+            for (int x = static_cast<int>(area.x); x < area.x + area.width; ++x)
+            {
+                const int px = static_cast<int>(x * extent / surface.windowWidth);
+                const int py = extent - 1 - static_cast<int>(y * extent / surface.windowHeight);
+                const auto* color = messagePixels.data() + (py * extent + px) * 4;
+                if (error ? color[0] > 150 && color[0] > color[1] + 40 && color[1] > color[2] + 15
+                          : color[0] > 180 && color[1] > 180 && color[2] > 180)
+                    ++count;
+            }
+        return count;
+    };
+    require(
+        messageBackground[2] < 30 && messageInk(messageBox, true) > 30 &&
+            screenPixel(bottom.x + bottom.width - 12, bottom.y + 12)[2] < 40,
+        "Workspace Messages did not draw its errors or retained the removed Clear button."
+    );
+    saveImage("messages-workspace.ppm");
     const auto selectionMode = ui.modeButtonBounds(EditorMode::Selection);
     const auto interactionMode = ui.modeButtonBounds(EditorMode::Interaction);
     require(
@@ -1530,7 +1558,12 @@ void circuitViewsPresentation(Renderer& renderer)
         "Subcircuit list scrolling changed the circuit or camera."
     );
     saveImage("subcircuit-panel-scrolled.ppm");
-    click(ui.bottomTabBounds(UI::BottomTab::Second), GLFW_MOUSE_BUTTON_LEFT);
+    ui.addMessage("Cannot publish draft: name every input and output before saving.");
+    require(
+        ui.hasUnreadMessages() && ui.activeBottomTab() == UI::BottomTab::Subcircuit,
+        "Subcircuit error opened Messages instead of marking its tab."
+    );
+    click(ui.bottomTabBounds(UI::BottomTab::Messages), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     const auto add = ui.circuitTabs().addBounds();
     const auto addFill = screenPixel(add.x + 3, add.y + 3);
@@ -1538,6 +1571,57 @@ void circuitViewsPresentation(Renderer& renderer)
         add.width == add.height && addFill[2] > 45 && addFill[0] < 40,
         "Trailing plus square did not draw separately from the circuit tabs."
     );
+    require(
+        ui.messages().size() == 1 && !ui.hasUnreadMessages(),
+        "Subcircuit Messages inherited workspace errors or retained its unread mark."
+    );
+    saveImage("messages-subcircuit.ppm");
+    ui.clearMessages();
+    const int unsettled = views.activeScene().addComponent(BuiltinComponentIds::Not, {-20, 10});
+    const auto loop = EditorActions(views.activeScene())
+                          .apply({AddWire{{{-19, 10}, {-19, 14}, {-22, 14}, {-22, 10}}}});
+    require(static_cast<bool>(loop), "FIND presentation fixture failed.");
+    views.activeScene().propagate();
+    ui.reportSimulation(views.activeScene(), 0);
+    draw();
+    const auto find = ui.findMessageBounds(0);
+    require(
+        find.width > 0 && ui.simulationIssues()[0].location == GridCoords{-20, 10},
+        "Active simulation problem did not present its location and FIND link."
+    );
+    const double errorEnd =
+        ui.messageBoxBounds().x + 10 +
+        getTextWidth(ui.simulationIssues()[0].message, 0.4f, renderer.fontMetrics());
+    const double spacing = getTextWidth(" ", 0.4f, renderer.fontMetrics());
+    const auto underline = screenPixel(find.x + find.width / 2, find.y + find.height - 2);
+    require(
+        std::abs(find.x - errorEnd - spacing) < 0.01 && underline[2] > underline[0] + 50,
+        "FIND was not drawn and clickable immediately after the error text."
+    );
+    saveImage("messages-find.ppm");
+    click(find, GLFW_MOUSE_BUTTON_LEFT);
+    require(
+        input.getPanOffset() == GridSystem::gridToWorld({-20, 10}),
+        "Rendered FIND did not center its error location."
+    );
+    draw();
+    saveImage("messages-found.ppm");
+    const auto originalSurface = surface;
+    surface = {512, 512, extent, extent};
+    draw();
+    require(ui.findMessageBounds(0).width > 0, "Narrow 2x layout lost its FIND link.");
+    saveImage("messages-find-2x.ppm");
+    surface = originalSurface;
+    views.activeScene().removeComponent(unsettled);
+    views.activeScene().propagate();
+    ui.reportSimulation(views.activeScene(), 1);
+    input.setPanOffset({0, 0});
+    draw();
+    require(
+        ui.simulationIssues().empty() && ui.messages().empty(),
+        "Repaired circuit kept an old error instead of the healthy status."
+    );
+    saveImage("messages-healthy.ppm");
     saveImage("circuit-tabs.ppm");
     views.rename(1, "A long circuit name that should be shortened in the tab");
     layout();
@@ -1556,12 +1640,17 @@ void circuitViewsPresentation(Renderer& renderer)
     surface = {512, 512, extent, extent};
     layout();
     draw();
-    const auto dpiBottomTab = ui.bottomTabBounds(UI::BottomTab::Second);
+    const auto dpiBottomTab = ui.bottomTabBounds(UI::BottomTab::Messages);
     require(
         screenPixel(dpiBottomTab.x + 3, dpiBottomTab.y + 3)[2] > 100,
         "Bottom panel tab did not follow 2x display scaling."
     );
     saveImage("bottom-panel-2x.ppm");
+    require(
+        dpiBottomTab.x + dpiBottomTab.width <= ui.bottomBounds().x + ui.bottomBounds().width - 8,
+        "Messages tab overflowed the narrow 2x layout."
+    );
+    saveImage("messages-subcircuit-2x.ppm");
     click(ui.modeButtonBounds(EditorMode::Interaction), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     const auto tooltip = ui.modeTooltipBounds();

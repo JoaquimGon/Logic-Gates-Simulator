@@ -155,6 +155,8 @@ void Engine::run()
         }
     );
 
+    input.setEditErrorHandler([&](const std::string& message) { m_ui.addMessage(message); });
+
     auto titleForMode = [&]()
     { return m_windowName + " - " + editorModeName(input.getMode()) + " mode (F2 to switch)"; };
     glfwSetWindowTitle(window, titleForMode().c_str());
@@ -236,37 +238,20 @@ void Engine::run()
 
         if (clockEdgeFlipped || pendingSimulation || scene.isSimulationDirty())
         {
-            SimulationResult simulationResult =
-                scene.isSimulationDirty() ? scene.propagate() : scene.getLastEvalResult();
+            if (scene.isSimulationDirty())
+                scene.propagate();
 
             // Debugging
             m_timeSinceLastPropagateMs = 0.0f;
 
 
-            if (simulationResult != m_lastSimulationResult)
-            {
-                m_lastSimulationResult = simulationResult;
-
-                if (simulationResult == SimulationResult::NON_CONVERGENT)
-                {
-                    std::cerr << "[Simulation] Signals did not settle within the safety limit; "
-                                 "simulation is paused. Change an input or repair the circuit.\n";
-                }
-                else if (simulationResult == SimulationResult::CONNECTION_REJECTED)
-                {
-                    std::cerr << "[Simulation] Connection rejected; "
-                                 "simulation is paused until the wiring is repaired.\n";
-                }
-                else
-                {
-                    std::cerr << "[Simulation] Signals settled, simulation resumed.\n";
-                }
-            }
             scene.syncVisuals();
         }
 
         // 4. Render graphics as normal
         m_renderer.beginFrame(input.getCameraFrame(window));
+        m_ui.reportSimulation(scene, currentFrameTime);
+
         const auto components = buildComponentPresentation(scene.getComponentViewMap());
         const auto junctions = scene.getWireIntersections();
         CanvasFrame frame{components, scene.getVisibleWires(), junctions};
@@ -335,7 +320,7 @@ void Engine::run()
         m_ui.draw(m_renderer, scene, input.getCameraFrame(window));
 
         // Diagnostics stay above the canvas, panels and popups.
-        if (m_showDebugOverlay || scene.getLastEvalResult() != SimulationResult::OK)
+        if (m_showDebugOverlay)
         {
             DebugMetrics metrics;
             metrics.fps = m_fps;
@@ -372,6 +357,7 @@ void Engine::run()
     m_ui.cancel(input);
     m_ui.setCircuitViews(nullptr, nullptr);
     input.setUiInputHandler({});
+    input.setEditErrorHandler({});
     input.setScene(nullptr);
     shutdown();
 }

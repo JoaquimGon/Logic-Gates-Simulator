@@ -10,10 +10,21 @@
 #include <cmath>
 #include <utility>
 
-void Input::recordEdit(const EditResult& result)
+void Input::reportEditResult(const EditResult& result)
 {
     m_lastEditError = result.error;
     m_lastEditMessage = result.message;
+    if (m_editErrorHandler)
+        m_editErrorHandler(
+            result.error == EditError::None ? ""
+            : result.message.empty()        ? "Editor action failed."
+                                            : result.message
+        );
+}
+
+void Input::recordEdit(const EditResult& result)
+{
+    reportEditResult(result);
     m_history->record(result);
 }
 
@@ -145,8 +156,7 @@ void Input::handleKey(int key, int action, int mods, int scanCode)
                                   m_pressedKeys.contains(GLFW_KEY_RIGHT_SHIFT);
                 const auto result = redo ? m_history->redo(*m_scene) : m_history->undo(*m_scene);
                 // Restoring history must not record a new user edit or clear the redo stack.
-                m_lastEditError = result.error;
-                m_lastEditMessage = result.message;
+                reportEditResult(result);
             }
         }
         return;

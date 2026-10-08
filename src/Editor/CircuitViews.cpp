@@ -106,6 +106,7 @@ bool CircuitViews::select(std::size_t index, Input& input)
         m_views[m_active].pan = input.getPanOffset();
         m_views[m_active].zoom = input.getZoom();
         m_active = index;
+        m_views[m_active].messages.backlogSince = -1; // Inactive tabs do not advance clocks.
         input.setScene(&activeScene(), m_views[m_active].history.get());
         input.setPanOffset(m_views[m_active].pan);
         input.setZoom(m_views[m_active].zoom);

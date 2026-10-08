@@ -255,11 +255,11 @@ void run(GLFWwindow* window)
     input.handleFocus(false);
     require(!ui.hoveredMode(), "Mode popup survived focus loss.");
     input.handleFocus(true);
-    click(ui.bottomTabBounds(UI::BottomTab::Second));
+    click(ui.bottomTabBounds(UI::BottomTab::Messages));
     const auto bottomZoom = input.getZoom();
     input.handleScroll(window, 0, 1);
     require(
-        ui.activeBottomTab() == UI::BottomTab::Second && main.getRevision() == beforeMenu &&
+        ui.activeBottomTab() == UI::BottomTab::Messages && main.getRevision() == beforeMenu &&
             input.isIdle() && input.getZoom() == bottomZoom,
         "Bottom tab interaction edited or zoomed the circuit."
     );
