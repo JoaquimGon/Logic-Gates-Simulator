@@ -14,7 +14,8 @@ std::vector<ComponentBatch> buildComponentBatches(std::span<const ComponentRende
     std::vector<ComponentBatch> batches;
     for (const auto* instance : ordered)
     {
-        if (batches.empty() || batches.back().shader != instance->shader)
+        if (batches.empty() || batches.back().shader != instance->shader ||
+            batches.back().instances.front().drawRearArc != instance->drawRearArc)
             batches.push_back({instance->shader, {}});
         batches.back().instances.push_back(*instance);
     }

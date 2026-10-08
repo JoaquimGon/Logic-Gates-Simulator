@@ -331,6 +331,8 @@ SavedCircuit circuitFromJson(std::string_view text)
         const auto componentVersion = version(component.at("version"));
         ComponentOverrides options;
         options.layout = readLayout(component.at("layout"));
+        if (component.contains("inverted"))
+            options.inverted = component.at("inverted").get<bool>();
         if (component.contains("input_state"))
             options.inputState = component.at("input_state").get<bool>();
         if (component.contains("clock_frequency"))

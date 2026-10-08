@@ -292,6 +292,7 @@ void Renderer::drawComponents(std::span<const ComponentRenderData> components)
             continue;
         if (!useCanvasShader(*shader))
             continue;
+        shader->setBool("uDrawRearArc", batch.instances.front().drawRearArc);
         m_gateMesh->setInstanceData(packComponentInstances(batch.instances), {2, 2, 4}, 1);
         m_gateMesh->drawInstanced(static_cast<int>(batch.instances.size()));
         ++m_drawCallCount;
@@ -301,32 +302,108 @@ void Renderer::drawComponents(std::span<const ComponentRenderData> components)
 void Renderer::drawPinLeads(std::span<const ComponentRenderData> components)
 {
     auto* shader = acquireShader("wire");
-    if (!shader)
+    if (!shader || !useCanvasShader(*shader))
         return;
     auto& data = m_leadData;
     data.clear();
-    auto vertex = [&](glm::vec2 p)
-    { data.insert(data.end(), {p.x, p.y, 0, 0.75f, 0.85f, 0.95f, 1}); };
+    auto vertex = [&](glm::vec2 p, glm::vec4 color)
+    { data.insert(data.end(), {p.x, p.y, 0, color.r, color.g, color.b, color.a}); };
+    auto segment = [&](glm::vec2 a, glm::vec2 b, float halfWidth, glm::vec4 color)
+    {
+        const auto delta = b - a;
+        const float length = glm::length(delta);
+        if (length < 0.000001f)
+            return;
+        const glm::vec2 normal(-delta.y / length * halfWidth, delta.x / length * halfWidth);
+        vertex(a - normal, color);
+        vertex(b - normal, color);
+        vertex(b + normal, color);
+        vertex(a - normal, color);
+        vertex(b + normal, color);
+        vertex(a + normal, color);
+    };
+    for (const auto& component : components)
+        if (const auto rail = component.inputRail)
+        {
+            const auto& tint = component.body.style.tint;
+            const glm::vec4 color{tint[0], tint[1], tint[2], tint[3]};
+            if (!component.inputArc.empty())
+            {
+                const float width = component.body.style.inverted ? component.body.size.x / 1.5f
+                                                                  : component.body.size.x;
+                const float halfWidth = 0.013f * width;
+                const float outline = 1.5f * std::min(m_currentCamera.viewProjection[1][1], 1.0f) /
+                                      m_currentCamera.pixelsPerWorldUnit;
+                // A continuous ribbon with a one-pixel alpha fringe smooths the curve
+                // without changing the wire shader or overlapping AA edges at every joint.
+                const float fringe = 1.0f / m_currentCamera.pixelsPerWorldUnit;
+                auto normal = [&](std::size_t i)
+                {
+                    const auto previous = i == 0 ? 0 : i - 1;
+                    const auto next = std::min(i + 1, component.inputArc.size() - 1);
+                    const auto tangent =
+                        glm::normalize(component.inputArc[next] - component.inputArc[previous]);
+                    return glm::vec2{-tangent.y, tangent.x};
+                };
+                for (bool border : {true, false})
+                {
+                    const auto ink = border ? glm::vec4{0.12f, 0.15f, 0.2f, color.a} : color;
+                    const float radius = halfWidth + (border ? outline : 0);
+                    const float inner = std::max(0.0f, radius - fringe * 0.5f);
+                    const float outer = radius + fringe * 0.5f;
+                    for (std::size_t i = 1; i < component.inputArc.size(); ++i)
+                    {
+                        const auto a = component.inputArc[i - 1], b = component.inputArc[i];
+                        const auto na = normal(i - 1), nb = normal(i);
+                        auto band = [&](float left, float right, float leftAlpha, float rightAlpha)
+                        {
+                            auto lo = ink, hi = ink;
+                            lo.a *= leftAlpha;
+                            hi.a *= rightAlpha;
+                            vertex(a + na * left, lo);
+                            vertex(b + nb * left, lo);
+                            vertex(b + nb * right, hi);
+                            vertex(a + na * left, lo);
+                            vertex(b + nb * right, hi);
+                            vertex(a + na * right, hi);
+                        };
+                        band(-outer, -inner, 0, 1);
+                        band(-inner, inner, 1, 1);
+                        band(inner, outer, 1, 0);
+                    }
+                }
+            }
+            else if (component.body.style.contour == BodyContour::Or)
+            {
+                // Only extend past the upper/lower back corners; keep the concave middle open.
+                const float corner = 0.38f * component.body.size.y;
+                segment(
+                    {rail->centerX(), rail->bottom},
+                    {rail->centerX(), component.body.position.y - corner},
+                    rail->width() / 2,
+                    color
+                );
+                segment(
+                    {rail->centerX(), component.body.position.y + corner},
+                    {rail->centerX(), rail->top},
+                    rail->width() / 2,
+                    color
+                );
+            }
+            else
+                segment(
+                    {rail->centerX(), rail->bottom},
+                    {rail->centerX(), rail->top},
+                    rail->width() / 2,
+                    color
+                );
+        }
+    // White terminals go over the extensions; inner XOR rows continue to the solid body.
     for (const auto& component : components)
         for (const auto& pin : component.pins)
             for (std::size_t i = 1; i < pin.lead.size(); ++i)
-            {
-                const auto a = pin.lead[i - 1], b = pin.lead[i];
-                const auto delta = b - a;
-                const float length = glm::length(delta);
-                if (length < 0.000001f)
-                    continue;
-                const glm::vec2 normal(-delta.y / length * 0.002f, delta.x / length * 0.002f);
-                vertex(a - normal);
-                vertex(b - normal);
-                vertex(b + normal);
-                vertex(a - normal);
-                vertex(b + normal);
-                vertex(a + normal);
-            }
+                segment(pin.lead[i - 1], pin.lead[i], 0.002f, {0.75f, 0.85f, 0.95f, 1});
     if (data.empty())
-        return;
-    if (!useCanvasShader(*shader))
         return;
     m_leadMesh->updateData(data, 7);
     m_leadMesh->draw();
@@ -542,6 +619,7 @@ void Renderer::drawScreenComponent(const ComponentBodyInstance& body)
         )
     );
     shader->setFloat("uOutlineScale", 1.0f);
+    shader->setBool("uDrawRearArc", true);
     auto instance = body;
     instance.size.y = -instance.size.y; // Preserve the shader's upward local Y in screen space.
     m_gateMesh->setInstanceData(packComponentInstances({&instance, 1}), {2, 2, 4}, 1);

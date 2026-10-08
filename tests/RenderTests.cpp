@@ -160,6 +160,9 @@ void nativeContacts(Renderer& renderer, const CanvasCameraFrame& camera)
             renderer.drawComponents(one);
             for (const auto& pin : body.pins)
             {
+                if (body.inputRail && pin.direction == PinType::INPUT &&
+                    std::abs(pin.position.y) > 0.38f * body.body.size.y)
+                    continue; // Outer rows contact the extension, tested separately below.
                 const auto contact = pin.lead.front();
                 // A small interior offset tolerates rasterization/AA while exposing CPU/GLSL drift.
                 const auto probe = contact * 0.99f;
@@ -219,10 +222,150 @@ void editedGate(Renderer& renderer, const CanvasCameraFrame& camera)
     );
     for (const auto& pin : inverted.pins)
     {
+        if (inverted.inputRail && pin.direction == PinType::INPUT &&
+            std::abs(pin.position.y) > 0.38f * inverted.body.size.y)
+            continue;
         const auto contact = pixel(pin.lead.front() * 0.99f);
         require(contact[2] > 25, "Edited inversion lead misses the rendered body.");
     }
     saveImage("edited-gate-inverted.ppm");
+}
+
+void inputRailPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    auto bodyPixels = [&]
+    {
+        std::vector<unsigned char> image(256 * 256 * 4);
+        glReadPixels(
+            extent / 2 - 128, extent / 2 - 128, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, image.data()
+        );
+        return image;
+    };
+    for (const auto type : {AND, NAND, OR, NOR, XOR, NXOR})
+    {
+        Scene scene;
+        const int id = scene.addComponent(builtinDefinitionId(type), {0, 0});
+        EditorActions actions(scene);
+        auto original = buildComponentPresentation(scene.getComponentViewMap());
+        original.front().body.drawRearArc = false;
+        renderer.beginFrame(camera);
+        renderer.drawComponents(original);
+        const auto before = bodyPixels();
+        require(
+            static_cast<bool>(
+                actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 8}})
+            ),
+            "Cannot create input rail rendering fixture."
+        );
+        const auto expanded = buildComponentPresentation(scene.getComponentViewMap());
+        renderer.beginFrame(camera);
+        renderer.drawComponents(expanded);
+        require(bodyPixels() == before, "Changing input count stretched/deformed the gate body.");
+        renderer.beginFrame(camera);
+        renderer.drawPinLeads(expanded);
+        renderer.drawComponents(expanded);
+        renderer.drawPins(expanded);
+        const auto point =
+            expanded.front().inputArc.empty()
+                ? glm::vec2{expanded.front().inputRail->centerX(), 0.175f}
+                : (expanded.front().inputArc[59] + expanded.front().inputArc[60]) * 0.5f;
+        if (!expanded.front().inputArc.empty())
+        {
+            const auto center = expanded.front().inputArc[32];
+            const float pixelWidth = 1.0f / camera.pixelsPerWorldUnit;
+            int smoothPixels = 0;
+            for (int offset = -5; offset <= 5; ++offset)
+            {
+                const auto edge = pixel(center + glm::vec2{offset * pixelWidth, 0});
+                smoothPixels += edge[0] > 40 && edge[0] < 160 && edge[2] > 65 && edge[2] < 210;
+            }
+            require(
+                smoothPixels > 0, "Extended XOR arc has hard pixel edges without antialiasing."
+            );
+        }
+        const auto rail = pixel(point);
+        const auto tint = expanded.front().body.style.tint;
+        require(
+            std::abs(rail[0] - tint[0] * 255) < 2 && std::abs(rail[2] - tint[2] * 255) < 2,
+            "Input rail was missing or used electrical wire coloring."
+        );
+        const auto name = std::string("input-rail-") +
+                          (type == AND    ? "and"
+                           : type == NAND ? "nand"
+                           : type == OR   ? "or"
+                           : type == NOR  ? "nor"
+                           : type == XOR  ? "xor"
+                                          : "nxor") +
+                          ".ppm";
+        saveImage(name.c_str());
+        require(
+            static_cast<bool>(
+                actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 2}})
+            ),
+            "Cannot shrink rail fixture."
+        );
+        const auto shrunk = buildComponentPresentation(scene.getComponentViewMap());
+        renderer.beginFrame(camera);
+        renderer.drawPinLeads(shrunk);
+        renderer.drawComponents(shrunk);
+        renderer.drawPins(shrunk);
+        require(pixel(point)[2] < 25, "Removed input rail remained in the reused lead buffer.");
+    }
+}
+
+void inversionProportions(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    auto image = [&]
+    {
+        std::vector<unsigned char> pixels(256 * 256 * 4);
+        glReadPixels(
+            extent / 2 - 128, extent / 2 - 128, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data()
+        );
+        return pixels;
+    };
+    for (auto type : {AND, NAND, OR, NOR, XOR, NXOR})
+    {
+        Scene scene;
+        const int id = scene.addComponent(builtinDefinitionId(type), {0, 0});
+        for (int pass = 0; pass < 2; ++pass)
+        {
+            const auto* gate = static_cast<const Gate*>(scene.getLogicComponent(id));
+            const bool inverted = !gate->isInverted();
+            const auto target = Gate::typeWithInversion(gate->getType(), inverted);
+            require(
+                static_cast<bool>(EditorActions(scene).apply(
+                    {ConfigureComponentProperties{.componentId = id, .inverted = inverted}}
+                )),
+                "Cannot switch native gate inversion."
+            );
+            const auto data = buildComponentPresentation(scene.getComponentViewMap());
+            renderer.beginFrame(camera);
+            renderer.drawComponents(data);
+            const auto changed = image();
+            Scene canonical;
+            const int reference = canonical.addComponent(builtinDefinitionId(target), {0, 0});
+            renderer.beginFrame(camera);
+            renderer.drawComponents(buildComponentPresentation(canonical.getComponentViewMap()));
+            require(
+                changed == image(),
+                "Inversion warped the body/bubble compared with spawning the target gate."
+            );
+            const auto* actual = scene.getCommittedComponentView(id);
+            const auto* expected = canonical.getCommittedComponentView(reference);
+            require(
+                actual->getOutputPins()[0].relative_pos ==
+                    expected->getOutputPins()[0].relative_pos,
+                "Inversion left the output pin at the wrong side of the bubble."
+            );
+            renderer.beginFrame(camera);
+            renderer.drawPinLeads(data);
+            renderer.drawComponents(data);
+            renderer.drawPins(data);
+            const auto name = std::string("gate-switch-") + builtinDefinitionId(type) +
+                              (pass ? "-back.ppm" : "-paired.ppm");
+            saveImage(name.c_str());
+        }
+    }
 }
 
 void preview(Renderer& renderer, const CanvasCameraFrame& camera)
@@ -816,6 +959,114 @@ void componentInformationPresentation(Renderer& renderer)
         "Popup omitted its text or produced an OpenGL error."
     );
     saveImage("component-information.ppm");
+}
+
+void gateSettingsPresentation(Renderer& renderer)
+{
+    Scene scene;
+    Input input;
+    input.setScene(&scene);
+    UI ui;
+    const int id = scene.addComponent(BuiltinComponentIds::And, {-5, 0});
+    for (int scale : {1, 2})
+    {
+        const CanvasSurface surface{extent / scale, extent / scale, extent, extent};
+        ui.layout(scene.getComponentCatalog(), surface, input);
+        CanvasCamera camera;
+        camera.setViewport(input.getCanvasViewport());
+        const auto frame = camera.frame(surface);
+        const auto point = *frame.worldToWindow(GridSystem::gridToWorld({-5, 0}));
+        auto event = [&](int button, int action, double x, double y)
+        {
+            return ui.handleInput(
+                {UiInputKind::MouseButton, button, action, 0, 0, x, y}, scene, input, frame
+            );
+        };
+        event(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, point.x, point.y);
+        event(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, point.x, point.y);
+        require(ui.infoComponentId() == id, "Gate settings rendering fixture did not open.");
+        auto click = [&](CanvasViewport bounds)
+        {
+            event(
+                GLFW_MOUSE_BUTTON_LEFT,
+                GLFW_PRESS,
+                bounds.x + bounds.width / 2,
+                bounds.y + bounds.height / 2
+            );
+            event(
+                GLFW_MOUSE_BUTTON_LEFT,
+                GLFW_RELEASE,
+                bounds.x + bounds.width / 2,
+                bounds.y + bounds.height / 2
+            );
+        };
+        auto draw = [&](bool popup = true)
+        {
+            scene.propagate();
+            scene.syncVisuals();
+            const auto components = buildComponentPresentation(scene.getComponentViewMap());
+            const auto junctions = scene.getWireIntersections();
+            renderer.beginFrame(frame);
+            renderer.drawCanvas({components, scene.getWires(), junctions});
+            if (popup)
+                ui.draw(renderer, scene, frame);
+        };
+        auto screenPixel = [&](CanvasViewport bounds)
+        {
+            std::array<unsigned char, 4> value{};
+            glReadPixels(
+                static_cast<int>((bounds.x + 3) * scale),
+                extent - 1 - static_cast<int>((bounds.y + 3) * scale),
+                1,
+                1,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                value.data()
+            );
+            return value;
+        };
+        draw();
+        const auto plus = ui.gateInputButtonBounds(scene, true);
+        const auto active = screenPixel(plus);
+        require(active[2] > 65, "Gate input settings button did not render.");
+        click(plus);
+        click(ui.gateInversionBounds(scene));
+        draw(false);
+        const auto* gate = static_cast<const Gate*>(scene.getLogicComponent(id));
+        require(
+            gate->getInputPinCount() == 3 && gate->isInverted() &&
+                ui.componentInfo(scene).front() == "NAND",
+            "Rendered gate controls did not update the logic/type."
+        );
+        for (const auto& pin : scene.getCommittedComponentView(id)->getInputPins())
+        {
+            const auto value = cameraPixel(
+                frame, scene.getCommittedComponentView(id)->getAbsolutePinWorldPos(pin)
+            );
+            require(
+                value[0] > 200 || value[2] > 200,
+                "Resized gate input pin did not render at its new anchor."
+            );
+        }
+        draw();
+        saveImage(scale == 1 ? "gate-settings.ppm" : "gate-settings-2x.ppm");
+        input.setMode(EditorMode::Interaction);
+        ui.layout(scene.getComponentCatalog(), surface, input);
+        draw();
+        const auto disabled = screenPixel(ui.gateInputButtonBounds(scene, true));
+        require(disabled[2] < active[2] - 10, "Interaction settings did not look disabled.");
+        saveImage(scale == 1 ? "gate-settings-readonly.ppm" : "gate-settings-readonly-2x.ppm");
+        input.setMode(EditorMode::Selection);
+        ui.layout(scene.getComponentCatalog(), surface, input);
+        click(ui.gateInversionBounds(scene));
+        click(ui.gateInputButtonBounds(scene, false));
+        require(
+            scene.getLogicComponent(id)->getInputPinCount() == 2, "Rendered shrink control failed."
+        );
+        ui.dismissPopups(input);
+    }
+    require(glGetError() == GL_NO_ERROR, "Gate settings drawing caused an OpenGL error.");
+    input.setScene(nullptr);
 }
 
 void canvasViewport(Renderer& renderer)
@@ -1496,6 +1747,8 @@ int main(int argc, char** argv)
                 mixedInstances(renderer, camera);
                 nativeContacts(renderer, camera);
                 editedGate(renderer, camera);
+                inputRailPresentation(renderer, camera);
+                inversionProportions(renderer, camera);
                 preview(renderer, camera);
                 canvasViewport(renderer);
                 wireMarkers(renderer, camera);
@@ -1504,6 +1757,7 @@ int main(int argc, char** argv)
                 palettePresentation(renderer);
                 outputPresentation(renderer);
                 componentInformationPresentation(renderer);
+                gateSettingsPresentation(renderer);
                 groupSelectionPresentation(renderer, camera);
                 routedWiresPresentation(renderer, camera);
                 circuitViewsPresentation(renderer);

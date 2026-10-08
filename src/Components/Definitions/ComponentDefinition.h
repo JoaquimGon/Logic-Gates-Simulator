@@ -114,6 +114,8 @@ struct ComponentOverrides
     std::optional<float> clockFrequency;
     std::optional<bool> clockPaused;
     std::optional<DefinitionLayout> layout;
+    // Explicit saved geometry already includes the inversion footprint.
+    std::optional<bool> inverted;
 };
 
 struct ResolvedComponent

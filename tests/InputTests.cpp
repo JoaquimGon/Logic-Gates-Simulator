@@ -1453,8 +1453,8 @@ void componentInformation(GLFWwindow* window)
     refresh();
     open(box);
     require(
-        has("Learning gate") && has("Label: MY BLOCK") && has("C: 1 (ON)") && has("A: 0 (OFF)") &&
-            has("Input 2: 0 (OFF)") && has("Result: 1 (ON)"),
+        has("Learning gate") && ui.nameBounds(editor.scene).width > 0 && has("C: 1 (ON)") &&
+            has("A: 0 (OFF)") && has("Input 2: 0 (OFF)") && has("Result: 1 (ON)"),
         "Custom information used vector order as pin identity or lost fallback names."
     );
     const auto bounds = ui.infoBounds(editor.scene);
@@ -1692,6 +1692,208 @@ void componentNaming(GLFWwindow* window)
     editor.input.setUiInputHandler({});
     glfwSetWindowSize(window, 800, 800);
 }
+
+void gateSettings(GLFWwindow* window)
+{
+    glfwSetWindowSize(window, 800, 700);
+    Editor editor(window);
+    UI ui;
+    auto layout = [&]
+    {
+        ui.layout(
+            editor.scene.getComponentCatalog(),
+            editor.input.getCameraFrame(window).surface,
+            editor.input
+        );
+    };
+    layout();
+    editor.input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        {
+            layout();
+            return ui.handleInput(
+                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
+            );
+        }
+    );
+    const int id = editor.scene.addComponent(BuiltinComponentIds::And, {0, 0});
+    auto gate = [&] { return static_cast<Gate*>(editor.scene.getLogicComponent(id)); };
+    auto open = [&](int component)
+    {
+        if (ui.infoComponentId() != -1)
+            editor.key(GLFW_KEY_ESCAPE);
+        editor.cursor(editor.scene.getCommittedComponentView(component)->getGridPosition());
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+        require(ui.infoComponentId() == component, "Settings popup did not open.");
+    };
+    auto click = [&](CanvasViewport bounds)
+    {
+        require(bounds.width > 0, "Expected a visible settings control.");
+        editor.cursorPixels(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        require(editor.input.isIdle(), "Settings click leaked into canvas gestures.");
+    };
+    auto history = [&](int key)
+    {
+        Input::keyCallback(window, key, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+        Input::keyCallback(window, key, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+    };
+    open(id);
+    const auto height = editor.scene.getCommittedComponentView(id)->getSize().y;
+    const auto undo = editor.input.getUndoCount();
+    click(ui.gateInputButtonBounds(editor.scene, false));
+    require(
+        gate()->getInputPinCount() == 2 && editor.input.getUndoCount() == undo,
+        "Minimum count button made a spurious history entry."
+    );
+    click(ui.gateInputButtonBounds(editor.scene, true));
+    require(
+        gate()->getInputPinCount() == 3 && editor.input.getUndoCount() == undo + 1 &&
+            editor.scene.getCommittedComponentView(id)->getSize().y == height &&
+            editor.scene.getCommittedComponentView(id)->getInputPins().size() == 3,
+        "Input-count edit stretched the body or failed to add a rail/history entry."
+    );
+    history(GLFW_KEY_Z);
+    require(gate()->getInputPinCount() == 2, "Immediate popup undo failed.");
+    history(GLFW_KEY_Y);
+    require(gate()->getInputPinCount() == 3, "Popup redo failed.");
+    for (int i = 0; i < 6; ++i)
+        click(ui.gateInputButtonBounds(editor.scene, true));
+    require(gate()->getInputPinCount() == 8, "Gate input count exceeded eight.");
+    const auto maxUndo = editor.input.getUndoCount();
+    click(ui.gateInputButtonBounds(editor.scene, true));
+    require(editor.input.getUndoCount() == maxUndo, "Maximum count added an edit.");
+    for (int i = 0; i < 6; ++i)
+        click(ui.gateInputButtonBounds(editor.scene, false));
+    require(
+        gate()->getInputPinCount() == 2 &&
+            std::abs(editor.scene.getCommittedComponentView(id)->getSize().y - height) < 0.00001f &&
+            !editor.scene.getCommittedComponentView(id)->getInputRail(),
+        "Reducing input count changed gate height."
+    );
+    for (const auto definition :
+         {BuiltinComponentIds::And, BuiltinComponentIds::Or, BuiltinComponentIds::Xor})
+    {
+        const int paired =
+            definition == BuiltinComponentIds::And
+                ? id
+                : editor.scene.addComponent(
+                      definition, {definition == BuiltinComponentIds::Or ? 10 : 20, 0}
+                  );
+        open(paired);
+        click(ui.gateInversionBounds(editor.scene));
+        require(
+            static_cast<Gate*>(editor.scene.getLogicComponent(paired))->isInverted(),
+            "Paired gate inversion did not change logic."
+        );
+        require(
+            ui.componentInfo(editor.scene).front() ==
+                (definition == BuiltinComponentIds::And  ? "NAND"
+                 : definition == BuiltinComponentIds::Or ? "NOR"
+                                                         : "NXOR"),
+            "Popup title retained the uninverted gate type."
+        );
+        click(ui.gateInversionBounds(editor.scene));
+    }
+    open(id);
+    click(ui.nameBounds(editor.scene));
+    for (char c : std::string("Test gate"))
+        Input::charCallback(window, c);
+    editor.key(GLFW_KEY_ENTER);
+    require(
+        editor.scene.getCommittedComponentView(id)->getBodyLabel() == "Test gate",
+        "Gate label did not save."
+    );
+    // Increasing arity moves anchors; existing drivers must follow the same logical pin indices.
+    editor.key(GLFW_KEY_ESCAPE);
+    ComponentOverrides high;
+    high.inputState = true;
+    const int source = editor.scene.addComponent(BuiltinComponentIds::Input, {-12, 1}, high);
+    editor.wire({{-11, 1}, {-2, 1}});
+    editor.scene.propagate();
+    editor.scene.syncVisuals();
+    open(id);
+    click(ui.gateInputButtonBounds(editor.scene, true));
+    require(
+        gate()->getInputPinCount() == 3 && gate()->getInConnections().size() == 1 &&
+            gate()->getStateInPin(0) && editor.scene.getLogicComponent(source)->getStateOutPin(),
+        "Arity growth silently disconnected or reassigned a retained driver."
+    );
+    history(GLFW_KEY_Z);
+    require(
+        gate()->getInputPinCount() == 2 && gate()->getStateInPin(0),
+        "Undo did not restore wired arity."
+    );
+    history(GLFW_KEY_Y);
+    click(ui.gateInputButtonBounds(editor.scene, false));
+    require(
+        gate()->getInputPinCount() == 2 && gate()->getStateInPin(0) &&
+            gate()->getInConnections().size() == 1,
+        "Shrinking disconnected the retained input."
+    );
+    click(ui.gateInputButtonBounds(editor.scene, true));
+    // Connect the last input before trying to remove it.
+    const auto* view = editor.scene.getCommittedComponentView(id);
+    const auto last = view->getAbsolutePinGridPos(view->getInputPins().back());
+    editor.wire({{last.x - 4, last.y}, last});
+    const auto before = editor.scene.getRevision();
+    const auto beforeUndo = editor.input.getUndoCount();
+    click(ui.gateInputButtonBounds(editor.scene, false));
+    require(
+        gate()->getInputPinCount() == 3 && editor.scene.getRevision() == before &&
+            editor.input.getUndoCount() == beforeUndo &&
+            editor.input.getLastEditError() == EditError::AttachedPin,
+        "Wired pin removal partially committed or entered history."
+    );
+    editor.input.setMode(EditorMode::Interaction);
+    layout();
+    open(id);
+    click(ui.gateInputButtonBounds(editor.scene, true));
+    click(ui.gateInversionBounds(editor.scene));
+    click(ui.nameBounds(editor.scene));
+    require(
+        gate()->getInputPinCount() == 3 && !gate()->isInverted() &&
+            !editor.input.getUiCapture().keyboard,
+        "Interaction mode edited gate settings."
+    );
+    editor.input.setMode(EditorMode::Selection);
+    layout();
+    for (const auto definition :
+         {BuiltinComponentIds::Not, BuiltinComponentIds::Clock, BuiltinComponentIds::SrLatch})
+    {
+        const int fixed = editor.scene.addComponent(definition, {0, -12});
+        open(fixed);
+        require(
+            ui.gateInputButtonBounds(editor.scene, true).width == 0 &&
+                ui.gateInversionBounds(editor.scene).width == 0,
+            "Unsupported component exposed mutable gate controls."
+        );
+        require(
+            (ui.gateSettingsBounds(editor.scene).width > 0) ==
+                (definition == BuiltinComponentIds::Not),
+            "Clock/latch gained gate settings or NOT lost fixed settings."
+        );
+        editor.key(GLFW_KEY_ESCAPE);
+        editor.scene.removeComponent(fixed);
+    }
+    // An expanding gate must not overlap a nearby component, and a rejected edit stays atomic.
+    Scene blocked;
+    const int small = blocked.addComponent(BuiltinComponentIds::And, {0, 0});
+    blocked.addComponent(BuiltinComponentIds::Input, {-2, 5});
+    const auto rejected = EditorActions(blocked).apply(
+        {ConfigureComponentProperties{.componentId = small, .inputCount = 8}}
+    );
+    require(
+        rejected.error == EditError::Overlap &&
+            blocked.getLogicComponent(small)->getInputPinCount() == 2,
+        "Input-rail expansion ignored component overlap."
+    );
+    editor.input.setUiInputHandler({});
+    glfwSetWindowSize(window, 800, 800);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -1729,7 +1931,8 @@ int main(int argc, char** argv)
             {"canvas_camera_interaction", canvasCameraInteraction},
             {"component_palette", componentPalette},
             {"component_information", componentInformation},
-            {"component_naming", componentNaming}
+            {"component_naming", componentNaming},
+            {"gate_settings", gateSettings}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)

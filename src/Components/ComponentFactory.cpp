@@ -164,6 +164,24 @@ ComponentLayout ComponentFactory::resizeGateLayout(
     return viewLayout(resolved);
 }
 
+ComponentLayout ComponentFactory::invertedGateLayout(
+    const ComponentCatalog& catalog, const ComponentView& view, bool inverted
+)
+{
+    auto definition = *catalog.find(view.getDefinitionIdentity().id);
+    definition.behavior = Gate::typeWithInversion(
+        std::get<GateType>(definition.behavior), view.getBodyStyle().inverted
+    );
+    definition.presentation.body = view.getBodyStyle();
+    definition.presentation.shader.key = view.getShaderName();
+    definition.layout =
+        *layoutOverrides(
+             {view.getSize(), view.getShaderName(), view.getInputPins(), view.getOutputPins()}
+        )
+             .layout;
+    return viewLayout(resolveDefinition(definition, {.inverted = inverted}));
+}
+
 void ComponentFactory::validatePosition(const ComponentView& view, GridCoords position)
 {
     for (const auto* pins : {&view.getInputPins(), &view.getOutputPins()})

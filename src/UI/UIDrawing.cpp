@@ -1,3 +1,4 @@
+#include "Components/Gate.h"
 #include "Editor/Scene.h"
 #include "Geometry/GridSystem.h"
 #include "Graphics/Renderer.h"
@@ -262,14 +263,16 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         {
             const auto field = nameBounds(scene);
             label(
-                "Name",
+                infoGate(scene) ? "Label" : "Name",
                 {field.x - 10, field.y - 18, field.width + 20, 18},
                 0.35f,
                 {0.55f, 0.65f, 0.76f, 1}
             );
             renderer.drawScreenRect(
                 field,
-                m_nameEditing ? glm::vec4{0.3f, 0.65f, 0.95f, 1} : glm::vec4{0.25f, 0.35f, 0.46f, 1}
+                m_nameEditing  ? glm::vec4{0.3f, 0.65f, 0.95f, 1}
+                : !m_canCreate ? glm::vec4{0.14f, 0.2f, 0.27f, 1}
+                               : glm::vec4{0.25f, 0.35f, 0.46f, 1}
             );
             renderer.drawScreenRect(
                 {field.x + 1, field.y + 1, field.width - 2, field.height - 2},
@@ -280,8 +283,55 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                 m_nameEditing ? m_nameDraft + "|" : (name.empty() ? "(unnamed)" : name),
                 field,
                 0.43f,
-                ink
+                m_canCreate ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1}
             );
+        }
+        const auto* gate = infoGate(scene);
+        if (gate)
+        {
+            const auto settings = gateSettingsBounds(scene);
+            const bool editable = m_canCreate && !m_nameEditing;
+            const auto muted = glm::vec4{0.45f, 0.52f, 0.6f, 1};
+            label("Inputs", {settings.x, settings.y, settings.width - 100, 26}, 0.43f, ink);
+            label(
+                std::to_string(gate->getInputPinCount()) + (canResizeGate(scene) ? "" : " (fixed)"),
+                {settings.x + settings.width - (canResizeGate(scene) ? 64 : 100),
+                 settings.y,
+                 canResizeGate(scene) ? 36.0 : 100.0,
+                 26},
+                0.43f,
+                ink,
+                true
+            );
+            auto button = [&](CanvasViewport rect, const std::string& value, bool enabled)
+            {
+                renderer.drawScreenRect(
+                    rect,
+                    !enabled                                  ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
+                    : rect.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                                              : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+                );
+                label(value, rect, 0.43f, enabled ? ink : muted, true);
+            };
+            if (canResizeGate(scene))
+                for (bool increase : {false, true})
+                    button(
+                        gateInputButtonBounds(scene, increase),
+                        increase ? "+" : "-",
+                        editable &&
+                            (increase ? gate->getInputPinCount() < 8 : gate->getInputPinCount() > 2)
+                    );
+            const std::string inversion =
+                std::string("Inverted: ") + (gate->isInverted() ? "On" : "Off");
+            if (canInvertGate(scene))
+                button(gateInversionBounds(scene), inversion, editable);
+            else
+                label(
+                    inversion + " (fixed)",
+                    {settings.x, settings.y + 30, settings.width, 26},
+                    0.43f,
+                    muted
+                );
         }
         const int rows = infoVisibleRows(scene);
         const int offset =
@@ -290,7 +340,8 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             label(
                 info[row + offset + 1],
                 {bounds.x + 4,
-                 bounds.y + infoHeaderHeight + (named ? infoNameHeight : 0) + row * infoRowHeight,
+                 bounds.y + infoHeaderHeight + (named ? infoNameHeight : 0) +
+                     (gate ? infoGateHeight : 0) + row * infoRowHeight,
                  bounds.width - 8,
                  infoRowHeight},
                 0.43f,
@@ -307,15 +358,17 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             label("Edit subcircuit", edit, 0.4f, ink, true);
         }
         label(
-            !m_nameError.empty()                       ? m_nameError
+            !m_infoError.empty()                       ? m_infoError
             : m_nameEditing                            ? "Enter: save; Esc: cancel"
+            : gate && m_canCreate                      ? "Edit settings; Esc: close"
+            : gate                                     ? "F2: Selection to edit settings"
             : named && m_canCreate                     ? "Click name to edit; Esc: close"
             : named                                    ? "F2: Selection to rename"
             : static_cast<int>(info.size()) - 1 > rows ? "Scroll; Esc / outside to close"
                                                        : "Esc / click outside to close",
             {bounds.x, bounds.y + bounds.height - infoFooterHeight, bounds.width, infoFooterHeight},
             0.33f,
-            {0.55f, 0.65f, 0.76f, 1}
+            m_infoError.empty() ? glm::vec4{0.55f, 0.65f, 0.76f, 1} : glm::vec4{1, 0.55f, 0.4f, 1}
         );
     }
     renderer.drawText(text, TextSpace::Screen);

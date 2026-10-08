@@ -437,7 +437,7 @@ complete packed data makes movement, size/arity/lead changes, routing/topology,
 signal colors, hover colors, and tints update naturally, without a separate
 invalidation/revision system. Camera and shader changes update uniforms; previews
 and overlays continue submitting current values. Component body batching retains
-stable ID order and groups only adjacent equal shaders. UI/shared transient meshes
+stable ID order and groups only adjacent equal shaders with the same rear-arc flag. UI/shared transient meshes
 can still upload between different draws; this is deliberately a limited buffer
 reuse optimization, not a cache of entire scenes or every UI batch.
 
@@ -462,3 +462,65 @@ include reloads, backward timestamps, missing-file recovery, and include cycles.
 Existing native/contact/arity, overlay, preview, signal, and DPI framebuffer tests
 remain in place. All existing generated framebuffer previews match the baseline
 byte for byte; native, NXOR-outline, and palette previews were visually reviewed.
+
+## Logic-gate popup settings
+
+Right-click a logic gate to see its current type, body label, input count,
+inversion, and live pin names/states. In Selection mode, the label field uses
+Enter to commit and Escape to cancel. Minus/plus changes supported input counts
+between 2 and 8; the inversion button switches AND/NAND, OR/NOR, and XOR/NXOR.
+NOT reports its fixed one input and fixed inversion without mutable controls.
+Registered gate definitions expose count/inversion edits only when their existing
+layout/presentation supports them. Clocks and latches gain no gate settings.
+Interaction mode keeps the popup informative and disables editing controls.
+
+Each settings click uses `ConfigureComponentProperties` and records one successful
+change in the active view's existing undo/redo history. Native gate bodies keep
+their existing dimensions as input counts change.
+A thin component-colored vertical rail at the input anchors extends to the outer
+input rows, and the existing stubs bridge it to the unchanged silhouette. The rail
+is derived from aligned, automatically routed pins; authored irregular/explicit
+interfaces retain their own presentation. It participates in picking, selection,
+placement, and routing bounds, but creates no nets or electrical connections.
+Presentation rebuilds leads, rail, and pin markers from the new layout. Existing
+endpoint routing also handles changed
+pin anchors at the same component origin, preserving retained logical drivers.
+Removing a wired input is rejected, as are overlapping bodies or unavailable
+routes. The popup reports the reason; rejected edits leave the scene/history
+unchanged. Existing generic layout operations retain their explicit pin-removal
+policy; only the simple input-count operation opts into this endpoint rerouting.
+
+Headless `gate_settings` covers count limits, native paired types, labels,
+Selection/Interaction behavior, wired growth/shrink and undo/redo, rejected wired
+removal/overlap, and NOT/clock/latch restrictions. Framebuffer checks cover updated
+pins and active/read-only controls at normal and 2x DPI. Previews are
+`gate-settings.ppm`, `gate-settings-2x.ppm`, and their read-only equivalents.
+
+Input-rail checks additionally verify native creation/editing without body stretch,
+rail-aware bounds and movement previews, independent input drivers, and rail
+removal after shrinking. Framebuffer captures compare each of AND/NAND/OR/NOR/
+XOR/NXOR at two and eight inputs: body pixels are identical. The rail is rendered
+in the existing lead pass with the component tint, before the body/pin markers,
+and disappears from reused buffers after shrinking. Previews are `input-rail-*.ppm`.
+
+### Shape-specific extensions and inversion
+
+Paired native inversion changes the quad width by the bubble's 1.5x footprint
+and moves the output anchor one grid cell, rerouting attached output wiring.
+The solid body and bubble match spawning the target native gate in either
+direction. Explicit saved geometry is restored with its inversion during creation,
+so opening a file does not apply the width/anchor adjustment again.
+
+Native input rows use one-cell spacing, keeping two or three inner inputs behind
+the body. Their original input column stays fixed. White terminals only bridge
+actual gaps. AND/NAND extensions sit just inside the flat back edge; OR/NOR
+extensions start beyond the back corners and leave the concave middle open.
+XOR/NXOR extend the rear arc vertically; outer inputs meet the arc, while inner
+inputs connect to the solid body. The shader omits its short arc when the extended
+arc is submitted. Adjacent batches distinguish that flag without reordering bodies.
+
+The extended arc uses a continuous triangle ribbon with a one-framebuffer-pixel
+alpha fringe on both the colored stroke and its outline. This reuses the existing
+lead mesh/shader and avoids hard edges or overlapping feather strips at joints.
+Pixel checks verify intermediate edge coverage and matching spawned/switched
+gate silhouettes; headless checks keep input columns fixed and leads short.

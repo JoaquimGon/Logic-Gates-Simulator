@@ -514,11 +514,15 @@ void componentProperties()
     require(
         gate->getType() == NAND && gate->isInverted() && view->getBodyStyle().inverted &&
             view->getShaderName() == "NANDgate" && view->getBodyLabel() == "My gate" &&
-            view->getSize() == beforeLayout.size &&
-            view->getOutputPins()[0].relative_pos == beforeLayout.outputs[0].relative_pos &&
-            scene.getWireIds() == wireIds && scene.getTopologyBuildCount() == builds &&
+            view->getSize() == glm::vec2(beforeLayout.size.x * 1.5f, beforeLayout.size.y) &&
+            view->getOutputPins()[0].relative_pos ==
+                GridCoords{
+                    beforeLayout.outputs[0].relative_pos.x + 1,
+                    beforeLayout.outputs[0].relative_pos.y
+                } &&
+            scene.getWireIds() == wireIds && scene.getTopologyBuildCount() == builds + 1 &&
             gate->getStateOutPin() && !scene.getLogicComponent(sink)->getStateOutPin(),
-        "Inversion changed placement/connectivity or failed to update logic and appearance."
+        "Inversion failed to preserve body proportions or reroute its output connection."
     );
     require(
         scene.getComponentCatalog()
@@ -587,7 +591,10 @@ void componentProperties()
         scene.getLogicComponent(gateId)->getInputPinCount() == 2 &&
             scene.getCommittedComponentView(gateId)->getBodyLabel().empty() &&
             scene.getCommittedComponentView(gateId)->getOutputPins()[0].relative_pos ==
-                beforeLayout.outputs[0].relative_pos,
+                GridCoords{
+                    beforeLayout.outputs[0].relative_pos.x + 1,
+                    beforeLayout.outputs[0].relative_pos.y
+                },
         "Explicit wire removal did not allow shrink or clear the label."
     );
 

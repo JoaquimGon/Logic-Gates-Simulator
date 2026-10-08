@@ -40,20 +40,22 @@ bool Gate::isValidInputPinCount(GateType type, int inputPinCount)
 
 void Gate::setInverted(bool inverted)
 {
-    switch (m_gateType)
+    m_gateType = typeWithInversion(m_gateType, inverted);
+}
+
+GateType Gate::typeWithInversion(GateType type, bool inverted)
+{
+    switch (type)
     {
     case AND:
     case NAND:
-        m_gateType = inverted ? NAND : AND;
-        break;
+        return inverted ? NAND : AND;
     case OR:
     case NOR:
-        m_gateType = inverted ? NOR : OR;
-        break;
+        return inverted ? NOR : OR;
     case XOR:
     case NXOR:
-        m_gateType = inverted ? NXOR : XOR;
-        break;
+        return inverted ? NXOR : XOR;
     default:
         throw std::invalid_argument("NOT has fixed inversion.");
     }

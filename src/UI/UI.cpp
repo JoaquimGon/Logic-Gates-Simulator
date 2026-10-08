@@ -383,7 +383,7 @@ void UI::cancel(Input& input)
             input.setCanvasFocused(true);
         m_nameEditing = false;
         m_nameDraft.clear();
-        m_nameError.clear();
+        m_infoError.clear();
     }
 }
 
@@ -393,6 +393,7 @@ void UI::closeInfo(Input& input)
         cancel(input);
     m_infoComponent = -1;
     m_infoScroll = 0;
+    m_infoError.clear();
 }
 
 bool UI::canName(const Scene& scene) const
@@ -401,9 +402,65 @@ bool UI::canName(const Scene& scene) const
     const auto* definition =
         view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
     return definition &&
-           (std::holds_alternative<ManualInputBehavior>(definition->behavior) ||
+           (std::holds_alternative<GateType>(definition->behavior) ||
+            std::holds_alternative<ManualInputBehavior>(definition->behavior) ||
             std::holds_alternative<OutputBehavior>(definition->behavior) ||
             (m_showSubcircuit && std::holds_alternative<ClockBehavior>(definition->behavior)));
+}
+
+const Gate* UI::infoGate(const Scene& scene) const
+{
+    return dynamic_cast<const Gate*>(scene.getLogicComponent(m_infoComponent));
+}
+
+bool UI::canResizeGate(const Scene& scene) const
+{
+    const auto* gate = infoGate(scene);
+    const auto* view = scene.getCommittedComponentView(m_infoComponent);
+    const auto* definition =
+        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    return gate && gate->getType() != NOT && definition &&
+           definition->pinLayoutRule == PinLayoutRule::SymmetricGateInputs &&
+           definition->presentation.allowResize;
+}
+
+bool UI::canInvertGate(const Scene& scene) const
+{
+    const auto* gate = infoGate(scene);
+    const auto* view = scene.getCommittedComponentView(m_infoComponent);
+    const auto* definition =
+        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    return gate && gate->getType() != NOT && definition &&
+           definition->presentation.kind == PresentationKind::NativeSdf;
+}
+
+CanvasViewport UI::gateSettingsBounds(const Scene& scene) const
+{
+    if (!infoGate(scene))
+        return {};
+    const auto bounds = infoBounds(scene);
+    return {
+        bounds.x + 10,
+        bounds.y + infoHeaderHeight + infoNameHeight,
+        bounds.width - 20,
+        infoGateHeight
+    };
+}
+
+CanvasViewport UI::gateInputButtonBounds(const Scene& scene, bool increase) const
+{
+    if (!canResizeGate(scene))
+        return {};
+    const auto bounds = gateSettingsBounds(scene);
+    return {bounds.x + bounds.width - (increase ? 28 : 92), bounds.y, 28, 26};
+}
+
+CanvasViewport UI::gateInversionBounds(const Scene& scene) const
+{
+    if (!canInvertGate(scene))
+        return {};
+    const auto bounds = gateSettingsBounds(scene);
+    return {bounds.x, bounds.y + 30, bounds.width, 26};
 }
 
 CanvasViewport UI::nameBounds(const Scene& scene) const
@@ -436,7 +493,11 @@ std::vector<std::string> UI::componentInfo(const Scene& scene) const
     if (!view)
         return {};
     const auto* definition = scene.getComponentCatalog().find(view->getDefinitionIdentity().id);
-    std::vector<std::string> lines{definition ? definition->displayName : "Component"};
+    std::string title = definition ? definition->displayName : "Component";
+    if (const auto* gate = infoGate(scene);
+        gate && definition && definition->identity.id.starts_with("native."))
+        title = scene.getComponentCatalog().find(builtinDefinitionId(gate->getType()))->displayName;
+    std::vector<std::string> lines{title};
     if (!canName(scene) && !view->getBodyLabel().empty() && view->getBodyLabel() != lines.front())
         lines.push_back("Label: " + view->getBodyLabel());
     auto pins = [&](const std::vector<PinUI>& values, const char* heading, const char* fallback)
@@ -466,7 +527,7 @@ CanvasViewport UI::infoBounds(const Scene& scene) const
     const double width = std::min(280.0, std::max(0.0, m_surface.windowWidth - 16.0));
     const double height = std::min(
         infoHeaderHeight + infoFooterHeight + (canName(scene) ? infoNameHeight : 0) +
-            (canEditSubcircuit(scene) ? 28 : 0) +
+            (infoGate(scene) ? infoGateHeight : 0) + (canEditSubcircuit(scene) ? 28 : 0) +
             static_cast<double>(lines.size() - 1) * infoRowHeight,
         std::max(0.0, m_surface.windowHeight - 16.0)
     );
@@ -484,7 +545,8 @@ int UI::infoVisibleRows(const Scene& scene) const
         0,
         static_cast<int>(
             (infoBounds(scene).height - infoHeaderHeight - infoFooterHeight -
-             (canName(scene) ? infoNameHeight : 0) - (canEditSubcircuit(scene) ? 28 : 0)) /
+             (canName(scene) ? infoNameHeight : 0) - (infoGate(scene) ? infoGateHeight : 0) -
+             (canEditSubcircuit(scene) ? 28 : 0)) /
             infoRowHeight
         )
     );
@@ -503,6 +565,14 @@ bool UI::handleInput(
     {
         if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE)
             m_fileMousePressed = m_infoRightPressed = false;
+        return true;
+    }
+    if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
+        event.action == GLFW_RELEASE && m_infoLeftPressed)
+    {
+        m_infoLeftPressed = false;
+        if (!m_nameEditing)
+            input.setCanvasFocused(true);
         return true;
     }
     if (!m_circuitTabs.confirmingDelete() && handleFileMenu(event, input))
@@ -531,7 +601,7 @@ bool UI::handleInput(
         {
             cancel(input);
             closeInfo(input);
-            m_infoRightPressed = m_infoEscapePressed = false;
+            m_infoRightPressed = m_infoLeftPressed = m_infoEscapePressed = false;
         }
         return false;
     }
@@ -567,7 +637,7 @@ bool UI::handleInput(
                     m_nameCommittedKey = event.code;
                 }
                 else
-                    m_nameError = result.message;
+                    m_infoError = result.message;
             }
         }
         return true;
@@ -623,6 +693,34 @@ bool UI::handleInput(
         {
             if (infoBounds(scene).contains(event.x, event.y))
             {
+                if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS)
+                    m_infoLeftPressed = true;
+                if (m_canCreate && !m_nameEditing && event.code == GLFW_MOUSE_BUTTON_LEFT &&
+                    event.action == GLFW_PRESS && infoGate(scene))
+                {
+                    ConfigureComponentProperties edit{.componentId = m_infoComponent};
+                    const auto* gate = infoGate(scene);
+                    for (bool increase : {false, true})
+                        if (gateInputButtonBounds(scene, increase).contains(event.x, event.y) &&
+                            (increase ? gate->getInputPinCount() < 8
+                                      : gate->getInputPinCount() > 2))
+                            edit.inputCount = gate->getInputPinCount() + (increase ? 1 : -1);
+                    if (gateInversionBounds(scene).contains(event.x, event.y))
+                        edit.inverted = !gate->isInverted();
+                    if (edit.inputCount || edit.inverted)
+                    {
+                        const auto result = EditorActions(scene).apply({edit});
+                        input.recordEdit(result);
+                        m_infoError = result ? ""
+                                      : result.error == EditError::AttachedPin
+                                          ? "Disconnect that input before removing it."
+                                      : result.error == EditError::Overlap
+                                          ? "Not enough room to resize the gate."
+                                      : result.error == EditError::InvalidWire
+                                          ? "No safe route; free space around the gate."
+                                          : result.message;
+                    }
+                }
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
                     editSubcircuitBounds(scene).contains(event.x, event.y))
                 {
@@ -637,7 +735,7 @@ bool UI::handleInput(
                     !m_nameEditing)
                 {
                     m_nameDraft = scene.getCommittedComponentView(m_infoComponent)->getBodyLabel();
-                    m_nameError.clear();
+                    m_infoError.clear();
                     m_nameEditing = true;
                     input.setUiCapture({true, false});
                 }

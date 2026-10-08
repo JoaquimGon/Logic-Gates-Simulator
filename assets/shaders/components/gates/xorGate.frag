@@ -4,6 +4,7 @@
 #include "../common/outline.glsl"
 out vec4 FragColor;
 in vec4 instanceTint;
+uniform bool uDrawRearArc = true;
 in vec2 localPos; // Range: -0.5 .. 0.5
 
 void main()
@@ -11,6 +12,13 @@ void main()
     vec2 p = localPos;
 
     float body = sdXorGate(p);
+    if (!uDrawRearArc)
+    {
+        float d = body;
+        float outline = outlineFactor(body);
+        FragColor = vec4(mix(instanceTint.rgb, vec3(0.12, 0.15, 0.20), outline), fillCoverage(d) * instanceTint.a);
+        return;
+    }
     float arcCircle = sdCircle(p, vec2(-1.27, 0.0), 0.860);
     float trailingArc = max(abs(arcCircle) - 0.013, abs(p.y) - 0.38);
     // Use the circle gradient: abs() loses a stable derivative along the arc center.

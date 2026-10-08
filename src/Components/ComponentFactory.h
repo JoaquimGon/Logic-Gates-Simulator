@@ -16,6 +16,9 @@ struct CreatedComponent
 class ComponentFactory
 {
   public:
+    /** Keeps body proportions while adding/removing the native output bubble footprint. */
+    static ComponentLayout
+    invertedGateLayout(const ComponentCatalog& catalog, const ComponentView& view, bool inverted);
     static void validatePosition(const ComponentView& view, GridCoords position);
     /** @brief Validates/resolves metadata before adding matching logic and presentation. */
     static CreatedComponent create(
@@ -34,7 +37,7 @@ class ComponentFactory
         const ComponentCatalog& catalog, const ComponentView& view, const ComponentLayout& layout
     );
     /** @brief Generates changed input rows from current geometry, preserving output anchors,
-     * surviving pin identity/leads and body dimensions (growing height when needed).
+     * surviving pin identity/leads and body dimensions; native rows use one grid cell.
      */
     static ComponentLayout
     resizeGateLayout(const ComponentCatalog& catalog, const ComponentView& view, int inputCount);

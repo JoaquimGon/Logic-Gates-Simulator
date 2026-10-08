@@ -11,11 +11,12 @@
 #include <vector>
 
 class ComponentCatalog;
+class Gate;
 class Input;
 class Renderer;
 class Scene;
 
-/** Small tabbed palette and information popup, with a name field for inputs/outputs. */
+/** Small tabbed palette and information popup, with direct label and logic-gate settings. */
 class UI
 {
   public:
@@ -101,6 +102,9 @@ class UI
     CanvasViewport infoBounds(const Scene& scene) const;
     CanvasViewport nameBounds(const Scene& scene) const;
     CanvasViewport editSubcircuitBounds(const Scene& scene) const;
+    CanvasViewport gateSettingsBounds(const Scene& scene) const;
+    CanvasViewport gateInputButtonBounds(const Scene& scene, bool increase) const;
+    CanvasViewport gateInversionBounds(const Scene& scene) const;
 
   private:
     bool handleFileMenu(const UiInputEvent& event, Input& input);
@@ -109,6 +113,9 @@ class UI
     std::optional<GridCoords> dropPosition(const CanvasCameraFrame& camera) const;
     void closeInfo(Input& input);
     bool canName(const Scene& scene) const;
+    const Gate* infoGate(const Scene& scene) const;
+    bool canResizeGate(const Scene& scene) const;
+    bool canInvertGate(const Scene& scene) const;
     bool canEditSubcircuit(const Scene& scene) const;
     int infoVisibleRows(const Scene& scene) const;
 
@@ -116,6 +123,7 @@ class UI
     static constexpr double infoHeaderHeight = 42;
     static constexpr double infoFooterHeight = 30;
     static constexpr double infoNameHeight = 64;
+    static constexpr double infoGateHeight = 64;
 
     CanvasSurface m_surface{};
     CanvasViewport m_bar{}, m_panel{}, m_list{}, m_bottom{}, m_modes{};
@@ -132,10 +140,10 @@ class UI
     bool m_canCreate = true;
     int m_infoComponent = -1, m_infoScroll = 0;
     glm::dvec2 m_infoAnchor{0};
-    bool m_infoRightPressed = false, m_infoEscapePressed = false;
+    bool m_infoRightPressed = false, m_infoLeftPressed = false, m_infoEscapePressed = false;
     bool m_nameEditing = false;
     int m_nameCommittedKey = -1;
-    std::string m_nameDraft, m_nameError;
+    std::string m_nameDraft, m_infoError;
     CircuitTabs m_circuitTabs;
     bool m_fileMenuOpen = false, m_fileMousePressed = false, m_fileEscapePressed = false;
     std::optional<FileCommand> m_fileCommand;

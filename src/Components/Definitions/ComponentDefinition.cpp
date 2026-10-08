@@ -218,7 +218,11 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
                                                          : "In " + std::to_string(index),
                 PinType::INPUT,
                 static_cast<unsigned int>(index),
-                {x, inputCount - 1 - 2 * index},
+                {x,
+                 definition.presentation.kind == PresentationKind::NativeSdf
+                     ? inputCount / 2 - index -
+                           (inputCount % 2 == 0 && index >= inputCount / 2 ? 1 : 0)
+                     : inputCount - 1 - 2 * index},
                 {}
             };
             if (original != definition.layout.pins.end())
@@ -238,8 +242,10 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
                 }
             result.layout.pins.push_back(std::move(generated));
         }
-        result.layout.height =
-            std::max(result.layout.height, 2 * GridMetrics::Spacing * inputCount);
+        // Native gates retain their silhouette; extra input rows use a visual input rail.
+        if (definition.presentation.kind != PresentationKind::NativeSdf)
+            result.layout.height =
+                std::max(result.layout.height, 2 * GridMetrics::Spacing * inputCount);
     }
     if (!definition.presentation.allowResize && (result.layout.width != definition.layout.width ||
                                                  result.layout.height != definition.layout.height))
@@ -276,6 +282,43 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
             pin.label = expected->label;
         }
         result.layout = std::move(layout);
+    }
+    if (overrides.inverted)
+    {
+        if (!isGate || std::get<GateType>(result.behavior) == NOT ||
+            result.presentation.kind != PresentationKind::NativeSdf)
+            throw std::invalid_argument("Inversion requires a native paired gate.");
+        const bool previous = result.presentation.body.inverted;
+        const auto type =
+            Gate::typeWithInversion(std::get<GateType>(result.behavior), *overrides.inverted);
+        result.behavior = type;
+        for (const auto& native : nativeDefinitions())
+            if (const auto* candidate = std::get_if<GateType>(&native.behavior);
+                candidate && *candidate == type)
+                result.presentation.shader = native.presentation.shader;
+        result.presentation.body.inverted = *overrides.inverted;
+        if (previous != *overrides.inverted && !overrides.layout)
+        {
+            result.layout.width =
+                *overrides.inverted ? result.layout.width * 1.5f : result.layout.width / 1.5f;
+            const int delta = *overrides.inverted ? 1 : -1;
+            auto shift = [&](GridCoords& point)
+            {
+                const auto x = static_cast<std::int64_t>(point.x) + delta;
+                if (x < std::numeric_limits<int>::min() || x > std::numeric_limits<int>::max())
+                    throw std::invalid_argument(
+                        "Inversion output exceeds the grid coordinate range."
+                    );
+                point.x = static_cast<int>(x);
+            };
+            for (auto& pin : result.layout.pins)
+                if (pin.direction == PinType::OUTPUT)
+                {
+                    shift(pin.anchor);
+                    for (auto& point : pin.lead)
+                        shift(point);
+                }
+        }
     }
     if (isClock)
         validateClockFrequency(result.clockFrequency);

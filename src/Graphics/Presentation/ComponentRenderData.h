@@ -4,6 +4,7 @@
 #include "Components/PinTypes.h"
 
 #include <glm/glm.hpp>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -15,6 +16,7 @@ struct ComponentBodyInstance
     glm::vec2 position, size;
     std::string shader;
     BodyStyle style;
+    bool drawRearArc = true;
 
     BodyBounds getBodyBounds() const
     {
@@ -38,6 +40,8 @@ struct ComponentRenderData
     std::string bodyLabel;
     bool showPinLabels;
     std::vector<RenderPin> pins;
+    std::optional<BodyBounds> inputRail;
+    std::vector<glm::vec2> inputArc;
 };
 
 struct ComponentBatch

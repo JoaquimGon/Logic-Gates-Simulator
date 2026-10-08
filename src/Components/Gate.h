@@ -37,6 +37,7 @@ class Gate : public Component
      * NOT has fixed inversion and rejects this operation.
      */
     void setInverted(bool inverted);
+    static GateType typeWithInversion(GateType type, bool inverted);
 
   private:
     GateType m_gateType;

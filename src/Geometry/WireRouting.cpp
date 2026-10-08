@@ -250,7 +250,7 @@ bool rerouteMovedWires(
             after.end(),
             [&](const auto& value) { return value.componentId == old.componentId; }
         );
-        if (current == after.end() || current->origin == old.origin)
+        if (current == after.end())
             continue;
         for (const auto& pin : old.pins)
             for (const auto& next : current->pins)

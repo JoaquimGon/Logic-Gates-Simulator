@@ -348,6 +348,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                     EditError::InvalidConfiguration, "NOT has exactly one input."
                                 );
                             if (count != gate->getInputPinCount())
+                            {
                                 configureLayout(
                                     op.componentId,
                                     ComponentFactory::resizeGateLayout(
@@ -355,6 +356,8 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                     ),
                                     RemovedPinPolicy::RejectAttached
                                 );
+                                moved.push_back(op.componentId);
+                            }
                         }
                         if (op.inverted)
                         {
@@ -366,11 +369,15 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                 );
                             if (gate->isInverted() != *op.inverted)
                             {
+                                const auto layout = ComponentFactory::invertedGateLayout(
+                                    *candidate.m_catalog, view, *op.inverted
+                                );
                                 gate->setInverted(*op.inverted);
                                 view.m_bodyStyle.inverted = *op.inverted;
-                                view.m_shaderName =
-                                    candidate.m_catalog->find(builtinDefinitionId(gate->getType()))
-                                        ->presentation.shader.key;
+                                configureLayout(
+                                    op.componentId, layout, RemovedPinPolicy::RejectAttached
+                                );
+                                moved.push_back(op.componentId);
                                 candidate.m_circuit.markStateDirty();
                                 changed = true;
                             }

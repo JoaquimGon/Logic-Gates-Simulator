@@ -34,7 +34,12 @@ void instances()
     bodyGeometry();
     Scene scene;
     const int first = scene.addComponent(BuiltinComponentIds::And, {-10, 0});
-    const int second = scene.addComponent(BuiltinComponentIds::And, {10, 0}, {.inputCount = 6});
+    ComponentOverrides larger;
+    larger.inputCount = 6;
+    larger.layout =
+        scene.getComponentCatalog().resolve(BuiltinComponentIds::And, {.inputCount = 6}).layout;
+    larger.layout->height = 0.6f; // Explicit sizing still supports mixed instance geometry.
+    const int second = scene.addComponent(BuiltinComponentIds::And, {10, 0}, larger);
     auto data = buildComponentPresentation(scene.getComponentViewMap());
     const auto batches = buildComponentBatches(data);
     require(
@@ -145,8 +150,88 @@ void bodyGeometry()
     }
 }
 
+void inputRails()
+{
+    for (const auto type : {AND, NAND, OR, NOR, XOR, NXOR})
+    {
+        Scene scene;
+        const int id = scene.addComponent(builtinDefinitionId(type), {0, 0}, {.inputCount = 8});
+        const auto* definition = scene.getComponentCatalog().find(builtinDefinitionId(type));
+        const auto* view = scene.getCommittedComponentView(id);
+        require(
+            view->getSize() == glm::vec2(definition->layout.width, definition->layout.height),
+            "Creation stretched a native gate to accommodate input rows."
+        );
+        const auto rail = view->getInputRail();
+        require(
+            rail && rail->height() > view->getSize().y && rail->width() < view->getSize().x,
+            "Expanded inputs have no thin input rail."
+        );
+        auto data = buildComponentPresentation(scene.getComponentViewMap());
+        require(
+            data.front().inputRail && data.front().inputRail->top == rail->top &&
+                view->getBodyBounds().top >= rail->top &&
+                view->getBodyBounds().bottom <= rail->bottom,
+            "Presentation/placement omitted the input rail."
+        );
+        require(
+            view->getInputPins().front().relative_pos.x == definition->layout.pins.front().anchor.x,
+            "Extra inputs moved backward from their original column."
+        );
+        for (const auto& pin : data.front().pins)
+            if (pin.direction == PinType::INPUT)
+                require(
+                    std::abs(pin.lead.front().y - pin.position.y) < 0.00001f &&
+                        glm::length(pin.lead.front() - pin.position) <= 0.05001f,
+                    "Input terminals became long leads instead of short visual bridges."
+                );
+        const auto hit = scene.hitTest({-0.095f, 0.175f}, {-2, 3});
+        require(
+            (hit.type == HitType::COMPONENT_BODY || hit.type == HitType::COMPONENT_PIN) &&
+                hit.componentId == id,
+            "The visual input extension was not pickable."
+        );
+        EditorActions actions(scene);
+        const auto preview = actions.beginMove(id);
+        require(preview && actions.previewMove(*preview, {4, 2}), "Cannot move rail preview.");
+        data = buildComponentPresentation(scene.getComponentViewMap());
+        require(
+            std::abs(data.front().inputRail->left - rail->left - 0.2f) < 0.00001f &&
+                std::abs(data.front().inputRail->top - rail->top - 0.1f) < 0.00001f &&
+                scene.getCommittedComponentView(id)->getGridPosition() == GridCoords{0, 0},
+            "Rail movement did not follow presentation-only placement."
+        );
+        require(actions.cancelMove(*preview), "Cannot cancel rail preview.");
+        const auto edit =
+            actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 2}});
+        require(
+            edit && !scene.getCommittedComponentView(id)->getInputRail() &&
+                scene.getCommittedComponentView(id)->getSize() ==
+                    glm::vec2(definition->layout.width, definition->layout.height),
+            "Shrinking pins deformed the gate or left an input rail."
+        );
+    }
+    Scene scene;
+    const int gate = scene.addComponent(BuiltinComponentIds::And, {0, 0}, {.inputCount = 8});
+    scene.addComponent(BuiltinComponentIds::Input, {-12, 7}, {.inputState = true});
+    scene.addComponent(BuiltinComponentIds::Input, {-12, 5}, {.inputState = false});
+    const auto connected = EditorActions(scene).apply(
+        {AddWire{{{-11, 7}, {-4, 7}, {-4, 4}, {-2, 4}}},
+         AddWire{{{-11, 5}, {-5, 5}, {-5, 3}, {-2, 3}}}}
+    );
+    require(static_cast<bool>(connected), "Cannot connect independent rail inputs.");
+    scene.propagate();
+    require(
+        scene.getLogicComponent(gate)->getInConnections().size() == 2 &&
+            scene.getLogicComponent(gate)->getStateInPin(0) &&
+            !scene.getLogicComponent(gate)->getStateInPin(1),
+        "Visual rail merged independent electrical inputs."
+    );
+}
+
 void leads()
 {
+    inputRails();
     Scene scene;
     int x = 0;
     for (const auto& definition : nativeDefinitions())
@@ -175,12 +260,18 @@ void leads()
                 "Lead lost its actual electrical anchor."
             );
             const auto contact = (pin.lead.front() - component.body.position) / component.body.size;
+            const auto point = pin.lead.front();
+            const bool extension =
+                component.inputRail && pin.direction == PinType::INPUT &&
+                point.x >= component.inputRail->left && point.x <= component.inputRail->right &&
+                point.y >= component.inputRail->bottom && point.y <= component.inputRail->top;
             require(
-                bodyContourDistance(component.body.style, contact.x, contact.y) <= 0.00002f,
-                "Lead floats outside the declared silhouette."
+                extension ||
+                    bodyContourDistance(component.body.style, contact.x, contact.y) <= 0.00002f,
+                "Lead floats outside the solid body and input extension."
             );
             require(
-                std::abs(contact.x) <= 0.5001f && std::abs(contact.y) <= 0.5001f,
+                extension || (std::abs(contact.x) <= 0.5001f && std::abs(contact.y) <= 0.5001f),
                 "Native contact extends past placement bounds."
             );
         }
