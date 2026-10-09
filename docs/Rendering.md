@@ -544,7 +544,11 @@ Long entries wrap at a fixed readable size and scroll independently of the
 Subcircuit list. Located problems place an underlined blue `FIND` at the end of
 their final wrapped row; the link sits one space after the final text, and uses those same visible-row bounds for
 hit testing, including scrolling and 2x scaling. No link is shown for global
-backlog or an unavailable location. An unread `*` marks the tab; ongoing simulation
-pause/short/backlog status appears in the navigation bar without opening F3.
+backlog or an unavailable location. The tab uses `Messages (N)` while circuit problems or a failed action remain,
+with red text/underline for errors and amber for warnings only. Resolution clears
+the count/accent; reading does not. The navigation notice is an underlined,
+hover-highlighted link that opens Messages without selecting another circuit or
+opening F3. Drawing and picking share its measured bounds and the unsaved-status
+space; narrow bars show the shorter `See Messages` label.
 Framebuffer previews cover healthy status, live errors, camera navigation and
 normal/narrow 2x FIND layouts.

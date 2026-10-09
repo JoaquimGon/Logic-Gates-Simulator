@@ -190,17 +190,19 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         renderer.drawScreenRect(
             bounds, active ? glm::vec4{0.16f, 0.3f, 0.46f, 1} : glm::vec4{0.11f, 0.15f, 0.21f, 1}
         );
-        if (active)
+        const bool problems = tab == BottomTab::Messages && messageCount() > 0;
+        const auto accent =
+            hasMessageErrors() ? glm::vec4{1, 0.55f, 0.4f, 1} : glm::vec4{0.9f, 0.72f, 0.38f, 1};
+        if (active || problems)
             renderer.drawScreenRect(
-                {bounds.x, bounds.y + bounds.height - 2, bounds.width, 2}, {0.3f, 0.65f, 0.95f, 1}
+                {bounds.x, bounds.y + bounds.height - 2, bounds.width, 2},
+                problems ? accent : glm::vec4{0.3f, 0.65f, 0.95f, 1}
             );
         label(
-            tab == BottomTab::Subcircuit ? "Subcircuit"
-            : hasUnreadMessages()        ? "Messages *"
-                                         : "Messages",
+            tab == BottomTab::Subcircuit ? "Subcircuit" : messagesTabLabel(),
             bounds,
             0.42f,
-            ink,
+            problems ? accent : ink,
             true
         );
     }
@@ -440,17 +442,8 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     if (m_fileMenuOpen || fileBounds().contains(m_pointer.x, m_pointer.y))
         renderer.drawScreenRect(fileBounds(), {0.16f, 0.3f, 0.46f, 1});
     label("File", fileBounds(), 0.42f, ink, true);
-    const std::string unsaved = !m_circuitTabs.activeHasUnsavedChanges() ? ""
-                                : m_circuitTabs.activeIsSubcircuit()
-                                    ? "Unsaved changes - save for Custom"
-                                    : "Unsaved changes";
-    const double unsavedWidth =
-        unsaved.empty()
-            ? 0
-            : std::min(
-                  std::max(0.0, m_bar.width - 76),
-                  static_cast<double>(getTextWidth(unsaved, 0.35f, renderer.fontMetrics())) + 20
-              );
+    const auto unsaved = unsavedNoticeText();
+    const double unsavedWidth = unsavedNoticeWidth();
     if (!unsaved.empty())
         label(
             unsaved,
@@ -459,21 +452,26 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             {0.9f, 0.72f, 0.38f, 1}
         );
     const auto& log = messageState();
-    const std::string status = log.simulationResult != SimulationResult::OK
-                                   ? "Simulation paused - see Messages"
-                               : log.shortedNets > 0 ? "Short circuit - see Messages"
-                               : log.behind          ? "Simulation behind real time - see Messages"
-                                                     : log.fileStatus;
-    if (!status.empty())
+    const auto notice = messageNoticeText();
+    if (!notice.empty())
+    {
+        const auto bounds = messageNoticeBounds();
+        const auto color =
+            hasMessageErrors() ? glm::vec4{1, 0.55f, 0.4f, 1} : glm::vec4{0.9f, 0.72f, 0.38f, 1};
+        if (bounds.contains(m_pointer.x, m_pointer.y))
+            renderer.drawScreenRect(bounds, {0.13f, 0.19f, 0.25f, 1});
+        label(notice, bounds, 0.35f, color);
+        renderer.drawScreenRect(
+            {bounds.x + 10, bounds.y + bounds.height - 3, std::max(0.0, bounds.width - 20), 1},
+            color
+        );
+    }
+    else if (!log.fileStatus.empty())
         label(
-            status,
-            {76, 0, std::max(0.0, m_bar.width - unsavedWidth - 80), m_bar.height},
+            log.fileStatus,
+            {76, 0, navigationStatusWidth(), m_bar.height},
             0.35f,
-            log.simulationResult != SimulationResult::OK || log.shortedNets > 0 ||
-                    (!log.behind && log.fileError)
-                ? glm::vec4{1, 0.55f, 0.4f, 1}
-            : log.behind ? glm::vec4{0.9f, 0.72f, 0.38f, 1}
-                         : glm::vec4{0.55f, 0.75f, 0.9f, 1}
+            {0.55f, 0.75f, 0.9f, 1}
         );
     renderer.drawText(text, TextSpace::Screen);
     text.clear();

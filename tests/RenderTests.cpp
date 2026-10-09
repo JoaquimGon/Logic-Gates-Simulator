@@ -1563,7 +1563,16 @@ void circuitViewsPresentation(Renderer& renderer)
         ui.hasUnreadMessages() && ui.activeBottomTab() == UI::BottomTab::Subcircuit,
         "Subcircuit error opened Messages instead of marking its tab."
     );
-    click(ui.bottomTabBounds(UI::BottomTab::Messages), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    const auto hiddenMessages = ui.bottomTabBounds(UI::BottomTab::Messages);
+    const auto alertColor =
+        screenPixel(hiddenMessages.x + 4, hiddenMessages.y + hiddenMessages.height - 1);
+    require(
+        ui.messagesTabLabel() == "Messages (1)" && alertColor[0] > alertColor[1] + 60,
+        "Inactive Messages tab did not show a persistent red error accent/count."
+    );
+    saveImage("messages-action-alert.ppm");
+    click(ui.messageNoticeBounds(), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     const auto add = ui.circuitTabs().addBounds();
     const auto addFill = screenPixel(add.x + 3, add.y + 3);
@@ -1577,12 +1586,21 @@ void circuitViewsPresentation(Renderer& renderer)
     );
     saveImage("messages-subcircuit.ppm");
     ui.clearMessages();
+    click(ui.bottomTabBounds(UI::BottomTab::Subcircuit), GLFW_MOUSE_BUTTON_LEFT);
     const int unsettled = views.activeScene().addComponent(BuiltinComponentIds::Not, {-20, 10});
     const auto loop = EditorActions(views.activeScene())
                           .apply({AddWire{{{-19, 10}, {-19, 14}, {-22, 14}, {-22, 10}}}});
     require(static_cast<bool>(loop), "FIND presentation fixture failed.");
     views.activeScene().propagate();
     ui.reportSimulation(views.activeScene(), 0);
+    draw();
+    require(
+        ui.activeBottomTab() == UI::BottomTab::Subcircuit &&
+            ui.messagesTabLabel() == "Messages (1)",
+        "A new error automatically switched tabs."
+    );
+    saveImage("messages-error-alert.ppm");
+    click(ui.messageNoticeBounds(), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     const auto find = ui.findMessageBounds(0);
     require(
@@ -1609,6 +1627,16 @@ void circuitViewsPresentation(Renderer& renderer)
     const auto originalSurface = surface;
     surface = {512, 512, extent, extent};
     draw();
+    const auto smallNotice = ui.messageNoticeBounds();
+    require(
+        smallNotice.width > 0 && ui.messageNoticeText() == "See Messages",
+        "Narrow layout did not provide a readable compact error notice."
+    );
+    click(ui.bottomTabBounds(UI::BottomTab::Subcircuit), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    saveImage("messages-error-alert-2x.ppm");
+    click(smallNotice, GLFW_MOUSE_BUTTON_LEFT);
+    draw();
     require(ui.findMessageBounds(0).width > 0, "Narrow 2x layout lost its FIND link.");
     saveImage("messages-find-2x.ppm");
     surface = originalSurface;
@@ -1622,6 +1650,24 @@ void circuitViewsPresentation(Renderer& renderer)
         "Repaired circuit kept an old error instead of the healthy status."
     );
     saveImage("messages-healthy.ppm");
+    views.activeMessages().issues.push_back(
+        {"Simulation falling behind real time.", std::nullopt, true}
+    );
+    views.activeMessages().behind = true;
+    click(ui.bottomTabBounds(UI::BottomTab::Subcircuit), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
+    const auto warningTab = ui.bottomTabBounds(UI::BottomTab::Messages);
+    const auto warningColor = screenPixel(warningTab.x + 4, warningTab.y + warningTab.height - 1);
+    require(
+        !ui.hasMessageErrors() && warningColor[0] > 180 && warningColor[1] > 140 &&
+            warningColor[2] < 130,
+        "Warning-only Messages did not use an amber accent."
+    );
+    saveImage("messages-warning-alert.ppm");
+    views.activeMessages().issues.clear();
+    views.activeMessages().behind = false;
+    click(ui.bottomTabBounds(UI::BottomTab::Messages), GLFW_MOUSE_BUTTON_LEFT);
+    draw();
     saveImage("circuit-tabs.ppm");
     views.rename(1, "A long circuit name that should be shortened in the tab");
     layout();

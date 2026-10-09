@@ -153,8 +153,13 @@ and vital-component names, and remains hidden in workspaces.
 
 Simulation issues persist while their condition exists and disappear on repair,
 without keeping old errors or recovery messages. These are view-local UI state,
-excluded from circuit saving and undo history. New problems mark an unopened tab
-with `*`; ongoing pause/short/backlog status also appears in the navigation bar.
+excluded from circuit saving and undo history. Messages shows a persistent active-problem count, including the latest failed
+operation. Its text/underline is red for errors and amber when only warnings
+remain; reading does not clear this indicator, and resolution removes it.
+The underlined navigation notice opens Messages on click, dismissing popups and
+preserving the active circuit, camera, completed selection and history. New
+problems never switch the bottom tab automatically. A narrow bar uses the shorter
+`See Messages` link, leaving the right-side unsaved status visible.
 Feedback itself is valid. Only non-convergence, rejected wiring, multiple drivers
 on one net or sustained processing backlog appear as circuit problems. Backlog
 requires more than 100 ms of pending time for one second of active processing.

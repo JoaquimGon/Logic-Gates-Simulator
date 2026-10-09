@@ -90,6 +90,12 @@ void messagesPanel(GLFWwindow* window)
     ui.setFileStatus("Saved workspace");
     require(ui.messages().empty(), "A successful save retained its previous failure.");
     ui.addMessage("Main action failed");
+    const int selectionBeforeNotice = input.getSelectedComponentId();
+    click(ui.messageNoticeBounds());
+    require(
+        selectionBeforeNotice != -1 && input.getSelectedComponentId() == selectionBeforeNotice,
+        "Opening Messages from the notice cleared completed selection."
+    );
     const auto mainLog = ui.messages();
 
     views.create(input, CircuitViews::Role::Subcircuit);
@@ -111,7 +117,21 @@ void messagesPanel(GLFWwindow* window)
         ui.hasUnreadMessages() && ui.activeBottomTab() == UI::BottomTab::Subcircuit,
         "New error stole focus or failed to mark the Messages tab."
     );
-    click(ui.bottomTabBounds(UI::BottomTab::Messages));
+    require(
+        ui.messagesTabLabel() == "Messages (1)" && ui.hasMessageErrors() &&
+            ui.messageNoticeBounds().width > 0,
+        "Hidden action error lacked persistent indicators."
+    );
+    click(ui.fileBounds());
+    require(ui.fileMenuOpen(), "Notice/menu test failed to open File.");
+    const auto viewBeforeNotice = views.activeIndex();
+    const auto historyBeforeNotice = input.getUndoCount();
+    click(ui.messageNoticeBounds());
+    require(
+        !ui.fileMenuOpen() && views.activeIndex() == viewBeforeNotice &&
+            input.getUndoCount() == historyBeforeNotice && ui.messagesTabLabel() == "Messages (1)",
+        "Notice failed to open Messages, lost the badge or changed the circuit view/history."
+    );
     require(
         !ui.hasUnreadMessages() && ui.activeBottomTab() == UI::BottomTab::Messages,
         "Reading Messages did not clear the unread indication."
@@ -140,7 +160,23 @@ void messagesPanel(GLFWwindow* window)
             scene.unsettledComponent() == oscillator,
         "Unsettled component was not identified."
     );
+    click(ui.bottomTabBounds(UI::BottomTab::Subcircuit));
     ui.reportSimulation(scene, 2);
+    require(
+        ui.activeBottomTab() == UI::BottomTab::Subcircuit &&
+            ui.messagesTabLabel() == "Messages (1)" && ui.hasMessageErrors(),
+        "Simulation error stole focus or failed to mark the inactive Messages tab."
+    );
+    const auto cameraBeforeNotice = input.getPanOffset();
+    const auto revisionBeforeNotice = scene.getRevision();
+    click(ui.messageNoticeBounds());
+    require(
+        ui.activeBottomTab() == UI::BottomTab::Messages &&
+            ui.messagesTabLabel() == "Messages (1)" && !ui.hasUnreadMessages() &&
+            input.getPanOffset() == cameraBeforeNotice &&
+            scene.getRevision() == revisionBeforeNotice,
+        "Reading the error removed its badge or changed camera/design state."
+    );
     const auto fault = ui.simulationIssues();
     ui.reportSimulation(scene, 3);
     require(
@@ -185,7 +221,8 @@ void messagesPanel(GLFWwindow* window)
     ui.reportSimulation(scene, 6);
     require(
         ui.simulationIssues().empty() && ui.messages().empty() &&
-            ui.findMessageBounds(0).width == 0 && scene.unsettledComponent() == -1,
+            ui.findMessageBounds(0).width == 0 && scene.unsettledComponent() == -1 &&
+            ui.messagesTabLabel() == "Messages" && ui.messageNoticeBounds().width == 0,
         "Repaired fault left an old error, recovery history or stale FIND link."
     );
     scene.addComponent(BuiltinComponentIds::Or, {10, 0});
@@ -223,14 +260,29 @@ void messagesPanel(GLFWwindow* window)
             !ui.simulationIssues()[0].location && ui.findMessageBounds(0).width == 0,
         "Backlog was missing or assigned a misleading gate location."
     );
+    require(
+        ui.messagesTabLabel() == "Messages (1)" && !ui.hasMessageErrors() &&
+            ui.messageNoticeBounds().width > 0,
+        "Warnings lacked an amber-only active indicator."
+    );
+    ui.addMessage("An action failed during catch-up");
+    require(
+        ui.messagesTabLabel() == "Messages (2)" && ui.hasMessageErrors(),
+        "Mixed errors and warnings lost the combined count or error priority."
+    );
     input.recordEdit(EditResult{});
     require(ui.simulationIssues().size() == 1, "A successful action hid an ongoing backlog.");
+    require(
+        ui.messagesTabLabel() == "Messages (1)" && !ui.hasMessageErrors(),
+        "Clearing an action error failed to restore warning-only severity."
+    );
     for (int i = 0; i < 100 && clocks.pendingClockTime() > 0; ++i)
         clocks.updateClocks(0);
     ui.reportSimulation(clocks, 103);
     require(
-        ui.simulationIssues().empty() && ui.messages().empty(),
-        "Catch-up retained old warnings or recovery history."
+        ui.simulationIssues().empty() && ui.messages().empty() &&
+            ui.messagesTabLabel() == "Messages" && ui.messageNoticeBounds().width == 0,
+        "Catch-up retained old warnings or recovery indicators."
     );
     clocks.addComponent(BuiltinComponentIds::Input, {10, 0});
     const int driver = clocks.addComponent(BuiltinComponentIds::Input, {20, 0});

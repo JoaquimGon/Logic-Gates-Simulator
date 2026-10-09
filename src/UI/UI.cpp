@@ -318,6 +318,16 @@ bool UI::handleFileMenu(const UiInputEvent& event, Input& input)
         m_fileEscapePressed = event.action != GLFW_RELEASE;
         return true;
     }
+    if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
+        event.action == GLFW_PRESS && messageNoticeBounds().contains(event.x, event.y))
+    {
+        dismissPopups(input);
+        m_bottomTab = BottomTab::Messages;
+        messageState().unread = false;
+        m_fileMousePressed = true;
+        input.setCanvasFocused(false);
+        return true;
+    }
     if (m_fileMenuOpen)
     {
         if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS)

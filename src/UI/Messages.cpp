@@ -33,6 +33,83 @@ bool UI::hasUnreadMessages() const
     return messageState().unread;
 }
 
+std::size_t UI::messageCount() const
+{
+    return simulationIssues().size() + messages().size();
+}
+
+bool UI::hasMessageErrors() const
+{
+    return std::any_of(
+               simulationIssues().begin(),
+               simulationIssues().end(),
+               [](const auto& issue) { return !issue.warning; }
+           ) ||
+           std::any_of(
+               messages().begin(),
+               messages().end(),
+               [](const auto& message)
+               {
+                   return std::string_view(message)
+                       .substr(timestampPrefixLength)
+                       .starts_with("Error:");
+               }
+           );
+}
+
+std::string UI::messagesTabLabel() const
+{
+    const auto count = messageCount();
+    return count ? "Messages (" + std::to_string(count) + ")" : "Messages";
+}
+
+std::string UI::unsavedNoticeText() const
+{
+    if (!m_circuitTabs.activeHasUnsavedChanges())
+        return "";
+    return m_circuitTabs.activeIsSubcircuit() ? "Unsaved changes - save for Custom"
+                                              : "Unsaved changes";
+}
+
+double UI::unsavedNoticeWidth() const
+{
+    const auto text = unsavedNoticeText();
+    if (text.empty())
+        return 0;
+    const double width = m_font ? getTextWidth(text, 0.35f, *m_font) : text.size() * 7.0;
+    return std::min(std::max(0.0, m_bar.width - 76), width + 20);
+}
+
+double UI::navigationStatusWidth() const
+{
+    return std::max(0.0, m_bar.width - unsavedNoticeWidth() - 80);
+}
+
+std::string UI::messageNoticeText() const
+{
+    if (!messageCount())
+        return "";
+    if (navigationStatusWidth() < 230)
+        return "See Messages";
+    const auto& log = messageState();
+    if (log.simulationResult != SimulationResult::OK)
+        return "Simulation paused - see Messages";
+    if (log.shortedNets)
+        return "Short circuit - see Messages";
+    if (log.behind)
+        return "Simulation behind real time - see Messages";
+    return hasMessageErrors() ? "Action failed - see Messages" : "Warning - see Messages";
+}
+
+CanvasViewport UI::messageNoticeBounds() const
+{
+    const auto text = messageNoticeText();
+    if (text.empty())
+        return {};
+    const double width = m_font ? getTextWidth(text, 0.35f, *m_font) : text.size() * 7.0;
+    return {76, 0, std::min(navigationStatusWidth(), width + 20), m_bar.height};
+}
+
 void UI::addMessage(std::string message, MessageKind kind)
 {
     if (message.empty() || kind == MessageKind::Info)

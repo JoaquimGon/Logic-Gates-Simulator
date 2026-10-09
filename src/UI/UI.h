@@ -50,6 +50,11 @@ class UI
     void reportSimulation(const Scene& scene, double now);
     const std::vector<std::string>& messages() const;
     bool hasUnreadMessages() const;
+    std::size_t messageCount() const;
+    bool hasMessageErrors() const;
+    std::string messagesTabLabel() const;
+    std::string messageNoticeText() const;
+    CanvasViewport messageNoticeBounds() const;
     const std::vector<CircuitViews::SimulationIssue>& simulationIssues() const;
     CanvasViewport findMessageBounds(std::size_t issue) const;
     void clearMessages();
@@ -136,6 +141,9 @@ class UI
     bool canEditSubcircuit(const Scene& scene) const;
     int infoVisibleRows(const Scene& scene) const;
 
+    std::string unsavedNoticeText() const;
+    double unsavedNoticeWidth() const;
+    double navigationStatusWidth() const;
     CircuitViews::Messages& messageState();
     const CircuitViews::Messages& messageState() const;
 
