@@ -1,5 +1,6 @@
 #include "Scene.h"
 
+#include "Editor/InterfaceComponents.h"
 #include "Geometry/GeometryQueries.h"
 #include "Geometry/WireNormalization.h"
 
@@ -240,14 +241,36 @@ std::string Scene::clockName(const ClockPath& path) const
         }
         const auto* view = authored->getCommittedComponentView(id);
         if (!view)
-            return name + "Clock #" + std::to_string(id);
+            return name + "Clock";
         const auto* definition =
             authored->getComponentCatalog().find(view->getDefinitionIdentity().id);
         auto label = view->getBodyLabel();
-        if (label.empty())
-            label = definition ? definition->displayName : "Clock";
-        name += label + " #" + std::to_string(id);
-        if (level + 1 < path.size())
+        const bool leaf = level + 1 == path.size();
+        if (leaf && blankComponentName(label))
+        {
+            int number = 0;
+            for (const auto& [otherId, ignored] : authored->getComponentViewMap())
+                if (otherId <= id &&
+                    dynamic_cast<const Clock*>(authored->getLogicComponent(otherId)))
+                    ++number;
+            label = "Clock " + std::to_string(number);
+        }
+        else if (!leaf)
+        {
+            const auto defaultLabel = definition ? definition->displayName : "Circuit";
+            if (blankComponentName(label) || label == defaultLabel)
+            {
+                int number = 0;
+                for (const auto& [otherId, ignored] : authored->getComponentViewMap())
+                    if (otherId <= id &&
+                        authored->getCommittedComponentView(otherId)->getDefinitionIdentity().id ==
+                            view->getDefinitionIdentity().id)
+                        ++number;
+                label = defaultLabel + " " + std::to_string(number);
+            }
+        }
+        name += label;
+        if (!leaf)
         {
             const auto* sub =
                 definition ? std::get_if<SubcircuitBehavior>(&definition->behavior) : nullptr;

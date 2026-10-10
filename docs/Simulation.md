@@ -113,7 +113,17 @@ one enabled clock. With several clocks, the buttons process one/two shared edge
 times, so Full cycle need not complete a cycle for every clock.
 
 Each row shows a live name, HIGH/LOW level, frequency, and Enable/Disable control.
-Click a native clock's Hz field, type a finite frequency of at least 0.1 Hz, and
+A custom body label is used as the name; unnamed clocks display Clock 1, Clock 2,
+etc., counting only clocks in that scene. These fallback names are computed for
+display, not stored as labels, and renumber when clocks are removed. Internal IDs
+remain private to identity/history. Nested paths use names such as Timer 1/Pulse
+to distinguish repeated subcircuit instances without ID suffixes. The Subcircuit
+overview uses the same names.
+
+In Selection mode, the clock's right-click Name field works in workspaces and
+subcircuit editors. Custom names persist through saves/undo and appear in panels;
+clock names are currently hidden on the canvas. Label visibility controls remain
+a later feature. Click a native clock's Hz field, type a finite frequency of at least 0.1 Hz, and
 press Enter. Typing replaces the displayed value; Escape cancels. Frequency and
 enable edits use existing EditorActions, saving, and undo/redo. Runtime pause,
 stepping, chart zoom and scrolling do not dirty the saved design.

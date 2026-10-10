@@ -58,21 +58,8 @@ std::string subcircuitProblem(const Scene& scene)
 std::vector<std::string> subcircuitClockNames(const Scene& scene)
 {
     std::vector<std::string> names;
-    for (const auto& component : interfaceComponents(scene))
-        if (component.kind == InterfaceKind::Clock)
-            names.push_back(component.name);
-    std::vector<int> ids;
-    for (const auto& [id, view] : scene.getComponentViewMap())
-        ids.push_back(id);
-    std::sort(ids.begin(), ids.end());
-    for (int id : ids)
-    {
-        const auto& view = *scene.getCommittedComponentView(id);
-        const auto* definition = scene.getComponentCatalog().find(view.getDefinitionIdentity().id);
-        if (const auto* sub = std::get_if<SubcircuitBehavior>(&definition->behavior))
-            for (const auto& name : subcircuitClockNames(*sub->authored))
-                names.push_back(definition->displayName + " #" + std::to_string(id) + "/" + name);
-    }
+    for (const auto& clock : scene.clockReadings())
+        names.push_back(scene.clockName(clock.path));
     return names;
 }
 

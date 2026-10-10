@@ -1,5 +1,7 @@
 #include "Graphics/Presentation/ComponentPresentation.h"
 
+#include "Components/Views/ClockView.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -16,6 +18,9 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
             {},
             view->getInputRail()
         };
+        // Names stay in clock information; canvas label visibility will be added separately.
+        if (dynamic_cast<const ClockView*>(view.get()))
+            data.bodyLabel.clear();
         const bool xorExtension = data.inputRail && data.body.style.contour == BodyContour::Xor;
         const float shapeWidth =
             data.body.style.inverted ? data.body.size.x / 1.5f : data.body.size.x;

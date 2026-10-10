@@ -186,7 +186,7 @@ class Scene
 
     std::vector<ClockReading> clockReadings() const { return m_circuit.clockReadings(); }
 
-    /** Uses authored labels with live runtime paths/states; nested instances remain distinct. */
+    /** Custom names or one-based clock fallbacks, qualified by human-readable nested paths. */
     std::string clockName(const ClockPath& path) const;
 
     double pendingClockTime() const { return m_circuit.pendingClockTime(); }

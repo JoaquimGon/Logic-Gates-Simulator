@@ -377,7 +377,7 @@ input/output property edits atomically. Restore retains the destination editing
 policy and names missing vital components, so an older snapshot cannot silently
 turn a subcircuit into a workspace or restore unnamed ports. Workspace labels
 remain optional. Clock names can be edited in subcircuit component popups and
-native clock labels render beneath the glyph.
+clock names are kept in information panels and omitted from canvas presentation. A later label-visibility setting will control their display.
 
 Validity checks named inputs/outputs, unique names per direction, and shorted,
 rejected, or non-converging wiring. Save also checks containment and expansion

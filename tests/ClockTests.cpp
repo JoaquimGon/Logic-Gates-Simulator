@@ -138,6 +138,35 @@ void steps()
 
 void history()
 {
+    Scene names;
+    for (int i = 0; i < 6; ++i)
+        names.addComponent(BuiltinComponentIds::And, {i * 10, 0});
+    const int namedFirst = names.addComponent(BuiltinComponentIds::Clock, {-20, 0});
+    const int namedSecond = names.addComponent(BuiltinComponentIds::Clock, {-40, 0});
+    require(
+        namedFirst == 6 && names.clockName({namedFirst}) == "Clock 1" &&
+            names.clockName({namedSecond}) == "Clock 2" &&
+            names.getCommittedComponentView(namedFirst)->getBodyLabel().empty(),
+        "Clock fallbacks exposed component IDs or changed the saved label."
+    );
+    const auto renamed = EditorActions(names).apply(
+        {ConfigureComponentProperties{.componentId = namedFirst, .label = "Reference"}}
+    );
+    require(
+        renamed && names.clockName({namedFirst}) == "Reference" &&
+            names.clockName({namedSecond}) == "Clock 2",
+        "Clock names gained ID suffixes or numbered non-clock components."
+    );
+    names.removeComponent(namedFirst);
+    require(
+        names.clockName({namedSecond}) == "Clock 1", "Fallback numbering included deleted clocks."
+    );
+    Scene fresh;
+    const int freshClock = fresh.addComponent(BuiltinComponentIds::Clock, {0, 0});
+    require(
+        fresh.clockName({freshClock}) == "Clock 1", "New workspaces inherited clock numbering."
+    );
+
     Circuit circuit;
     ClockTimeline timeline;
     const int clock = circuit.addClock(1000);
@@ -347,8 +376,13 @@ void panel(GLFWwindow* window)
     const int nestedId = views.activeScene().addComponent(definition.identity.id, {20, 20});
     click(ui.bottomTabBounds(UI::BottomTab::Clocks));
     require(
-        views.activeScene().clockName({nestedId, 2}).find("Pulse") != std::string::npos,
+        views.activeScene().clockName({nestedId, 2}) == "Timer 1/Pulse",
         "Nested row labels did not map runtime IDs to authored labels."
+    );
+    const int secondNested = views.activeScene().addComponent(definition.identity.id, {40, 20});
+    require(
+        views.activeScene().clockName({secondNested, 2}) == "Timer 2/Pulse",
+        "Repeated subcircuits were not distinguishable without exposing internal IDs."
     );
     const auto count = input.getUndoCount();
     UiInputEvent scroll{UiInputKind::Scroll};

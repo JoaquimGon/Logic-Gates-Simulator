@@ -379,6 +379,37 @@ void text()
             "Input/output name covered the symbol instead of appearing beneath it."
         );
     }
+    Scene clockScene;
+    const int clockId = clockScene.addComponent(BuiltinComponentIds::Clock, {0, 0});
+    const auto clockName =
+        EditorActions(clockScene)
+            .apply({ConfigureComponentProperties{.componentId = clockId, .label = "Reference"}});
+    require(static_cast<bool>(clockName), "Clock naming fixture failed.");
+    const auto clockData = buildComponentPresentation(clockScene.getComponentViewMap());
+    require(
+        clockScene.clockName({clockId}) == "Reference" &&
+            clockScene.getCommittedComponentView(clockId)->getBodyLabel() == "Reference" &&
+            clockData.front().bodyLabel.empty() && layoutComponentLabels(clockData, font).empty(),
+        "Hiding a clock's canvas name erased its information name or still drew a label."
+    );
+    auto boxClock = *clockScene.getComponentCatalog().find(BuiltinComponentIds::Clock);
+    boxClock.identity = {"test.clock-box", 1};
+    boxClock.presentation.kind = PresentationKind::Box;
+    boxClock.presentation.body.contour = BodyContour::Box;
+    boxClock.presentation.shader = boxShaderResources();
+    boxClock.presentation.bodyLabel = "Box clock";
+    const auto boxClockCreated = EditorActions(clockScene)
+                                     .apply(
+                                         {RegisterComponentDefinition{boxClock},
+                                          CreateComponent{boxClock.identity.id, {20, 0}}}
+                                     );
+    require(static_cast<bool>(boxClockCreated), "Custom clock fixture failed.");
+    const auto clocks = buildComponentPresentation(clockScene.getComponentViewMap());
+    require(
+        clocks.size() == 2 && clocks[1].bodyLabel.empty() &&
+            layoutComponentLabels(clocks, font).empty(),
+        "Custom clock names were hidden only for native SDF symbols."
+    );
     DebugMetrics metrics{};
     metrics.evalResult = SimulationResult::OK;
     require(layoutDebugOverlay(metrics, false, 800, 600, font).empty(), "F3 hid no metrics.");

@@ -430,11 +430,10 @@ bool UI::canName(const Scene& scene) const
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
     const auto* definition =
         view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
-    return definition &&
-           (std::holds_alternative<GateType>(definition->behavior) ||
-            std::holds_alternative<ManualInputBehavior>(definition->behavior) ||
-            std::holds_alternative<OutputBehavior>(definition->behavior) ||
-            (m_showSubcircuit && std::holds_alternative<ClockBehavior>(definition->behavior)));
+    return definition && (std::holds_alternative<GateType>(definition->behavior) ||
+                          std::holds_alternative<ManualInputBehavior>(definition->behavior) ||
+                          std::holds_alternative<OutputBehavior>(definition->behavior) ||
+                          std::holds_alternative<ClockBehavior>(definition->behavior));
 }
 
 const Gate* UI::infoGate(const Scene& scene) const

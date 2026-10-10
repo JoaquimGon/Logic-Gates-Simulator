@@ -1663,6 +1663,17 @@ void componentNaming(GLFWwindow* window)
         "Empty name did not clear the label."
     );
     editor.key(GLFW_KEY_ESCAPE);
+    const int clock = editor.scene.addComponent(BuiltinComponentIds::Clock, {0, 10});
+    open(clock);
+    edit();
+    type("Reference");
+    editor.key(GLFW_KEY_ENTER);
+    require(
+        editor.scene.clockName({clock}) == "Reference" &&
+            editor.scene.getCommittedComponentView(clock)->getBodyLabel() == "Reference",
+        "Workspace clock popup could not set its information name."
+    );
+    editor.key(GLFW_KEY_ESCAPE);
     editor.input.setMode(EditorMode::Interaction);
     layout();
     open(output);
