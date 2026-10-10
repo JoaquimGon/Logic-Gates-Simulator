@@ -551,10 +551,43 @@ void Renderer::drawWorldRect(BodyBounds bounds, glm::vec4 color)
 
 void Renderer::drawScreenRect(CanvasViewport bounds, glm::vec4 color)
 {
+    const ScreenRect rectangle{bounds, color};
+    drawScreenRects(std::span<const ScreenRect>{&rectangle, 1});
+}
+
+void Renderer::drawScreenRects(std::span<const ScreenRect> rectangles)
+{
     const auto& surface = m_currentCamera.surface;
-    if (bounds.width <= 0 || bounds.height <= 0 || surface.windowWidth <= 0 ||
-        surface.windowHeight <= 0 || surface.framebufferWidth <= 0 ||
-        surface.framebufferHeight <= 0)
+    if (rectangles.empty() || surface.windowWidth <= 0 || surface.windowHeight <= 0 ||
+        surface.framebufferWidth <= 0 || surface.framebufferHeight <= 0)
+        return;
+    std::vector<float> vertices;
+    vertices.reserve(rectangles.size() * 42);
+    for (const auto& rectangle : rectangles)
+    {
+        const auto& bounds = rectangle.bounds;
+        const auto& color = rectangle.color;
+        if (bounds.width <= 0 || bounds.height <= 0)
+            continue;
+        for (const auto point :
+             {glm::dvec2{bounds.x, bounds.y},
+              glm::dvec2{bounds.x + bounds.width, bounds.y},
+              glm::dvec2{bounds.x + bounds.width, bounds.y + bounds.height},
+              glm::dvec2{bounds.x, bounds.y},
+              glm::dvec2{bounds.x + bounds.width, bounds.y + bounds.height},
+              glm::dvec2{bounds.x, bounds.y + bounds.height}})
+            vertices.insert(
+                vertices.end(),
+                {static_cast<float>(point.x),
+                 static_cast<float>(point.y),
+                 0,
+                 color.r,
+                 color.g,
+                 color.b,
+                 color.a}
+            );
+    }
+    if (vertices.empty())
         return;
     auto* shader = acquireShader("wire");
     if (!shader)
@@ -572,24 +605,6 @@ void Renderer::drawScreenRect(CanvasViewport bounds, glm::vec4 color)
             1.0f
         )
     );
-    std::vector<float> vertices;
-    for (const auto point :
-         {glm::dvec2{bounds.x, bounds.y},
-          glm::dvec2{bounds.x + bounds.width, bounds.y},
-          glm::dvec2{bounds.x + bounds.width, bounds.y + bounds.height},
-          glm::dvec2{bounds.x, bounds.y},
-          glm::dvec2{bounds.x + bounds.width, bounds.y + bounds.height},
-          glm::dvec2{bounds.x, bounds.y + bounds.height}})
-        vertices.insert(
-            vertices.end(),
-            {static_cast<float>(point.x),
-             static_cast<float>(point.y),
-             0,
-             color.r,
-             color.g,
-             color.b,
-             color.a}
-        );
     m_boundsMesh->updateData(vertices, 7);
     m_boundsMesh->draw();
     ++m_drawCallCount;

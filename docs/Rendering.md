@@ -342,8 +342,8 @@ below the top bars. The shared canvas viewport ends at its upper edge, keeping
 rendering, picking, panning, and palette placement aligned after resize. The
 left component panel retains its full height.
 
-The Subcircuit tab is visible only for subcircuit editors; workspaces retain
-only the Messages tab. Both reuse screen rectangles/text and the existing
+The Subcircuit tab is visible only for subcircuit editors; both roles also have
+Messages and Clocks. They reuse screen rectangles/text and the existing
 active underline. There are no closing/creation controls. The Subcircuit body
 shows the full circuit name, basic named-input/output validity, vital-component
 counts, and ordered Input/Output/Clock name rows. Header rows remain fixed while
@@ -552,3 +552,9 @@ opening F3. Drawing and picking share its measured bounds and the unsaved-status
 space; narrow bars show the shorter `See Messages` label.
 Framebuffer previews cover healthy status, live errors, camera navigation and
 normal/narrow 2x FIND layouts.
+
+
+The Clocks tab reuses screen rectangles and text. Its visible digital waveform
+segments and time guides use one batched screen-quad submission, clipped to the
+row area; adjacent edges sharing a pixel do not create repeated guide draws.
+Clock history lives outside the renderer and uses processed simulation time.

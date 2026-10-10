@@ -24,7 +24,7 @@ add_library(simulator_components STATIC
 )
 target_link_libraries(simulator_components PUBLIC project_options)
 
-add_library(simulator_simulation STATIC src/Simulation/Circuit.cpp src/Simulation/Subcircuit.cpp)
+add_library(simulator_simulation STATIC src/Simulation/Circuit.cpp src/Simulation/Subcircuit.cpp src/Simulation/ClockTimeline.cpp)
 target_link_libraries(simulator_simulation PUBLIC simulator_components)
 
 add_library(simulator_geometry STATIC
@@ -70,7 +70,7 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
     )
     target_link_libraries(simulator_input PUBLIC simulator_scene PRIVATE simulator_files glfw)
     target_compile_definitions(simulator_input PRIVATE GLFW_INCLUDE_NONE)
-    add_library(simulator_ui STATIC src/UI/UI.cpp src/UI/CircuitTabs.cpp src/UI/Messages.cpp)
+    add_library(simulator_ui STATIC src/UI/UI.cpp src/UI/CircuitTabs.cpp src/UI/Messages.cpp src/UI/Clocks.cpp)
     target_link_libraries(simulator_ui PUBLIC simulator_input PRIVATE glfw)
     target_compile_definitions(simulator_ui PRIVATE GLFW_INCLUDE_NONE)
 endif()
@@ -111,7 +111,7 @@ if(BUILD_SIMULATOR_APP)
         PROJECT_FONT_PATH="${PROJECT_FONT_PATH}"
     )
 
-    target_sources(simulator_ui PRIVATE src/UI/UIDrawing.cpp src/UI/CircuitTabsDrawing.cpp)
+    target_sources(simulator_ui PRIVATE src/UI/UIDrawing.cpp src/UI/CircuitTabsDrawing.cpp src/UI/ClocksDrawing.cpp)
     target_link_libraries(simulator_ui PRIVATE simulator_graphics)
     add_executable(${PROJECT_NAME} src/App/main.cpp src/App/Engine.cpp src/App/FileDialog.cpp src/App/CircuitFiles.cpp)
     target_link_libraries(${PROJECT_NAME} PRIVATE simulator_ui simulator_graphics simulator_files glfw)
@@ -220,6 +220,13 @@ if(BUILD_TESTING)
     target_compile_definitions(EditHistoryTests PRIVATE GLFW_INCLUDE_NONE)
     foreach(test_name IN ITEMS history_limits history_groups history_shortcuts history_views history_library)
         add_test(NAME ${test_name} COMMAND EditHistoryTests ${test_name})
+    endforeach()
+
+    add_executable(ClockTests tests/ClockTests.cpp)
+    target_link_libraries(ClockTests PRIVATE simulator_ui simulator_files glfw)
+    target_compile_definitions(ClockTests PRIVATE GLFW_INCLUDE_NONE)
+    foreach(test_name IN ITEMS clock_steps clock_history clock_panel)
+        add_test(NAME ${test_name} COMMAND ClockTests ${test_name})
     endforeach()
 
     add_executable(MessagesTests tests/MessagesTests.cpp)

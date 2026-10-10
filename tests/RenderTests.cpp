@@ -1839,6 +1839,68 @@ void circuitViewsPresentation(Renderer& renderer)
     input.setScene(nullptr);
 }
 
+void clockPresentation(Renderer& renderer)
+{
+    CircuitViews views;
+    Input input;
+    views.select(0, input);
+    views.activeScene().addComponent(BuiltinComponentIds::Clock, {0, 0});
+    views.activeScene().stepAllClocks(1, &views.activeClockTimeline());
+    views.activeScene().stepAllClocks(2, &views.activeClockTimeline());
+    UI ui;
+    ui.setCircuitViews(&views, &renderer.fontMetrics());
+    for (int dpi : {1, 2})
+    {
+        const CanvasSurface surface{extent / dpi, extent / dpi, extent, extent};
+        ui.layout(views.activeScene().getComponentCatalog(), surface, input);
+        CanvasCamera camera;
+        camera.setViewport(input.getCanvasViewport());
+        const auto frame = camera.frame(surface);
+        const auto tab = ui.bottomTabBounds(UI::BottomTab::Clocks);
+        UiInputEvent click{UiInputKind::MouseButton};
+        click.code = GLFW_MOUSE_BUTTON_LEFT;
+        click.action = GLFW_PRESS;
+        click.x = tab.x + tab.width / 2;
+        click.y = tab.y + tab.height / 2;
+        ui.handleInput(click, views.activeScene(), input, frame);
+        click.action = GLFW_RELEASE;
+        ui.handleInput(click, views.activeScene(), input, frame);
+        renderer.beginFrame(frame);
+        ui.draw(renderer, views.activeScene(), frame);
+        const auto list = ui.clockListBounds();
+        const double labelWidth =
+            std::min(220.0, std::min(list.width * 0.65, std::max(160.0, list.width * 0.4)));
+        const double graphX = list.x + labelWidth, graphWidth = list.width - labelWidth;
+        auto sample = [&](double time, double rowY)
+        {
+            std::array<unsigned char, 4> color;
+            glReadPixels(
+                static_cast<int>((graphX + time / 2 * graphWidth) * dpi),
+                extent - 1 - static_cast<int>((list.y + rowY) * dpi),
+                1,
+                1,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                color.data()
+            );
+            return color;
+        };
+        require(
+            sample(0.25, 35)[1] > 160 && sample(0.75, 9)[1] > 160 && sample(0.5, 22)[1] > 160 &&
+                sample(0.25, 9)[1] < 80,
+            "Clock diagram omitted digital levels/edges or ignored DPI."
+        );
+        const auto live = ui.clockControlBounds(UI::ClockControl::Live);
+        require(
+            live.x + live.width <= ui.bottomBounds().x + ui.bottomBounds().width,
+            "Clock toolbar overflowed a narrow window."
+        );
+        saveImage(dpi == 1 ? "clock-panel.ppm" : "clock-panel-2x.ppm");
+    }
+    ui.setCircuitViews(nullptr, nullptr);
+    input.setScene(nullptr);
+}
+
 
 } // namespace
 
@@ -1907,6 +1969,7 @@ int main(int argc, char** argv)
                 groupSelectionPresentation(renderer, camera);
                 routedWiresPresentation(renderer, camera);
                 circuitViewsPresentation(renderer);
+                clockPresentation(renderer);
             }
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";
         }

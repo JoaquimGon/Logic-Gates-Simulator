@@ -438,8 +438,7 @@ void interactionModes(GLFWwindow* window)
     editor.key(GLFW_KEY_SPACE);
     editor.key(GLFW_KEY_PERIOD);
     require(
-        !static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused() &&
-            !editor.scene.getLogicComponent(clock)->getStateOutPin(),
+        !editor.scene.clocksPaused() && !editor.scene.getLogicComponent(clock)->getStateOutPin(),
         "Selection mode operated runtime clock controls."
     );
 
@@ -505,8 +504,7 @@ void interactionModes(GLFWwindow* window)
     editor.key(GLFW_KEY_SPACE);
     editor.key(GLFW_KEY_PERIOD);
     require(
-        static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused() &&
-            editor.scene.getLogicComponent(clock)->getStateOutPin(),
+        editor.scene.clocksPaused() && editor.scene.getLogicComponent(clock)->getStateOutPin(),
         "Interaction clock controls did not operate."
     );
     editor.key(GLFW_KEY_F2);
@@ -793,32 +791,24 @@ void uiInputRouting(GLFWwindow* window)
     editor.input.setCanvasFocused(true);
     editor.key(GLFW_KEY_SPACE);
     require(
-        static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused(),
-        "Pointer capture also blocked an uncaptured focused keyboard."
+        editor.scene.clocksPaused(), "Pointer capture also blocked an uncaptured focused keyboard."
     );
     editor.key(GLFW_KEY_SPACE);
     editor.input.setUiCapture({true, false});
     editor.key(GLFW_KEY_SPACE);
     editor.key(GLFW_KEY_PERIOD);
     require(
-        !static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused() &&
-            !editor.scene.getLogicComponent(clock)->getStateOutPin(),
+        !editor.scene.clocksPaused() && !editor.scene.getLogicComponent(clock)->getStateOutPin(),
         "Typing operated the clocks."
     );
     editor.input.setUiCapture({});
     editor.key(GLFW_KEY_SPACE);
-    require(
-        !static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused(),
-        "Releasing capture silently restored keyboard focus."
-    );
+    require(!editor.scene.clocksPaused(), "Releasing capture silently restored keyboard focus.");
     editor.cursor({0, 0});
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     editor.key(GLFW_KEY_SPACE);
-    require(
-        static_cast<Clock*>(editor.scene.getLogicComponent(clock))->isPaused(),
-        "Canvas click did not restore keyboard focus."
-    );
+    require(editor.scene.clocksPaused(), "Canvas click did not restore keyboard focus.");
     Input::focusCallback(window, GLFW_FALSE);
     editor.key(GLFW_KEY_F2);
     Input::focusCallback(window, GLFW_TRUE);

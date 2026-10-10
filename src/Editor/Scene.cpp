@@ -3,6 +3,7 @@
 #include "Geometry/GeometryQueries.h"
 #include "Geometry/WireNormalization.h"
 
+#include <algorithm>
 #include <stdexcept>
 #include <utility>
 
@@ -189,9 +190,9 @@ bool Scene::getCollinearOverlap(
     return collinearOverlap(a, b, c, d, outStart, outEnd);
 }
 
-bool Scene::updateClocks(float deltaTime)
+bool Scene::updateClocks(float deltaTime, ClockTimeline* timeline)
 {
-    return m_topologyResult == SimulationResult::OK && m_circuit.updateClocks(deltaTime);
+    return m_topologyResult == SimulationResult::OK && m_circuit.updateClocks(deltaTime, timeline);
 }
 
 SimulationResult Scene::propagate()
@@ -206,21 +207,57 @@ SimulationResult Scene::propagate()
 
 void Scene::togglePauseAllClocks()
 {
-    std::vector<Clock*> clocks;
-    m_circuit.collectClocks(clocks);
-    for (auto* clock : clocks)
-        clock->togglePause();
+    m_circuit.setClocksPaused(!m_circuit.clocksPaused());
 }
 
-void Scene::stepAllClocks()
+int Scene::stepAllClocks(int count, ClockTimeline* timeline)
 {
-    std::vector<Clock*> clocks;
-    m_circuit.collectClocks(clocks);
-    bool stepped = false;
-    for (auto* clock : clocks)
-        stepped |= clock->step();
-    if (stepped)
-        markSimulationDirty();
+    m_circuit.setClocksPaused(true);
+    if (m_topologyResult != SimulationResult::OK)
+        return 0;
+    const int steps = m_circuit.stepClocks(count, timeline);
+    syncVisuals();
+    return steps;
+}
+
+std::string Scene::clockName(const ClockPath& path) const
+{
+    const Scene* authored = this;
+    std::string name;
+    for (std::size_t level = 0; level < path.size(); ++level)
+    {
+        int id = path[level];
+        // Subcircuit compilation assigns dense runtime IDs in authored-ID order.
+        if (level > 0)
+        {
+            std::vector<int> ids;
+            for (const auto& [authoredId, view] : authored->getComponentViewMap())
+                ids.push_back(authoredId);
+            std::sort(ids.begin(), ids.end());
+            if (id < 0 || id >= static_cast<int>(ids.size()))
+                return name + "Clock";
+            id = ids[id];
+        }
+        const auto* view = authored->getCommittedComponentView(id);
+        if (!view)
+            return name + "Clock #" + std::to_string(id);
+        const auto* definition =
+            authored->getComponentCatalog().find(view->getDefinitionIdentity().id);
+        auto label = view->getBodyLabel();
+        if (label.empty())
+            label = definition ? definition->displayName : "Clock";
+        name += label + " #" + std::to_string(id);
+        if (level + 1 < path.size())
+        {
+            const auto* sub =
+                definition ? std::get_if<SubcircuitBehavior>(&definition->behavior) : nullptr;
+            if (!sub)
+                break;
+            authored = sub->authored.get();
+            name += "/";
+        }
+    }
+    return name;
 }
 
 void Scene::setAllClocksFrequency(float hz)

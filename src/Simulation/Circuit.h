@@ -4,6 +4,7 @@
 #include "Components/InputPin.h"
 #include "Components/Latch.h"
 #include "Components/OutputPin.h"
+#include "Simulation/ClockTimeline.h"
 #include "Simulation/SimulationStatus.h"
 
 #include <cstddef>
@@ -29,6 +30,8 @@ class Circuit
     bool m_structureDirty{true};
     bool m_stateDirty{true};
     double m_pendingClockTime = 0;
+    double m_clockTime = 0;
+    bool m_clocksPaused = false;
 
     void publishOutputs(const std::vector<int>& components, std::vector<int>& changed);
 
@@ -100,7 +103,16 @@ class Circuit
      * Work is bounded per call; unprocessed elapsed time is retained for the next call.
      * @return true if at least one clock edge was processed.
      */
-    bool updateClocks(float deltaTime);
+    bool updateClocks(float deltaTime, ClockTimeline* timeline = nullptr);
+    /** Pauses automatic time and processes one or two distinct scheduled edge times. */
+    int stepClocks(int count = 1, ClockTimeline* timeline = nullptr);
+    void setClocksPaused(bool paused);
+
+    bool clocksPaused() const { return m_clocksPaused; }
+
+    double clockTime() const { return m_clockTime; }
+
+    std::vector<ClockReading> clockReadings(ClockPath prefix = {}) const;
 
     double pendingClockTime() const { return m_pendingClockTime; }
 

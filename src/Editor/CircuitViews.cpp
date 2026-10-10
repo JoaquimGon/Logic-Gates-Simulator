@@ -113,6 +113,7 @@ bool CircuitViews::select(std::size_t index, Input& input)
     }
     else
         input.setScene(&activeScene(), m_views[m_active].history.get());
+    input.setClockTimeline(&activeClockTimeline());
     input.setCanvasFocused(true);
     return true;
 }
@@ -207,6 +208,8 @@ void CircuitViews::replaceWorkspaceAt(
                 if (old && old->identity.version != definition.identity.version &&
                     m_views[i].history->referencesDefinition(definition.identity.id))
                     m_views[i].history->clear();
+                if (old && old->identity.version != definition.identity.version)
+                    m_views[i].clockTimeline->clear();
             }
             *m_views[i].scene = std::move(staged[i]);
         }
@@ -217,6 +220,7 @@ void CircuitViews::replaceWorkspaceAt(
     activeScene().propagate();
     activeScene().syncVisuals();
     m_views[index].history->clear();
+    m_views[index].clockTimeline->clear();
     markSaved(index);
 }
 
@@ -244,6 +248,8 @@ void CircuitViews::publishSubcircuits(const std::vector<ComponentDefinition>& de
             if (old && old->identity.version != definition.identity.version &&
                 m_views[i].history->referencesDefinition(definition.identity.id))
                 m_views[i].history->clear();
+            if (old && old->identity.version != definition.identity.version)
+                m_views[i].clockTimeline->clear();
         }
         *m_views[i].scene = std::move(staged[i]);
     }

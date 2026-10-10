@@ -1,5 +1,7 @@
 ﻿#include "Circuit.h"
 
+#include "Simulation/Subcircuit.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -11,6 +13,7 @@ Circuit::Circuit(const Circuit& other)
     : m_componentOrder(other.m_componentOrder), m_outputStates(other.m_outputStates),
       m_currentId(other.m_currentId), m_structureDirty(other.m_structureDirty),
       m_stateDirty(other.m_stateDirty), m_pendingClockTime(other.m_pendingClockTime),
+      m_clockTime(other.m_clockTime), m_clocksPaused(other.m_clocksPaused),
       m_lastPropagateDurationMs(other.m_lastPropagateDurationMs),
       m_lastEvalResult(other.m_lastEvalResult), m_unsettledComponent(other.m_unsettledComponent)
 {
@@ -331,13 +334,80 @@ SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
     return m_lastEvalResult;
 }
 
-bool Circuit::updateClocks(float deltaTime)
+std::vector<ClockReading> Circuit::clockReadings(ClockPath prefix) const
+{
+    std::vector<ClockReading> readings;
+    std::vector<int> ids;
+    for (const auto& [id, component] : m_components)
+        ids.push_back(id);
+    std::sort(ids.begin(), ids.end());
+    for (int id : ids)
+    {
+        auto path = prefix;
+        path.push_back(id);
+        const auto* component = getComponent(id);
+        if (const auto* clock = dynamic_cast<const Clock*>(component))
+            readings.push_back(
+                {path, clock->getFrequency(), clock->isPaused(), clock->getStateOutPin()}
+            );
+        else if (const auto* sub = dynamic_cast<const Subcircuit*>(component))
+        {
+            auto nested = sub->runtimeCircuit().clockReadings(path);
+            readings.insert(readings.end(), nested.begin(), nested.end());
+        }
+    }
+    return readings;
+}
+
+void Circuit::setClocksPaused(bool paused)
+{
+    m_clocksPaused = paused;
+    if (paused)
+        m_pendingClockTime = 0;
+}
+
+int Circuit::stepClocks(int count, ClockTimeline* timeline)
+{
+    if (count < 1 || count > 2)
+        throw std::invalid_argument("Clock stepping supports one or two edge times.");
+    setClocksPaused(true);
+    if (isStateDirty())
+        propagate();
+    if (timeline)
+        timeline->record(m_clockTime, clockReadings());
+    std::vector<Clock*> clocks;
+    collectClocks(clocks);
+    int processed = 0;
+    while (processed < count && m_lastEvalResult == SimulationResult::OK)
+    {
+        double elapsed = std::numeric_limits<double>::infinity();
+        for (const auto* clock : clocks)
+            elapsed = std::min(elapsed, clock->timeUntilEdge());
+        if (!std::isfinite(elapsed))
+            break;
+        bool edge = false;
+        for (auto* clock : clocks)
+            edge |= clock->advanceSlice(elapsed);
+        m_clockTime += elapsed;
+        if (!edge)
+            break;
+        ++processed;
+        propagate();
+        if (timeline)
+            timeline->record(m_clockTime, clockReadings(), true);
+    }
+    return processed;
+}
+
+bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
 {
     if (!std::isfinite(deltaTime) || deltaTime < 0)
         throw std::invalid_argument("Simulation elapsed time must be finite and non-negative.");
     if (isStateDirty())
         propagate();
-    if (m_lastEvalResult != SimulationResult::OK)
+    if (timeline)
+        timeline->record(m_clockTime, clockReadings());
+    if (m_lastEvalResult != SimulationResult::OK || m_clocksPaused)
     {
         m_pendingClockTime = 0;
         return false;
@@ -354,25 +424,31 @@ bool Circuit::updateClocks(float deltaTime)
             nextEdge = std::min(nextEdge, clock->timeUntilEdge());
         if (!std::isfinite(nextEdge))
         {
-            m_pendingClockTime = 0; // No running clocks; paused time is not accumulated.
+            m_pendingClockTime = 0;
             break;
         }
         const double elapsed = std::min(nextEdge, m_pendingClockTime);
         bool edgeOccurred = false;
         for (auto* clock : clocks)
             edgeOccurred |= clock->advanceSlice(elapsed);
+        m_clockTime += elapsed;
         m_pendingClockTime = std::max(0.0, m_pendingClockTime - elapsed);
         if (edgeOccurred)
         {
             changed = true;
-            if (propagate() != SimulationResult::OK)
+            propagate();
+            if (timeline)
+                timeline->record(m_clockTime, clockReadings(), true);
+            if (m_lastEvalResult != SimulationResult::OK)
             {
                 m_pendingClockTime = 0;
                 break;
             }
         }
         if (std::chrono::steady_clock::now() >= deadline)
-            break; // Preserve unprocessed time; continue next frame, without skipping edges.
+            break;
     }
+    if (timeline)
+        timeline->record(m_clockTime, clockReadings());
     return changed;
 }

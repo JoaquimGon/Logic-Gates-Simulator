@@ -36,7 +36,8 @@ class UI
     enum class BottomTab
     {
         Subcircuit,
-        Messages
+        Messages,
+        Clocks
     };
 
     enum class MessageKind
@@ -106,6 +107,22 @@ class UI
     CanvasViewport modeTooltipBounds() const;
 
     CanvasViewport bottomTabBounds(BottomTab tab) const;
+    enum class ClockControl
+    {
+        RunPause,
+        SingleStep,
+        DoubleStep,
+        ZoomOut,
+        ZoomIn,
+        Live
+    };
+    CanvasViewport clockControlBounds(ClockControl control) const;
+    CanvasViewport clockListBounds() const;
+    CanvasViewport clockFrequencyBounds(int visibleRow) const;
+    CanvasViewport clockPauseBounds(int visibleRow) const;
+
+    double clockWindowSeconds() const { return m_clockWindow; }
+
     CanvasViewport subcircuitListBounds() const;
     /** Interface readiness and vital names, including clocks inside saved nested components. */
     std::vector<std::string> subcircuitInfo(const Scene& scene) const;
@@ -130,6 +147,15 @@ class UI
 
   private:
     bool handleFileMenu(const UiInputEvent& event, Input& input);
+    bool handleClocks(const UiInputEvent& event, Scene& scene, Input& input);
+    void closeClockEdit(Input& input);
+    void drawClocks(Renderer& renderer, const Scene& scene) const;
+    ClockTimeline& clockTimeline();
+    const ClockTimeline& clockTimeline() const;
+    double clockLabelWidth() const;
+    int clockScroll(const Scene& scene) const;
+    double clockStartTime() const;
+    static std::string frequencyText(float frequency);
     void closeFileMenu(Input& input);
     const Button* buttonAt(glm::dvec2 point) const;
     std::optional<GridCoords> dropPosition(const CanvasCameraFrame& camera) const;
@@ -188,4 +214,11 @@ class UI
     CircuitViews* m_views = nullptr;
     const FontMetrics* m_font = nullptr;
     CircuitViews::Messages m_messages;
+    ClockTimeline m_clockTimeline;
+    int m_clockScroll = 0;
+    double m_clockWindow = 2, m_clockEnd = 2;
+    bool m_clockFollow = true;
+    int m_clockEditing = -1, m_clockCommittedKey = -1;
+    bool m_clockReplaceDraft = false, m_clockMousePressed = false;
+    std::string m_clockDraft, m_clockError;
 };

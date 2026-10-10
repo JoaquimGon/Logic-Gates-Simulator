@@ -345,8 +345,9 @@ void configuration()
         "State-only configuration unnecessarily rebuilt connectivity."
     );
     require(
-        scene.updateClocks(0.06f) && scene.getLogicComponent(clock)->getStateOutPin(),
-        "Clock configuration discarded the accumulated phase."
+        !scene.updateClocks(0.06f) && scene.updateClocks(0.1f) &&
+            scene.getLogicComponent(clock)->getStateOutPin(),
+        "Clock frequency edit did not preserve fractional cycle phase."
     );
     scene.propagate();
     require(

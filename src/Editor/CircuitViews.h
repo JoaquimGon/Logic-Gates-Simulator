@@ -55,6 +55,10 @@ class CircuitViews
 
     const Messages& activeMessages() const { return m_views[m_active].messages; }
 
+    ClockTimeline& activeClockTimeline() { return *m_views[m_active].clockTimeline; }
+
+    const ClockTimeline& activeClockTimeline() const { return *m_views[m_active].clockTimeline; }
+
     CircuitViews();
 
     std::size_t size() const { return m_views.size(); }
@@ -138,6 +142,7 @@ class CircuitViews
         mutable std::vector<SourceSettings> checkedSources;
         mutable bool unsaved = true;
         Messages messages;
+        std::unique_ptr<ClockTimeline> clockTimeline = std::make_unique<ClockTimeline>();
     };
 
     static std::vector<SourceSettings> sourceSettings(const Scene& scene);

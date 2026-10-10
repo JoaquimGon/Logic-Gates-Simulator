@@ -25,6 +25,7 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     if (surface != m_surface)
     {
         m_pointer = {-1, -1};
+        closeClockEdit(input);
         closeFileMenu(input);
         closeInfo(input);
         m_circuitTabs.cancel(input);
@@ -44,6 +45,10 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     {
         m_overviewView = m_circuitTabs.activeViewIndex();
         m_subcircuitScroll = 0;
+        m_clockScroll = 0;
+        m_clockFollow = true;
+        m_clockError.clear();
+        closeClockEdit(input);
     }
     const bool subcircuit = m_circuitTabs.activeIsSubcircuit();
     if (subcircuit != m_showSubcircuit)
@@ -128,10 +133,11 @@ CanvasViewport UI::bottomTabBounds(BottomTab tab) const
 {
     if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
         return {};
-    const double width =
-        std::min(148.0, std::max(0.0, m_bottom.width - 24) / (m_showSubcircuit ? 2 : 1));
+    const int count = m_showSubcircuit ? 3 : 2;
+    const double width = std::min(148.0, std::max(0.0, m_bottom.width - 8 * (count + 1)) / count);
+    const int index = static_cast<int>(tab) - (m_showSubcircuit ? 0 : 1);
     return {
-        m_bottom.x + 8 + (m_showSubcircuit ? static_cast<int>(tab) : 0) * (width + 8),
+        m_bottom.x + 8 + index * (width + 8),
         m_bottom.y + 6,
         width,
         std::min(28.0, std::max(0.0, m_bottom.height - 12))
@@ -290,6 +296,7 @@ void UI::setFileStatus(std::string message, bool error)
 
 void UI::dismissPopups(Input& input)
 {
+    closeClockEdit(input);
     closeFileMenu(input);
     cancel(input);
     closeInfo(input);
@@ -594,6 +601,8 @@ bool UI::handleInput(
             input.setCanvasFocused(true);
         return true;
     }
+    if (handleClocks(event, scene, input))
+        return true;
     if (!m_circuitTabs.confirmingDelete() && handleFileMenu(event, input))
         return true;
     if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS &&
@@ -810,7 +819,8 @@ bool UI::handleInput(
                 input.setCanvasFocused(false);
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT)
                 {
-                    for (const auto tab : {BottomTab::Subcircuit, BottomTab::Messages})
+                    for (const auto tab :
+                         {BottomTab::Subcircuit, BottomTab::Messages, BottomTab::Clocks})
                         if (bottomTabBounds(tab).contains(event.x, event.y))
                         {
                             m_bottomTab = tab;

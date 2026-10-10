@@ -45,6 +45,15 @@ class Renderer
     void drawText(std::span<const TextRun> runs, TextSpace space);
     /** @brief Draws a filled rectangle in logical window pixels for basic UI. */
     void drawScreenRect(CanvasViewport bounds, glm::vec4 color);
+
+    struct ScreenRect
+    {
+        CanvasViewport bounds;
+        glm::vec4 color;
+    };
+
+    /** Batches chronogram segments and guide lines in one screen-space submission. */
+    void drawScreenRects(std::span<const ScreenRect> rectangles);
     /** @brief Draws a shader body in logical window pixels, reusing the canvas component mesh. */
     void drawScreenComponent(const ComponentBodyInstance& body);
     /** @brief Clips screen drawing to logical window bounds; nullopt restores full-window drawing.

@@ -12,6 +12,8 @@ class Subcircuit : public Component
     void evaluate(std::size_t& remainingEvaluations) override;
     void collectClocks(std::vector<Clock*>& clocks) override;
 
+    const Circuit& runtimeCircuit() const { return m_circuit; }
+
     SimulationResult simulationResult() const override { return m_circuit.getLastEvalResult(); }
 
   private:

@@ -172,3 +172,12 @@ component. Global backlog has no guessed gate location. Links are disabled while
 an edited circuit awaits evaluation; removed/repaired errors lose their links.
 Wrapping, mouse-wheel scrolling and FIND hit testing share the same row geometry
 and canvas/DPI transforms. F3 remains an explicitly opened debug overlay.
+
+
+Clocks controls work in either canvas mode. Frequency editing captures keyboard
+input until Enter/Escape; outside clicks, focus loss, resize, view switches and
+scrolling cancel the draft. Button presses/releases and panel scrolling stay in
+UI. Shift is included in scroll-event modifiers for time-history navigation.
+Space/Period remain focused Interaction-mode shortcuts, using the same shared
+pause/chronological one-edge operation. Input binds the active view's trace
+recorder and clears its history on successful undo/redo.

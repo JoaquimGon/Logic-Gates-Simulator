@@ -178,7 +178,16 @@ class Scene
     bool handleClick(int componentId);
     bool checkOverlap(int draggedComponentId) const;
 
-    bool updateClocks(float deltaTime);
+    bool updateClocks(float deltaTime, ClockTimeline* timeline = nullptr);
+
+    bool clocksPaused() const { return m_circuit.clocksPaused(); }
+
+    double clockTime() const { return m_circuit.clockTime(); }
+
+    std::vector<ClockReading> clockReadings() const { return m_circuit.clockReadings(); }
+
+    /** Uses authored labels with live runtime paths/states; nested instances remain distinct. */
+    std::string clockName(const ClockPath& path) const;
 
     double pendingClockTime() const { return m_circuit.pendingClockTime(); }
 
@@ -193,7 +202,7 @@ class Scene
     void markSimulationDirty() { m_circuit.markStateDirty(); }
 
     void togglePauseAllClocks();
-    void stepAllClocks();
+    int stepAllClocks(int count = 1, ClockTimeline* timeline = nullptr);
     void setAllClocksFrequency(float hz);
 
     int addClock(

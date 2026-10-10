@@ -37,8 +37,17 @@ at 0.5 seconds and falling edge at 1 second during a one-second frame.
 
 Clock phase uses double precision. `Clock::advanceSlice()` is an internal-use
 primitive for a slice ending no later than the next edge; frame-sized elapsed
-time must go through Circuit. Paused clocks accumulate no new phase. Manual step
-still flips once and pauses; mark the circuit dirty to deliver that transition.
+time must go through Circuit. Disabled clocks accumulate no new phase.
+Frequency edits preserve fractional cycle phase. Circuit's global pause freezes
+automatic time without changing individual clock enable settings. Pausing discards
+pending catch-up time, so deliberate steps begin from the last processed instant.
+
+Circuit's manual stepping advances to the earliest scheduled edge time and settles
+the circuit. Two steps execute two consecutive edge times with a complete settling
+call after each; simultaneous transitions count as one time. Stepping leaves
+automatic time paused, excludes disabled clocks, and stops on simulation failure.
+For one clock, two steps complete LOW→HIGH→LOW or HIGH→LOW→HIGH. With several
+frequencies, two steps need not complete every clock's cycle.
 
 One update processes at most 256 edge times, with a four-millisecond budget checked
 between completed settling calls. A single settling call has its own bounds and
@@ -91,3 +100,34 @@ use this small diagnostic to focus the enclosing visible component through FIND;
 it identifies outstanding activity, not necessarily the feedback loop's original
 cause. Shorted nets and rejected connections supply their existing pin/edge data.
 No cycle tracing or new scheduling infrastructure is introduced.
+
+
+## Clocks panel and chronograms
+
+The permanent **Clocks** bottom tab is available in workspaces and subcircuit
+editors. **Run/Pause**, **1 edge**, and **2 edges** control the shared timeline
+in either editor mode. Space/Period remain canvas shortcuts in Interaction mode,
+using the same pause/one-edge behavior.
+
+Each row shows a live name, HIGH/LOW level, frequency, and Enable/Disable control.
+Click a native clock's Hz field, type a finite frequency of at least 0.1 Hz, and
+press Enter. Typing replaces the displayed value; Escape cancels. Frequency and
+enable edits use existing EditorActions, saving, and undo/redo. Runtime pause,
+stepping, chart zoom and scrolling do not dirty the saved design.
+
+Rows inside nested components read the actual placed instance, with a distinct
+ID path per clock. Their settings are read-only here; edit their source subcircuit
+to change them. Names use the authored layout's labels, mapped to compiled IDs.
+
+The green digital waveforms use processed simulation seconds, not rendered frames.
+Every clock transition is recorded, even when several occur between frames.
+Vertical guides mark scheduled transition times; a blue line marks the current
+processed instant. **−/+** zoom time; scroll moves between clocks, Shift+scroll
+moves through history, and **Live** follows the newest time. At dense zoom levels,
+multiple edges share a pixel; zoom in to distinguish them.
+
+ClockTimeline retains at most 2,048 state samples per clock and 2,048 shared edge
+guides per view. It is separate from Scene snapshots and JSON files. Switching
+views retains history; opening a file, undo/redo, or replacing published definitions
+resets the affected history. Evicted time ranges are left blank. There is no signal
+analyzer, physical timing model, or new scheduler framework.

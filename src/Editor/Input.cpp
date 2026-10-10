@@ -58,6 +58,7 @@ void Input::setScene(Scene* scene, EditHistory* history)
     m_pendingKeyPresses.clear();
     m_pressedKeys.clear();
     m_scene = scene;
+    m_clockTimeline = nullptr;
     if (history)
         m_history = history;
     else
@@ -157,6 +158,8 @@ void Input::handleKey(int key, int action, int mods, int scanCode)
                 const auto result = redo ? m_history->redo(*m_scene) : m_history->undo(*m_scene);
                 // Restoring history must not record a new user edit or clear the redo stack.
                 reportEditResult(result);
+                if (result.change && m_clockTimeline)
+                    m_clockTimeline->clear();
             }
         }
         return;
@@ -441,7 +444,7 @@ void Input::process(GLFWwindow* window)
         if (pause)
             m_scene->togglePauseAllClocks();
         if (step)
-            m_scene->stepAllClocks();
+            m_scene->stepAllClocks(1, m_clockTimeline);
     }
     const bool remove = consumeKeyPress(GLFW_KEY_DELETE);
     const bool backspace = consumeKeyPress(GLFW_KEY_BACKSPACE);
@@ -470,6 +473,8 @@ void Input::process(GLFWwindow* window)
 void Input::handleScroll(GLFWwindow* window, double x, double y)
 {
     UiInputEvent event{UiInputKind::Scroll};
+    if (m_pressedKeys.contains(GLFW_KEY_LEFT_SHIFT) || m_pressedKeys.contains(GLFW_KEY_RIGHT_SHIFT))
+        event.modifiers |= GLFW_MOD_SHIFT;
     event.x = x;
     event.y = y;
     const bool consumed = dispatchUi(event);

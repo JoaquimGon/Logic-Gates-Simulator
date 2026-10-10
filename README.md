@@ -31,6 +31,14 @@ toggles its value. **Interaction mode** operates inputs and clock controls while
 blocking structural edits. Simulation continues in both modes; pan and zoom are
 available in both. The window title shows the mode and F2 shortcut.
 
+The permanent **Clocks** bottom tab shows one digital waveform per live clock,
+including clocks inside placed subcircuits. **Run/Pause**, **1 edge**, and **2 edges**
+work in both modes. One step settles the next scheduled edge; two steps settle
+two consecutive edge times (one full cycle for a single clock). Click a native
+clock's frequency to edit Hz, and use Enable/Disable for individual clocks.
+Global pause preserves those settings. Scroll rows, Shift+scroll time, use −/+
+to zoom, and Live to follow. See [clock timing](docs/Simulation.md).
+
 Compact Sel. and Int. buttons above the bottom feature panel also switch
 modes. The active button is faded and underlined; hover either button for
 a short explanation of its behavior.
@@ -181,8 +189,8 @@ appear gray.
 | **Escape** | Abort current gesture |
 | **F2** | Toggle Selection / Interaction mode |
 | **F3** | Toggle debug metrics |
-| **Space** | Interaction: pause/resume clocks |
-| **Period** | Interaction: step clocks once |
+| **Space** | Interaction: pause/resume the shared clock timeline |
+| **Period** | Interaction: advance to the next clock edge and pause |
 | **1** | Spawn `InputPin` |
 | **2** | Spawn `NOT` Gate |
 | **3** | Spawn `AND` Gate |
@@ -345,7 +353,7 @@ remains separate work.
 
     [ ] Multi-driver short-circuit contention diagnostics
 
-    [ ] Clock-driven components (Flip-Flops, Latches, Clocks)
+    [ ] Native edge-triggered flip-flops (clocks and level-sensitive latches are available)
 
     [ ] Sub-circuit modular packaging (Adders, Multiplexers, ALUs)
 

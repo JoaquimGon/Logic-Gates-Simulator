@@ -22,11 +22,13 @@
 
 struct GLFWwindow;
 class Scene;
+class ClockTimeline;
 
 class Input
 {
   private:
     Scene* m_scene = nullptr;
+    ClockTimeline* m_clockTimeline = nullptr;
     EditHistory m_localHistory;
     EditHistory* m_history = &m_localHistory;
     UiInputHandler m_uiInputHandler;
@@ -170,6 +172,9 @@ class Input
     PinType getWireOriginType() const { return m_wire.direction(); }
 
     void setScene(Scene* scene, EditHistory* history = nullptr);
+
+    void setClockTimeline(ClockTimeline* timeline) { m_clockTimeline = timeline; }
+
     /** Records successful user edits, including palette/property actions made by the UI. */
     void recordEdit(const EditResult& result);
 

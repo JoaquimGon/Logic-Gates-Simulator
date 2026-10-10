@@ -44,7 +44,7 @@ void savedStatus(GLFWwindow* window)
     scene.handleClick(source);
     require(!views.hasUnsavedChanges(0), "Restoring saved input state stayed unsaved.");
     scene.togglePauseAllClocks();
-    require(views.hasUnsavedChanges(0), "Clock pause setting was ignored.");
+    require(!views.hasUnsavedChanges(0), "Runtime pause dirtied a save.");
     scene.togglePauseAllClocks();
     require(!views.hasUnsavedChanges(0), "Restoring saved clock settings stayed unsaved.");
     scene.setAllClocksFrequency(2);

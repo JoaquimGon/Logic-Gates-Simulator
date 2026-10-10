@@ -230,7 +230,7 @@ void Engine::run()
 
         // Clocks settle the circuit at every transition; remember edits for visual synchronization.
         const bool pendingSimulation = scene.isSimulationDirty();
-        bool clockEdgeFlipped = scene.updateClocks(deltaTime);
+        bool clockEdgeFlipped = scene.updateClocks(deltaTime, &circuits.activeClockTimeline());
 
         // Debugging
         m_timeSinceLastPropagateMs += (deltaTime * 1000.0f);

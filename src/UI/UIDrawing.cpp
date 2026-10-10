@@ -181,7 +181,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     renderer.setScreenClip(m_bottom);
     renderer.drawScreenRect(m_bottom, {0.075f, 0.09f, 0.12f, 1});
     renderer.drawScreenRect({m_bottom.x, m_bottom.y, m_bottom.width, 1}, {0.18f, 0.23f, 0.3f, 1});
-    for (const auto tab : {BottomTab::Subcircuit, BottomTab::Messages})
+    for (const auto tab : {BottomTab::Subcircuit, BottomTab::Messages, BottomTab::Clocks})
     {
         if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
             continue;
@@ -199,7 +199,9 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                 problems ? accent : glm::vec4{0.3f, 0.65f, 0.95f, 1}
             );
         label(
-            tab == BottomTab::Subcircuit ? "Subcircuit" : messagesTabLabel(),
+            tab == BottomTab::Subcircuit ? "Subcircuit"
+            : tab == BottomTab::Clocks   ? "Clocks"
+                                         : messagesTabLabel(),
             bounds,
             0.42f,
             problems ? accent : ink,
@@ -208,6 +210,8 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     }
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
+    if (m_bottomTab == BottomTab::Clocks)
+        drawClocks(renderer, scene);
     if (m_bottomTab == BottomTab::Subcircuit && m_showSubcircuit)
     {
         const auto info = subcircuitInfo(scene);

@@ -22,8 +22,10 @@ class Clock : public Component
     {
         if (!std::isfinite(hz) || hz <= 0)
             throw std::invalid_argument("Clock frequency must be finite and positive.");
+        const double phase = m_timer / m_halfPeriod;
         m_frequencyHz = std::max(0.1f, hz);
         m_halfPeriod = 0.5 / m_frequencyHz;
+        m_timer = phase * m_halfPeriod;
     }
 
     float getFrequency() const { return m_frequencyHz; }
