@@ -114,14 +114,20 @@ class UI
         DoubleStep,
         ZoomOut,
         ZoomIn,
-        Live
+        Live,
+        Fit,
+        Clear
     };
     CanvasViewport clockControlBounds(ClockControl control) const;
     CanvasViewport clockListBounds() const;
     CanvasViewport clockFrequencyBounds(int visibleRow) const;
     CanvasViewport clockPauseBounds(int visibleRow) const;
 
-    double clockWindowSeconds() const { return m_clockWindow; }
+    double clockWindowSeconds() const;
+    std::string clockTimeFrameText() const;
+    bool clockWaveformTooDense(float frequency) const;
+    std::vector<std::string> clockTooltip(const Scene& scene) const;
+    CanvasViewport clockTooltipBounds(const Scene& scene) const;
 
     CanvasViewport subcircuitListBounds() const;
     /** Interface readiness and vital names, including clocks inside saved nested components. */
@@ -150,6 +156,9 @@ class UI
     bool handleClocks(const UiInputEvent& event, Scene& scene, Input& input);
     void closeClockEdit(Input& input);
     void drawClocks(Renderer& renderer, const Scene& scene) const;
+    void drawClockTooltip(Renderer& renderer, const Scene& scene) const;
+    void updateClockHover(double now);
+    static double fittedClockWindow(const std::vector<ClockReading>& readings);
     ClockTimeline& clockTimeline();
     const ClockTimeline& clockTimeline() const;
     double clockLabelWidth() const;
@@ -217,7 +226,9 @@ class UI
     ClockTimeline m_clockTimeline;
     int m_clockScroll = 0;
     double m_clockWindow = 2, m_clockEnd = 2;
-    bool m_clockFollow = true;
+    bool m_clockFollow = true, m_clockAutoFit = true;
+    int m_clockHover = -1;
+    double m_clockHoverSince = 0, m_clockHoverNow = 0;
     int m_clockEditing = -1, m_clockCommittedKey = -1;
     bool m_clockReplaceDraft = false, m_clockMousePressed = false;
     std::string m_clockDraft, m_clockError;

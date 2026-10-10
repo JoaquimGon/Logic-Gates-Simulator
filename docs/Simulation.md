@@ -105,9 +105,12 @@ No cycle tracing or new scheduling infrastructure is introduced.
 ## Clocks panel and chronograms
 
 The permanent **Clocks** bottom tab is available in workspaces and subcircuit
-editors. **Run/Pause**, **1 edge**, and **2 edges** control the shared timeline
+editors. **Run/Pause**, **Half cycle**, and **Full cycle** control the shared timeline
 in either editor mode. Space/Period remain canvas shortcuts in Interaction mode,
-using the same pause/one-edge behavior.
+using the same pause/one-edge behavior. Half cycle advances to the next rising
+or falling transition; Full cycle processes two transitions. These names describe
+one enabled clock. With several clocks, the buttons process one/two shared edge
+times, so Full cycle need not complete a cycle for every clock.
 
 Each row shows a live name, HIGH/LOW level, frequency, and Enable/Disable control.
 Click a native clock's Hz field, type a finite frequency of at least 0.1 Hz, and
@@ -121,10 +124,36 @@ to change them. Names use the authored layout's labels, mapped to compiled IDs.
 
 The green digital waveforms use processed simulation seconds, not rendered frames.
 Every clock transition is recorded, even when several occur between frames.
-Vertical guides mark scheduled transition times; a blue line marks the current
-processed instant. **−/+** zoom time; scroll moves between clocks, Shift+scroll
-moves through history, and **Live** follows the newest time. At dense zoom levels,
-multiple edges share a pixel; zoom in to distinguish them.
+Each clock's edge guides and blue current-time marker stay inside its own row.
+The centered **Time frame = N s** label states the visible duration; the toolbar's
+Elapsed value is processed simulation time. There are no axis/cursor lines when
+the circuit has no clocks.
+
+**Fit** (the initial view) shows four cycles of the fastest enabled clock:
+time frame = 4 / Hz, bounded by the existing zoom limits. At 256 Hz this is
+0.015625 seconds. It follows frequency/enable changes; if all clocks are disabled,
+it uses the fastest configured clock. **−/+** double/halve the duration and stop
+automatic fitting. **Fit** restores it. Scroll moves between clocks, Shift+scroll
+moves through history, and **Live** follows the newest time without changing zoom.
+
+Unreadable rows show **Too fast for this time frame. Zoom in or Fit**, with no
+waveform, edge-guide, or cursor geometry. A row needs at least eight logical pixels
+per half-cycle and at most 128 visible edges: 2 × Hz × time frame must not exceed
+min(128, graph width / 8). At 256 Hz over four seconds, drawing is skipped outright.
+Fit or zooming in restores the waveform when the displayed edges are readable.
+The same bounds apply to actual retained history, including earlier higher rates.
+
+Suppression happens before waveform traversal/geometry generation, rather than
+drawing a dense stripe or shaded block. Recorded edges and simulation behavior
+remain exact. Clock paths are collected once per update and reused during edge
+recording, rather than sorted/copied every edge. Simulation still has to process
+each clock edge within its existing work limits.
+
+**Clear**, at the far right, removes this view's recordings and starts a fresh
+baseline at the current time. It changes neither clock state/phase nor simulation
+time, frequency, save status, or edit history. Recording continues normally.
+Hover a toolbar/enable button for 0.75 seconds to see its explanation, including
+shared-timeline stepping, simultaneous edges, and disabled/blocked clock warnings.
 
 ClockTimeline retains at most 2,048 state samples per clock and 2,048 shared edge
 guides per view. It is separate from Scene snapshots and JSON files. Switching

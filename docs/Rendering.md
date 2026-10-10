@@ -554,7 +554,16 @@ Framebuffer previews cover healthy status, live errors, camera navigation and
 normal/narrow 2x FIND layouts.
 
 
-The Clocks tab reuses screen rectangles and text. Its visible digital waveform
-segments and time guides use one batched screen-quad submission, clipped to the
-row area; adjacent edges sharing a pixel do not create repeated guide draws.
-Clock history lives outside the renderer and uses processed simulation time.
+The Clocks tab reuses screen rectangles and text. Visible waveforms, row-local
+edge guides and current-time markers use one batched screen-quad submission.
+Waveforms require at least eight logical pixels per half-cycle, with a maximum
+of 128 visible edges per row. Rows exceeding either bound show a zoom/Fit message
+and skip waveform/guide/cursor generation entirely. Actual retained edge spacing
+is checked as well, preventing old higher-frequency history from bypassing the
+cutoff. Readable rows draw their exact recorded plateaus and edges; dense stripes
+and shaded blocks are not drawn. Guide/cursor strokes stop before neighboring
+rows and disappear with no clocks.
+The centered Time frame label shows the zoom span, with automatic four-cycle Fit
+and a separate far-right Clear control. Delayed button explanations reuse the
+existing popup rectangles/text above UI layers. Clock history lives outside the
+renderer and retains exact processed simulation transitions.

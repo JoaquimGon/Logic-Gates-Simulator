@@ -343,14 +343,18 @@ std::vector<ClockReading> Circuit::clockReadings(ClockPath prefix) const
     std::sort(ids.begin(), ids.end());
     for (int id : ids)
     {
+        const auto* component = getComponent(id);
+        const auto* clock = dynamic_cast<const Clock*>(component);
+        const auto* sub = dynamic_cast<const Subcircuit*>(component);
+        if (!clock && !sub)
+            continue;
         auto path = prefix;
         path.push_back(id);
-        const auto* component = getComponent(id);
-        if (const auto* clock = dynamic_cast<const Clock*>(component))
+        if (clock)
             readings.push_back(
                 {path, clock->getFrequency(), clock->isPaused(), clock->getStateOutPin()}
             );
-        else if (const auto* sub = dynamic_cast<const Subcircuit*>(component))
+        else if (sub)
         {
             auto nested = sub->runtimeCircuit().clockReadings(path);
             readings.insert(readings.end(), nested.begin(), nested.end());
@@ -366,6 +370,25 @@ void Circuit::setClocksPaused(bool paused)
         m_pendingClockTime = 0;
 }
 
+namespace
+{
+void recordClocks(
+    ClockTimeline* timeline,
+    double time,
+    std::vector<ClockReading>& readings,
+    const std::vector<Clock*>& clocks,
+    bool edge = false
+)
+{
+    if (!timeline)
+        return;
+    // Both traversals use the same deterministic native/nested component order.
+    for (std::size_t i = 0; i < readings.size(); ++i)
+        readings[i].high = clocks[i]->getStateOutPin();
+    timeline->record(time, readings, edge);
+}
+} // namespace
+
 int Circuit::stepClocks(int count, ClockTimeline* timeline)
 {
     if (count < 1 || count > 2)
@@ -373,8 +396,9 @@ int Circuit::stepClocks(int count, ClockTimeline* timeline)
     setClocksPaused(true);
     if (isStateDirty())
         propagate();
+    auto readings = timeline ? clockReadings() : std::vector<ClockReading>{};
     if (timeline)
-        timeline->record(m_clockTime, clockReadings());
+        timeline->record(m_clockTime, readings);
     std::vector<Clock*> clocks;
     collectClocks(clocks);
     int processed = 0;
@@ -394,7 +418,7 @@ int Circuit::stepClocks(int count, ClockTimeline* timeline)
         ++processed;
         propagate();
         if (timeline)
-            timeline->record(m_clockTime, clockReadings(), true);
+            recordClocks(timeline, m_clockTime, readings, clocks, true);
     }
     return processed;
 }
@@ -405,8 +429,9 @@ bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
         throw std::invalid_argument("Simulation elapsed time must be finite and non-negative.");
     if (isStateDirty())
         propagate();
+    auto readings = timeline ? clockReadings() : std::vector<ClockReading>{};
     if (timeline)
-        timeline->record(m_clockTime, clockReadings());
+        timeline->record(m_clockTime, readings);
     if (m_lastEvalResult != SimulationResult::OK || m_clocksPaused)
     {
         m_pendingClockTime = 0;
@@ -438,7 +463,7 @@ bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
             changed = true;
             propagate();
             if (timeline)
-                timeline->record(m_clockTime, clockReadings(), true);
+                recordClocks(timeline, m_clockTime, readings, clocks, true);
             if (m_lastEvalResult != SimulationResult::OK)
             {
                 m_pendingClockTime = 0;
@@ -449,6 +474,6 @@ bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
             break;
     }
     if (timeline)
-        timeline->record(m_clockTime, clockReadings());
+        recordClocks(timeline, m_clockTime, readings, clocks);
     return changed;
 }

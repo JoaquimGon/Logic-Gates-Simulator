@@ -11,14 +11,16 @@ void ClockTimeline::record(double time, const std::vector<ClockReading>& reading
     std::set<ClockPath> live;
     for (const auto& reading : readings)
     {
-        live.insert(reading.path);
+        if (!edge)
+            live.insert(reading.path);
         auto& trace = m_traces[reading.path];
         if (trace.empty() || trace.back().high != reading.high)
             trace.push_back({time, reading.high});
         while (trace.size() > sampleLimit)
             trace.pop_front();
     }
-    std::erase_if(m_traces, [&](const auto& row) { return !live.contains(row.first); });
+    if (!edge)
+        std::erase_if(m_traces, [&](const auto& row) { return !live.contains(row.first); });
     if (edge && (m_steps.empty() || m_steps.back() != time))
         m_steps.push_back(time);
     while (m_steps.size() > sampleLimit)

@@ -1875,7 +1875,7 @@ void clockPresentation(Renderer& renderer)
         {
             std::array<unsigned char, 4> color;
             glReadPixels(
-                static_cast<int>((graphX + time / 2 * graphWidth) * dpi),
+                static_cast<int>((graphX + time / ui.clockWindowSeconds() * graphWidth) * dpi),
                 extent - 1 - static_cast<int>((list.y + rowY) * dpi),
                 1,
                 1,
@@ -1890,13 +1890,153 @@ void clockPresentation(Renderer& renderer)
                 sample(0.25, 9)[1] < 80,
             "Clock diagram omitted digital levels/edges or ignored DPI."
         );
-        const auto live = ui.clockControlBounds(UI::ClockControl::Live);
+        const auto clear = ui.clockControlBounds(UI::ClockControl::Clear);
         require(
-            live.x + live.width <= ui.bottomBounds().x + ui.bottomBounds().width,
+            clear.x + clear.width == ui.bottomBounds().x + ui.bottomBounds().width - 8,
             "Clock toolbar overflowed a narrow window."
         );
         saveImage(dpi == 1 ? "clock-panel.ppm" : "clock-panel-2x.ppm");
     }
+    const auto list = ui.clockListBounds();
+    const double labelWidth =
+        std::min(220.0, std::min(list.width * 0.65, std::max(160.0, list.width * 0.4)));
+    const double graphX = list.x + labelWidth, graphWidth = list.width - labelWidth;
+    auto colorAt = [&](double x, double y)
+    {
+        std::array<unsigned char, 4> color;
+        glReadPixels(
+            static_cast<int>(x * 2),
+            extent - 1 - static_cast<int>(y * 2),
+            1,
+            1,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            color.data()
+        );
+        return color;
+    };
+    const double cursor = graphX + 1.5 / ui.clockWindowSeconds() * graphWidth;
+    require(
+        colorAt(cursor, list.y + 45)[2] < 65,
+        "Clock cursor/edge guide extended into the gap between rows."
+    );
+    views.activeScene().removeComponent(0);
+    renderer.beginFrame(CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
+    ui.draw(
+        renderer,
+        views.activeScene(),
+        CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent})
+    );
+    require(
+        colorAt(graphX + 1.5 / ui.clockWindowSeconds() * graphWidth, list.y + 10)[2] < 65,
+        "No-clock panel retained a time cursor."
+    );
+    saveImage("clock-panel-empty.ppm");
+
+    const int fast = views.activeScene().addComponent(
+        BuiltinComponentIds::Clock, {0, 0}, ComponentOverrides{.clockFrequency = 1000.0f}
+    );
+    auto& scene = views.activeScene();
+    scene.togglePauseAllClocks(); // Resume the previously stepped scene.
+    scene.updateClocks(1, &views.activeClockTimeline());
+    while (scene.pendingClockTime() > 0)
+        scene.updateClocks(0, &views.activeClockTimeline());
+    auto clickControl = [&](UI::ClockControl control)
+    {
+        const auto box = ui.clockControlBounds(control);
+        UiInputEvent click{UiInputKind::MouseButton};
+        click.code = GLFW_MOUSE_BUTTON_LEFT;
+        click.x = box.x + box.width / 2;
+        click.y = box.y + box.height / 2;
+        click.action = GLFW_PRESS;
+        ui.handleInput(
+            click, scene, input, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent})
+        );
+        click.action = GLFW_RELEASE;
+        ui.handleInput(
+            click, scene, input, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent})
+        );
+    };
+    for (int i = 0; i < 11; ++i)
+        clickControl(UI::ClockControl::ZoomOut);
+    renderer.beginFrame(CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
+    ui.draw(renderer, scene, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
+    auto greenPixels = [&]()
+    {
+        int count = 0;
+        for (int y = 0; y < 44; ++y)
+            for (int x = 0; x < static_cast<int>(graphWidth); ++x)
+            {
+                const auto color = colorAt(graphX + x, list.y + y);
+                if (color[1] > color[0] + 20 && color[1] > color[2] + 20)
+                    ++count;
+            }
+        return count;
+    };
+    require(
+        ui.clockWaveformTooDense(1000) && greenPixels() == 0,
+        "An unreadable clock still drew dense lines or a shaded block."
+    );
+    saveImage("clock-panel-too-fast.ppm");
+    const auto slowRate = EditorActions(scene).apply(
+        {ConfigureComponentProperties{.componentId = fast, .clockFrequency = 0.1f}}
+    );
+    require(
+        static_cast<bool>(slowRate) && !ui.clockWaveformTooDense(0.1f),
+        "Historical-density fixture still exceeded the nominal rate limit."
+    );
+    renderer.beginFrame(CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
+    ui.draw(renderer, scene, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
+    require(greenPixels() == 0, "Earlier high-frequency history bypassed the drawing cutoff.");
+    const auto restoreRate = EditorActions(scene).apply(
+        {ConfigureComponentProperties{.componentId = fast, .clockFrequency = 1000.0f}}
+    );
+    require(static_cast<bool>(restoreRate), "Could not restore the fitted clock fixture.");
+    clickControl(UI::ClockControl::Fit);
+    require(ui.clockWindowSeconds() == 0.004, "High-frequency waveform did not fit four cycles.");
+    UiInputEvent hover{UiInputKind::Cursor};
+    const auto fit = ui.clockControlBounds(UI::ClockControl::Fit);
+    hover.x = fit.x + 2;
+    hover.y = fit.y + 2;
+    ui.handleInput(
+        hover, scene, input, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent})
+    );
+    ui.update(20, input);
+    ui.update(20.8, input);
+    renderer.beginFrame(CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
+    ui.draw(renderer, scene, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
+    require(
+        !ui.clockWaveformTooDense(1000) && greenPixels() > 40,
+        "Fit did not restore visible waveform edges."
+    );
+    const auto popup = ui.clockTooltipBounds(scene);
+    require(
+        popup.width > 0 && colorAt(popup.x + 4, popup.y + 4)[2] > 30,
+        "Delayed clock-control tooltip did not render at 2x scaling."
+    );
+    require(
+        views.activeClockTimeline().traces().at({fast}).size() >= 2000,
+        "Suppressing/fitting waveforms discarded simulated transitions."
+    );
+    saveImage("clock-panel-fitted-tooltip.ppm");
+    views.create(input);
+    auto& multiple = views.activeScene();
+    multiple.addComponent(BuiltinComponentIds::Clock, {0, 0});
+    multiple.addComponent(
+        BuiltinComponentIds::Clock, {20, 0}, ComponentOverrides{.clockFrequency = 2.0f}
+    );
+    multiple.stepAllClocks(1, &views.activeClockTimeline());
+    multiple.stepAllClocks(2, &views.activeClockTimeline());
+    ui.layout(multiple.getComponentCatalog(), {extent / 2, extent / 2, extent, extent}, input);
+    const auto multipleFrame = CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent});
+    renderer.beginFrame(multipleFrame);
+    ui.draw(renderer, multiple, multipleFrame);
+    const double fastOnlyEdge = graphX + 0.25 / ui.clockWindowSeconds() * graphWidth;
+    require(
+        colorAt(fastOnlyEdge, list.y + 5)[2] < 65 && colorAt(fastOnlyEdge, list.y + 53)[2] > 65,
+        "One clock's edge guide crossed into another clock's row."
+    );
+    saveImage("clock-panel-multiple.ppm");
     ui.setCircuitViews(nullptr, nullptr);
     input.setScene(nullptr);
 }

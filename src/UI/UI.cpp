@@ -25,6 +25,7 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     if (surface != m_surface)
     {
         m_pointer = {-1, -1};
+        m_clockHover = -1;
         closeClockEdit(input);
         closeFileMenu(input);
         closeInfo(input);
@@ -46,7 +47,8 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
         m_overviewView = m_circuitTabs.activeViewIndex();
         m_subcircuitScroll = 0;
         m_clockScroll = 0;
-        m_clockFollow = true;
+        m_clockFollow = m_clockAutoFit = true;
+        m_clockHover = -1;
         m_clockError.clear();
         closeClockEdit(input);
     }
@@ -116,6 +118,7 @@ void UI::update(double now, Input& input)
 {
     m_routingError = input.getLastEditError() == EditError::InvalidWire;
     m_canCreate = input.getMode() == EditorMode::Selection;
+    updateClockHover(now);
     if (m_fileMenuOpen)
         return;
     m_circuitTabs.update(now, input);

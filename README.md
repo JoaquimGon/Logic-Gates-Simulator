@@ -32,12 +32,16 @@ blocking structural edits. Simulation continues in both modes; pan and zoom are
 available in both. The window title shows the mode and F2 shortcut.
 
 The permanent **Clocks** bottom tab shows one digital waveform per live clock,
-including clocks inside placed subcircuits. **Run/Pause**, **1 edge**, and **2 edges**
+including clocks inside placed subcircuits. **Run/Pause**, **Half cycle**, and **Full cycle**
 work in both modes. One step settles the next scheduled edge; two steps settle
 two consecutive edge times (one full cycle for a single clock). Click a native
 clock's frequency to edit Hz, and use Enable/Disable for individual clocks.
-Global pause preserves those settings. Scroll rows, Shift+scroll time, use −/+
-to zoom, and Live to follow. See [clock timing](docs/Simulation.md).
+Global pause preserves those settings. **Time frame = N s** labels the zoom span.
+**Fit** automatically shows four cycles of the fastest enabled clock (4 / Hz);
+−/+ adjust the span manually. Scroll rows, Shift+scroll time, and Live to follow.
+The far-right **Clear** starts fresh recordings without resetting the simulation.
+Hover buttons briefly for explanations and disabled-clock warnings.
+See [clock timing](docs/Simulation.md).
 
 Compact Sel. and Int. buttons above the bottom feature panel also switch
 modes. The active button is faded and underlined; hover either button for

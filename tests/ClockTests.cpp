@@ -9,6 +9,7 @@
 #include "UI/UI.h"
 
 #include <GLFW/glfw3.h>
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -218,6 +219,16 @@ void panel(GLFWwindow* window)
     };
     click(ui.bottomTabBounds(UI::BottomTab::Clocks));
     require(ui.activeBottomTab() == UI::BottomTab::Clocks, "Workspace has no Clocks tab.");
+    const auto stepButton = ui.clockControlBounds(UI::ClockControl::SingleStep);
+    input.handleCursorPos(window, stepButton.x + 2, stepButton.y + 2);
+    ui.update(10, input);
+    require(ui.clockTooltip(views.activeScene()).empty(), "Clock tooltip appeared without delay.");
+    ui.update(10.8, input);
+    const auto stepTip = ui.clockTooltip(views.activeScene());
+    require(
+        !stepTip.empty() && stepTip[1].find("any enabled clock") != std::string::npos,
+        "Step tooltip did not explain the shared timeline."
+    );
     click(ui.clockControlBounds(UI::ClockControl::SingleStep));
     require(
         views.activeScene().clocksPaused() && views.activeScene().clockTime() == 0.5 &&
@@ -232,8 +243,13 @@ void panel(GLFWwindow* window)
     const auto zoom = input.getZoom();
     click(ui.clockControlBounds(UI::ClockControl::ZoomIn));
     require(
-        ui.clockWindowSeconds() == 1 && input.getZoom() == zoom,
+        ui.clockWindowSeconds() == 2 && input.getZoom() == zoom,
         "Timeline zoom affected the canvas."
+    );
+    click(ui.clockControlBounds(UI::ClockControl::Fit));
+    require(
+        ui.clockWindowSeconds() == 4 && ui.clockTimeFrameText() == "Time frame = 4 s",
+        "Fit did not show four cycles or label the displayed time frame."
     );
     click(ui.clockFrequencyBounds(0));
     input.handleText('8');
@@ -241,7 +257,8 @@ void panel(GLFWwindow* window)
     require(
         static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency() ==
                 8 &&
-            input.getUndoCount() == 1 && views.hasUnsavedChanges(0),
+            input.getUndoCount() == 1 && views.hasUnsavedChanges(0) &&
+            ui.clockWindowSeconds() == 0.5,
         "Frequency edit was not undoable/savable."
     );
     input.setCanvasFocused(true);
@@ -264,6 +281,19 @@ void panel(GLFWwindow* window)
     key(GLFW_KEY_ESCAPE);
     click(ui.clockPauseBounds(0));
     const auto samples = views.activeClockTimeline().steps().size();
+    const auto doubleButton = ui.clockControlBounds(UI::ClockControl::DoubleStep);
+    input.handleCursorPos(window, doubleButton.x + 2, doubleButton.y + 2);
+    ui.update(12, input);
+    ui.update(12.8, input);
+    const auto disabledTip = ui.clockTooltip(views.activeScene());
+    require(
+        std::any_of(
+            disabledTip.begin(),
+            disabledTip.end(),
+            [](const auto& text) { return text.find("All clocks disabled") != std::string::npos; }
+        ),
+        "Disabled stepping did not have a hover explanation."
+    );
     click(ui.clockControlBounds(UI::ClockControl::SingleStep));
     require(
         views.activeClockTimeline().steps().size() == samples &&
@@ -271,6 +301,20 @@ void panel(GLFWwindow* window)
         "Panel stepping ignored a disabled clock."
     );
     click(ui.clockPauseBounds(0));
+    click(ui.clockControlBounds(UI::ClockControl::SingleStep));
+    const auto time = views.activeScene().clockTime();
+    const bool high = views.activeScene().getLogicComponent(clock)->getStateOutPin();
+    const auto undoCount = input.getUndoCount();
+    click(ui.clockControlBounds(UI::ClockControl::Clear));
+    require(
+        views.activeClockTimeline().steps().empty() &&
+            views.activeClockTimeline().traces().at({clock}).size() == 1 &&
+            views.activeClockTimeline().traces().at({clock}).front().time == time &&
+            views.activeScene().clockTime() == time &&
+            views.activeScene().getLogicComponent(clock)->getStateOutPin() == high &&
+            input.getUndoCount() == undoCount,
+        "Clear reset the simulation or retained old graph data."
+    );
     click(ui.clockControlBounds(UI::ClockControl::SingleStep));
     const auto mainSteps = views.activeClockTimeline().steps().size();
     views.create(input, CircuitViews::Role::Subcircuit);
@@ -316,6 +360,47 @@ void panel(GLFWwindow* window)
         !input.getUiCapture().keyboard && input.getUndoCount() == count,
         "Nested row allowed editing the template from the runtime viewer."
     );
+
+    ui.dismissPopups(input);
+    views.create(input);
+    const int fast = views.activeScene().addComponent(
+        BuiltinComponentIds::Clock, {0, 0}, ComponentOverrides{.clockFrequency = 256.0f}
+    );
+    views.activeScene().addComponent(
+        BuiltinComponentIds::Clock, {20, 0}, ComponentOverrides{.clockFrequency = 1.0f}
+    );
+    layout();
+    click(ui.bottomTabBounds(UI::BottomTab::Clocks));
+    require(
+        ui.clockWindowSeconds() == 4.0 / 256 &&
+            ui.clockTimeFrameText() == "Time frame = 0.015625 s",
+        "High-frequency clocks did not automatically receive a readable time frame."
+    );
+    click(ui.clockControlBounds(UI::ClockControl::ZoomOut));
+    const auto manualWindow = ui.clockWindowSeconds();
+    for (int i = 0; i < 7; ++i)
+        click(ui.clockControlBounds(UI::ClockControl::ZoomOut));
+    require(
+        ui.clockWindowSeconds() == 4 && ui.clockWaveformTooDense(256),
+        "256 Hz over four seconds was not suppressed."
+    );
+    ui.layout(views.activeScene().getComponentCatalog(), {1900, 800, 1900, 800}, input);
+    require(ui.clockWaveformTooDense(256), "Wide windows allowed thousands of clock edges.");
+    click(ui.clockControlBounds(UI::ClockControl::Fit));
+    require(!ui.clockWaveformTooDense(256), "Fit did not restore a readable waveform.");
+    layout();
+    click(ui.clockControlBounds(UI::ClockControl::ZoomOut));
+    const auto rate =
+        EditorActions(views.activeScene())
+            .apply({ConfigureComponentProperties{.componentId = fast, .clockFrequency = 1024.0f}});
+    require(
+        static_cast<bool>(rate) && ui.clockWindowSeconds() == manualWindow,
+        "Frequency changes overwrote manual zoom."
+    );
+    click(ui.clockControlBounds(UI::ClockControl::Fit));
+    require(ui.clockWindowSeconds() == 4.0 / 1024, "Fit did not restore automatic scaling.");
+    click(ui.clockPauseBounds(0));
+    require(ui.clockWindowSeconds() == 4, "A disabled fast clock dominated automatic fitting.");
 
     auto loaded = views.activeScene();
     views.replaceWorkspace(std::move(loaded), "Opened", input);

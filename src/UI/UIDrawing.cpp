@@ -535,4 +535,5 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         );
         renderer.drawText(text, TextSpace::Screen);
     }
+    drawClockTooltip(renderer, scene);
 }
