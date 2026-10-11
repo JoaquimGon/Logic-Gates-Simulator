@@ -160,7 +160,9 @@ void Renderer::beginFrame(const CanvasCameraFrame& camera)
     m_sm.checkHotReload();
     m_currentCamera = camera;
     m_screenClip.reset();
-    m_drawCallCount = 0; // Reset at the beginning of each frame
+    m_drawCalls = {};
+    m_uiDrawCategory = DrawCategory::StaticUI;
+    m_countDrawCalls = true;
     setScreenViewport();
     glClear(GL_COLOR_BUFFER_BIT);
 }
@@ -228,7 +230,7 @@ void Renderer::drawGrid()
     shader->setFloat("uGridSpacing", GridSystem::GRID_SPACING);
 
     m_gridMesh->draw();
-    m_drawCallCount++;
+    recordDrawCalls(DrawCategory::StaticUI);
 }
 
 void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire)
@@ -256,7 +258,7 @@ void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* active
     {
         m_wireMesh->updateData(allWiresData, 7);
         m_wireMesh->draw();
-        m_drawCallCount++;
+        recordDrawCalls(DrawCategory::Wires);
     }
 }
 
@@ -280,7 +282,7 @@ void Renderer::drawWireSegmentBoundingBox(
 
     m_boundsMesh->updateData(boxData, 7);
     m_boundsMesh->draw();
-    m_drawCallCount++;
+    recordDrawCalls(DrawCategory::Wires);
 }
 
 void Renderer::drawComponents(std::span<const ComponentRenderData> components)
@@ -295,7 +297,7 @@ void Renderer::drawComponents(std::span<const ComponentRenderData> components)
         shader->setBool("uDrawRearArc", batch.instances.front().drawRearArc);
         m_gateMesh->setInstanceData(packComponentInstances(batch.instances), {2, 2, 4}, 1);
         m_gateMesh->drawInstanced(static_cast<int>(batch.instances.size()));
-        ++m_drawCallCount;
+        recordDrawCalls(DrawCategory::Components);
     }
 }
 
@@ -407,7 +409,7 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components)
         return;
     m_leadMesh->updateData(data, 7);
     m_leadMesh->draw();
-    ++m_drawCallCount;
+    recordDrawCalls(DrawCategory::Components);
 }
 
 void Renderer::drawPins(
@@ -452,7 +454,7 @@ void Renderer::drawPins(
     {
         m_pointMesh->setInstanceData(pinInstanceData, {2, 4}, 1);
         m_pointMesh->drawInstanced(totalPins);
-        m_drawCallCount++;
+        recordDrawCalls(DrawCategory::Components);
     }
 }
 
@@ -467,7 +469,7 @@ void Renderer::drawComponentBoundingBox(BodyBounds bounds, float padding, float 
 
     m_boundsMesh->updateData(boxData, 7);
     m_boundsMesh->draw();
-    m_drawCallCount++;
+    recordDrawCalls(DrawCategory::Components);
 }
 
 void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
@@ -488,7 +490,7 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
     std::vector<float> data = {worldPos.x, worldPos.y, r, g, b, opacity};
     m_pointMesh->setInstanceData(data, {2, 4}, 1);
     m_pointMesh->drawInstanced(1);
-    m_drawCallCount++;
+    recordDrawCalls(DrawCategory::Wires);
 }
 
 void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
@@ -527,7 +529,7 @@ void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
 
     m_pointMesh->setInstanceData(instancedData, {2, 4}, 1);
     m_pointMesh->drawInstanced(static_cast<int>(intersectionData.size()));
-    m_drawCallCount++;
+    recordDrawCalls(DrawCategory::Wires);
 }
 
 void Renderer::drawWorldRect(BodyBounds bounds, glm::vec4 color)
@@ -546,7 +548,7 @@ void Renderer::drawWorldRect(BodyBounds bounds, glm::vec4 color)
         vertices.insert(vertices.end(), {point.x, point.y, 0, color.r, color.g, color.b, color.a});
     m_boundsMesh->updateData(vertices, 7);
     m_boundsMesh->draw();
-    ++m_drawCallCount;
+    recordDrawCalls(DrawCategory::StaticUI);
 }
 
 void Renderer::drawScreenRect(CanvasViewport bounds, glm::vec4 color)
@@ -607,7 +609,7 @@ void Renderer::drawScreenRects(std::span<const ScreenRect> rectangles)
     );
     m_boundsMesh->updateData(vertices, 7);
     m_boundsMesh->draw();
-    ++m_drawCallCount;
+    recordDrawCalls(m_uiDrawCategory);
 }
 
 void Renderer::drawScreenComponent(const ComponentBodyInstance& body)
@@ -639,7 +641,7 @@ void Renderer::drawScreenComponent(const ComponentBodyInstance& body)
     instance.size.y = -instance.size.y; // Preserve the shader's upward local Y in screen space.
     m_gateMesh->setInstanceData(packComponentInstances({&instance, 1}), {2, 2, 4}, 1);
     m_gateMesh->drawInstanced(1);
-    ++m_drawCallCount;
+    recordDrawCalls(m_uiDrawCategory);
 }
 
 void Renderer::drawText(std::span<const TextRun> runs, TextSpace space)
@@ -668,12 +670,51 @@ void Renderer::drawText(std::span<const TextRun> runs, TextSpace space)
             1.0f
         );
     }
-    m_drawCallCount += m_text.draw(runs, space, projection, *shader);
+    recordDrawCalls(
+        space == TextSpace::World ? DrawCategory::Components : m_uiDrawCategory,
+        m_text.draw(runs, space, projection, *shader)
+    );
 }
 
 void Renderer::drawLabels(std::span<const ComponentRenderData> components)
 {
     drawText(layoutComponentLabels(components, m_text.metrics()), TextSpace::World);
+}
+
+void Renderer::recordDrawCalls(DrawCategory category, int count)
+{
+    if (m_countDrawCalls)
+        m_drawCalls.calls[static_cast<std::size_t>(category)] += count;
+}
+
+void Renderer::beginUiTiming(bool enabled)
+{
+    m_uiCpuTimes = {};
+    m_timingUi = enabled;
+    m_uiDrawCategory = DrawCategory::StaticUI;
+    if (enabled)
+        m_uiTimeStart = std::chrono::steady_clock::now();
+}
+
+void Renderer::setUiDrawCategory(DrawCategory category)
+{
+    if (m_timingUi)
+    {
+        const auto now = std::chrono::steady_clock::now();
+        m_uiCpuTimes
+            [m_uiDrawCategory == DrawCategory::DynamicUI ? CpuPhase::DynamicUI
+                                                         : CpuPhase::StaticUI] +=
+            std::chrono::duration<double, std::milli>(now - m_uiTimeStart).count();
+        m_uiTimeStart = now;
+    }
+    m_uiDrawCategory = category;
+}
+
+CpuTimings Renderer::endUiTiming()
+{
+    setUiDrawCategory(m_uiDrawCategory);
+    m_timingUi = false;
+    return m_uiCpuTimes;
 }
 
 void Renderer::drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics)
@@ -701,11 +742,13 @@ void Renderer::drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics)
         bottom = std::max(bottom, run.baseline.y + lineHeight * 0.25f);
     }
     constexpr float padding = 8;
+    const bool counting = std::exchange(m_countDrawCalls, false);
     drawScreenRect(
         {left - padding, top - padding, right - left + 2 * padding, bottom - top + 2 * padding},
         {0, 0, 0, 0.5f}
     );
     drawText(runs, TextSpace::Screen);
+    m_countDrawCalls = counting;
 }
 
 void Renderer::drawCanvas(const CanvasFrame& frame)

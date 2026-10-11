@@ -9,8 +9,10 @@
 #include "Persistence/CircuitFile.h"
 
 #include <GLFW/glfw3.h>
+#include <chrono>
 #include <glad/glad.h>
 #include <iostream>
+#include <optional>
 #include <vector>
 
 void Engine::errorCallback(int error, const char* description)
@@ -162,6 +164,7 @@ void Engine::run()
     glfwSetWindowTitle(window, titleForMode().c_str());
     auto displayedMode = input.getMode();
     double lastFrameTime = glfwGetTime();
+    std::optional<std::pair<std::size_t, UI::BottomTab>> timingContext;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -215,7 +218,26 @@ void Engine::run()
         if (input.consumeKeyPress(GLFW_KEY_F3))
         {
             m_showDebugOverlay = !m_showDebugOverlay;
+            m_cpuTimingWindow.reset();
         }
+        const auto context = std::pair{circuits.activeIndex(), m_ui.activeBottomTab()};
+        if (timingContext != context)
+        {
+            timingContext = context;
+            m_cpuTimingWindow.reset();
+        }
+        CpuTimings cpu;
+        auto phaseStart = m_showDebugOverlay ? std::chrono::steady_clock::now()
+                                             : std::chrono::steady_clock::time_point{};
+        auto finishPhase = [&]()
+        {
+            if (!m_showDebugOverlay)
+                return 0.0;
+            const auto now = std::chrono::steady_clock::now();
+            const double ms = std::chrono::duration<double, std::milli>(now - phaseStart).count();
+            phaseStart = now;
+            return ms;
+        };
 
         // 1. Process OS user inputs
         updateUiLayout();
@@ -228,28 +250,21 @@ void Engine::run()
             glfwSetWindowTitle(window, titleForMode().c_str());
         }
 
+        cpu[CpuPhase::Input] = finishPhase();
+
         // Clocks settle the circuit at every transition; remember edits for visual synchronization.
         const bool pendingSimulation = scene.isSimulationDirty();
         bool clockEdgeFlipped = scene.updateClocks(deltaTime, &circuits.activeClockTimeline());
 
-        // Debugging
-        m_timeSinceLastPropagateMs += (deltaTime * 1000.0f);
+        const bool syncNeeded = clockEdgeFlipped || pendingSimulation || scene.isSimulationDirty();
+        if (scene.isSimulationDirty())
+            scene.propagate();
+        cpu[CpuPhase::Simulation] = finishPhase();
 
-
-        if (clockEdgeFlipped || pendingSimulation || scene.isSimulationDirty())
-        {
-            if (scene.isSimulationDirty())
-                scene.propagate();
-
-            // Debugging
-            m_timeSinceLastPropagateMs = 0.0f;
-
-
+        if (syncNeeded)
             scene.syncVisuals();
-        }
 
-        // 4. Render graphics as normal
-        m_renderer.beginFrame(input.getCameraFrame(window));
+        // Prepare the state used by both the canvas and the UI.
         m_ui.reportSimulation(scene, currentFrameTime);
 
         const auto components = buildComponentPresentation(scene.getComponentViewMap());
@@ -316,8 +331,18 @@ void Engine::run()
             frame.hoveredPin = input.getHoveredPinIndex();
             frame.hoveredDirection = input.getHoveredPinType();
         }
+        cpu[CpuPhase::VisualPreparation] = finishPhase();
+        m_renderer.beginFrame(input.getCameraFrame(window));
         m_renderer.drawCanvas(frame);
+        cpu[CpuPhase::Canvas] = finishPhase();
+        m_renderer.beginUiTiming(m_showDebugOverlay);
         m_ui.draw(m_renderer, scene, input.getCameraFrame(window));
+        const auto uiCpu = m_renderer.endUiTiming();
+        cpu[CpuPhase::StaticUI] = uiCpu[CpuPhase::StaticUI];
+        cpu[CpuPhase::DynamicUI] = uiCpu[CpuPhase::DynamicUI];
+        finishPhase(); // UI was measured independently at category boundaries.
+        const auto work = scene.takeSimulationWork();
+        cpu[CpuPhase::Propagation] = work.propagationMs;
 
         // Diagnostics stay above the canvas, panels and popups.
         if (m_showDebugOverlay)
@@ -325,10 +350,12 @@ void Engine::run()
             DebugMetrics metrics;
             metrics.fps = m_fps;
             metrics.frameTimeMs = (deltaTime > 0.0f) ? (deltaTime * 1000.0f) : 0.0f;
-            metrics.drawCalls = m_renderer.getDrawCallCount();
-            metrics.lastPropagateMs = scene.getLastPropagateTimeMs();
-            metrics.timeSinceLastPropagateMs = m_timeSinceLastPropagateMs;
-            metrics.scheduledComponentCount = scene.getSimulationComponentCount();
+            metrics.drawCalls = m_renderer.getDrawCallCounts();
+            metrics.averageCpu = m_cpuTimingWindow.average();
+            metrics.worstCpu = m_cpuTimingWindow.worst();
+            metrics.timingsReady = m_cpuTimingWindow.ready();
+            metrics.simulationWork = work;
+            metrics.pendingSimulationMs = scene.pendingClockTime() * 1000;
             metrics.totalComponents = scene.getComponentCount();
             metrics.evalResult = scene.getLastEvalResult();
 
@@ -350,8 +377,15 @@ void Engine::run()
             m_renderer.drawDebugOverlay(metrics, m_showDebugOverlay);
         }
 
+        cpu[CpuPhase::DebugOverlay] = finishPhase();
         glfwSwapBuffers(window);
+        cpu[CpuPhase::FrameWait] = finishPhase();
         glfwPollEvents();
+        cpu[CpuPhase::Input] += finishPhase();
+        // Do not mix costs from different scenes or bottom-panel tabs in one window.
+        if (m_showDebugOverlay &&
+            context == std::pair{circuits.activeIndex(), m_ui.activeBottomTab()})
+            m_cpuTimingWindow.add(cpu, deltaTime);
     }
 
     m_ui.cancel(input);

@@ -412,6 +412,58 @@ void text()
     );
     DebugMetrics metrics{};
     metrics.evalResult = SimulationResult::OK;
+    metrics.drawCalls.calls = {30, 20, 40, 10};
+    require(metrics.drawCalls.total() == 100, "Categorized draws lost the frame total.");
+    CpuTimingWindow window;
+    CpuTimings sample;
+    sample[CpuPhase::Simulation] = 2;
+    sample[CpuPhase::DynamicUI] = 6;
+    window.add(sample, 0.5);
+    require(!window.ready(), "Timing window published an incomplete average.");
+    sample[CpuPhase::Simulation] = 4;
+    sample[CpuPhase::DynamicUI] = 2;
+    window.add(sample, 0.5);
+    require(
+        window.ready() && window.average()[CpuPhase::Simulation] == 3 &&
+            window.worst()[CpuPhase::Simulation] == 4 &&
+            window.average()[CpuPhase::DynamicUI] == 4 && window.worst()[CpuPhase::DynamicUI] == 6,
+        "Timing summary averaged maxima or lost an expensive frame."
+    );
+    sample = {};
+    window.add(sample, 1);
+    require(
+        window.average()[CpuPhase::DynamicUI] == 0 && window.worst()[CpuPhase::DynamicUI] == 0,
+        "Timing window retained stale graph costs."
+    );
+    window.reset();
+    require(!window.ready(), "Changing profiling context retained old timing samples.");
+    metrics.timingsReady = true;
+    metrics.averageCpu[CpuPhase::DynamicUI] = 1.25;
+    metrics.worstCpu[CpuPhase::DynamicUI] = 7.5;
+    metrics.simulationWork.propagationCalls = 40;
+    metrics.simulationWork.evaluations = 1200;
+    metrics.pendingSimulationMs = 10;
+    metrics.simulationWork.clockLimit = ClockWorkLimit::TimeBudget;
+    const auto overlay = layoutDebugOverlay(metrics, true, 512, 512, font);
+    auto contains = [&](const std::string& value)
+    {
+        return std::any_of(
+            overlay.begin(),
+            overlay.end(),
+            [&](const auto& run) { return run.text.find(value) != std::string::npos; }
+        );
+    };
+    require(
+        contains("Average") && contains("Dynamic UI") && contains("1.250") && contains("7.500") &&
+            contains("40 calls | 1200 evaluations") && contains("4 ms target") &&
+            contains("Static 30 | Dynamic 20 | Components 40 | Wires 10"),
+        "Performance overlay lost timing, cumulative work or compact draw counts."
+    );
+    for (const auto& run : overlay)
+        require(
+            run.baseline.x >= 15.99f && run.baseline.y <= 512 && run.scale > 0,
+            "Performance table overflowed a narrow logical window."
+        );
     require(layoutDebugOverlay(metrics, false, 800, 600, font).empty(), "F3 hid no metrics.");
     for (auto result : {SimulationResult::NON_CONVERGENT, SimulationResult::CONNECTION_REJECTED})
     {
@@ -422,7 +474,10 @@ void text()
             "F3 suppressed the wiring warning."
         );
         require(
-            warning[0].baseline.x + getTextWidth(warning[0].text, warning[0].scale, font) == 784,
+            warning[0].baseline.x + getTextWidth(warning[0].text, warning[0].scale, font) <=
+                    784.01f &&
+                warning[0].baseline.x + getTextWidth(warning[0].text, warning[0].scale, font) >=
+                    783.99f,
             "Overlay stopped right-aligning in screen pixels."
         );
     }

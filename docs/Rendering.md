@@ -131,6 +131,35 @@ They use the full window regardless of canvas/UI clipping. Feedback/rejection
 warnings remain visible with F3 metrics disabled; hiding healthy diagnostics
 also hides their background. `TextPainter` shares glyph
 generation and upload for world coordinates (Y up) and screen pixels (Y down).
+F3 prioritizes a CPU timing table: average and worst milliseconds per frame in
+fixed one-second sampling windows. Rows cover Input/UI layout (including event
+callbacks), Simulation (clocks and history recording), Visual preparation (state
+synchronization and presentation geometry), Static UI, Dynamic UI (clock-panel
+construction/submission and live component information), Canvas submission,
+Frame wait/VSync, and the debug overlay itself. Scene or bottom-tab changes reset
+the sampling window. Additional phase timers run only while F3 is open; no GPU
+queries or forced synchronization are added. Drawing/submission timings can
+include driver stalls; swap time can include VSync or GPU waiting, rather than
+being a measurement of GPU execution.
+
+Propagation is a separately marked overlapping row, summing root propagation
+calls instead of showing only the last call. Its work counters include manual
+steps/input actions since the previous frame read. Root timings include nested
+circuits once; evaluation counts use the shared budget to include nested work.
+Rounds count outer propagation passes. Counters show calls, evaluations, clock
+edge times, slices, pending simulation milliseconds and whether the 4 ms target
+or 256-slice cap left pending time. The time target is checked between slices,
+so a single propagation can exceed it. Diagnostics are not serialized or copied
+into design snapshots and do not alter simulation decisions.
+
+Draw submissions remain a compact secondary summary: Static UI (catalog, tabs,
+menus and grid), Dynamic UI, Components (native/custom bodies, pins, leads,
+labels/highlights), and Wires (routes, intersections/guides). Batches count once,
+empty submissions count zero, palette shader previews count as UI, and debug
+submissions are excluded. Both UI categories still draw each frame. The pie chart
+has been removed. `debug-performance.ppm`, `debug-performance-2x.ppm` and their
+`-messages` variants cover the timing table and both display scales.
+
 For another text presentation, produce `TextRun` values and call
 `Renderer::drawText(runs, TextSpace::Screen)` after the canvas pass.
 

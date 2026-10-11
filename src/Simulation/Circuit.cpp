@@ -281,6 +281,8 @@ SimulationResult Circuit::propagate()
 SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
 {
     const auto start = std::chrono::steady_clock::now();
+    const auto initialBudget = remainingEvaluations;
+    ++m_work.propagationCalls;
     m_unsettledComponent = -1;
     if (m_structureDirty)
     {
@@ -298,6 +300,7 @@ SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
     int steps = 0;
     while (!dirty.empty() && steps++ < maxSteps && !failed)
     {
+        ++m_work.rounds;
         next.clear();
         for (int id : dirty)
         {
@@ -331,7 +334,15 @@ SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
     m_stateDirty = false;
     m_lastPropagateDurationMs =
         std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - start).count();
+    m_work.propagationMs += m_lastPropagateDurationMs;
+    // The shared budget includes evaluations inside nested subcircuits, without timing twice.
+    m_work.evaluations += initialBudget - remainingEvaluations;
     return m_lastEvalResult;
+}
+
+SimulationWork Circuit::takeSimulationWork()
+{
+    return std::exchange(m_work, {});
 }
 
 std::vector<ClockReading> Circuit::clockReadings(ClockPath prefix) const
@@ -394,6 +405,7 @@ int Circuit::stepClocks(int count, ClockTimeline* timeline)
     if (count < 1 || count > 2)
         throw std::invalid_argument("Clock stepping supports one or two edge times.");
     setClocksPaused(true);
+    m_work.clockLimit = ClockWorkLimit::None;
     if (isStateDirty())
         propagate();
     auto readings = timeline ? clockReadings() : std::vector<ClockReading>{};
@@ -416,6 +428,8 @@ int Circuit::stepClocks(int count, ClockTimeline* timeline)
         if (!edge)
             break;
         ++processed;
+        ++m_work.clockSlices;
+        ++m_work.edgeTimes;
         propagate();
         if (timeline)
             recordClocks(timeline, m_clockTime, readings, clocks, true);
@@ -427,6 +441,7 @@ bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
 {
     if (!std::isfinite(deltaTime) || deltaTime < 0)
         throw std::invalid_argument("Simulation elapsed time must be finite and non-negative.");
+    m_work.clockLimit = ClockWorkLimit::None;
     if (isStateDirty())
         propagate();
     auto readings = timeline ? clockReadings() : std::vector<ClockReading>{};
@@ -444,6 +459,7 @@ bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(4);
     for (int step = 0; step < 256 && m_pendingClockTime > 0; ++step)
     {
+        ++m_work.clockSlices;
         double nextEdge = std::numeric_limits<double>::infinity();
         for (const auto* clock : clocks)
             nextEdge = std::min(nextEdge, clock->timeUntilEdge());
@@ -460,6 +476,7 @@ bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
         m_pendingClockTime = std::max(0.0, m_pendingClockTime - elapsed);
         if (edgeOccurred)
         {
+            ++m_work.edgeTimes;
             changed = true;
             propagate();
             if (timeline)
@@ -471,8 +488,14 @@ bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
             }
         }
         if (std::chrono::steady_clock::now() >= deadline)
+        {
+            if (m_pendingClockTime > 0)
+                m_work.clockLimit = ClockWorkLimit::TimeBudget;
             break;
+        }
     }
+    if (m_pendingClockTime > 0 && m_work.clockLimit == ClockWorkLimit::None)
+        m_work.clockLimit = ClockWorkLimit::SliceLimit;
     if (timeline)
         recordClocks(timeline, m_clockTime, readings, clocks);
     return changed;

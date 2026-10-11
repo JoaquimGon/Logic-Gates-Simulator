@@ -94,7 +94,11 @@ In Selection mode, press a card or custom row, drag onto the canvas,
 and release to place it on the grid. An outline follows the proposed placement;
 occupied space rejects the drop and shows a message. Escape, right-click, focus
 loss, or resizing cancels the drag. Scroll inside the panel in shorter windows.
-Debug metrics start hidden; F3 shows them.
+Debug metrics start hidden; F3 shows average/worst CPU timings in one-second
+sampling windows, cumulative propagation work, backlog and compact draw counts.
+Switching scenes or lower-panel tabs resets the timing window. Timings measure
+CPU work/driver waiting, not GPU execution; propagation overlaps simulation/input.
+The debug overlay's own cost is listed, while its draws are excluded from totals.
 
 The full-width top bar reserves 30 pixels. A quiet amber **Unsaved changes** message
 on the right tracks the active tab, including new empty scenes. It clears after a successful

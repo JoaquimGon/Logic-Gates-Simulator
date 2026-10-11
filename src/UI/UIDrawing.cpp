@@ -10,6 +10,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
 {
     if (m_surface.windowWidth <= 0 || m_surface.windowHeight <= 0 || m_panel.width < 30)
         return;
+    renderer.setUiDrawCategory(DrawCategory::StaticUI);
     std::vector<TextRun> text;
     const glm::vec4 ink{0.87f, 0.91f, 0.97f, 1};
     auto label = [&](const std::string& value,
@@ -322,6 +323,8 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     }
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
+    if (m_infoComponent != -1)
+        renderer.setUiDrawCategory(DrawCategory::DynamicUI);
     const auto info = componentInfo(scene);
     if (!info.empty())
     {
@@ -446,6 +449,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         );
     }
     renderer.drawText(text, TextSpace::Screen);
+    renderer.setUiDrawCategory(DrawCategory::StaticUI);
     m_circuitTabs.draw(renderer);
     text.clear();
     renderer.drawScreenRect(m_bar, {0.075f, 0.09f, 0.12f, 1});

@@ -35,6 +35,7 @@ class Circuit
 
     void publishOutputs(const std::vector<int>& components, std::vector<int>& changed);
 
+    SimulationWork m_work;
     float m_lastPropagateDurationMs = 0.0f;
     SimulationResult m_lastEvalResult = SimulationResult::OK;
     int m_unsettledComponent = -1;
@@ -121,6 +122,8 @@ class Circuit
     SimulationResult propagate(std::size_t& remainingEvaluations);
 
     // Debugging:
+    SimulationWork takeSimulationWork();
+
     float getLastPropagateTimeMs() const { return m_lastPropagateDurationMs; }
 
     SimulationResult getLastEvalResult() const { return m_lastEvalResult; }

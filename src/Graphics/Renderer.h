@@ -6,6 +6,7 @@
 #include "Graphics/ShaderManager.h"
 #include "Graphics/Text/TextPainter.h"
 
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <unordered_set>
@@ -65,7 +66,14 @@ class Renderer
     void drawLabels(std::span<const ComponentRenderData> components);
     void drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics = true);
 
-    int getDrawCallCount() const { return m_drawCallCount; }
+    int getDrawCallCount() const { return m_drawCalls.total(); }
+
+    const DrawCallCounts& getDrawCallCounts() const { return m_drawCalls; }
+
+    /** Classifies screen submissions; canvas methods classify their own draws. */
+    void setUiDrawCategory(DrawCategory category);
+    void beginUiTiming(bool enabled);
+    CpuTimings endUiTiming();
 
   private:
     Shader* acquireShader(const std::string& name);
@@ -80,5 +88,11 @@ class Renderer
     bool setCanvasViewport();
     bool useCanvasShader(Shader& shader);
     void setScreenViewport();
-    int m_drawCallCount = 0;
+    void recordDrawCalls(DrawCategory category, int count = 1);
+    CpuTimings m_uiCpuTimes;
+    bool m_timingUi = false;
+    std::chrono::steady_clock::time_point m_uiTimeStart;
+    DrawCallCounts m_drawCalls;
+    DrawCategory m_uiDrawCategory = DrawCategory::StaticUI;
+    bool m_countDrawCalls = true;
 };

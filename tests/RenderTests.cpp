@@ -121,6 +121,164 @@ void mixedInstances(Renderer& renderer, const CanvasCameraFrame& camera)
     require(renderer.getDrawCallCount() == 0, "Empty bodies counted a draw.");
 }
 
+void performanceOverlay(Renderer& renderer)
+{
+    CircuitViews views;
+    Input input;
+    views.select(0, input);
+    for (int i = 0; i < 3; ++i)
+        views.activeScene().addComponent(BuiltinComponentIds::Clock, {i * 6, 0});
+    views.activeScene().stepAllClocks(1, &views.activeClockTimeline());
+    views.activeScene().stepAllClocks(2, &views.activeClockTimeline());
+    views.activeScene().addComponent(BuiltinComponentIds::And, {-6, 0});
+    views.activeScene().propagate();
+    auto components = buildComponentPresentation(views.activeScene().getComponentViewMap());
+    auto custom = components.back();
+    custom.body.id = 1000;
+    custom.body.shader = "box";
+    custom.body.position = {0.5f, 0.5f};
+    custom.bodyLabel = "Custom box";
+    custom.pins.clear();
+    components.push_back(custom);
+    Wire wire;
+    wire.setPath({{-8, 0}, {-4, 0}});
+    const std::map<WireId, Wire> wires{{1, wire}};
+    for (int dpi : {1, 2})
+    {
+        UI ui;
+        ui.setCircuitViews(&views, &renderer.fontMetrics());
+        const CanvasSurface surface{extent / dpi, extent / dpi, extent, extent};
+        ui.layout(views.activeScene().getComponentCatalog(), surface, input);
+        CanvasCamera camera;
+        camera.setViewport(input.getCanvasViewport());
+        const auto frame = camera.frame(surface);
+        auto select = [&](UI::BottomTab which)
+        {
+            const auto tab = ui.bottomTabBounds(which);
+            UiInputEvent event{UiInputKind::MouseButton};
+            event.code = GLFW_MOUSE_BUTTON_LEFT;
+            event.x = tab.x + tab.width / 2;
+            event.y = tab.y + tab.height / 2;
+            event.action = GLFW_PRESS;
+            ui.handleInput(event, views.activeScene(), input, frame);
+            event.action = GLFW_RELEASE;
+            ui.handleInput(event, views.activeScene(), input, frame);
+        };
+        select(UI::BottomTab::Clocks);
+        renderer.beginFrame(frame);
+        renderer.drawCanvas({components, wires, {}});
+        const auto canvasCounts = renderer.getDrawCallCounts();
+        require(
+            canvasCounts[DrawCategory::StaticUI] == 1 &&
+                canvasCounts[DrawCategory::Components] >= 3 &&
+                canvasCounts[DrawCategory::Wires] == 1 &&
+                canvasCounts[DrawCategory::DynamicUI] == 0,
+            "Canvas batches, grid or wires were counted in the wrong category."
+        );
+        renderer.beginUiTiming(true);
+        ui.draw(renderer, views.activeScene(), frame);
+        const auto cpu = renderer.endUiTiming();
+        require(
+            cpu[CpuPhase::StaticUI] > 0 && cpu[CpuPhase::DynamicUI] > 0,
+            "CPU timings did not capture static and clock-panel construction/submission."
+        );
+        const auto counts = renderer.getDrawCallCounts();
+        require(
+            counts[DrawCategory::StaticUI] > 20 && counts[DrawCategory::DynamicUI] > 8 &&
+                counts[DrawCategory::Components] == canvasCounts[DrawCategory::Components] &&
+                counts[DrawCategory::Wires] == canvasCounts[DrawCategory::Wires] &&
+                renderer.getDrawCallCount() == counts.total(),
+            "UI draws were missing or palette previews contaminated canvas component counts."
+        );
+        DebugMetrics metrics;
+        metrics.fps = 60;
+        metrics.frameTimeMs = 1000.0f / 60;
+        metrics.drawCalls = counts;
+        metrics.averageCpu = metrics.worstCpu = cpu;
+        metrics.timingsReady = true;
+        metrics.totalComponents = views.activeScene().getComponentCount();
+        metrics.simulationWork = views.activeScene().takeSimulationWork();
+        metrics.averageCpu[CpuPhase::Propagation] = metrics.simulationWork.propagationMs;
+        metrics.worstCpu[CpuPhase::Propagation] = metrics.simulationWork.propagationMs;
+        renderer.drawDebugOverlay(metrics);
+        require(
+            renderer.getDrawCallCounts() == counts && glGetError() == GL_NO_ERROR &&
+                glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE,
+            "Debug overlay counted itself or left invalid OpenGL/clipping state."
+        );
+        const auto runs = layoutDebugOverlay(
+            metrics, true, surface.windowWidth, surface.windowHeight, renderer.fontMetrics()
+        );
+        auto row = std::find_if(
+            runs.begin(),
+            runs.end(),
+            [](const auto& run) { return run.text.starts_with("Dynamic UI"); }
+        );
+        require(row != runs.end(), "Dynamic UI timing row was not displayed.");
+        int ink = 0;
+        for (int y = static_cast<int>(row->baseline.y - 14); y < row->baseline.y; ++y)
+            for (int x = static_cast<int>(row->baseline.x); x < surface.windowWidth - 16; ++x)
+            {
+                std::array<unsigned char, 4> color;
+                glReadPixels(
+                    x * dpi, extent - 1 - y * dpi, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, color.data()
+                );
+                if (color[0] > 150 && color[1] > 110)
+                    ++ink;
+            }
+        require(ink > 30, "CPU table text did not render legibly at this DPI.");
+        saveImage(dpi == 1 ? "debug-performance.ppm" : "debug-performance-2x.ppm");
+        select(UI::BottomTab::Messages);
+        renderer.beginFrame(frame);
+        require(renderer.getDrawCallCount() == 0, "Frame counters did not reset.");
+        renderer.drawCanvas({components, wires, {}});
+        renderer.beginUiTiming(true);
+        ui.draw(renderer, views.activeScene(), frame);
+        const auto messagesCpu = renderer.endUiTiming();
+        require(
+            messagesCpu[CpuPhase::DynamicUI] == 0 && messagesCpu[CpuPhase::StaticUI] > 0,
+            "Hidden clock panel continued contributing dynamic UI CPU time."
+        );
+        require(
+            renderer.getDrawCallCounts()[DrawCategory::DynamicUI] == 0,
+            "Hidden clock panel continued contributing dynamic UI draw calls."
+        );
+        metrics.drawCalls = renderer.getDrawCallCounts();
+        metrics.averageCpu = metrics.worstCpu = messagesCpu;
+        renderer.drawDebugOverlay(metrics);
+        saveImage(
+            dpi == 1 ? "debug-performance-messages.ppm" : "debug-performance-messages-2x.ppm"
+        );
+        const auto point = *frame.worldToWindow({0, 0});
+        UiInputEvent popup{UiInputKind::MouseButton};
+        popup.code = GLFW_MOUSE_BUTTON_RIGHT;
+        popup.action = GLFW_PRESS;
+        popup.x = point.x;
+        popup.y = point.y;
+        ui.handleInput(popup, views.activeScene(), input, frame);
+        popup.action = GLFW_RELEASE;
+        ui.handleInput(popup, views.activeScene(), input, frame);
+        require(ui.infoComponentId() != -1, "Live information profiling fixture did not open.");
+        renderer.beginUiTiming(true);
+        ui.draw(renderer, views.activeScene(), frame);
+        const auto infoCpu = renderer.endUiTiming();
+        require(
+            infoCpu[CpuPhase::DynamicUI] > 0,
+            "Live component information was charged to static UI CPU time."
+        );
+        ui.dismissPopups(input);
+        renderer.beginUiTiming(false);
+        ui.draw(renderer, views.activeScene(), frame);
+        const auto disabledCpu = renderer.endUiTiming();
+        require(
+            std::all_of(
+                disabledCpu.ms.begin(), disabledCpu.ms.end(), [](double ms) { return ms == 0; }
+            ),
+            "Hidden F3 still collected UI CPU timings."
+        );
+    }
+}
+
 void nativeContacts(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
@@ -2159,6 +2317,7 @@ int main(int argc, char** argv)
                 renderResourceChecks();
                 drawingProfile(renderer, camera);
                 mixedInstances(renderer, camera);
+                performanceOverlay(renderer);
                 nativeContacts(renderer, camera);
                 editedGate(renderer, camera);
                 inputRailPresentation(renderer, camera);

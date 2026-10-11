@@ -213,6 +213,8 @@ class Scene
     );
 
     // Debugging
+    SimulationWork takeSimulationWork() { return m_circuit.takeSimulationWork(); }
+
     float getLastPropagateTimeMs() const { return m_circuit.getLastPropagateTimeMs(); }
 
     SimulationResult getLastEvalResult() const

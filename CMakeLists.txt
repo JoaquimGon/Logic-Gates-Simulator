@@ -166,7 +166,7 @@ if(BUILD_TESTING)
 
     add_executable(SimulationTests tests/SimulationTests.cpp)
     target_link_libraries(SimulationTests PRIVATE simulator_simulation)
-    foreach(test_name IN ITEMS cyclic_propagation clock_edge_timing clock_edge_receivers)
+    foreach(test_name IN ITEMS simulation_work cyclic_propagation clock_edge_timing clock_edge_receivers)
         add_test(NAME ${test_name} COMMAND SimulationTests ${test_name})
     endforeach()
 

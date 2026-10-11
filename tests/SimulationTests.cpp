@@ -1,4 +1,5 @@
 #include "Simulation/Circuit.h"
+#include "Simulation/Subcircuit.h"
 
 #include <iostream>
 #include <limits>
@@ -39,6 +40,79 @@ class EdgeMemory : public Component
     bool rising;
     std::vector<bool> edges, samples;
 };
+
+void simulationWork()
+{
+    Circuit circuit;
+    const int clock = circuit.addClock(), gate = circuit.addGate(NOT);
+    circuit.connectComponents(clock, 0, gate, 0);
+    circuit.propagate();
+    circuit.takeSimulationWork();
+    circuit.updateClocks(1);
+    const auto work = circuit.takeSimulationWork();
+    require(
+        work.propagationCalls == 2 && work.edgeTimes == 2 && work.clockSlices == 2 &&
+            work.evaluations >= 4 && work.rounds >= 2 && work.propagationMs >= 0 &&
+            circuit.takeSimulationWork().propagationCalls == 0,
+        "Clock frame work reported only its last propagation or failed to reset."
+    );
+    circuit.stepClocks(2);
+    require(
+        circuit.takeSimulationWork().propagationCalls == 2,
+        "Manual clock steps did not contribute to diagnostic work."
+    );
+
+    auto inner = std::make_shared<Circuit>();
+    const int input = inner->addInputPin(), inverse = inner->addGate(NOT),
+              output = inner->addOutputPin();
+    inner->connectComponents(input, 0, inverse, 0);
+    inner->connectComponents(inverse, 0, output, 0);
+    Circuit outer;
+    const int source = outer.addInputPin(true);
+    const int nested = outer.addComponent(
+        std::make_unique<Subcircuit>(SubcircuitBehavior{nullptr, inner, {input}, {output}})
+    );
+    outer.connectComponents(source, 0, nested, 0);
+    outer.propagate();
+    Circuit copied = outer;
+    const auto nestedWork = outer.takeSimulationWork();
+    require(
+        nestedWork.propagationCalls == 1 && nestedWork.evaluations >= 5 &&
+            copied.takeSimulationWork().propagationCalls == 0,
+        "Nested work was omitted, timed twice, or copied into a design snapshot."
+    );
+
+    Circuit feedback;
+    const int oscillator = feedback.addGate(NOT);
+    feedback.connectComponents(oscillator, 0, oscillator, 0);
+    std::size_t budget = 3;
+    require(
+        feedback.propagate(budget) == SimulationResult::NON_CONVERGENT && budget == 0 &&
+            feedback.takeSimulationWork().evaluations == 3,
+        "Failed propagation lost work performed before its evaluation limit."
+    );
+
+    Circuit backlog;
+    backlog.addClock(1000000);
+    backlog.propagate();
+    backlog.takeSimulationWork();
+    backlog.updateClocks(1);
+    const auto limited = backlog.takeSimulationWork();
+    require(
+        backlog.pendingClockTime() > 0 && limited.clockSlices > 0 && limited.clockSlices <= 256 &&
+            limited.propagationCalls == limited.edgeTimes &&
+            (limited.clockLimit == ClockWorkLimit::TimeBudget ||
+             (limited.clockLimit == ClockWorkLimit::SliceLimit && limited.clockSlices == 256)),
+        "Clock diagnostic did not identify the work limit leaving pending time."
+    );
+    backlog.setClocksPaused(true);
+    backlog.updateClocks(0);
+    require(
+        backlog.takeSimulationWork().clockLimit == ClockWorkLimit::None &&
+            backlog.pendingClockTime() == 0,
+        "Pausing retained a stale backlog-limit diagnostic."
+    );
+}
 
 void cyclicPropagation()
 {
@@ -281,6 +355,7 @@ int main(int argc, char** argv)
     try
     {
         const std::pair<const char*, void (*)()> tests[] = {
+            {"simulation_work", simulationWork},
             {"cyclic_propagation", cyclicPropagation},
             {"clock_edge_timing", clockEdgeTiming},
             {"clock_edge_receivers", clockEdgeReceivers}

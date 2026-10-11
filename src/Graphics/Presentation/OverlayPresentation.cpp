@@ -1,5 +1,6 @@
 #include "Graphics/Presentation/OverlayPresentation.h"
 
+#include <algorithm>
 #include <iomanip>
 #include <sstream>
 #include <utility>
@@ -10,31 +11,14 @@ std::vector<TextRun> layoutDebugOverlay(
 {
     if (width <= 0 || height <= 0)
         return {};
-    // Line 1: FPS, Frame Time, and Draw Calls
+    // Frame pacing and the main CPU timing table.
     std::ostringstream ssL1;
     ssL1 << std::fixed << std::setprecision(1) << "FPS: " << metrics.fps << " ("
-         << metrics.frameTimeMs << " ms) | Draw Calls: " << metrics.drawCalls;
+         << metrics.frameTimeMs << " ms) | Draw Calls: " << metrics.drawCalls.total();
 
-    // Line 2: Propagation Duration & Latency
-    std::ostringstream ssL2;
-    ssL2 << std::fixed << std::setprecision(3) << "Propagate Exec: " << metrics.lastPropagateMs
-         << " ms (Last Call: ";
-    if (metrics.timeSinceLastPropagateMs >= 999.0f)
-        ssL2 << ">999 ms ago)";
-    else
-        ssL2 << std::fixed << std::setprecision(0) << metrics.timeSinceLastPropagateMs
-             << " ms ago)";
-
-    // Line 3: Scheduled components and settling status
-    std::ostringstream ssL3;
-    ssL3 << "Simulation: " << metrics.scheduledComponentCount << "/" << metrics.totalComponents
-         << " components";
-    if (metrics.evalResult == SimulationResult::NON_CONVERGENT)
-        ssL3 << " [DID NOT SETTLE]";
-    else if (metrics.evalResult == SimulationResult::CONNECTION_REJECTED)
-        ssL3 << " [CONNECTION REJECTED]";
-    else
-        ssL3 << " [OK]";
+    std::ostringstream simulation;
+    simulation << "Simulation: " << metrics.totalComponents << " components";
+    simulation << (metrics.evalResult == SimulationResult::OK ? " [OK]" : " [BLOCKED]");
 
     // Line 4: Electrical Topology & Short Contention
     std::ostringstream ssL4;
@@ -59,21 +43,66 @@ std::vector<TextRun> layoutDebugOverlay(
 
     ssL5 << " | Grid: (" << metrics.cursorGrid.x << ", " << metrics.cursorGrid.y << ")";
 
+    const glm::vec4 ink{0.85f, 0.85f, 0.85f, 0.95f};
+    const glm::vec4 muted{0.65f, 0.72f, 0.8f, 0.95f};
+    const glm::vec4 accent{1, 0.7f, 0.3f, 1};
     std::vector<std::pair<std::string, glm::vec4>> lines = {
-        {"[DEBUG HUD] (F3)", glm::vec4(1.0f, 0.62f, 0.11f, 1.0f)}, // Orange Header
-        {ssL1.str(), glm::vec4(0.85f, 0.85f, 0.85f, 0.95f)},
-        {ssL2.str(),
-         (metrics.timeSinceLastPropagateMs < 50.0f) ? glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)
-                                                    : glm::vec4(0.70f, 0.70f, 0.75f, 0.85f)},
-        {ssL3.str(),
-         (metrics.evalResult != SimulationResult::OK) ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f)
-                                                      : glm::vec4(0.35f, 0.90f, 0.45f, 0.95f)},
-        {ssL4.str(),
-         (metrics.shortedNetCount > 0)
-             ? glm::vec4(1.0f, 0.25f, 0.25f, 1.0f) // Highlight shorts in red
-             : glm::vec4(0.85f, 0.85f, 0.85f, 0.95f)},
-        {ssL5.str(), glm::vec4(0.75f, 0.85f, 0.95f, 0.90f)}
+        {"[PERFORMANCE] (F3)", accent},
+        {ssL1.str(), ink},
+        {metrics.timingsReady ? "CPU / frame (ms)          Average     Worst"
+                              : "CPU / frame (ms) - sampling first second...",
+         muted}
     };
+    const char* names[] = {
+        "Input / UI layout",
+        "Simulation",
+        "Visual preparation",
+        "Static UI",
+        "Dynamic UI",
+        "Canvas submission",
+        "Frame wait / VSync",
+        "Debug overlay",
+        "Propagation*"
+    };
+    for (std::size_t i = 0; i < metrics.averageCpu.ms.size(); ++i)
+    {
+        std::ostringstream row;
+        row << std::left << std::setw(24) << names[i] << std::right << std::fixed
+            << std::setprecision(3) << std::setw(9) << metrics.averageCpu.ms[i] << std::setw(10)
+            << metrics.worstCpu.ms[i];
+        lines.push_back({row.str(), metrics.worstCpu.ms[i] >= 4 ? accent : ink});
+    }
+    lines.push_back({"*Included in simulation/input; CPU, not GPU time", muted});
+    std::ostringstream work;
+    work << "Work/frame: " << metrics.simulationWork.propagationCalls << " calls | "
+         << metrics.simulationWork.evaluations << " evaluations";
+    lines.push_back({work.str(), ink});
+    std::ostringstream clocks;
+    clocks << "Outer rounds: " << metrics.simulationWork.rounds
+           << " | Edge times: " << metrics.simulationWork.edgeTimes
+           << " | Slices: " << metrics.simulationWork.clockSlices;
+    lines.push_back({clocks.str(), ink});
+    std::ostringstream backlog;
+    backlog << "Backlog: " << std::fixed << std::setprecision(2) << metrics.pendingSimulationMs
+            << " ms | Limit: "
+            << (metrics.simulationWork.clockLimit == ClockWorkLimit::TimeBudget   ? "4 ms target"
+                : metrics.simulationWork.clockLimit == ClockWorkLimit::SliceLimit ? "256 slices"
+                                                                                  : "none");
+    lines.push_back({backlog.str(), metrics.pendingSimulationMs > 0 ? accent : muted});
+    std::ostringstream draws;
+    draws << "Draws/frame: Static " << metrics.drawCalls[DrawCategory::StaticUI] << " | Dynamic "
+          << metrics.drawCalls[DrawCategory::DynamicUI] << " | Components "
+          << metrics.drawCalls[DrawCategory::Components] << " | Wires "
+          << metrics.drawCalls[DrawCategory::Wires];
+    lines.push_back({draws.str(), muted});
+    lines.push_back({"Draw counts exclude HUD; they do not measure cost", muted});
+    lines.push_back(
+        {simulation.str(),
+         metrics.evalResult == SimulationResult::OK ? glm::vec4{0.35f, 0.9f, 0.45f, 1}
+                                                    : glm::vec4{1, 0.25f, 0.25f, 1}}
+    );
+    lines.push_back({ssL4.str(), muted});
+    lines.push_back({ssL5.str(), muted});
 
     if (!showMetrics)
         lines.clear();
@@ -91,14 +120,45 @@ std::vector<TextRun> layoutDebugOverlay(
 
 
     std::vector<TextRun> runs;
-    constexpr float scale = 0.35f;
+    constexpr float maximumScale = 0.32f;
     for (std::size_t i = 0; i < lines.size(); ++i)
+    {
+        const float scale = std::min(
+            maximumScale,
+            std::max(0.0f, width - 32.0f) / std::max(1.0f, getTextWidth(lines[i].first, 1, font))
+        );
         runs.push_back(
             {lines[i].first,
              {static_cast<float>(width) - 16 - getTextWidth(lines[i].first, scale, font),
-              24 + static_cast<float>(i) * 20},
+              24 + static_cast<float>(i) * 18},
              scale,
              lines[i].second}
         );
+    }
     return runs;
+}
+
+void CpuTimingWindow::add(const CpuTimings& timings, double elapsedSeconds)
+{
+    for (std::size_t i = 0; i < timings.ms.size(); ++i)
+    {
+        m_sum.ms[i] += timings.ms[i];
+        m_peak.ms[i] = std::max(m_peak.ms[i], timings.ms[i]);
+    }
+    ++m_samples;
+    m_elapsed += std::max(0.0, elapsedSeconds);
+    if (m_elapsed < 1)
+        return;
+    for (std::size_t i = 0; i < timings.ms.size(); ++i)
+        m_average.ms[i] = m_sum.ms[i] / m_samples;
+    m_worst = m_peak;
+    m_ready = true;
+    m_sum = m_peak = {};
+    m_samples = 0;
+    m_elapsed = 0;
+}
+
+void CpuTimingWindow::reset()
+{
+    *this = {};
 }

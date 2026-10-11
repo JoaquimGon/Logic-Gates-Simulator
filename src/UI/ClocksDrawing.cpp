@@ -10,6 +10,7 @@
 
 void UI::drawClocks(Renderer& renderer, const Scene& scene) const
 {
+    renderer.setUiDrawCategory(DrawCategory::DynamicUI);
     std::vector<TextRun> text;
     std::vector<Renderer::ScreenRect> lines;
     const glm::vec4 ink{0.87f, 0.91f, 0.97f, 1};
@@ -125,6 +126,7 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
         label("No clocks in this circuit.", list, muted);
         renderer.drawText(text, TextSpace::Screen);
         renderer.setScreenClip(m_bottom);
+        renderer.setUiDrawCategory(DrawCategory::StaticUI);
         return;
     }
     const int offset = clockScroll(scene);
@@ -255,6 +257,7 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
     renderer.drawScreenRects(lines);
     renderer.drawText(text, TextSpace::Screen);
     renderer.setScreenClip(m_bottom);
+    renderer.setUiDrawCategory(DrawCategory::StaticUI);
 }
 
 void UI::drawClockTooltip(Renderer& renderer, const Scene& scene) const
@@ -262,6 +265,7 @@ void UI::drawClockTooltip(Renderer& renderer, const Scene& scene) const
     const auto info = clockTooltip(scene);
     if (info.empty())
         return;
+    renderer.setUiDrawCategory(DrawCategory::DynamicUI);
     const auto bounds = clockTooltipBounds(scene);
     renderer.setScreenClip(bounds);
     renderer.drawScreenRect(bounds, {0.3f, 0.45f, 0.6f, 1});
@@ -287,4 +291,5 @@ void UI::drawClockTooltip(Renderer& renderer, const Scene& scene) const
     }
     renderer.drawText(text, TextSpace::Screen);
     renderer.setScreenClip(std::nullopt);
+    renderer.setUiDrawCategory(DrawCategory::StaticUI);
 }
