@@ -225,10 +225,11 @@ Copy/paste keeps relative positions, labels, pin layouts, gate settings, manual 
 states, and clock settings. Only selected wires are copied; an ordinary wire click
 copies its selected segment, while Ctrl-click and box selection copy whole sections.
 The in-app clipboard works across tabs. Ctrl+V starts a translucent preview following
-the mouse; overlapping components are highlighted red. Left-click in a valid spot to
-place and select the group; Escape/right-click cancels. The real circuit and undo
-history change only on placement. New
-instances start fresh clock/latch runtime state, as when placed from the palette.
+the mouse. Partial overlaps get an amber notice and remain placeable; identical grid
+centers are highlighted red and block placement. Left-click to place and select the
+group; Escape/right-click cancels. The real circuit and undo history change only on
+placement. New instances start fresh clock/latch runtime state, as when placed from
+the palette.
 
 ## Project Structure & Architecture
 

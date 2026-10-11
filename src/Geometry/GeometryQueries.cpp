@@ -110,6 +110,23 @@ bool overlapsComponent(std::span<const ComponentGeometry> components, int compon
     return false;
 }
 
+bool sharesComponentCenter(std::span<const ComponentGeometry> components, int componentId)
+{
+    const auto found = std::find_if(
+        components.begin(),
+        components.end(),
+        [=](const auto& component) { return component.componentId == componentId; }
+    );
+    if (found == components.end())
+        return false;
+    return std::any_of(
+        components.begin(),
+        components.end(),
+        [&](const auto& other)
+        { return other.componentId != componentId && other.origin == found->origin; }
+    );
+}
+
 std::vector<WireJunction>
 wireJunctions(const std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins)
 {

@@ -558,9 +558,28 @@ void pastePreview(Renderer& renderer, const CanvasCameraFrame& camera)
         "Paste preview bodies were invisible or fully opaque."
     );
     saveImage("paste-preview-valid.ppm");
+    paste.update(scene, {1, 0});
+    ghosts = buildComponentPresentation(paste.scene()->getComponentViewMap());
+    frame.pasteComponents = ghosts;
+    std::vector<BodyBounds> overlapping;
+    for (int id : paste.overlappingComponents())
+        overlapping.push_back(paste.scene()->getComponentViewMap().at(id)->getBodyBounds());
+    renderer.beginFrame(camera);
+    renderer.drawCanvas(frame);
+    const auto beforeNotice = pixel({0, 0});
+    frame.overlappingPasteBodies = overlapping;
+    renderer.beginFrame(camera);
+    renderer.drawCanvas(frame);
+    require(
+        pixel({0, 0})[0] > beforeNotice[0] + 20 && pixel({0, 0})[1] > beforeNotice[1] + 5 &&
+            pixel({0, 0})[2] + 20 < beforeNotice[2],
+        "Overlapping paste has no visible amber placement notice."
+    );
+    saveImage("paste-preview-overlap.ppm");
     paste.update(scene, {0, 0});
     ghosts = buildComponentPresentation(paste.scene()->getComponentViewMap());
     frame.pasteComponents = ghosts;
+    frame.overlappingPasteBodies = {};
     std::vector<BodyBounds> blocked;
     for (int id : paste.blockedComponents())
         blocked.push_back(paste.scene()->getComponentViewMap().at(id)->getBodyBounds());
@@ -570,8 +589,10 @@ void pastePreview(Renderer& renderer, const CanvasCameraFrame& camera)
     frame.blockedPasteBodies = blocked;
     renderer.beginFrame(camera);
     renderer.drawCanvas(frame);
-    require(pixel({0, 0})[0] > beforeRed[0] + 35, "Blocked paste has no visible red highlight.");
-    saveImage("paste-preview-overlap.ppm");
+    require(
+        pixel({0, 0})[0] > beforeRed[0] + 35, "Exact-center collision has no visible red highlight."
+    );
+    saveImage("paste-preview-same-center.ppm");
 }
 
 void preview(Renderer& renderer, const CanvasCameraFrame& camera)

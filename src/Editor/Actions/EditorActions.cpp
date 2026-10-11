@@ -4,6 +4,7 @@
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/InterfaceComponents.h"
 #include "Editor/Scene.h"
+#include "Geometry/GeometryQueries.h"
 #include "Geometry/WireRouting.h"
 #include "Simulation/Subcircuit.h"
 
@@ -514,6 +515,14 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
         {
             if (!candidate.m_componentViews.contains(id) || policy == PlacementPolicy::AllowOverlap)
                 continue;
+            if (policy == PlacementPolicy::RejectSameCenter)
+            {
+                if (sharesComponentCenter(candidate.committedGeometry(), id))
+                    throw EditFailure(
+                        EditError::Overlap, "Two components cannot share the same grid center."
+                    );
+                continue;
+            }
             auto& view = getView(id);
             int attempts = 0;
             while (candidate.checkOverlap(id))

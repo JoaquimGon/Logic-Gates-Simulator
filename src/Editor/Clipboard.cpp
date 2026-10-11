@@ -45,7 +45,7 @@ bool EditorClipboard::copy(const Scene& scene, const Selection& selection)
             {identity.id,
              view->getGridPosition(),
              std::move(options),
-             PlacementPolicy::RejectOverlap,
+             PlacementPolicy::RejectSameCenter,
              identity.version,
              view->getBodyLabel()}
         );

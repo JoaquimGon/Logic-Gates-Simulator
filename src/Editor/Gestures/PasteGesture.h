@@ -27,6 +27,8 @@ class PasteGesture
 
     const std::set<int>& blockedComponents() const { return m_blocked; }
 
+    const std::set<int>& overlappingComponents() const { return m_overlapping; }
+
   private:
     EditorClipboard m_copy;
     std::unique_ptr<Scene> m_scene;
@@ -34,6 +36,6 @@ class PasteGesture
     std::vector<ComponentGeometry> m_geometry;
     GridCoords m_origin{}, m_position{};
     std::optional<std::uint64_t> m_destinationRevision;
-    std::set<int> m_blocked;
+    std::set<int> m_overlapping, m_blocked;
     bool m_positionValid = false;
 };

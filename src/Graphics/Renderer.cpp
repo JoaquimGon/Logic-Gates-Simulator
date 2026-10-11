@@ -866,6 +866,8 @@ void Renderer::drawCanvas(const CanvasFrame& frame)
         drawWires(*frame.pasteWires, nullptr, opacity);
         drawPins(frame.pasteComponents, -1, -1, PinType::INPUT, opacity);
         drawLabels(frame.pasteComponents, opacity);
+        for (const auto bounds : frame.overlappingPasteBodies)
+            drawWorldRect(bounds, {1, 0.65f, 0.15f, 0.22f});
         for (const auto bounds : frame.blockedPasteBodies)
             drawWorldRect(bounds, {1, 0.12f, 0.12f, 0.3f});
     }

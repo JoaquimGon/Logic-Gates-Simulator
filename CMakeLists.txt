@@ -240,7 +240,7 @@ if(BUILD_TESTING)
     add_executable(ClipboardTests tests/ClipboardTests.cpp)
     target_link_libraries(ClipboardTests PRIVATE simulator_ui glfw)
     target_compile_definitions(ClipboardTests PRIVATE GLFW_INCLUDE_NONE)
-    foreach(test_name IN ITEMS clipboard_settings clipboard_shortcuts clipboard_views clipboard_app_routing)
+    foreach(test_name IN ITEMS clipboard_settings clipboard_shortcuts clipboard_views clipboard_app_routing clipboard_overlapping_placement)
         add_test(NAME ${test_name} COMMAND ClipboardTests ${test_name})
     endforeach()
 

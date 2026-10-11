@@ -21,6 +21,9 @@ HitResult hitGeometry(
  */
 bool overlapsComponent(std::span<const ComponentGeometry> components, int componentId);
 
+/** @brief Tests only identical grid centers, allowing body and pin overlap. */
+bool sharesComponentCenter(std::span<const ComponentGeometry> components, int componentId);
+
 /** @brief Returns degree-three-or-higher endpoints, excluding component pin anchors. */
 std::vector<WireJunction>
 wireJunctions(const std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins);

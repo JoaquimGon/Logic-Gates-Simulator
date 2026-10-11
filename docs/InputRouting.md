@@ -196,12 +196,18 @@ In Selection mode, Ctrl+C snapshots the committed selection into one session-loc
 `EditorClipboard`; empty selection leaves the previous copy intact. Ctrl+V starts a
 `PasteGesture` with an isolated copy and the existing move-preview API. The translucent
 group follows the cursor; overlap checks use the same body/origin/pin rules as a real
-edit and mark only blocked components red. Moving the preview never rebuilds the real
-scene's nets, advances copied clocks, or records history. Geometry/overlap checks are
-reused while pointer cell and destination revision remain unchanged.
+edit and show an amber advisory highlight for overlapping components. Overlap does
+not block paste unless component grid centers coincide. Those collisions show red
+and leave the preview active on a placement click; pin overlap alone is allowed.
+Electrical conflicts remain visible in the usual simulation diagnostics. Moving the preview never rebuilds
+the real scene's nets, advances copied clocks, or records history. Geometry/overlap
+checks are reused while pointer cell and destination revision remain unchanged.
 
 Left-click submits the creation batch once and selects the new components and
-normalized wire sections. Invalid placement leaves the preview available to reposition.
+normalized wire sections. Pasted creation requests use `RejectSameCenter`, allowing
+body/pin overlap while rejecting identical grid centers in the final batch, including within the copied group.
+Invalid coordinates or incompatible definitions still reject placement without changing
+the circuit, and leave the preview available to reposition/cancel.
 Escape/right-click cancels; Ctrl+Z during preview cancels without undoing an earlier
 edit. Each confirmed paste records one undo step; cancellation/failure preserves redo.
 

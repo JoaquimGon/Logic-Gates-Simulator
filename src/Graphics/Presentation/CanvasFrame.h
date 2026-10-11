@@ -42,5 +42,6 @@ struct CanvasFrame
     std::optional<BodyBounds> selectionBox;
     std::span<const ComponentRenderData> pasteComponents;
     const std::map<WireId, Wire>* pasteWires = nullptr;
+    std::span<const BodyBounds> overlappingPasteBodies;
     std::span<const BodyBounds> blockedPasteBodies;
 };

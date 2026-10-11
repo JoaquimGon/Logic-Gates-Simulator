@@ -21,7 +21,8 @@ enum class PlacementPolicy
 {
     RejectOverlap,
     FindFree,
-    AllowOverlap
+    AllowOverlap,
+    RejectSameCenter
 };
 enum class RemovedPinPolicy
 {

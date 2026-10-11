@@ -79,6 +79,14 @@ void settings(GLFWwindow*)
                 "Paste moved a configured input pin."
             );
     }
+    const auto revision = destination.getRevision();
+    const auto centered =
+        EditorActions(destination).apply(clipboard.pasteBatch(destination, {0, 12}));
+    require(
+        centered.error == EditError::Overlap && destination.getRevision() == revision &&
+            destination.getComponentCount() == 3,
+        "Direct clipboard creation accepted identical centers or partially committed."
+    );
     const auto* copiedGate =
         dynamic_cast<const Gate*>(destination.getLogicComponent(pasted.createdComponentIds[0]));
     const auto* copiedInput =
@@ -183,20 +191,17 @@ void shortcuts(GLFWwindow* window)
     );
     editor.cursor({0, 0});
     require(
-        editor.input.getPastePreview().blockedComponents().size() == 2,
-        "Overlapping preview components were not marked as blocked."
+        editor.input.getPastePreview().overlappingComponents().size() == 2,
+        "Overlapping preview components lost their advisory highlight."
     );
-    editor.mouse(GLFW_PRESS);
-    editor.mouse(GLFW_RELEASE);
     require(
-        editor.input.getPastePreview().active() && editor.scene.getRevision() == before &&
-            editor.scene.getTopologyBuildCount() == builds && editor.input.getUndoCount() == 0 &&
-            editor.input.getLastEditError() == EditError::Overlap,
-        "Invalid placement modified the real scene, history or dismissed the preview."
+        editor.scene.getRevision() == before && editor.scene.getTopologyBuildCount() == builds &&
+            editor.input.getUndoCount() == 0,
+        "Preview movement changed the real scene or history."
     );
     editor.cursor({0, -12});
     require(
-        editor.input.getPastePreview().blockedComponents().empty(),
+        editor.input.getPastePreview().overlappingComponents().empty(),
         "Overlap warning did not clear at a free location."
     );
     const auto* preview = editor.input.getPastePreview().scene();
@@ -228,7 +233,7 @@ void shortcuts(GLFWwindow* window)
     const auto revision = editor.scene.getRevision();
     editor.key(GLFW_KEY_V);
     require(
-        editor.input.getPastePreview().blockedComponents().size() == 2,
+        editor.input.getPastePreview().overlappingComponents().size() == 2,
         "Preview missed overlap at the original paste location."
     );
     editor.input.handleMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
@@ -246,13 +251,11 @@ void shortcuts(GLFWwindow* window)
     );
     editor.cursor({0, 0});
     editor.key(GLFW_KEY_V);
-    editor.mouse(GLFW_PRESS);
-    editor.mouse(GLFW_RELEASE);
     editor.key(GLFW_KEY_ESCAPE, 0);
     require(
         editor.scene.getComponentCount() == 2 && editor.input.getRedoCount() == 1 &&
             !editor.input.getPastePreview().active(),
-        "Rejected/cancelled preview erased redo or modified the circuit."
+        "Cancelled overlapping preview erased redo or modified the circuit."
     );
     editor.key(GLFW_KEY_Y);
     require(
@@ -387,6 +390,68 @@ void shortcuts(GLFWwindow* window)
     require(
         destination.getCommittedComponentView(single)->getGridPosition() == GridCoords{0, 6},
         "A pasted single component could not be dragged immediately."
+    );
+}
+
+void overlappingPlacement(GLFWwindow* window)
+{
+    Editor editor(window);
+    editor.copyGroup();
+    editor.cursor({0, 0});
+    editor.key(GLFW_KEY_V);
+    const auto revision = editor.scene.getRevision();
+    editor.mouse(GLFW_PRESS);
+    editor.mouse(GLFW_RELEASE);
+    require(
+        editor.input.getPastePreview().active() &&
+            editor.input.getPastePreview().blockedComponents().size() == 2 &&
+            editor.input.getLastEditError() == EditError::Overlap &&
+            editor.scene.getRevision() == revision && editor.scene.getComponentCount() == 2 &&
+            editor.input.getUndoCount() == 0,
+        "An exact-center collision committed, changed history or dismissed the preview."
+    );
+    editor.cursor({1, 0}); // One grid cell from the original: both bodies still overlap.
+    require(
+        editor.input.getPastePreview().blockedComponents().empty(),
+        "Moving off the exact center did not unblock placement."
+    );
+    require(
+        editor.input.getPastePreview().overlappingComponents().size() == 2,
+        "Partial overlap lost its placement notice."
+    );
+    const auto builds = editor.scene.getTopologyBuildCount();
+    editor.mouse(GLFW_PRESS);
+    editor.mouse(GLFW_RELEASE);
+    require(
+        !editor.input.getPastePreview().active() && editor.scene.getComponentCount() == 4 &&
+            editor.input.getSelectedComponents().size() == 2 && editor.input.getUndoCount() == 1 &&
+            editor.scene.getTopologyBuildCount() == builds + 1 &&
+            editor.input.getLastEditError() == EditError::None,
+        "Overlapping paste was rejected, moved automatically or created extra undo entries."
+    );
+    auto selected = editor.input.getSelectedComponents().begin();
+    require(
+        editor.scene.getCommittedComponentView(*selected++)->getGridPosition() ==
+                GridCoords{-4, 0} &&
+            editor.scene.getCommittedComponentView(*selected)->getGridPosition() ==
+                GridCoords{6, 0},
+        "Overlapping paste did not respect the chosen position."
+    );
+    // The overlapping wire joins two drivers; acceptance must still expose the electrical conflict.
+    editor.scene.propagate();
+    bool shorted = false;
+    for (const auto& [id, net] : editor.scene.getNets())
+        shorted = shorted || net.shorted();
+    require(shorted, "Permissive placement suppressed the resulting short-circuit diagnostic.");
+    editor.key(GLFW_KEY_Z);
+    require(
+        editor.scene.getComponentCount() == 2 && editor.scene.wireCount() == 2 &&
+            editor.input.getRedoCount() == 1,
+        "Undo did not remove the overlapping paste as one edit."
+    );
+    editor.key(GLFW_KEY_Y);
+    require(
+        editor.scene.getComponentCount() == 4, "Redo rejected the previously accepted overlap."
     );
 }
 
@@ -549,7 +614,8 @@ int main(int argc, char** argv)
             {"clipboard_settings", settings},
             {"clipboard_shortcuts", shortcuts},
             {"clipboard_views", views},
-            {"clipboard_app_routing", appRouting}
+            {"clipboard_app_routing", appRouting},
+            {"clipboard_overlapping_placement", overlappingPlacement}
         };
         for (const auto& [name, run] : tests)
             if (argc == 1 || std::string(argv[1]) == name)

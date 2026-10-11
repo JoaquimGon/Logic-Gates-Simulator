@@ -59,6 +59,7 @@ void PasteGesture::update(const Scene& destination, GridCoords position)
     const auto y = std::int64_t(position.y) - m_origin.y;
     m_position = position;
     m_destinationRevision = destination.getRevision();
+    m_overlapping.clear();
     m_blocked.clear();
     m_positionValid = x >= std::numeric_limits<int>::min() &&
                       x <= std::numeric_limits<int>::max() &&
@@ -90,8 +91,12 @@ void PasteGesture::update(const Scene& destination, GridCoords position)
         geometry.push_back(std::move(component));
     }
     for (const auto& component : m_geometry)
+    {
         if (overlapsComponent(geometry, -component.componentId - 1))
+            m_overlapping.insert(component.componentId);
+        if (sharesComponentCenter(geometry, -component.componentId - 1))
             m_blocked.insert(component.componentId);
+    }
 }
 
 EditResult PasteGesture::finish(Scene& destination)
@@ -107,7 +112,7 @@ EditResult PasteGesture::finish(Scene& destination)
     if (!m_blocked.empty())
         return {
             .error = EditError::Overlap,
-            .message = "Paste overlaps a component; move the preview to an empty area."
+            .message = "A component already occupies that center; move the preview."
         };
     try
     {
@@ -127,6 +132,7 @@ void PasteGesture::cancel()
     m_scene.reset();
     m_move.reset();
     m_geometry.clear();
+    m_overlapping.clear();
     m_blocked.clear();
     m_destinationRevision.reset();
     m_positionValid = false;

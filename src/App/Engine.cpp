@@ -273,16 +273,22 @@ void Engine::run()
         const auto junctions = scene.getWireIntersections();
         CanvasFrame frame{components, scene.getVisibleWires(), junctions};
         std::vector<ComponentRenderData> pasteComponents;
-        std::vector<BodyBounds> blockedPasteBodies;
+        std::vector<BodyBounds> overlappingPasteBodies, blockedPasteBodies;
         const auto& paste = input.getPastePreview();
         if (const auto* preview = paste.scene())
         {
             pasteComponents = buildComponentPresentation(preview->getComponentViewMap());
             frame.pasteComponents = pasteComponents;
             frame.pasteWires = &preview->getVisibleWires();
-            for (int id : paste.blockedComponents())
+            for (int id : paste.overlappingComponents())
                 if (const auto* view = preview->getComponentViewMap().at(id).get())
-                    blockedPasteBodies.push_back(view->getBodyBounds());
+                    if (!paste.blockedComponents().contains(id))
+                        overlappingPasteBodies.push_back(view->getBodyBounds());
+            for (int id : paste.blockedComponents())
+                blockedPasteBodies.push_back(
+                    preview->getComponentViewMap().at(id)->getBodyBounds()
+                );
+            frame.overlappingPasteBodies = overlappingPasteBodies;
             frame.blockedPasteBodies = blockedPasteBodies;
         }
         const float selectionOpacity = input.getSelectionHighlightOpacity();
