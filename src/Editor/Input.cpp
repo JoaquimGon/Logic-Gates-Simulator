@@ -369,9 +369,8 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         {
             updateHoverState(window);
             const bool drawing = m_wire.active();
-            const auto hit = m_scene->hitTest(getMouseWorldCoord(window), mouseGridCoords);
             const bool blocked = m_wire.routeBlocked();
-            if (auto command = m_wire.finish(hit))
+            if (auto command = m_wire.finish())
                 if (applyEdit(std::move(*command)))
                     m_committedWirePoint = mouseGridCoords;
             if (blocked)

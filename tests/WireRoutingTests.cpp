@@ -86,10 +86,42 @@ void clearance()
     other.setPath({{0, -2}, {0, 2}});
     other.setNet(2);
     const auto crossing = routeWire({-4, 0}, {4, 0}, {}, {{0, other}}, 1);
-    require(crossing.has_value(), "Existing separate wire could not be routed around.");
+    require(crossing.has_value(), "A route could not cross an existing wire.");
     Wire routed;
     routed.setPath(*crossing);
-    require(!routed.containsPoint({0, 0}), "Rerouting joined a separate wire net.");
+    require(
+        *crossing == std::vector<GridCoords>{{-4, 0}, {4, 0}},
+        "An interior crossing still forced a detour."
+    );
+    Scene separate;
+    edit(separate, {AddWire{other.getPath()}, AddWire{*crossing}});
+    require(
+        separate.netCount() == 2 && separate.getWireIntersections().empty(),
+        "An interior crossing unexpectedly created a junction."
+    );
+    // An internal vertex also stays a visual crossing, not a whole-wire endpoint.
+    other.setPath({{0, -2}, {0, 0}, {0, 2}, {2, 2}});
+    require(
+        routeWire({-4, 0}, {4, 0}, {}, {{0, other}}, 1) == crossing,
+        "An interior vertex forced a detour."
+    );
+    other.setPath({{0, 0}, {0, 3}});
+    const auto endpoint = routeWire({-4, 0}, {4, 0}, {}, {{0, other}}, 1);
+    require(endpoint.has_value(), "Could not route around another wire's endpoint.");
+    routed.setPath(*endpoint);
+    require(
+        !routed.containsPoint({0, 0}),
+        "Routing made an unintended junction at another wire's endpoint."
+    );
+    const auto join = routeWire({-4, 0}, {0, 0}, {}, {{0, other}}, 1);
+    require(
+        join && join->back() == GridCoords{0, 0}, "Explicitly joining a wire endpoint was blocked."
+    );
+    other.setPath({{-1, 0}, {1, 0}});
+    const auto overlap = routeWire({-4, 0}, {4, 0}, {}, {{0, other}}, 1);
+    require(overlap.has_value(), "Could not route around a collinear span.");
+    routed.setPath(*overlap);
+    require(!routed.containsPoint({0, 0}), "Routing merged a collinear span of an unrelated net.");
 }
 
 void moves()

@@ -244,3 +244,10 @@ one history entry. Removed inputs lose their flags, appended inputs start normal
 The gate popup shows at most four input rows on a subtle background. Scroll over
 that list to reach additional inputs; the heading shows the visible range and a
 scrollbar marks the position. Gate settings and the output state stay fixed.
+
+Wire routing permits interior crossings without electrical junctions. It continues
+to avoid unrelated whole-wire endpoints, collinear overlaps, and component padding.
+Releasing on a wire intentionally joins it. Branches may return to the same input
+or another pin on their component, including undriven branches and feedback.
+Connectivity and bounded propagation validate the result; blocked routes still
+report an editor error. Duplicate overlapping geometry is normalized as usual.

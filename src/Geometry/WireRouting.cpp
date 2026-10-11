@@ -110,10 +110,16 @@ std::optional<std::vector<GridCoords>> routeWire(
                 int top = std::min(std::max(a.y, b.y), std::max(c.y, d.y));
                 if (left > right || bottom > top)
                     continue;
-                // Joining the intended endpoints is allowed; other routes remain separate.
-                if (left == right && bottom == top &&
-                    (GridCoords{left, bottom} == start || GridCoords{left, bottom} == end))
-                    continue;
+                if (left == right && bottom == top)
+                {
+                    const GridCoords crossing{left, bottom};
+                    // Explicit endpoint joins are intentional. Interior crossings (including
+                    // bends) do not form junctions, so they need no detour. Whole-wire endpoints
+                    // remain obstacles to prevent an accidental join to another net.
+                    if (crossing == start || crossing == end ||
+                        (crossing != path.front() && crossing != path.back()))
+                        continue;
+                }
                 return false;
             }
         }

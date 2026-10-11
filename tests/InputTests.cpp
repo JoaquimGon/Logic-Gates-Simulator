@@ -699,6 +699,122 @@ void wireAndPanGestures(GLFWwindow* window)
     }
 }
 
+void wireCrossingsAndFeedback(GLFWwindow* window)
+{
+    {
+        Editor editor(window);
+        const int horizontalSource =
+            editor.scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
+        const int verticalSource = editor.scene.addComponent(BuiltinComponentIds::Input, {-1, -10});
+        const int horizontalSink = editor.inverter({10, 0});
+        const int verticalSink = editor.inverter({2, 10});
+        editor.wire({{0, -10}, {0, 10}});
+        editor.cursor({-9, 0});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.cursor({8, 0});
+        require(
+            editor.input.getActiveWire().getPath() == std::vector<GridCoords>{{-9, 0}, {8, 0}},
+            "Wire preview took a detour around an interior crossing."
+        );
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        editor.scene.propagate();
+        editor.scene.syncVisuals();
+        require(
+            editor.scene.netCount() == 2 && editor.scene.getWireIntersections().empty() &&
+                editor.scene.getLogicComponent(horizontalSink)->getStateInPin(0) &&
+                !editor.scene.getLogicComponent(verticalSink)->getStateInPin(0) &&
+                editor.scene.netOfPin({horizontalSource, 0}, PinType::OUTPUT) !=
+                    editor.scene.netOfPin({verticalSource, 0}, PinType::OUTPUT),
+            "Releasing a crossing joined distinct signals or dropped the new route."
+        );
+        Input::keyCallback(window, GLFW_KEY_Z, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+        Input::keyCallback(window, GLFW_KEY_Z, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+        require(editor.scene.wireCount() == 1, "Crossing wire could not be undone as one edit.");
+        Input::keyCallback(window, GLFW_KEY_Y, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+        Input::keyCallback(window, GLFW_KEY_Y, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+        require(editor.scene.netCount() == 2, "Redo joined the crossing nets.");
+    }
+    {
+        Editor editor(window);
+        const int gate = editor.scene.addComponent(BuiltinComponentIds::And, {0, 0});
+        editor.wire({{-10, 1}, {-2, 1}});
+        const auto builds = editor.scene.getTopologyBuildCount();
+        editor.cursor({-6, 1});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.cursor({-2, -1});
+        require(editor.input.isCurrentlyDrawingWire(), "Undriven branch preview did not start.");
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        const auto net = editor.scene.netOfPin({gate, 0}, PinType::INPUT);
+        require(
+            editor.scene.getTopologyBuildCount() == builds + 1 && net != INVALID_NET_ID &&
+                editor.scene.netOfPin({gate, 1}, PinType::INPUT) == net &&
+                editor.scene.getNet(net)->getSinks().size() == 2 &&
+                editor.input.getLastEditError() == EditError::None,
+            "Undriven branch to the same component disappeared on release."
+        );
+        // A return to the already-connected input is legitimate, even if overlap normalization
+        // reuses the existing wire span rather than retaining duplicate geometry.
+        editor.cursor({-3, 0});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.cursor({-2, 1});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        require(
+            editor.scene.getTopologyBuildCount() == builds + 2 &&
+                editor.input.getLastEditError() == EditError::None &&
+                editor.scene.netOfPin({gate, 0}, PinType::INPUT) ==
+                    editor.scene.netOfPin({gate, 1}, PinType::INPUT),
+            "Returning a branch to the same input was silently rejected."
+        );
+        editor.scene.addComponent(BuiltinComponentIds::Input, {-12, 1}, {.inputState = true});
+        editor.cursor({-11, 1});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.cursor({-10, 1});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        editor.scene.propagate();
+        require(
+            editor.scene.getLogicComponent(gate)->getStateInPin(0) &&
+                editor.scene.getLogicComponent(gate)->getStateInPin(1) &&
+                editor.scene.getLogicComponent(gate)->getStateOutPin(),
+            "An undriven branch did not acquire its later driver on both inputs."
+        );
+    }
+    {
+        Editor editor(window);
+        const int gate = editor.inverter({0, 0});
+        editor.wire({{1, 0}, {8, 0}});
+        editor.cursor({6, 0});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.cursor({-2, 0});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        require(
+            editor.scene.netOfPin({gate, 0}, PinType::OUTPUT) ==
+                    editor.scene.netOfPin({gate, 0}, PinType::INPUT) &&
+                editor.scene.getLogicComponent(gate)->getInConnections().size() == 1 &&
+                editor.input.getLastEditError() == EditError::None,
+            "Feedback branch to its own component disappeared on release."
+        );
+        require(
+            editor.scene.propagate() == SimulationResult::NON_CONVERGENT,
+            "Drawn feedback bypassed the existing oscillation diagnostics."
+        );
+    }
+    {
+        Editor editor(window);
+        editor.scene.addComponent(BuiltinComponentIds::And, {0, 0});
+        std::string reported;
+        editor.input.setEditErrorHandler([&](const std::string& message) { reported = message; });
+        editor.cursor({-10, 6});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.cursor({0, 0});
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        require(
+            editor.scene.wireCount() == 0 && editor.input.isIdle() &&
+                editor.input.getLastEditError() == EditError::InvalidWire && !reported.empty(),
+            "A genuinely blocked route disappeared without an error message."
+        );
+    }
+}
+
 void uiInputRouting(GLFWwindow* window)
 {
     Editor editor(window);
@@ -2053,6 +2169,7 @@ int main(int argc, char** argv)
             {"interaction_modes", interactionModes},
             {"mode_cancellation", modeCancellation},
             {"wire_and_pan_gestures", wireAndPanGestures},
+            {"wire_crossings_and_feedback", wireCrossingsAndFeedback},
             {"ui_input_routing", uiInputRouting},
             {"ui_gesture_cancellation", uiGestureCancellation},
             {"canvas_input_bounds", canvasInputBounds},

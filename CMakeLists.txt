@@ -211,7 +211,7 @@ if(BUILD_TESTING)
     target_compile_definitions(InputTests PRIVATE GLFW_INCLUDE_NONE)
     foreach(test_name IN ITEMS
         drag_cancellation drag_commit wire_alt_drag spawn_placement wire_segment_deletion
-        interaction_modes mode_cancellation wire_and_pan_gestures
+        interaction_modes mode_cancellation wire_and_pan_gestures wire_crossings_and_feedback
         ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction
         component_palette component_information component_naming gate_settings label_visibility
     )

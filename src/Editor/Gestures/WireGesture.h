@@ -6,7 +6,6 @@
 #include <optional>
 
 class Scene;
-struct HitResult;
 
 /** @brief Owns provisional routing and deferred branches; produces one AddWire on release. */
 class WireGesture
@@ -15,7 +14,7 @@ class WireGesture
     void begin(GridCoords position, PinRef origin = {}, PinType direction = PinType::INPUT);
     void beginBranch(WireId wireId, GridCoords position);
     void update(Scene& scene, GridCoords position);
-    std::optional<AddWire> finish(const HitResult& hit);
+    std::optional<AddWire> finish();
     void cancel();
 
     bool active() const { return m_active; }
@@ -39,7 +38,6 @@ class WireGesture
     Wire m_wire;
     PinRef m_origin;
     PinType m_direction = PinType::INPUT;
-    int m_originComponent = -1;
     GridCoords m_start{};
     WireId m_branch = INVALID_WIRE_ID;
     bool m_active = false;

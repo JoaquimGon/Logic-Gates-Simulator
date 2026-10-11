@@ -78,7 +78,8 @@ text remains independent.
 
 Connected wires follow component moves **on drop**, retaining fixed branch junctions.
 Routing avoids bodies and pins with one grid cell of clearance, except the short
-access to the intended endpoint pin, and avoids joining unrelated wires. Hold
+access to the intended endpoint pin. Wires can cross through each other's interiors
+without joining; unrelated endpoints and collinear overlaps are avoided. Hold
 **Alt at drop time** to leave wiring fixed: the moved component disconnects, then
 reconnects wherever its pins touch existing wiring. Releasing Alt before the drop
 restores rerouting. New drawn wires use the same clearance. A blocked route cancels

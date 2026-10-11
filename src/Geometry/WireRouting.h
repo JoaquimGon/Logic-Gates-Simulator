@@ -9,7 +9,8 @@
 #include <vector>
 
 /** Orthogonal routing with one grid cell of clearance around bodies and pins.
- * Only endpoint access may enter its own component's padding. Search is bounded. */
+ * Only endpoint access may enter its own component's padding. Interior wire crossings
+ * are allowed; unrelated endpoints and collinear overlaps are avoided. Search is bounded. */
 std::optional<std::vector<GridCoords>> routeWire(
     GridCoords start,
     GridCoords end,
