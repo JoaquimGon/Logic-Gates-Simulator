@@ -189,3 +189,30 @@ viewport immediately without editing scenes or recording undo history. Release,
 Escape, focus loss, window/DPI resize, or switching viewpoints ends the drag at
 its current height. Completed canvas selection is preserved. Popup and palette
 interactions retain ownership; resizing does not intercept their gestures.
+
+## Copy and paste
+
+In Selection mode, Ctrl+C snapshots the committed selection into one session-local
+`EditorClipboard`; empty selection leaves the previous copy intact. Ctrl+V starts a
+`PasteGesture` with an isolated copy and the existing move-preview API. The translucent
+group follows the cursor; overlap checks use the same body/origin/pin rules as a real
+edit and mark only blocked components red. Moving the preview never rebuilds the real
+scene's nets, advances copied clocks, or records history. Geometry/overlap checks are
+reused while pointer cell and destination revision remain unchanged.
+
+Left-click submits the creation batch once and selects the new components and
+normalized wire sections. Invalid placement leaves the preview available to reposition.
+Escape/right-click cancels; Ctrl+Z during preview cancels without undoing an earlier
+edit. Each confirmed paste records one undo step; cancellation/failure preserves redo.
+
+The clipboard survives tab changes and source deletion. Labels, explicit pin
+geometry, gate inversion/arity, input values, and clock settings are retained;
+custom definitions travel with copied instances. Clock phase and latch memory start
+fresh. Existing custom definitions with a different version reject paste rather
+than reinterpret the copied design. Only explicitly selected wires travel with
+components; a selected ordinary wire segment copies just that segment.
+
+Both shortcuts require an idle Selection canvas with keyboard focus. Starting/placing paste also
+requires the cursor inside the canvas. UI capture, focus/scene/mode changes and
+leaving the viewport cancel pending/active paste previews; key repeats do not duplicate objects.
+No system clipboard file format is introduced.

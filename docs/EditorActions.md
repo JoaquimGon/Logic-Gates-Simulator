@@ -32,7 +32,8 @@ if (!result) {
 }
 ```
 
-`CreateComponent` selects a definition ID/version and typed instance options;
+`CreateComponent` selects a definition ID/version and typed instance options,
+with an optional body label applied within the same creation batch;
 `RegisterComponentDefinition` can atomically register a validated custom box type
 before creating it in the same batch. Snapshots share immutable catalog storage;
 definition-only edits rebuild no topology. Native creation requests remain thin

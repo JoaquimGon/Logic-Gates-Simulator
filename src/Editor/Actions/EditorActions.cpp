@@ -148,6 +148,8 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
         auto create = [&](const CreateComponent& request)
         {
             const int id = candidate.addComponentRaw(request);
+            if (request.label)
+                getView(id).m_bodyLabel = *request.label;
             components.push_back(id);
             placement[id] = request.placement;
             changed = topologyChanged = true;

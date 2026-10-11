@@ -22,6 +22,7 @@ class Selection
   public:
     void clear();
     bool selectComponent(int id);
+    void selectGroup(std::span<const int> components);
     void selectPinOwner(int id);
     void selectWire(const Scene& scene, WireId id, GridCoords position);
     void toggleWire(WireId id);
@@ -73,6 +74,7 @@ class Selection
 
   private:
     bool m_areaSelected = false;
+    bool m_pasted = false;
     std::set<int> m_components;
     std::set<WireId> m_wires;
     WireId m_segmentWire = INVALID_WIRE_ID;

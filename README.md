@@ -200,6 +200,8 @@ appear gray.
 | **Middle Mouse (Drag on Canvas)** | Pan view camera, including when starting over a component |
 | **Right Click (Active Gesture)** | Cancel wire placement / component dragging |
 | **Ctrl + Scroll** | Zoom in / Zoom out |
+| **Ctrl + C** | Selection: copy selected components and wires |
+| **Ctrl + V** | Selection: preview a paste; left-click to place (one undo step) |
 | **Delete / Backspace** | Delete selected component or wire segment |
 | **Escape** | Abort current gesture |
 | **F2** | Toggle Selection / Interaction mode |
@@ -218,6 +220,15 @@ appear gray.
 | **U / I** | Spawn SR / D latch |
 
 ---
+
+Copy/paste keeps relative positions, labels, pin layouts, gate settings, manual input
+states, and clock settings. Only selected wires are copied; an ordinary wire click
+copies its selected segment, while Ctrl-click and box selection copy whole sections.
+The in-app clipboard works across tabs. Ctrl+V starts a translucent preview following
+the mouse; overlapping components are highlighted red. Left-click in a valid spot to
+place and select the group; Escape/right-click cancels. The real circuit and undo
+history change only on placement. New
+instances start fresh clock/latch runtime state, as when placed from the palette.
 
 ## Project Structure & Architecture
 

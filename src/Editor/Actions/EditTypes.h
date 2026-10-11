@@ -42,6 +42,7 @@ struct CreateComponent
     ComponentOverrides overrides;
     PlacementPolicy placement = PlacementPolicy::RejectOverlap;
     std::uint32_t version = 0;
+    std::optional<std::string> label;
 };
 
 // Compatibility requests adapt explicit legacy geometry into the same catalog/factory path.

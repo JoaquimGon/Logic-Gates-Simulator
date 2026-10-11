@@ -9,6 +9,7 @@
 void Selection::clear()
 {
     m_areaSelected = false;
+    m_pasted = false;
     m_components.clear();
     m_wires.clear();
     m_segmentWire = INVALID_WIRE_ID;
@@ -18,13 +19,20 @@ void Selection::clear()
 
 bool Selection::selectComponent(int id)
 {
-    if (m_components.contains(id) && (group() || m_areaSelected))
+    if (m_components.contains(id) && (group() || m_areaSelected || m_pasted))
         return true;
     const bool alreadySelected = m_components.contains(id);
     clear();
     if (!alreadySelected)
         m_components.insert(id);
     return !alreadySelected;
+}
+
+void Selection::selectGroup(std::span<const int> components)
+{
+    clear();
+    m_components.insert(components.begin(), components.end());
+    m_pasted = true;
 }
 
 void Selection::selectPinOwner(int id)

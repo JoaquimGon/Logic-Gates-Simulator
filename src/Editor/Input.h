@@ -2,6 +2,8 @@
 #include "Actions/EditHistory.h"
 #include "Actions/EditTypes.h"
 #include "Components/PinTypes.h"
+#include "Editor/Clipboard.h"
+#include "Editor/Gestures/PasteGesture.h"
 #include "Editor/UiInput.h"
 #include "EditorMode.h"
 #include "Geometry/CanvasCamera.h"
@@ -54,6 +56,8 @@ class Input
     std::optional<GridCoords> m_committedWirePoint;
     PanGesture m_pan;
     Selection m_selection;
+    EditorClipboard m_clipboard;
+    PasteGesture m_paste;
 
     double lastMouseX = 0.0f;
     double lastMouseY = 0.0f;
@@ -66,6 +70,8 @@ class Input
     std::string m_lastEditMessage;
     bool applyEdit(EditOperation operation);
     void beginSelectionDrag(GridCoords pointer);
+    void beginPaste(GridCoords position);
+    void placePaste(GridCoords position);
 
     int hoveredComponentId = -1;
     int hoveredPinComponentId = -1;
@@ -137,7 +143,7 @@ class Input
     bool isIdle() const
     {
         return !m_drag.active() && !m_wire.ownsPointer() && !m_pan.active() &&
-               !m_selection.boxing();
+               !m_selection.boxing() && !m_paste.active();
     }
 
     glm::vec2 getMouseWorldCoord(GLFWwindow* window) const;
@@ -157,6 +163,8 @@ class Input
     float getZoom() const { return m_camera.zoom(); }
 
     void setZoom(float zoom);
+
+    const PasteGesture& getPastePreview() const { return m_paste; }
 
     bool isCurrentlyDrawingWire() const { return m_wire.active(); }
 

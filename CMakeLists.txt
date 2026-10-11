@@ -62,8 +62,11 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
     add_library(simulator_input STATIC
         src/Editor/Input.cpp
         src/Editor/InputRouting.cpp
+        src/Editor/Clipboard.cpp
+        src/Editor/InputClipboard.cpp
         src/Editor/CircuitViews.cpp
         src/Editor/ComponentShortcuts.cpp
+        src/Editor/Gestures/PasteGesture.cpp
         src/Editor/Gestures/DragGesture.cpp
         src/Editor/Gestures/WireGesture.cpp
         src/Editor/Gestures/Selection.cpp
@@ -233,6 +236,13 @@ if(BUILD_TESTING)
     target_link_libraries(MessagesTests PRIVATE simulator_ui glfw)
     target_compile_definitions(MessagesTests PRIVATE GLFW_INCLUDE_NONE)
     add_test(NAME messages_panel COMMAND MessagesTests)
+
+    add_executable(ClipboardTests tests/ClipboardTests.cpp)
+    target_link_libraries(ClipboardTests PRIVATE simulator_ui glfw)
+    target_compile_definitions(ClipboardTests PRIVATE GLFW_INCLUDE_NONE)
+    foreach(test_name IN ITEMS clipboard_settings clipboard_shortcuts clipboard_views clipboard_app_routing)
+        add_test(NAME ${test_name} COMMAND ClipboardTests ${test_name})
+    endforeach()
 
     add_executable(BoxSelectionTests tests/BoxSelectionTests.cpp)
     target_link_libraries(BoxSelectionTests PRIVATE simulator_ui simulator_files glfw)

@@ -25,16 +25,19 @@ class Renderer
     void shutdown();
     void beginFrame(const CanvasCameraFrame& camera);
     void drawCanvas(const CanvasFrame& frame);
-    void drawComponents(std::span<const ComponentRenderData> components);
-    void drawPinLeads(std::span<const ComponentRenderData> components);
+    void drawComponents(std::span<const ComponentRenderData> components, float opacity = 1);
+    void drawPinLeads(std::span<const ComponentRenderData> components, float opacity = 1);
     void drawPins(
         std::span<const ComponentRenderData> components,
         int hoveredCompId = -1,
         int hoveredPinIdx = -1,
-        PinType hoveredPinType = PinType::INPUT
+        PinType hoveredPinType = PinType::INPUT,
+        float opacity = 1
     );
     void drawGrid();
-    void drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire = nullptr);
+    void drawWires(
+        const std::map<WireId, Wire>& wires, const Wire* activeWire = nullptr, float opacity = 1
+    );
     void drawWireSegmentBoundingBox(
         const GridCoords& start, const GridCoords& end, float padding = 0.03f, float alpha = 1
     );
@@ -63,7 +66,7 @@ class Renderer
 
     const FontMetrics& fontMetrics() const { return m_text.metrics(); }
 
-    void drawLabels(std::span<const ComponentRenderData> components);
+    void drawLabels(std::span<const ComponentRenderData> components, float opacity = 1);
     void drawDebugOverlay(
         const DebugMetrics& metrics,
         bool showMetrics = true,

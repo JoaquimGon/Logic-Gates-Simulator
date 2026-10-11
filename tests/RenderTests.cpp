@@ -528,6 +528,52 @@ void inversionProportions(Renderer& renderer, const CanvasCameraFrame& camera)
     }
 }
 
+void pastePreview(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    Scene scene;
+    const int source = scene.addComponent(BuiltinComponentIds::And, {0, 0});
+    Selection selection;
+    selection.selectComponent(source);
+    EditorClipboard clipboard;
+    clipboard.copy(scene, selection);
+    PasteGesture paste;
+    require(
+        static_cast<bool>(paste.begin(scene, clipboard, {8, 0})), "Paste preview creation failed."
+    );
+    const auto components = buildComponentPresentation(scene.getComponentViewMap());
+    auto ghosts = buildComponentPresentation(paste.scene()->getComponentViewMap());
+    CanvasFrame frame{components, scene.getWires(), {}};
+    renderer.beginFrame(camera);
+    renderer.drawCanvas(frame);
+    const auto background = pixel({0.4f, 0});
+    renderer.drawComponents(ghosts);
+    const auto solid = pixel({0.4f, 0});
+    frame.pasteComponents = ghosts;
+    frame.pasteWires = &paste.scene()->getVisibleWires();
+    renderer.beginFrame(camera);
+    renderer.drawCanvas(frame);
+    const auto ghost = pixel({0.4f, 0});
+    require(
+        ghost[2] > background[2] + 10 && ghost[2] + 10 < solid[2],
+        "Paste preview bodies were invisible or fully opaque."
+    );
+    saveImage("paste-preview-valid.ppm");
+    paste.update(scene, {0, 0});
+    ghosts = buildComponentPresentation(paste.scene()->getComponentViewMap());
+    frame.pasteComponents = ghosts;
+    std::vector<BodyBounds> blocked;
+    for (int id : paste.blockedComponents())
+        blocked.push_back(paste.scene()->getComponentViewMap().at(id)->getBodyBounds());
+    renderer.beginFrame(camera);
+    renderer.drawCanvas(frame);
+    const auto beforeRed = pixel({0, 0});
+    frame.blockedPasteBodies = blocked;
+    renderer.beginFrame(camera);
+    renderer.drawCanvas(frame);
+    require(pixel({0, 0})[0] > beforeRed[0] + 35, "Blocked paste has no visible red highlight.");
+    saveImage("paste-preview-overlap.ppm");
+}
+
 void preview(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
@@ -2329,6 +2375,7 @@ int main(int argc, char** argv)
                 inputRailPresentation(renderer, camera);
                 inversionProportions(renderer, camera);
                 preview(renderer, camera);
+                pastePreview(renderer, camera);
                 canvasViewport(renderer);
                 wireMarkers(renderer, camera);
                 roundedBounds(renderer, camera);

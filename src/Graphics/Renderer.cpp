@@ -247,7 +247,7 @@ void Renderer::drawGrid()
     recordDrawCalls(DrawCategory::StaticUI);
 }
 
-void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire)
+void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire, float opacity)
 {
     auto* shader = acquireShader("wire");
     if (!shader)
@@ -268,6 +268,9 @@ void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* active
         appendWireVertices(*activeWire, allWiresData);
     }
 
+    if (opacity != 1)
+        for (std::size_t i = 6; i < allWiresData.size(); i += 7)
+            allWiresData[i] *= opacity;
     if (!allWiresData.empty())
     {
         m_wireMesh->updateData(allWiresData, 7);
@@ -299,9 +302,9 @@ void Renderer::drawWireSegmentBoundingBox(
     recordDrawCalls(DrawCategory::Wires);
 }
 
-void Renderer::drawComponents(std::span<const ComponentRenderData> components)
+void Renderer::drawComponents(std::span<const ComponentRenderData> components, float opacity)
 {
-    for (const auto& batch : buildComponentBatches(components))
+    for (auto& batch : buildComponentBatches(components))
     {
         auto* shader = acquireShader(batch.shader);
         if (!shader)
@@ -309,13 +312,15 @@ void Renderer::drawComponents(std::span<const ComponentRenderData> components)
         if (!useCanvasShader(*shader))
             continue;
         shader->setBool("uDrawRearArc", batch.instances.front().drawRearArc);
+        for (auto& body : batch.instances)
+            body.style.tint[3] *= opacity;
         m_gateMesh->setInstanceData(packComponentInstances(batch.instances), {2, 2, 4}, 1);
         m_gateMesh->drawInstanced(static_cast<int>(batch.instances.size()));
         recordDrawCalls(DrawCategory::Components);
     }
 }
 
-void Renderer::drawPinLeads(std::span<const ComponentRenderData> components)
+void Renderer::drawPinLeads(std::span<const ComponentRenderData> components, float opacity)
 {
     auto* shader = acquireShader("wire");
     if (!shader || !useCanvasShader(*shader))
@@ -342,7 +347,7 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components)
         if (const auto rail = component.inputRail)
         {
             const auto& tint = component.body.style.tint;
-            const glm::vec4 color{tint[0], tint[1], tint[2], tint[3]};
+            const glm::vec4 color{tint[0], tint[1], tint[2], tint[3] * opacity};
             if (!component.inputArc.empty())
             {
                 const float width = component.body.style.inverted ? component.body.size.x / 1.5f
@@ -418,7 +423,7 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components)
     for (const auto& component : components)
         for (const auto& pin : component.pins)
             for (std::size_t i = 1; i < pin.lead.size(); ++i)
-                segment(pin.lead[i - 1], pin.lead[i], 0.002f, {0.75f, 0.85f, 0.95f, 1});
+                segment(pin.lead[i - 1], pin.lead[i], 0.002f, {0.75f, 0.85f, 0.95f, opacity});
     if (data.empty())
         return;
     m_leadMesh->updateData(data, 7);
@@ -430,7 +435,8 @@ void Renderer::drawPins(
     std::span<const ComponentRenderData> components,
     int hoveredCompId,
     int hoveredPinIdx,
-    PinType hoveredPinType
+    PinType hoveredPinType,
+    float opacity
 )
 {
     auto* shader = acquireShader("pin");
@@ -461,6 +467,7 @@ void Renderer::drawPins(
                 pinInstanceData.insert(pinInstanceData.end(), {0, 1, 0, 1});
             else
                 pinInstanceData.insert(pinInstanceData.end(), {1, 0, 0, 1});
+            pinInstanceData.back() *= opacity;
             ++totalPins;
         }
 
@@ -690,9 +697,12 @@ void Renderer::drawText(std::span<const TextRun> runs, TextSpace space)
     );
 }
 
-void Renderer::drawLabels(std::span<const ComponentRenderData> components)
+void Renderer::drawLabels(std::span<const ComponentRenderData> components, float opacity)
 {
-    drawText(layoutComponentLabels(components, m_text.metrics()), TextSpace::World);
+    auto runs = layoutComponentLabels(components, m_text.metrics());
+    for (auto& run : runs)
+        run.color.a *= opacity;
+    drawText(runs, TextSpace::World);
 }
 
 void Renderer::recordDrawCalls(DrawCategory category, int count)
@@ -848,5 +858,16 @@ void Renderer::drawCanvas(const CanvasFrame& frame)
          frame.gridHighlight->position != frame.wireStartHighlight->position))
         drawGridPointHighlight(frame.gridHighlight->position, frame.gridHighlight->opacity);
     drawLabels(frame.components);
+    if (frame.pasteWires)
+    {
+        constexpr float opacity = 0.45f;
+        drawPinLeads(frame.pasteComponents, opacity);
+        drawComponents(frame.pasteComponents, opacity);
+        drawWires(*frame.pasteWires, nullptr, opacity);
+        drawPins(frame.pasteComponents, -1, -1, PinType::INPUT, opacity);
+        drawLabels(frame.pasteComponents, opacity);
+        for (const auto bounds : frame.blockedPasteBodies)
+            drawWorldRect(bounds, {1, 0.12f, 0.12f, 0.3f});
+    }
     setScreenViewport();
 }

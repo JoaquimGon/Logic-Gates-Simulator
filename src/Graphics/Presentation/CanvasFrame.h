@@ -40,4 +40,7 @@ struct CanvasFrame
     std::span<const BodyHighlight> selectedBodies;
     std::span<const SegmentHighlight> selectedSegments;
     std::optional<BodyBounds> selectionBox;
+    std::span<const ComponentRenderData> pasteComponents;
+    const std::map<WireId, Wire>* pasteWires = nullptr;
+    std::span<const BodyBounds> blockedPasteBodies;
 };

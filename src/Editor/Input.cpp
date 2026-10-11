@@ -164,6 +164,21 @@ void Input::handleKey(int key, int action, int mods, int scanCode)
         }
         return;
     }
+    if (control && !(mods & (GLFW_MOD_SHIFT | GLFW_MOD_ALT | GLFW_MOD_SUPER)) &&
+        (key == GLFW_KEY_C || key == GLFW_KEY_V))
+    {
+        if (m_scene && m_mode == EditorMode::Selection && isIdle())
+        {
+            if (key == GLFW_KEY_C)
+                m_clipboard.copy(*m_scene, m_selection);
+            else
+                m_pendingKeyPresses.insert(GLFW_KEY_V);
+        }
+        return;
+    }
+    // Only the modifier-checked shortcut above may queue a paste.
+    if (key == GLFW_KEY_C || key == GLFW_KEY_V)
+        return;
     if (key == GLFW_KEY_F2)
     {
         if (!(mods & (GLFW_MOD_SHIFT | GLFW_MOD_CONTROL | GLFW_MOD_ALT | GLFW_MOD_SUPER)))
@@ -184,6 +199,7 @@ bool Input::consumeKeyPress(int key)
 void Input::cancelCurrentAction()
 {
     cancelGestures();
+    m_pendingKeyPresses.erase(GLFW_KEY_V);
     m_selection.clear();
 }
 
@@ -224,6 +240,17 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     }
     else
         return;
+
+    // A placement click may arrive in the same event poll as Ctrl+V.
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && m_scene &&
+        m_mode == EditorMode::Selection && isIdle() && consumeKeyPress(GLFW_KEY_V))
+        beginPaste(GridSystem::worldToGrid(getMouseWorldCoord(window)));
+    if (m_paste.active() && button == GLFW_MOUSE_BUTTON_LEFT)
+    {
+        if (action == GLFW_PRESS)
+            placePaste(GridSystem::worldToGrid(getMouseWorldCoord(window)));
+        return;
+    }
 
     if (button == GLFW_MOUSE_BUTTON_RIGHT)
     {
@@ -378,7 +405,9 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
     mouseGridCoords = GridSystem::worldToGrid(getMouseWorldCoord(window));
     if (m_committedWirePoint && mouseGridCoords != *m_committedWirePoint)
         m_committedWirePoint.reset();
-    if (m_selection.boxing())
+    if (m_paste.active())
+        m_paste.update(*m_scene, mouseGridCoords);
+    else if (m_selection.boxing())
         m_selection.updateBox(*m_scene, getMouseWorldCoord(window));
     else if (m_drag.active())
     {
@@ -418,6 +447,8 @@ void Input::process(GLFWwindow* window)
     if (consumeKeyPress(GLFW_KEY_ESCAPE))
         cancelCurrentAction();
     updateHoverState(window);
+    if (m_paste.active())
+        m_paste.update(*m_scene, GridSystem::worldToGrid(getMouseWorldCoord(window)));
     const bool canEdit = m_scene && m_mode == EditorMode::Selection && isIdle() &&
                          isCanvasPointerAvailable(window) && canvasKeyboardAvailable();
     for (int key :
@@ -436,6 +467,9 @@ void Input::process(GLFWwindow* window)
             if (auto command =
                     componentShortcut(key, GridSystem::worldToGrid(getMouseWorldCoord(window))))
                 applyEdit(std::move(*command));
+
+    if (consumeKeyPress(GLFW_KEY_V) && canEdit)
+        beginPaste(GridSystem::worldToGrid(getMouseWorldCoord(window)));
 
     const bool pause = consumeKeyPress(GLFW_KEY_SPACE);
     const bool step = consumeKeyPress(GLFW_KEY_PERIOD);
@@ -499,7 +533,7 @@ void Input::updateHoverState(GLFWwindow* window)
         clearHover();
         return;
     }
-    if (m_selection.boxing())
+    if (m_selection.boxing() || m_paste.active())
     {
         clearHover();
         return;

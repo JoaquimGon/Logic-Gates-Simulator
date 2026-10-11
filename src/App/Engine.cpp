@@ -272,6 +272,19 @@ void Engine::run()
         const auto components = buildComponentPresentation(scene.getComponentViewMap());
         const auto junctions = scene.getWireIntersections();
         CanvasFrame frame{components, scene.getVisibleWires(), junctions};
+        std::vector<ComponentRenderData> pasteComponents;
+        std::vector<BodyBounds> blockedPasteBodies;
+        const auto& paste = input.getPastePreview();
+        if (const auto* preview = paste.scene())
+        {
+            pasteComponents = buildComponentPresentation(preview->getComponentViewMap());
+            frame.pasteComponents = pasteComponents;
+            frame.pasteWires = &preview->getVisibleWires();
+            for (int id : paste.blockedComponents())
+                if (const auto* view = preview->getComponentViewMap().at(id).get())
+                    blockedPasteBodies.push_back(view->getBodyBounds());
+            frame.blockedPasteBodies = blockedPasteBodies;
+        }
         const float selectionOpacity = input.getSelectionHighlightOpacity();
         std::vector<BodyHighlight> selectedBodies;
         std::vector<SegmentHighlight> selectedSegments;
