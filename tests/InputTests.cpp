@@ -1856,9 +1856,35 @@ void gateSettings(GLFWwindow* window)
     require(gate()->getInputPinCount() == 2, "Immediate popup undo failed.");
     history(GLFW_KEY_Y);
     require(gate()->getInputPinCount() == 3, "Popup redo failed.");
-    for (int i = 0; i < 6; ++i)
+    click(ui.gateInputButtonBounds(editor.scene, true));
+    const auto fourInputHeight = ui.infoBounds(editor.scene).height;
+    for (int i = 0; i < 4; ++i)
         click(ui.gateInputButtonBounds(editor.scene, true));
     require(gate()->getInputPinCount() == 8, "Gate input count exceeded eight.");
+    require(
+        ui.infoBounds(editor.scene).height == fourInputHeight &&
+            ui.gateInputInversionBounds(editor.scene, 3).width > 0 &&
+            ui.gateInputInversionBounds(editor.scene, 4).width == 0,
+        "Input list grew beyond four rows or exposed a hidden control."
+    );
+    const auto inputs = ui.gateInputListBounds(editor.scene);
+    editor.cursorPixels(inputs.x + 20, inputs.y + 10);
+    const auto zoomBeforeScroll = editor.input.getZoom();
+    Input::scrollCallback(window, 0, -20);
+    require(
+        ui.gateInputInversionBounds(editor.scene, 0).width == 0 &&
+            ui.gateInputInversionBounds(editor.scene, 7).width > 0 &&
+            editor.input.getZoom() == zoomBeforeScroll &&
+            ui.infoBounds(editor.scene).height == fourInputHeight,
+        "Input scrolling did not reveal the last pins or leaked to the canvas."
+    );
+    click(ui.gateInputInversionBounds(editor.scene, 7));
+    require(
+        gate()->isInputInverted(7) && !gate()->isInputInverted(3),
+        "Scrolled input button edited the wrong pin."
+    );
+    history(GLFW_KEY_Z);
+    require(!gate()->isInputInverted(7), "Scrolled input edit could not be undone.");
     const auto maxUndo = editor.input.getUndoCount();
     click(ui.gateInputButtonBounds(editor.scene, true));
     require(editor.input.getUndoCount() == maxUndo, "Maximum count added an edit.");
@@ -1869,6 +1895,11 @@ void gateSettings(GLFWwindow* window)
             std::abs(editor.scene.getCommittedComponentView(id)->getSize().y - height) < 0.00001f &&
             !editor.scene.getCommittedComponentView(id)->getInputRail(),
         "Reducing input count changed gate height."
+    );
+    require(
+        ui.gateInputInversionBounds(editor.scene, 0).width > 0 &&
+            ui.gateInputInversionBounds(editor.scene, 1).width > 0,
+        "Shrinking the input list retained an invalid scroll offset."
     );
     for (const auto definition :
          {BuiltinComponentIds::And, BuiltinComponentIds::Or, BuiltinComponentIds::Xor})

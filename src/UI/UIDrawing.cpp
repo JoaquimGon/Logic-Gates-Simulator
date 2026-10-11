@@ -427,14 +427,43 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                 );
         }
         const int rows = infoVisibleRows(scene);
+        const int inputRows = gateInputRows(scene);
         const int offset =
-            std::clamp(m_infoScroll, 0, std::max(0, static_cast<int>(info.size()) - 1 - rows));
-        for (int row = 0; row < rows && row + offset + 1 < static_cast<int>(info.size()); ++row)
+            gate ? gateInputScroll(scene)
+                 : std::clamp(
+                       m_infoScroll, 0, std::max(0, static_cast<int>(info.size()) - 1 - rows)
+                   );
+        const auto inputs = gateInputListBounds(scene);
+        if (inputs.height > 0)
         {
-            const int pinRow = row + offset - 1;
+            renderer.drawScreenRect(inputs, {0.045f, 0.075f, 0.11f, 1});
+            if (gate->getInputPinCount() > inputRows)
+            {
+                const double thumb = inputs.height * inputRows / gate->getInputPinCount();
+                const double y = inputs.y + (inputs.height - thumb) * offset /
+                                                (gate->getInputPinCount() - inputRows);
+                renderer.drawScreenRect(
+                    {inputs.x + inputs.width - 5, inputs.y, 3, inputs.height},
+                    {0.16f, 0.22f, 0.29f, 1}
+                );
+                renderer.drawScreenRect(
+                    {inputs.x + inputs.width - 5, y, 3, thumb}, {0.38f, 0.58f, 0.76f, 1}
+                );
+            }
+        }
+        for (int row = 0; row < rows; ++row)
+        {
+            const bool inputRow = gate && row >= 1 && row <= inputRows;
+            const int line = !gate      ? row + offset + 1
+                             : row == 0 ? 1
+                             : inputRow ? row + offset + 1
+                                        : row - inputRows + gate->getInputPinCount() + 1;
+            if (line >= static_cast<int>(info.size()))
+                break;
+            const int pinRow = line - 2;
             CanvasViewport inversion;
             const auto& pins = scene.getCommittedComponentView(m_infoComponent)->getInputPins();
-            if (gate && pinRow >= 0 && pinRow < static_cast<int>(pins.size()))
+            if (inputRow && pinRow >= 0 && pinRow < static_cast<int>(pins.size()))
             {
                 const auto& pin = pins[pinRow];
                 inversion = gateInputInversionBounds(scene, pin.pin_index);
@@ -457,14 +486,21 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                     );
                 }
             }
+            const bool scrollHint =
+                gate && row == 0 && inputRows > 0 && gate->getInputPinCount() > inputRows;
+            const std::string value = scrollHint ? "Inputs " + std::to_string(offset + 1) + "-" +
+                                                       std::to_string(offset + inputRows) + " / " +
+                                                       std::to_string(gate->getInputPinCount()) +
+                                                       " (scroll)"
+                                                 : info[line];
             label(
-                info[row + offset + 1],
+                value,
                 {bounds.x + 4,
                  bounds.y + infoHeaderHeight + infoLabelHeight + (named ? infoNameHeight : 0) +
                      (gate ? infoGateHeight : 0) + row * infoRowHeight,
-                 bounds.width - 8 - (inversion.width > 0 ? 90 : 0),
+                 bounds.width - 8 - (inversion.width > 0 ? 98 : 0),
                  infoRowHeight},
-                0.43f,
+                scrollHint ? 0.35f : 0.43f,
                 ink
             );
         }

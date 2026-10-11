@@ -1375,6 +1375,40 @@ void gateSettingsPresentation(Renderer& renderer)
         saveImage(scale == 1 ? "gate-settings-readonly.ppm" : "gate-settings-readonly-2x.ppm");
         input.setMode(EditorMode::Selection);
         ui.layout(scene.getComponentCatalog(), surface, input);
+        require(
+            static_cast<bool>(EditorActions(scene).apply(
+                {ConfigureComponentProperties{.componentId = id, .inputCount = 8}}
+            )),
+            "Cannot expand popup inputs."
+        );
+        draw();
+        const auto inputList = ui.gateInputListBounds(scene);
+        const auto listColor = screenPixel(inputList);
+        require(
+            listColor[0] < 18 && listColor[2] < 38,
+            "Input list did not render its subtle background."
+        );
+        saveImage(scale == 1 ? "gate-input-list.ppm" : "gate-input-list-2x.ppm");
+        ui.handleInput(
+            {UiInputKind::Cursor, 0, 0, 0, 0, inputList.x + 10, inputList.y + 10},
+            scene,
+            input,
+            frame
+        );
+        ui.handleInput({UiInputKind::Scroll, 0, 0, 0, 0, 0, -20}, scene, input, frame);
+        draw();
+        require(
+            ui.gateInputInversionBounds(scene, 7).width > 0 &&
+                ui.gateInputInversionBounds(scene, 0).width == 0,
+            "Rendered list did not scroll to the last input."
+        );
+        saveImage(scale == 1 ? "gate-input-list-scrolled.ppm" : "gate-input-list-scrolled-2x.ppm");
+        require(
+            static_cast<bool>(EditorActions(scene).apply(
+                {ConfigureComponentProperties{.componentId = id, .inputCount = 3}}
+            )),
+            "Cannot restore popup input count."
+        );
         click(ui.gateInputInversionBounds(scene, 0));
         click(ui.gateInversionBounds(scene));
         click(ui.gateInputButtonBounds(scene, false));

@@ -152,6 +152,7 @@ class UI
     CanvasViewport editSubcircuitBounds(const Scene& scene) const;
     CanvasViewport gateSettingsBounds(const Scene& scene) const;
     CanvasViewport gateInputButtonBounds(const Scene& scene, bool increase) const;
+    CanvasViewport gateInputListBounds(const Scene& scene) const;
     CanvasViewport gateInputInversionBounds(const Scene& scene, unsigned int index) const;
     CanvasViewport gateInversionBounds(const Scene& scene) const;
 
@@ -182,6 +183,8 @@ class UI
     bool canInvertGate(const Scene& scene) const;
     bool canEditSubcircuit(const Scene& scene) const;
     int infoVisibleRows(const Scene& scene) const;
+    int gateInputRows(const Scene& scene) const;
+    int gateInputScroll(const Scene& scene) const;
 
     std::string unsavedNoticeText() const;
     double unsavedNoticeWidth() const;

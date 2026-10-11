@@ -240,3 +240,7 @@ The added input cell is shared by the whole bank while any input is inverted.
 Each bubble occupies its pin's added cell; raw input values remain unchanged and
 only gate evaluation complements them. Edits reroute attached endpoints and use
 one history entry. Removed inputs lose their flags, appended inputs start normal.
+
+The gate popup shows at most four input rows on a subtle background. Scroll over
+that list to reach additional inputs; the heading shows the visible range and a
+scrollbar marks the position. Gate settings and the output state stay fixed.

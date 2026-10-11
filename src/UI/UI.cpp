@@ -557,6 +557,34 @@ CanvasViewport UI::gateInputButtonBounds(const Scene& scene, bool increase) cons
     return {bounds.x + bounds.width - (increase ? 28 : 92), bounds.y, 28, 26};
 }
 
+int UI::gateInputRows(const Scene& scene) const
+{
+    const auto* gate = infoGate(scene);
+    // Reserve the Inputs/Outputs headings and the gate's single output row.
+    return gate ? std::min({4, gate->getInputPinCount(), std::max(0, infoVisibleRows(scene) - 3)})
+                : 0;
+}
+
+int UI::gateInputScroll(const Scene& scene) const
+{
+    const auto* gate = infoGate(scene);
+    return gate ? std::clamp(m_infoScroll, 0, gate->getInputPinCount() - gateInputRows(scene)) : 0;
+}
+
+CanvasViewport UI::gateInputListBounds(const Scene& scene) const
+{
+    if (!infoGate(scene))
+        return {};
+    const auto bounds = infoBounds(scene);
+    return {
+        bounds.x + 8,
+        bounds.y + infoHeaderHeight + infoNameHeight + infoLabelHeight + infoGateHeight +
+            infoRowHeight,
+        bounds.width - 16,
+        gateInputRows(scene) * infoRowHeight
+    };
+}
+
 CanvasViewport UI::gateInputInversionBounds(const Scene& scene, unsigned int index) const
 {
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
@@ -571,20 +599,12 @@ CanvasViewport UI::gateInputInversionBounds(const Scene& scene, unsigned int ind
     );
     if (pin == pins.end())
         return {};
-    const int rows = infoVisibleRows(scene);
-    const int offset = std::clamp(
-        m_infoScroll, 0, std::max(0, static_cast<int>(componentInfo(scene).size()) - 1 - rows)
-    );
-    const int row = 1 + static_cast<int>(pin - pins.begin()) - offset;
-    if (row < 0 || row >= rows)
+    const int row = static_cast<int>(pin - pins.begin()) - gateInputScroll(scene);
+    if (row < 0 || row >= gateInputRows(scene))
         return {};
-    const auto bounds = infoBounds(scene);
+    const auto bounds = gateInputListBounds(scene);
     return {
-        bounds.x + bounds.width - 88,
-        bounds.y + infoHeaderHeight + infoNameHeight + infoLabelHeight + infoGateHeight +
-            row * infoRowHeight + 1,
-        78,
-        infoRowHeight - 2
+        bounds.x + bounds.width - 88, bounds.y + row * infoRowHeight + 1, 78, infoRowHeight - 2
     };
 }
 
@@ -672,11 +692,13 @@ CanvasViewport UI::infoBounds(const Scene& scene) const
     if (lines.empty())
         return {};
     const double width = std::min(280.0, std::max(0.0, m_surface.windowWidth - 16.0));
+    const auto* gate = infoGate(scene);
+    const int hiddenInputs = gate ? std::max(0, gate->getInputPinCount() - 4) : 0;
     const double height = std::min(
         infoHeaderHeight + infoFooterHeight + infoLabelHeight +
             (canName(scene) ? infoNameHeight : 0) + (infoGate(scene) ? infoGateHeight : 0) +
             (canEditSubcircuit(scene) ? 28 : 0) +
-            static_cast<double>(lines.size() - 1) * infoRowHeight,
+            static_cast<double>(lines.size() - 1 - hiddenInputs) * infoRowHeight,
         std::max(0.0, m_surface.windowHeight - 16.0)
     );
     return {
@@ -1002,12 +1024,20 @@ bool UI::handleInput(
     {
         if (event.kind == UiInputKind::Scroll && std::isfinite(event.y))
         {
-            const int maximum = std::max(
-                0, static_cast<int>(componentInfo(scene).size()) - 1 - infoVisibleRows(scene)
-            );
-            m_infoScroll = static_cast<int>(
-                std::clamp(m_infoScroll - event.y, 0.0, static_cast<double>(maximum))
-            );
+            const auto* gate = infoGate(scene);
+            if (!gate || gateInputListBounds(scene).contains(m_pointer.x, m_pointer.y))
+            {
+                const int maximum = gate ? gate->getInputPinCount() - gateInputRows(scene)
+                                         : std::max(
+                                               0,
+                                               static_cast<int>(componentInfo(scene).size()) - 1 -
+                                                   infoVisibleRows(scene)
+                                           );
+                const int current = gate ? gateInputScroll(scene) : m_infoScroll;
+                m_infoScroll = static_cast<int>(
+                    std::clamp(current - event.y, 0.0, static_cast<double>(maximum))
+                );
+            }
             return true;
         }
         if (event.kind == UiInputKind::Cursor)
