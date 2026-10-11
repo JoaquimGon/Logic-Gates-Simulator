@@ -19,6 +19,13 @@ class ComponentFactory
     /** Keeps body proportions while adding/removing the native output bubble footprint. */
     static ComponentLayout
     invertedGateLayout(const ComponentCatalog& catalog, const ComponentView& view, bool inverted);
+    /** @brief Makes one grid cell of room for input bubbles without stretching the body. */
+    static ComponentLayout invertedInputLayout(
+        const ComponentCatalog& catalog,
+        const ComponentView& view,
+        unsigned int index,
+        bool inverted
+    );
     static void validatePosition(const ComponentView& view, GridCoords position);
     /** @brief Validates/resolves metadata before adding matching logic and presentation. */
     static CreatedComponent create(

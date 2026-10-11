@@ -32,6 +32,7 @@ struct RenderPin
     glm::vec2 position;
     std::string label;
     std::vector<glm::vec2> lead;
+    std::optional<glm::vec2> inversionBubble;
 };
 
 struct ComponentRenderData

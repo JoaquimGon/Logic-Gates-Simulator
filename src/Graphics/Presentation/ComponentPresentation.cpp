@@ -1,6 +1,6 @@
 #include "Graphics/Presentation/ComponentPresentation.h"
 
-#include "Components/Views/ClockView.h"
+#include "Geometry/GridMetrics.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,14 +13,11 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
     {
         ComponentRenderData data{
             {id, view->getPosition(), view->getSize(), view->getShaderName(), view->getBodyStyle()},
-            view->getBodyLabel(),
+            view->showsBodyLabel() ? view->getBodyLabel() : std::string{},
             view->showsPinLabels(),
             {},
             view->getInputRail()
         };
-        // Names stay in clock information; canvas label visibility will be added separately.
-        if (dynamic_cast<const ClockView*>(view.get()))
-            data.bodyLabel.clear();
         const bool xorExtension = data.inputRail && data.body.style.contour == BodyContour::Xor;
         const float shapeWidth =
             data.body.style.inverted ? data.body.size.x / 1.5f : data.body.size.x;
@@ -72,8 +69,16 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
                     const float x = xorExtension ? arcX(anchor.y) : data.inputRail->centerX();
                     lead = {{x, anchor.y}, anchor};
                 }
+                std::optional<glm::vec2> bubble;
+                if (pin.inverted)
+                {
+                    // The added input cell holds the bubble; the original terminal stays
+                    // connected to the body/rail and the wire ends at the outer anchor.
+                    bubble = anchor + glm::vec2(GridMetrics::Spacing / 2, 0);
+                    lead.back() = anchor + glm::vec2(GridMetrics::Spacing, 0);
+                }
                 data.pins.push_back(
-                    {pin.type, pin.pin_index, pin.state, anchor, pin.label, std::move(lead)}
+                    {pin.type, pin.pin_index, pin.state, anchor, pin.label, std::move(lead), bubble}
                 );
             }
         std::sort(

@@ -8,6 +8,7 @@
 #include "Components/Views/OutputPinView.h"
 #include "Simulation/Subcircuit.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
@@ -24,6 +25,26 @@ void validateOffset(GridCoords position, GridCoords relative)
             throw std::invalid_argument("Component pin/lead exceeds the grid coordinate range.");
 }
 
+bool hasInputInversion(const std::vector<PinUI>& pins)
+{
+    return std::any_of(pins.begin(), pins.end(), [](const auto& pin) { return pin.inverted; });
+}
+
+void shiftInputs(ComponentLayout& layout, int delta)
+{
+    auto shift = [=](GridCoords& point)
+    {
+        validateOffset(point, {delta, 0});
+        point.x += delta;
+    };
+    for (auto& pin : layout.inputs)
+    {
+        shift(pin.relative_pos);
+        for (auto& point : pin.lead)
+            shift(point);
+    }
+}
+
 ComponentLayout viewLayout(const ResolvedComponent& resolved)
 {
     ComponentLayout layout{
@@ -38,7 +59,8 @@ ComponentLayout viewLayout(const ResolvedComponent& resolved)
             pin.anchor,
             pin.id,
             pin.label,
-            pin.lead
+            pin.lead,
+            pin.inverted
         };
         (pin.direction == PinType::INPUT ? layout.inputs : layout.outputs)
             .push_back(std::move(visual));
@@ -69,6 +91,9 @@ CreatedComponent ComponentFactory::create(
     if (const auto* gate = std::get_if<GateType>(&resolved.behavior))
     {
         id = circuit.addGate(*gate, static_cast<int>(layout.inputs.size()));
+        for (const auto& pin : layout.inputs)
+            static_cast<Gate*>(circuit.getComponent(id))
+                ->setInputInverted(pin.pin_index, pin.inverted);
         view = std::make_unique<GateView>(
             position, id, layout.size, layout.shader, layout.inputs, layout.outputs
         );
@@ -111,6 +136,7 @@ CreatedComponent ComponentFactory::create(
     view->m_definition = resolved.identity;
     view->m_bodyLabel = resolved.presentation.bodyLabel;
     view->m_showPinLabels = resolved.presentation.showPinLabels;
+    view->m_showBodyLabel = resolved.presentation.showBodyLabel;
     view->m_bodyStyle = resolved.presentation.body;
     return {id, std::move(view)};
 }
@@ -127,7 +153,13 @@ ComponentOverrides ComponentFactory::layoutOverrides(const ComponentLayout& layo
                     "Visual pin lists must match their declared directions."
                 );
             geometry.pins.push_back(
-                {pin.id, pin.label, pin.type, pin.pin_index, pin.relative_pos, pin.lead}
+                {pin.id,
+                 pin.label,
+                 pin.type,
+                 pin.pin_index,
+                 pin.relative_pos,
+                 pin.lead,
+                 pin.inverted}
             );
         }
     overrides.layout = std::move(geometry);
@@ -161,7 +193,36 @@ ComponentLayout ComponentFactory::resizeGateLayout(
     definition.layout = *layoutOverrides(current).layout;
     auto resolved = resolveDefinition(definition, {.inputCount = inputCount});
     resolved.presentation.shader.key = view.getShaderName();
-    return viewLayout(resolved);
+    auto layout = viewLayout(resolved);
+    if (hasInputInversion(current.inputs) && !hasInputInversion(layout.inputs))
+        shiftInputs(layout, 1);
+    return layout;
+}
+
+ComponentLayout ComponentFactory::invertedInputLayout(
+    const ComponentCatalog& catalog, const ComponentView& view, unsigned int index, bool inverted
+)
+{
+    const auto* definition = catalog.find(view.getDefinitionIdentity().id);
+    if (!definition || !std::holds_alternative<GateType>(definition->behavior) ||
+        definition->presentation.kind != PresentationKind::NativeSdf)
+        throw std::invalid_argument("Input inversion editing requires a native logic gate.");
+    ComponentLayout layout{
+        view.getSize(), view.getShaderName(), view.getInputPins(), view.getOutputPins()
+    };
+    const bool before = hasInputInversion(layout.inputs);
+    auto pin = std::find_if(
+        layout.inputs.begin(),
+        layout.inputs.end(),
+        [=](const auto& value) { return value.pin_index == index; }
+    );
+    if (pin == layout.inputs.end())
+        throw std::invalid_argument("Input pin no longer exists.");
+    pin->inverted = inverted;
+    const bool after = hasInputInversion(layout.inputs);
+    if (before != after)
+        shiftInputs(layout, after ? -1 : 1);
+    return validateLayout(catalog, view, layout);
 }
 
 ComponentLayout ComponentFactory::invertedGateLayout(

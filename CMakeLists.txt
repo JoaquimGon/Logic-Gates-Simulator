@@ -177,7 +177,7 @@ if(BUILD_TESTING)
     target_link_libraries(EditorActionsTests PRIVATE simulator_scene)
     foreach(test_name IN ITEMS
         editor_atomic_batches editor_move_previews editor_configuration
-        editor_wire_edits editor_restore_snapshots editor_body_placement editor_component_properties
+        editor_wire_edits editor_restore_snapshots editor_body_placement editor_component_properties gate_input_inversion
     )
         add_test(NAME ${test_name} COMMAND EditorActionsTests ${test_name})
     endforeach()
@@ -213,7 +213,7 @@ if(BUILD_TESTING)
         drag_cancellation drag_commit wire_alt_drag spawn_placement wire_segment_deletion
         interaction_modes mode_cancellation wire_and_pan_gestures
         ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction
-        component_palette component_information component_naming gate_settings
+        component_palette component_information component_naming gate_settings label_visibility
     )
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
     endforeach()

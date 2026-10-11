@@ -41,11 +41,20 @@ void settings(GLFWwindow*)
     edit(
         source,
         {ConfigureComponentProperties{
-             .componentId = gate, .label = "Parity", .inputCount = 8, .inverted = true
+             .componentId = gate,
+             .label = "Parity",
+             .inputCount = 8,
+             .inverted = true,
+             .labelVisible = false,
+             .inputInversion = ConfigureGateInput{6, true}
          },
          ConfigureComponentProperties{.componentId = input, .label = "Enable"},
          ConfigureComponentProperties{
-             .componentId = clock, .label = "Timing", .clockFrequency = 16.f, .clockPaused = true
+             .componentId = clock,
+             .label = "Timing",
+             .clockFrequency = 16.f,
+             .clockPaused = true,
+             .labelVisible = true
          }}
     );
     Selection selection;
@@ -67,6 +76,7 @@ void settings(GLFWwindow*)
         require(
             after->getGridPosition() == GridCoords{before->getGridPosition().x, 12} &&
                 before->getBodyLabel() == after->getBodyLabel() &&
+                before->showsBodyLabel() == after->showsBodyLabel() &&
                 before->getSize() == after->getSize() &&
                 before->getDefinitionIdentity().id == after->getDefinitionIdentity().id &&
                 before->getDefinitionIdentity().version == after->getDefinitionIdentity().version &&
@@ -75,7 +85,10 @@ void settings(GLFWwindow*)
         );
         for (std::size_t pin = 0; pin < before->getInputPins().size(); ++pin)
             require(
-                before->getInputPins()[pin].relative_pos == after->getInputPins()[pin].relative_pos,
+                before->getInputPins()[pin].relative_pos ==
+                        after->getInputPins()[pin].relative_pos &&
+                    before->getInputPins()[pin].inverted == after->getInputPins()[pin].inverted,
+
                 "Paste moved a configured input pin."
             );
     }
@@ -95,7 +108,8 @@ void settings(GLFWwindow*)
         dynamic_cast<const Clock*>(destination.getLogicComponent(pasted.createdComponentIds[2]));
     require(
         copiedGate && copiedGate->getInputPinCount() == 8 && copiedGate->isInverted() &&
-            copiedInput && copiedInput->getState() && copiedClock && copiedClock->isPaused() &&
+            copiedGate->isInputInverted(6) && !copiedGate->isInputInverted(0) && copiedInput &&
+            copiedInput->getState() && copiedClock && copiedClock->isPaused() &&
             copiedClock->getFrequency() == 16.f,
         "Paste lost arity, inversion, input state or clock settings."
     );

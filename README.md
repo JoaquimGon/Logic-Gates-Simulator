@@ -185,6 +185,11 @@ ASCII characters; an empty name clears the label. Interaction mode shows the
 name without editing it. Names preserve pin identities and wiring. Workspace
 labels remain optional; subcircuit input/output labels must be nonempty and
 unique within each direction before publication.
+In Selection mode, the right-click popup's **Show label: On/Off** button controls
+whether the component's name appears on the canvas. Hiding it keeps the name in
+information panels and subcircuit interfaces. The setting supports undo/redo,
+copy/paste, and saving. Clock labels start hidden; other labels start visible.
+
 Output bulbs have one incoming pin and no outgoing pins; unavailable signals
 appear gray.
 
@@ -456,9 +461,16 @@ callers. Complete before/after records preserve normalized wire IDs and runtime
 state for future undo/redo; history controls and persistence remain pending.
 
 `ConfigureComponentProperties` edits explicit optional fields: body label,
-scalable input count (clamped 2–8), supported native inversion, clock frequency,
+scalable input count (clamped 2–8), supported native output inversion, per-input
+inversion, clock frequency,
 and pause. Omitted fields retain current values. Inversion updates logic and the
-bubble together; failed batches roll back. The information popup shows live
+bubble together; failed batches roll back. In Selection mode, right-click a native
+logic gate and toggle **Invert** beside any input. The input bank gains one grid
+cell for round bubbles, without stretching the gate body; attached wire endpoints
+reroute. Clearing the last inverted input restores the original bank. Incoming
+wire/pin states stay raw; the popup shows `0 -> 1` or `1 -> 0` for inverted inputs.
+These settings survive saving, copying, input-count edits, and undo/redo.
+The information popup shows live
 pins/state and edits input/output names; truth tables and other limited edit
 controls remain pending.
 

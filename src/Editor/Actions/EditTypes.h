@@ -44,6 +44,7 @@ struct CreateComponent
     PlacementPolicy placement = PlacementPolicy::RejectOverlap;
     std::uint32_t version = 0;
     std::optional<std::string> label;
+    std::optional<bool> labelVisible;
 };
 
 // Compatibility requests adapt explicit legacy geometry into the same catalog/factory path.
@@ -104,6 +105,12 @@ struct ConfigureComponent
     RemovedPinPolicy removedPins = RemovedPinPolicy::RejectAttached;
 };
 
+struct ConfigureGateInput
+{
+    unsigned int pinIndex;
+    bool inverted;
+};
+
 /** @brief Edits explicit instance settings; omitted fields retain their current values.
  * Scalable gate counts clamp to 2-8; NOT stays fixed at one. Wired pin removal is rejected.
  */
@@ -115,6 +122,8 @@ struct ConfigureComponentProperties
     std::optional<bool> inverted;
     std::optional<float> clockFrequency;
     std::optional<bool> clockPaused;
+    std::optional<bool> labelVisible;
+    std::optional<ConfigureGateInput> inputInversion;
 };
 
 struct ConfigureInput

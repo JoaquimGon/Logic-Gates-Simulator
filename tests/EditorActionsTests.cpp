@@ -723,6 +723,145 @@ void componentProperties()
     }
 }
 
+void inputInversion()
+{
+    // Compare every raw truth-table row with explicitly complemented reference inputs.
+    for (auto type : {NOT, AND, NAND, OR, NOR, XOR, NXOR})
+        for (int count : (type == NOT ? std::vector<int>{1} : std::vector<int>{2, 8}))
+            for (int inversionMask : {0, 1, (1 << count) - 1, 0x55 & ((1 << count) - 1)})
+            {
+                Gate gate(0, type, count), reference(1, type, count);
+                for (int pin = 0; pin < count; ++pin)
+                    gate.setInputInverted(pin, (inversionMask & (1 << pin)) != 0);
+                for (int bits = 0; bits < (1 << count); ++bits)
+                {
+                    for (int pin = 0; pin < count; ++pin)
+                    {
+                        const bool raw = (bits & (1 << pin)) != 0;
+                        gate.setStateInPin(pin, raw);
+                        reference.setStateInPin(pin, raw != gate.isInputInverted(pin));
+                    }
+                    gate.evaluate();
+                    reference.evaluate();
+                    require(
+                        gate.getStateOutPin() == reference.getStateOutPin(),
+                        "Input inversion changed the wrong truth-table row."
+                    );
+                    require(
+                        gate.getStateInPin(0) == ((bits & 1) != 0),
+                        "Gate evaluation overwrote the raw incoming signal."
+                    );
+                }
+            }
+
+    Scene scene;
+    const int source =
+        scene.addComponent(BuiltinComponentIds::Input, {-12, 1}, {.inputState = true});
+    const int id = scene.addComponent(BuiltinComponentIds::Or, {0, 0});
+    EditorActions actions(scene);
+    accepted(actions.apply({AddWire{{{-11, 1}, {-2, 1}}}}));
+    scene.propagate();
+    const auto size = scene.getCommittedComponentView(id)->getSize();
+    const auto bounds = scene.getCommittedComponentView(id)->getBodyBounds();
+    const auto builds = scene.getTopologyBuildCount();
+    auto set = [&](unsigned int pin, bool inverted)
+    {
+        auto result = accepted(actions.apply({ConfigureComponentProperties{
+            .componentId = id, .inputInversion = ConfigureGateInput{pin, inverted}
+        }}));
+        scene.propagate();
+        scene.syncVisuals();
+        return result;
+    };
+    const auto first = set(0, true);
+    auto gate = [&] { return static_cast<const Gate*>(scene.getLogicComponent(id)); };
+    auto view = [&] { return scene.getCommittedComponentView(id); };
+    require(
+        first.change && gate()->isInputInverted(0) && gate()->getStateInPin(0) &&
+            !gate()->getStateOutPin() && view()->getInputPins()[0].inverted &&
+            view()->getInputPins()[0].relative_pos == GridCoords{-3, 1} &&
+            view()->getInputPins()[1].relative_pos == GridCoords{-3, -1} &&
+            view()->getSize() == size && view()->getBodyBounds().left < bounds.left &&
+            scene.getTopologyBuildCount() == builds + 1,
+        "Input edit did not preserve the wire, expand one cell, or invert its signal."
+    );
+    require(
+        gate()->getInConnections().size() == 1 &&
+            gate()->getInConnections()[0].srcComponentId == source &&
+            scene.pinState({id, 0}, PinType::INPUT) == PinState::ON,
+        "Input inversion altered physical wire/pin state or disconnected its driver."
+    );
+    accepted(actions.restore(*first.change->before, scene.getRevision()));
+    scene.propagate();
+    require(
+        !gate()->isInputInverted(0) && gate()->getStateOutPin() &&
+            view()->getInputPins()[0].relative_pos.x == -2,
+        "Undo did not restore geometry, wiring and input inversion together."
+    );
+    accepted(actions.restore(*first.change->after, scene.getRevision()));
+    scene.propagate();
+    require(gate()->isInputInverted(0) && !gate()->getStateOutPin(), "Redo lost input inversion.");
+    const auto revision = scene.getRevision();
+    require(
+        !set(0, true).change && scene.getRevision() == revision,
+        "Repeated input setting created a spurious edit."
+    );
+    set(1, true);
+    require(
+        view()->getInputPins()[0].relative_pos.x == -3 && gate()->getStateOutPin(),
+        "Second inversion expanded the input side again."
+    );
+    accepted(actions.apply({ConfigureComponentProperties{.componentId = id, .inverted = true}}));
+    scene.propagate();
+    require(
+        gate()->isInputInverted(0) && gate()->isInputInverted(1) && !gate()->getStateOutPin(),
+        "Output inversion lost input settings."
+    );
+    accepted(actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 8}}));
+    require(
+        gate()->isInputInverted(0) && gate()->isInputInverted(1) && !gate()->isInputInverted(7),
+        "Resize lost surviving inversion or inverted new pins."
+    );
+    set(7, true);
+    set(0, false);
+    set(1, false);
+    require(
+        view()->getInputPins()[0].relative_pos.x == -3,
+        "Clearing one input removed room needed by another bubble."
+    );
+    accepted(actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 2}}));
+    require(
+        !gate()->isInputInverted(0) && view()->getInputPins()[0].relative_pos.x == -2,
+        "Removing the last inverted input left the extra input cell behind."
+    );
+    set(0, true);
+    set(0, false);
+    require(
+        view()->getInputPins()[0].relative_pos.x == -2 && gate()->getInConnections().size() == 1,
+        "Removing the final bubble did not restore terminals and their wire."
+    );
+    const auto stable = scene.getRevision();
+    for (const auto operation :
+         {ConfigureComponentProperties{
+              .componentId = id, .inputInversion = ConfigureGateInput{9, true}
+          },
+          ConfigureComponentProperties{
+              .componentId = source, .inputInversion = ConfigureGateInput{0, true}
+          }})
+        require(
+            actions.apply({operation}).error == EditError::InvalidConfiguration &&
+                scene.getRevision() == stable,
+            "Invalid input inversion partially committed."
+        );
+    // Creation/import reads inversion directly from the explicit pin layout.
+    auto layout = currentLayout(scene, id);
+    layout.outputs[0].inverted = true;
+    require(
+        actions.apply({ConfigureComponent{id, layout}}).error == EditError::InvalidConfiguration,
+        "Input inversion metadata was accepted on an output pin."
+    );
+}
+
 void bodyPlacement()
 {
     Scene scene;
@@ -790,6 +929,7 @@ int main(int argc, char** argv)
             {"editor_move_previews", movePreviews},
             {"editor_configuration", configuration},
             {"editor_component_properties", componentProperties},
+            {"gate_input_inversion", inputInversion},
             {"editor_wire_edits", wireEdits},
             {"editor_restore_snapshots", restoreSnapshots},
             {"editor_body_placement", bodyPlacement}

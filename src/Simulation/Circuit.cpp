@@ -48,6 +48,7 @@ void Circuit::resizeGateInputs(int componentId, int inputPinCount)
                 edge.srcComponentId, edge.srcPinIndex, componentId, edge.destPinIndex
             );
     gate->m_stateInPins.resize(inputPinCount, false);
+    gate->m_invertedInputs.resize(inputPinCount, false);
     m_structureDirty = true;
     m_stateDirty = true;
 }

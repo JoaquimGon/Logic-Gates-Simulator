@@ -1,6 +1,8 @@
 #pragma once
 #include "Component.h"
 
+#include <vector>
+
 enum GateType
 {
     NOT,
@@ -26,6 +28,13 @@ class Gate : public Component
     /** @brief XOR computes odd parity across all inputs; NXOR computes its inverse. */
     void evaluate() override;
 
+    bool isInputInverted(unsigned int index) const { return m_invertedInputs.at(index); }
+
+    void setInputInverted(unsigned int index, bool inverted)
+    {
+        m_invertedInputs.at(index) = inverted;
+    }
+
     GateType getType() const { return m_gateType; }
 
     bool isInverted() const
@@ -40,5 +49,7 @@ class Gate : public Component
     static GateType typeWithInversion(GateType type, bool inverted);
 
   private:
+    friend class Circuit;
     GateType m_gateType;
+    std::vector<bool> m_invertedInputs;
 };

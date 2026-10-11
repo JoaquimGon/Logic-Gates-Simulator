@@ -47,7 +47,8 @@ bool EditorClipboard::copy(const Scene& scene, const Selection& selection)
              std::move(options),
              PlacementPolicy::RejectSameCenter,
              identity.version,
-             view->getBodyLabel()}
+             view->getBodyLabel(),
+             view->showsBodyLabel()}
         );
         if (!identity.id.starts_with("native.") && definitions.insert(identity.id).second)
             copied.m_definitions.push_back(*definition);

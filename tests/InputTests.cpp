@@ -1694,6 +1694,94 @@ void componentNaming(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+void labelVisibility(GLFWwindow* window)
+{
+    glfwSetWindowSize(window, 800, 600);
+    Editor editor(window);
+    UI ui;
+    auto layout = [&]()
+    {
+        ui.layout(
+            editor.scene.getComponentCatalog(),
+            editor.input.getCameraFrame(window).surface,
+            editor.input
+        );
+    };
+    layout();
+    editor.input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        {
+            layout();
+            return ui.handleInput(
+                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
+            );
+        }
+    );
+    const std::vector<int> ids{
+        editor.scene.addComponent(BuiltinComponentIds::Input, {-8, 0}),
+        editor.scene.addComponent(BuiltinComponentIds::Output, {8, 0}),
+        editor.scene.addComponent(BuiltinComponentIds::And, {0, 0}),
+        editor.scene.addComponent(BuiltinComponentIds::Clock, {0, 8}),
+        editor.scene.addComponent(BuiltinComponentIds::SrLatch, {0, -8})
+    };
+    for (int id : ids)
+    {
+        const auto named =
+            EditorActions(editor.scene)
+                .apply({ConfigureComponentProperties{.componentId = id, .label = "Example"}});
+        require(static_cast<bool>(named), "Cannot name the visibility fixture.");
+        ui.dismissPopups(editor.input);
+        editor.cursor(editor.scene.getCommittedComponentView(id)->getGridPosition());
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+        require(ui.infoComponentId() == id, "Cannot open label visibility popup.");
+        auto click = [&]()
+        {
+            const auto bounds = ui.labelVisibilityBounds(editor.scene);
+            editor.cursorPixels(bounds.x + 8, bounds.y + 12);
+            editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+            editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        };
+        const bool before = editor.scene.getCommittedComponentView(id)->showsBodyLabel();
+        const auto builds = editor.scene.getTopologyBuildCount();
+        const auto count = editor.input.getUndoCount();
+        click();
+        require(
+            editor.scene.getCommittedComponentView(id)->showsBodyLabel() != before &&
+                editor.scene.getCommittedComponentView(id)->getBodyLabel() == "Example" &&
+                editor.scene.getTopologyBuildCount() == builds &&
+                editor.input.getUndoCount() == count + 1,
+            "Visibility click erased the name, rebuilt topology or missed undo history."
+        );
+        auto history = [&](int key)
+        {
+            Input::keyCallback(window, key, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+            Input::keyCallback(window, key, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+        };
+        history(GLFW_KEY_Z);
+        require(
+            editor.scene.getCommittedComponentView(id)->showsBodyLabel() == before,
+            "Undo did not restore label visibility."
+        );
+        history(GLFW_KEY_Y);
+        require(
+            editor.scene.getCommittedComponentView(id)->showsBodyLabel() != before,
+            "Redo did not restore label visibility."
+        );
+        editor.input.setMode(EditorMode::Interaction);
+        click();
+        require(
+            editor.scene.getCommittedComponentView(id)->showsBodyLabel() != before &&
+                editor.input.getUndoCount() == count + 1,
+            "Interaction mode edited label visibility."
+        );
+        editor.input.setMode(EditorMode::Selection);
+    }
+    ui.dismissPopups(editor.input);
+    editor.input.setUiInputHandler({});
+    glfwSetWindowSize(window, 800, 800);
+}
+
 void gateSettings(GLFWwindow* window)
 {
     glfwSetWindowSize(window, 800, 700);
@@ -1742,6 +1830,14 @@ void gateSettings(GLFWwindow* window)
         Input::keyCallback(window, key, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
     };
     open(id);
+    click(ui.gateInputInversionBounds(editor.scene, 0));
+    require(gate()->isInputInverted(0), "Input popup toggle did not invert the selected pin.");
+    editor.input.setMode(EditorMode::Interaction);
+    click(ui.gateInputInversionBounds(editor.scene, 1));
+    require(!gate()->isInputInverted(1), "Interaction mode changed input inversion.");
+    editor.input.setMode(EditorMode::Selection);
+    history(GLFW_KEY_Z);
+    require(!gate()->isInputInverted(0), "Popup input inversion was not undoable.");
     const auto height = editor.scene.getCommittedComponentView(id)->getSize().y;
     const auto undo = editor.input.getUndoCount();
     click(ui.gateInputButtonBounds(editor.scene, false));
@@ -1933,7 +2029,8 @@ int main(int argc, char** argv)
             {"component_palette", componentPalette},
             {"component_information", componentInformation},
             {"component_naming", componentNaming},
-            {"gate_settings", gateSettings}
+            {"gate_settings", gateSettings},
+            {"label_visibility", labelVisibility}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)

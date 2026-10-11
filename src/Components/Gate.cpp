@@ -16,7 +16,8 @@ int checkedInputPinCount(GateType type, int inputPinCount)
 Gate::Gate(int id, GateType gateType) : Gate(id, gateType, gateType == NOT ? 1 : 2) {}
 
 Gate::Gate(int id, GateType gateType, int inputPinCount)
-    : Component(id, checkedInputPinCount(gateType, inputPinCount), 1), m_gateType(gateType)
+    : Component(id, checkedInputPinCount(gateType, inputPinCount), 1), m_gateType(gateType),
+      m_invertedInputs(inputPinCount, false)
 {
 }
 
@@ -64,28 +65,31 @@ GateType Gate::typeWithInversion(GateType type, bool inverted)
 void Gate::evaluate()
 {
     const auto& inputs = getStateInPins();
+    std::size_t high = 0;
+    for (std::size_t i = 0; i < inputs.size(); ++i)
+        high += inputs[i] != m_invertedInputs[i];
     bool output = false;
 
     switch (m_gateType)
     {
     case NOT:
-        output = !inputs[0];
+        output = high == 0;
         break;
     case AND:
     case NAND:
-        output = std::all_of(inputs.begin(), inputs.end(), [](bool state) { return state; });
+        output = high == inputs.size();
         if (m_gateType == NAND)
             output = !output;
         break;
     case OR:
     case NOR:
-        output = std::any_of(inputs.begin(), inputs.end(), [](bool state) { return state; });
+        output = high != 0;
         if (m_gateType == NOR)
             output = !output;
         break;
     case XOR:
     case NXOR:
-        output = (std::count(inputs.begin(), inputs.end(), true) % 2) != 0;
+        output = high % 2 != 0;
         if (m_gateType == NXOR)
             output = !output;
         break;

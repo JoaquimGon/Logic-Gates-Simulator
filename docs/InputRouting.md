@@ -222,3 +222,21 @@ Both shortcuts require an idle Selection canvas with keyboard focus. Starting/pl
 requires the cursor inside the canvas. UI capture, focus/scene/mode changes and
 leaving the viewport cancel pending/active paste previews; key repeats do not duplicate objects.
 No system clipboard file format is introduced.
+
+## Canvas label visibility
+
+Every component information popup includes **Show label: On/Off**. Selection mode
+can toggle it through `ConfigureComponentProperties::labelVisible`; Interaction
+mode and active text editing keep the button read-only. This changes only body-label
+presentation, preserving the stored name, pin captions, signal state and connectivity.
+It records one ordinary undo step without rebuilding topology. Copy/paste and saved
+instances retain the choice. Native clock definitions default to hidden labels;
+older JSON files without the optional flag retain their previous defaults.
+
+Native logic-gate input rows in the right-click popup include an **Invert: On/Off**
+button. Selection mode submits a `ConfigureComponentProperties::inputInversion`
+with the pin index and flag; Interaction mode shows the same state read-only.
+The added input cell is shared by the whole bank while any input is inverted.
+Each bubble occupies its pin's added cell; raw input values remain unchanged and
+only gate evaluation complements them. Edits reroute attached endpoints and use
+one history entry. Removed inputs lose their flags, appended inputs start normal.

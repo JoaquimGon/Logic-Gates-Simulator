@@ -1,5 +1,6 @@
 #pragma once
 #include "Components/Definitions/ComponentDefinition.h"
+#include "Geometry/GridMetrics.h"
 #include "Geometry/GridSystem.h"
 #include "PinUI.h"
 
@@ -50,16 +51,23 @@ class ComponentView
             bounds.bottom = std::min(bounds.bottom, rail->bottom);
             bounds.top = std::max(bounds.top, rail->top);
         }
-        if (getInputPins().size() > 2 &&
-            (m_bodyStyle.contour == BodyContour::And || m_bodyStyle.contour == BodyContour::Or ||
-             m_bodyStyle.contour == BodyContour::Xor))
+        const bool invertedInput = std::any_of(
+            getInputPins().begin(),
+            getInputPins().end(),
+            [](const auto& pin) { return pin.inverted; }
+        );
+        if (invertedInput ||
+            (getInputPins().size() > 2 &&
+             (m_bodyStyle.contour == BodyContour::And || m_bodyStyle.contour == BodyContour::Or ||
+              m_bodyStyle.contour == BodyContour::Xor)))
             for (const auto& pin : getInputPins())
             {
                 const auto point = getAbsolutePinWorldPos(pin);
                 bounds.left = std::min(bounds.left, point.x);
                 bounds.right = std::max(bounds.right, point.x);
-                bounds.bottom = std::min(bounds.bottom, point.y);
-                bounds.top = std::max(bounds.top, point.y);
+                const float radius = pin.inverted ? GridMetrics::Spacing / 2 : 0;
+                bounds.bottom = std::min(bounds.bottom, point.y - radius);
+                bounds.top = std::max(bounds.top, point.y + radius);
             }
         return bounds;
     }
@@ -112,6 +120,8 @@ class ComponentView
 
     const std::string& getBodyLabel() const { return m_bodyLabel; }
 
+    bool showsBodyLabel() const { return m_showBodyLabel; }
+
     bool showsPinLabels() const { return m_showPinLabels; }
 
     const BodyStyle& getBodyStyle() const { return m_bodyStyle; }
@@ -155,6 +165,7 @@ class ComponentView
     DefinitionIdentity m_definition;
     std::string m_bodyLabel;
     bool m_showPinLabels = false;
+    bool m_showBodyLabel = true;
     BodyStyle m_bodyStyle;
     glm::vec2 m_position;
     glm::vec2 m_size;

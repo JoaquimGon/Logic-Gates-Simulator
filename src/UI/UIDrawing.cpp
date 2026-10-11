@@ -363,6 +363,22 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                 m_canCreate ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1}
             );
         }
+        const auto visibility = labelVisibilityBounds(scene);
+        const bool editableLabel = m_canCreate && !m_nameEditing;
+        renderer.drawScreenRect(
+            visibility,
+            !editableLabel                                  ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
+            : visibility.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                                            : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+        );
+        label(
+            std::string("Show label: ") +
+                (scene.getCommittedComponentView(m_infoComponent)->showsBodyLabel() ? "On" : "Off"),
+            visibility,
+            0.43f,
+            editableLabel ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1},
+            true
+        );
         const auto* gate = infoGate(scene);
         if (gate)
         {
@@ -414,16 +430,44 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         const int offset =
             std::clamp(m_infoScroll, 0, std::max(0, static_cast<int>(info.size()) - 1 - rows));
         for (int row = 0; row < rows && row + offset + 1 < static_cast<int>(info.size()); ++row)
+        {
+            const int pinRow = row + offset - 1;
+            CanvasViewport inversion;
+            const auto& pins = scene.getCommittedComponentView(m_infoComponent)->getInputPins();
+            if (gate && pinRow >= 0 && pinRow < static_cast<int>(pins.size()))
+            {
+                const auto& pin = pins[pinRow];
+                inversion = gateInputInversionBounds(scene, pin.pin_index);
+                if (inversion.width > 0)
+                {
+                    const bool editable = m_canCreate && !m_nameEditing;
+                    renderer.drawScreenRect(
+                        inversion,
+                        !editable ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
+                        : inversion.contains(m_pointer.x, m_pointer.y)
+                            ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                            : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+                    );
+                    label(
+                        pin.inverted ? "Invert: On" : "Invert: Off",
+                        inversion,
+                        0.35f,
+                        editable ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1},
+                        true
+                    );
+                }
+            }
             label(
                 info[row + offset + 1],
                 {bounds.x + 4,
-                 bounds.y + infoHeaderHeight + (named ? infoNameHeight : 0) +
+                 bounds.y + infoHeaderHeight + infoLabelHeight + (named ? infoNameHeight : 0) +
                      (gate ? infoGateHeight : 0) + row * infoRowHeight,
-                 bounds.width - 8,
+                 bounds.width - 8 - (inversion.width > 0 ? 90 : 0),
                  infoRowHeight},
                 0.43f,
                 ink
             );
+        }
         if (canEditSubcircuit(scene))
         {
             const auto edit = editSubcircuitBounds(scene);

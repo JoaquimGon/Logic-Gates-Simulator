@@ -1,6 +1,7 @@
 #include "Renderer.h"
 
 #include "Components/Definitions/NativeDefinitions.h"
+#include "Geometry/GridMetrics.h"
 #include "Geometry/GridSystem.h"
 #include "Graphics/Presentation/LabelLayout.h"
 #include "WireGeometry.h"
@@ -88,6 +89,12 @@ bool Renderer::init()
     }
     const auto& box = boxShaderResources();
     load(box.key, box.vertexPath, box.fragmentPath);
+
+    load(
+        "inputBubble",
+        "shaders/components/gates/gate.vert",
+        "shaders/components/gates/inputBubble.frag"
+    );
 
     // Pins
     load("pin", "shaders/components/pins.vert", "shaders/components/pins.frag");
@@ -318,6 +325,25 @@ void Renderer::drawComponents(std::span<const ComponentRenderData> components, f
         m_gateMesh->drawInstanced(static_cast<int>(batch.instances.size()));
         recordDrawCalls(DrawCategory::Components);
     }
+    std::vector<ComponentBodyInstance> bubbles;
+    for (const auto& component : components)
+        for (const auto& pin : component.pins)
+            if (pin.inversionBubble)
+            {
+                auto style = component.body.style;
+                style.tint[3] *= opacity;
+                constexpr float size = GridMetrics::Spacing * 1.15f;
+                bubbles.push_back(
+                    {component.body.id, *pin.inversionBubble, {size, size}, "inputBubble", style}
+                );
+            }
+    if (!bubbles.empty())
+        if (auto* shader = acquireShader("inputBubble"); shader && useCanvasShader(*shader))
+        {
+            m_gateMesh->setInstanceData(packComponentInstances(bubbles), {2, 2, 4}, 1);
+            m_gateMesh->drawInstanced(static_cast<int>(bubbles.size()));
+            recordDrawCalls(DrawCategory::Components);
+        }
 }
 
 void Renderer::drawPinLeads(std::span<const ComponentRenderData> components, float opacity)

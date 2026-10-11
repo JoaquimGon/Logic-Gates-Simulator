@@ -49,17 +49,29 @@ Scene fixture()
     edit(
         scene,
         {ConfigureInput{input, true},
-         ConfigureComponentProperties{.componentId = input, .label = "Data \"A\""},
-         ConfigureComponentProperties{.componentId = output, .label = "Result"},
          ConfigureComponentProperties{
-             .componentId = gate, .label = "Eight inputs", .inputCount = 8, .inverted = true
+             .componentId = input, .label = "Data \"A\"", .labelVisible = false
          },
-         ConfigureClock{clock, 2.5f, true}}
+         ConfigureComponentProperties{
+             .componentId = output, .label = "Result", .labelVisible = false
+         },
+         ConfigureComponentProperties{
+             .componentId = gate,
+             .label = "Eight inputs",
+             .inputCount = 8,
+             .inverted = true,
+             .inputInversion = ConfigureGateInput{7, true}
+         },
+         ConfigureClock{clock, 2.5f, true},
+         ConfigureComponentProperties{
+             .componentId = clock, .label = "Reference", .labelVisible = true
+         }}
     );
 
     auto custom = *scene.getComponentCatalog().find(BuiltinComponentIds::DLatch);
     custom.identity = {"example.memory", 3};
     custom.displayName = "Box memory";
+    custom.presentation.showBodyLabel = false;
     custom.presentation.kind = PresentationKind::Box;
     custom.presentation.shader = boxShaderResources();
     custom.presentation.body = {BodyContour::Box, false, {0.3f, 0.5f, 0.7f, 1}};
@@ -99,6 +111,38 @@ void roundtrip()
         loaded.name == "My circuit" && circuitToJson(loaded.scene, loaded.name) == text,
         "Circuit design changed during its JSON round trip."
     );
+    auto legacy = Json::parse(text);
+    for (auto& component : legacy["components"])
+        component.erase("label_visible");
+    for (auto& definition : legacy["definitions"])
+        definition.erase("show_body_label");
+    for (auto& component : legacy["components"])
+        for (auto& pin : component["layout"]["pins"])
+        {
+            pin.erase("inverted");
+            if (pin["direction"] == "input" && pin["id"].get<std::string>().starts_with("in.") &&
+                pin["index"].get<int>() >= 2)
+                pin["label"] = "In " + std::to_string(pin["index"].get<int>());
+        }
+    for (auto& definition : legacy["definitions"])
+        for (auto& pin : definition["layout"]["pins"])
+            pin.erase("inverted");
+    auto old = circuitFromJson(legacy.dump());
+    for (const auto& [id, view] : old.scene.getComponentViewMap())
+        if (const auto* gate = dynamic_cast<const Gate*>(old.scene.getLogicComponent(id)))
+            for (int pin = 0; pin < gate->getInputPinCount(); ++pin)
+            {
+                require(!gate->isInputInverted(pin), "Old saves inverted inputs by default.");
+                require(
+                    view->getInputPins()[pin].label == std::string(1, static_cast<char>('A' + pin)),
+                    "Legacy gate input names were not converted to alphabetic names."
+                );
+            }
+    for (const auto& [id, view] : old.scene.getComponentViewMap())
+        require(
+            view->showsBodyLabel() == !dynamic_cast<const Clock*>(old.scene.getLogicComponent(id)),
+            "Old saves did not retain the existing clock/other label defaults."
+        );
     require(
         loaded.scene.getLastEvalResult() == SimulationResult::OK &&
             loaded.scene.getShortedNetCount() == 0,
@@ -111,7 +155,10 @@ void roundtrip()
         if (const auto* gate = dynamic_cast<const Gate*>(logic);
             gate && gate->getInputPinCount() == 8)
             require(
-                gate->getType() == NAND && view->getBodyStyle().inverted,
+                gate->getType() == NAND && view->getBodyStyle().inverted &&
+                    gate->isInputInverted(7) && !gate->isInputInverted(0) &&
+                    view->getInputPins()[7].inverted &&
+                    view->getInputPins()[0].relative_pos.x == -3,
                 "Edited gate arity/inversion was not reconstructed."
             );
         if (const auto* clock = dynamic_cast<const Clock*>(logic))

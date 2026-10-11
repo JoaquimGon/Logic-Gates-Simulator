@@ -528,6 +528,52 @@ void inversionProportions(Renderer& renderer, const CanvasCameraFrame& camera)
     }
 }
 
+void inputInversionPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    Scene scene;
+    int row = 0;
+    for (const auto type : {NOT, AND, NAND, OR, NOR, XOR, NXOR})
+    {
+        const int id = scene.addComponent(
+            builtinDefinitionId(type),
+            {-12 + (row % 4) * 8, 9 - (row / 4) * 16},
+            {.inputCount = type == NOT ? 1 : 8}
+        );
+        const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
+            .componentId = id, .inputInversion = ConfigureGateInput{0, true}
+        }});
+        require(static_cast<bool>(result), "Cannot prepare input-bubble render fixture.");
+        ++row;
+    }
+    const auto data = buildComponentPresentation(scene.getComponentViewMap());
+    renderer.beginFrame(camera);
+    renderer.drawPinLeads(data);
+    renderer.drawComponents(data);
+    renderer.drawPins(data);
+    for (const auto& component : data)
+        for (const auto& pin : component.pins)
+            if (pin.inversionBubble)
+            {
+                const auto center = pixel(*pin.inversionBubble);
+                const auto rim = pixel(*pin.inversionBubble + glm::vec2{0, 0.023f});
+                const auto background = pixel(*pin.inversionBubble + glm::vec2{0, 0.035f});
+                require(
+                    center[1] > 60 && (center[0] > 60 || center[2] > 60),
+                    "Input bubble did not retain its gate fill."
+                );
+                require(
+                    rim[0] < center[0] || rim[2] < center[2],
+                    "Input bubble lost its visible outline."
+                );
+                require(
+                    background[0] < 20 && background[1] < 20 && background[2] < 20,
+                    "Input bubble was stretched beyond its one-cell diameter."
+                );
+            }
+    require(glGetError() == GL_NO_ERROR, "Input bubbles caused an OpenGL error.");
+    saveImage("gate-input-inversion.ppm");
+}
+
 void pastePreview(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
@@ -1188,6 +1234,49 @@ void componentInformationPresentation(Renderer& renderer)
     saveImage("component-information.ppm");
 }
 
+void labelVisibilityPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    Scene scene;
+    const int id = scene.addComponent(BuiltinComponentIds::Clock, {0, 0});
+    const auto named = EditorActions(scene).apply({ConfigureComponentProperties{
+        .componentId = id, .label = "REFERENCE", .labelVisible = true
+    }});
+    require(static_cast<bool>(named), "Cannot name the rendered clock.");
+    auto draw = [&]()
+    {
+        const auto components = buildComponentPresentation(scene.getComponentViewMap());
+        renderer.beginFrame(camera);
+        renderer.drawCanvas({components, scene.getWires(), {}});
+    };
+    auto glyphs = [&]()
+    {
+        const float bottom = scene.getCommittedComponentView(id)->getBodyBounds().bottom;
+        const int x = static_cast<int>((1 - 0.18f) * extent / 2);
+        const int y = static_cast<int>((1 + bottom - 0.06f) * extent / 2);
+        const int width = static_cast<int>(0.36f * extent / 2);
+        const int height = static_cast<int>(0.052f * extent / 2);
+        std::vector<unsigned char> values(width * height * 4);
+        glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, values.data());
+        int count = 0;
+        for (std::size_t i = 0; i < values.size(); i += 4)
+            count += values[i] > 180 && values[i + 1] > 180 && values[i + 2] > 180;
+        return count;
+    };
+    draw();
+    require(glyphs() > 15, "Enabled clock label did not render on the canvas.");
+    saveImage("clock-label-visible.ppm");
+    const auto hidden = EditorActions(scene).apply(
+        {ConfigureComponentProperties{.componentId = id, .labelVisible = false}}
+    );
+    require(static_cast<bool>(hidden), "Cannot hide the rendered clock label.");
+    draw();
+    require(
+        glyphs() == 0 && scene.clockName({id}) == "REFERENCE",
+        "Hidden canvas label still rendered or erased the clock's name."
+    );
+    saveImage("clock-label-hidden.ppm");
+}
+
 void gateSettingsPresentation(Renderer& renderer)
 {
     Scene scene;
@@ -1258,6 +1347,7 @@ void gateSettingsPresentation(Renderer& renderer)
         require(active[2] > 65, "Gate input settings button did not render.");
         click(plus);
         click(ui.gateInversionBounds(scene));
+        click(ui.gateInputInversionBounds(scene, 0));
         draw(false);
         const auto* gate = static_cast<const Gate*>(scene.getLogicComponent(id));
         require(
@@ -1285,6 +1375,7 @@ void gateSettingsPresentation(Renderer& renderer)
         saveImage(scale == 1 ? "gate-settings-readonly.ppm" : "gate-settings-readonly-2x.ppm");
         input.setMode(EditorMode::Selection);
         ui.layout(scene.getComponentCatalog(), surface, input);
+        click(ui.gateInputInversionBounds(scene, 0));
         click(ui.gateInversionBounds(scene));
         click(ui.gateInputButtonBounds(scene, false));
         require(
@@ -2395,6 +2486,7 @@ int main(int argc, char** argv)
                 editedGate(renderer, camera);
                 inputRailPresentation(renderer, camera);
                 inversionProportions(renderer, camera);
+                inputInversionPresentation(renderer, camera);
                 preview(renderer, camera);
                 pastePreview(renderer, camera);
                 canvasViewport(renderer);
@@ -2405,6 +2497,7 @@ int main(int argc, char** argv)
                 outputPresentation(renderer);
                 componentInformationPresentation(renderer);
                 gateSettingsPresentation(renderer);
+                labelVisibilityPresentation(renderer, camera);
                 groupSelectionPresentation(renderer, camera);
                 routedWiresPresentation(renderer, camera);
                 circuitViewsPresentation(renderer);

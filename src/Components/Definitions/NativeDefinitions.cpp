@@ -66,6 +66,7 @@ ComponentDefinition source(
     definition.presentation.kind = PresentationKind::NativeSdf;
     definition.presentation.shader = {shader, "shaders/components/gates/gate.vert", fragment};
     const bool clock = std::holds_alternative<ClockBehavior>(behavior);
+    definition.presentation.showBodyLabel = !clock;
     definition.presentation.body = {
         clock ? BodyContour::Clock : BodyContour::Input,
         false,

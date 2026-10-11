@@ -148,9 +148,11 @@ class UI
     std::vector<std::string> componentInfo(const Scene& scene) const;
     CanvasViewport infoBounds(const Scene& scene) const;
     CanvasViewport nameBounds(const Scene& scene) const;
+    CanvasViewport labelVisibilityBounds(const Scene& scene) const;
     CanvasViewport editSubcircuitBounds(const Scene& scene) const;
     CanvasViewport gateSettingsBounds(const Scene& scene) const;
     CanvasViewport gateInputButtonBounds(const Scene& scene, bool increase) const;
+    CanvasViewport gateInputInversionBounds(const Scene& scene, unsigned int index) const;
     CanvasViewport gateInversionBounds(const Scene& scene) const;
 
   private:
@@ -200,6 +202,7 @@ class UI
     static constexpr double infoHeaderHeight = 42;
     static constexpr double infoFooterHeight = 30;
     static constexpr double infoNameHeight = 64;
+    static constexpr double infoLabelHeight = 30;
     static constexpr double infoGateHeight = 64;
 
     CanvasSurface m_surface{};

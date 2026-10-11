@@ -87,7 +87,8 @@ Json layoutJson(const DefinitionLayout& layout)
              {"direction", pin.direction == PinType::INPUT ? "input" : "output"},
              {"index", pin.index},
              {"anchor", {pin.anchor.x, pin.anchor.y}},
-             {"lead", points(pin.lead)}}
+             {"lead", points(pin.lead)},
+             {"inverted", pin.inverted}}
         );
     return {{"size", {layout.width, layout.height}}, {"pins", pins}};
 }
@@ -114,7 +115,8 @@ DefinitionLayout readLayout(const Json& value)
              direction == "input" ? PinType::INPUT : PinType::OUTPUT,
              static_cast<unsigned int>(index),
              point(pin.at("anchor")),
-             points(pin.at("lead"))}
+             points(pin.at("lead")),
+             pin.value("inverted", false)}
         );
     }
     return layout;
@@ -127,7 +129,13 @@ DefinitionLayout instanceLayout(const ComponentView& view)
     for (const auto* pins : {&view.getInputPins(), &view.getOutputPins()})
         for (const auto& pin : *pins)
             layout.pins.push_back(
-                {pin.id, pin.label, pin.type, pin.pin_index, pin.relative_pos, pin.lead}
+                {pin.id,
+                 pin.label,
+                 pin.type,
+                 pin.pin_index,
+                 pin.relative_pos,
+                 pin.lead,
+                 pin.inverted}
             );
     return layout;
 }
@@ -161,6 +169,7 @@ Json definitionJson(const ComponentDefinition& definition)
         {"scalable_inputs", definition.pinLayoutRule == PinLayoutRule::SymmetricGateInputs},
         {"label", p.bodyLabel},
         {"show_pin_labels", p.showPinLabels},
+        {"show_body_label", p.showBodyLabel},
         {"allow_resize", p.allowResize},
         {"tint", p.body.tint},
         {"input_state", definition.defaultInputState},
@@ -208,6 +217,8 @@ ComponentDefinition readDefinition(const Json& value, const ComponentCatalog& na
     p.shader = boxShaderResources();
     p.bodyLabel = value.at("label").get<std::string>();
     p.showPinLabels = value.at("show_pin_labels").get<bool>();
+    p.showBodyLabel =
+        value.value("show_body_label", !std::holds_alternative<ClockBehavior>(definition.behavior));
     p.allowResize = value.at("allow_resize").get<bool>();
     const auto& tint = array(value.at("tint"));
     if (tint.size() != 4)
@@ -261,6 +272,7 @@ std::string circuitToJson(const Scene& scene, const std::string& name)
             {"version", identity.version},
             {"position", {position.x, position.y}},
             {"label", view.getBodyLabel()},
+            {"label_visible", view.showsBodyLabel()},
             {"layout", layoutJson(instanceLayout(view))}
         };
         const auto* logic = scene.getLogicComponent(id);
@@ -361,6 +373,8 @@ SavedCircuit circuitFromJson(std::string_view text)
             .componentId = created.createdComponentIds.at(i),
             .label = components.at(i).at("label").get<std::string>()
         };
+        if (components.at(i).contains("label_visible"))
+            properties.labelVisible = components.at(i).at("label_visible").get<bool>();
         if (components.at(i).contains("inverted"))
             properties.inverted = components.at(i).at("inverted").get<bool>();
         batch.push_back(std::move(properties));

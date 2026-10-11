@@ -32,6 +32,19 @@ void savedStatus(GLFWwindow* window)
     views.markSaved(0);
     Scene saved(scene);
     require(!views.hasUnsavedChanges(0), "Saved design did not become clean.");
+    const auto hidden = EditorActions(scene).apply(
+        {ConfigureComponentProperties{.componentId = source, .labelVisible = false}}
+    );
+    require(
+        hidden && views.hasUnsavedChanges(0), "Visibility edits did not mark the design unsaved."
+    );
+    const auto shown = EditorActions(scene).apply(
+        {ConfigureComponentProperties{.componentId = source, .labelVisible = true}}
+    );
+    require(
+        shown && !views.hasUnsavedChanges(0),
+        "Restoring saved visibility left a false unsaved notice."
+    );
     scene.updateClocks(0.75f);
     scene.propagate();
     scene.syncVisuals();

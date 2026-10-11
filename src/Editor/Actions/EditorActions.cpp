@@ -41,7 +41,7 @@ bool samePins(const std::vector<PinUI>& a, const std::vector<PinUI>& b)
     for (std::size_t i = 0; i < a.size(); ++i)
         if (a[i].type != b[i].type || a[i].pin_index != b[i].pin_index ||
             a[i].relative_pos != b[i].relative_pos || a[i].id != b[i].id ||
-            a[i].label != b[i].label || a[i].lead != b[i].lead)
+            a[i].label != b[i].label || a[i].lead != b[i].lead || a[i].inverted != b[i].inverted)
             return false;
     return true;
 }
@@ -151,6 +151,8 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             const int id = candidate.addComponentRaw(request);
             if (request.label)
                 getView(id).m_bodyLabel = *request.label;
+            if (request.labelVisible)
+                getView(id).m_showBodyLabel = *request.labelVisible;
             components.push_back(id);
             placement[id] = request.placement;
             changed = topologyChanged = true;
@@ -187,7 +189,11 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                          policy}
                     );
             if (gate)
+            {
                 candidate.m_circuit.resizeGateInputs(id, static_cast<int>(layout.inputs.size()));
+                for (const auto& pin : layout.inputs)
+                    gate->setInputInverted(pin.pin_index, pin.inverted);
+            }
             view.editInputPins() = layout.inputs;
             view.editOutputPins() = layout.outputs;
             view.m_size = layout.size;
@@ -385,6 +391,26 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                 changed = true;
                             }
                         }
+                        if (op.inputInversion)
+                        {
+                            if (!gate)
+                                throw EditFailure(
+                                    EditError::InvalidConfiguration,
+                                    "Input inversion requires a logic gate."
+                                );
+                            const auto setting = *op.inputInversion;
+                            const auto layout = ComponentFactory::invertedInputLayout(
+                                *candidate.m_catalog, view, setting.pinIndex, setting.inverted
+                            );
+                            if (gate->isInputInverted(setting.pinIndex) != setting.inverted)
+                            {
+                                configureLayout(
+                                    op.componentId, layout, RemovedPinPolicy::RejectAttached
+                                );
+                                placement[op.componentId] = PlacementPolicy::RejectSameCenter;
+                                moved.push_back(op.componentId);
+                            }
+                        }
                         if (op.clockFrequency || op.clockPaused)
                         {
                             if (!clock)
@@ -406,6 +432,11 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                 clock->setPaused(*op.clockPaused);
                                 changed = true;
                             }
+                        }
+                        if (op.labelVisible && view.m_showBodyLabel != *op.labelVisible)
+                        {
+                            view.m_showBodyLabel = *op.labelVisible;
+                            changed = true;
                         }
                         if (op.label && view.m_bodyLabel != *op.label)
                         {

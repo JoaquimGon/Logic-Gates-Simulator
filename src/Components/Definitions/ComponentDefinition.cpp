@@ -14,6 +14,17 @@ namespace
 {
 constexpr int maxPins = 256;
 
+std::string inputLabel(unsigned int index)
+{
+    std::string label;
+    for (unsigned int value = index + 1; value != 0; value /= 26)
+    {
+        --value;
+        label.insert(label.begin(), static_cast<char>('A' + value % 26));
+    }
+    return label;
+}
+
 int countPins(const DefinitionLayout& layout, PinType direction)
 {
     return static_cast<int>(std::count_if(
@@ -41,6 +52,9 @@ void validateLayout(
             (!pin.id.empty() && !identities.insert(pin.id).second) ||
             !anchors.emplace(pin.anchor.x, pin.anchor.y).second)
             throw std::invalid_argument("Pins require distinct IDs and anchors.");
+        if (pin.inverted &&
+            (pin.direction != PinType::INPUT || !std::holds_alternative<GateType>(behavior)))
+            throw std::invalid_argument("Input inversion requires a logic-gate input.");
         if (!pin.lead.empty())
         {
             if (pin.lead.size() < 2 || pin.lead.size() > 256 || pin.lead.back() != pin.anchor)
@@ -214,8 +228,7 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
             );
             PinDefinition generated{
                 "in." + std::to_string(index),
-                original != definition.layout.pins.end() ? original->label
-                                                         : "In " + std::to_string(index),
+                original != definition.layout.pins.end() ? original->label : inputLabel(index),
                 PinType::INPUT,
                 static_cast<unsigned int>(index),
                 {x,
@@ -223,7 +236,8 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
                      ? inputCount / 2 - index -
                            (inputCount % 2 == 0 && index >= inputCount / 2 ? 1 : 0)
                      : inputCount - 1 - 2 * index},
-                {}
+                {},
+                original != definition.layout.pins.end() && original->inverted
             };
             if (original != definition.layout.pins.end())
                 for (const auto point : original->lead)
@@ -272,9 +286,17 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
                 [&](const auto& canonical)
                 { return canonical.direction == pin.direction && canonical.index == pin.index; }
             );
+            // Accept the old generated names in saved layouts, retaining stable pin IDs.
+            const bool legacyLabel =
+                expected != result.layout.pins.end() &&
+                definition.pinLayoutRule == PinLayoutRule::SymmetricGateInputs &&
+                pin.direction == PinType::INPUT &&
+                pin.index >= static_cast<unsigned int>(defaultInputs) &&
+                pin.label == "In " + std::to_string(pin.index) &&
+                expected->label == inputLabel(pin.index);
             if (expected == result.layout.pins.end() ||
                 (!pin.id.empty() && pin.id != expected->id) ||
-                (!pin.label.empty() && pin.label != expected->label))
+                (!pin.label.empty() && pin.label != expected->label && !legacyLabel))
                 throw std::invalid_argument(
                     "Instance layouts cannot rename or reassign stable definition pins."
                 );

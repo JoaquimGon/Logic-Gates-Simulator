@@ -57,6 +57,7 @@ struct PinDefinition
     unsigned int index = 0;
     GridCoords anchor{0, 0};
     std::vector<GridCoords> lead;
+    bool inverted = false;
 };
 
 struct DefinitionLayout
@@ -90,6 +91,7 @@ struct PresentationDefinition
     bool showPinLabels = false;
     bool allowResize = true;
     BodyStyle body;
+    bool showBodyLabel = true;
 };
 
 /** Reusable type metadata. Position and live signal/timer/latch state are instance data. */

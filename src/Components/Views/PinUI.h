@@ -16,4 +16,5 @@ struct PinUI
     std::string id = {};
     std::string label = {};
     std::vector<GridCoords> lead = {};
+    bool inverted = false;
 };

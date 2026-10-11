@@ -543,7 +543,7 @@ CanvasViewport UI::gateSettingsBounds(const Scene& scene) const
     const auto bounds = infoBounds(scene);
     return {
         bounds.x + 10,
-        bounds.y + infoHeaderHeight + infoNameHeight,
+        bounds.y + infoHeaderHeight + infoNameHeight + infoLabelHeight,
         bounds.width - 20,
         infoGateHeight
     };
@@ -555,6 +555,37 @@ CanvasViewport UI::gateInputButtonBounds(const Scene& scene, bool increase) cons
         return {};
     const auto bounds = gateSettingsBounds(scene);
     return {bounds.x + bounds.width - (increase ? 28 : 92), bounds.y, 28, 26};
+}
+
+CanvasViewport UI::gateInputInversionBounds(const Scene& scene, unsigned int index) const
+{
+    const auto* view = scene.getCommittedComponentView(m_infoComponent);
+    const auto* definition =
+        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    if (!infoGate(scene) || !definition ||
+        definition->presentation.kind != PresentationKind::NativeSdf)
+        return {};
+    const auto& pins = view->getInputPins();
+    const auto pin = std::find_if(
+        pins.begin(), pins.end(), [=](const auto& value) { return value.pin_index == index; }
+    );
+    if (pin == pins.end())
+        return {};
+    const int rows = infoVisibleRows(scene);
+    const int offset = std::clamp(
+        m_infoScroll, 0, std::max(0, static_cast<int>(componentInfo(scene).size()) - 1 - rows)
+    );
+    const int row = 1 + static_cast<int>(pin - pins.begin()) - offset;
+    if (row < 0 || row >= rows)
+        return {};
+    const auto bounds = infoBounds(scene);
+    return {
+        bounds.x + bounds.width - 88,
+        bounds.y + infoHeaderHeight + infoNameHeight + infoLabelHeight + infoGateHeight +
+            row * infoRowHeight + 1,
+        78,
+        infoRowHeight - 2
+    };
 }
 
 CanvasViewport UI::gateInversionBounds(const Scene& scene) const
@@ -571,6 +602,17 @@ CanvasViewport UI::nameBounds(const Scene& scene) const
         return {};
     const auto bounds = infoBounds(scene);
     return {bounds.x + 10, bounds.y + infoHeaderHeight + 18, bounds.width - 20, 28};
+}
+
+CanvasViewport UI::labelVisibilityBounds(const Scene& scene) const
+{
+    const auto bounds = infoBounds(scene);
+    return {
+        bounds.x + 10,
+        bounds.y + infoHeaderHeight + (canName(scene) ? infoNameHeight : 0),
+        bounds.width - 20,
+        26
+    };
 }
 
 bool UI::canEditSubcircuit(const Scene& scene) const
@@ -613,7 +655,10 @@ std::vector<std::string> UI::componentInfo(const Scene& scene) const
             const char* state = pin.state == PinState::ON    ? "1 (ON)"
                                 : pin.state == PinState::OFF ? "0 (OFF)"
                                                              : "Unavailable";
-            lines.push_back(name + ": " + state);
+            std::string value = name + ": " + state;
+            if (pin.inverted && pin.state != PinState::DISCONNECTED)
+                value = name + ": " + (pin.state == PinState::ON ? "1 -> 0" : "0 -> 1");
+            lines.push_back(std::move(value));
         }
     };
     pins(view->getInputPins(), "Inputs", "Input");
@@ -628,8 +673,9 @@ CanvasViewport UI::infoBounds(const Scene& scene) const
         return {};
     const double width = std::min(280.0, std::max(0.0, m_surface.windowWidth - 16.0));
     const double height = std::min(
-        infoHeaderHeight + infoFooterHeight + (canName(scene) ? infoNameHeight : 0) +
-            (infoGate(scene) ? infoGateHeight : 0) + (canEditSubcircuit(scene) ? 28 : 0) +
+        infoHeaderHeight + infoFooterHeight + infoLabelHeight +
+            (canName(scene) ? infoNameHeight : 0) + (infoGate(scene) ? infoGateHeight : 0) +
+            (canEditSubcircuit(scene) ? 28 : 0) +
             static_cast<double>(lines.size() - 1) * infoRowHeight,
         std::max(0.0, m_surface.windowHeight - 16.0)
     );
@@ -646,7 +692,7 @@ int UI::infoVisibleRows(const Scene& scene) const
     return std::max(
         0,
         static_cast<int>(
-            (infoBounds(scene).height - infoHeaderHeight - infoFooterHeight -
+            (infoBounds(scene).height - infoHeaderHeight - infoFooterHeight - infoLabelHeight -
              (canName(scene) ? infoNameHeight : 0) - (infoGate(scene) ? infoGateHeight : 0) -
              (canEditSubcircuit(scene) ? 28 : 0)) /
             infoRowHeight
@@ -802,6 +848,17 @@ bool UI::handleInput(
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS)
                     m_infoLeftPressed = true;
                 if (m_canCreate && !m_nameEditing && event.code == GLFW_MOUSE_BUTTON_LEFT &&
+                    event.action == GLFW_PRESS &&
+                    labelVisibilityBounds(scene).contains(event.x, event.y))
+                {
+                    const auto* view = scene.getCommittedComponentView(m_infoComponent);
+                    const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
+                        .componentId = m_infoComponent, .labelVisible = !view->showsBodyLabel()
+                    }});
+                    input.recordEdit(result);
+                    m_infoError = result ? "" : result.message;
+                }
+                if (m_canCreate && !m_nameEditing && event.code == GLFW_MOUSE_BUTTON_LEFT &&
                     event.action == GLFW_PRESS && infoGate(scene))
                 {
                     ConfigureComponentProperties edit{.componentId = m_infoComponent};
@@ -813,7 +870,13 @@ bool UI::handleInput(
                             edit.inputCount = gate->getInputPinCount() + (increase ? 1 : -1);
                     if (gateInversionBounds(scene).contains(event.x, event.y))
                         edit.inverted = !gate->isInverted();
-                    if (edit.inputCount || edit.inverted)
+                    const auto& pins =
+                        scene.getCommittedComponentView(m_infoComponent)->getInputPins();
+                    for (const auto& pin : pins)
+                        if (gateInputInversionBounds(scene, pin.pin_index)
+                                .contains(event.x, event.y))
+                            edit.inputInversion = ConfigureGateInput{pin.pin_index, !pin.inverted};
+                    if (edit.inputCount || edit.inverted || edit.inputInversion)
                     {
                         const auto result = EditorActions(scene).apply({edit});
                         input.recordEdit(result);

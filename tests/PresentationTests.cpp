@@ -229,8 +229,59 @@ void inputRails()
     );
 }
 
+void inputBubbles()
+{
+    for (const auto type : {NOT, AND, NAND, OR, NOR, XOR, NXOR})
+        for (int count : (type == NOT ? std::vector<int>{1} : std::vector<int>{2, 8}))
+        {
+            Scene scene;
+            const int id =
+                scene.addComponent(builtinDefinitionId(type), {0, 0}, {.inputCount = count});
+            const auto initial = buildComponentPresentation(scene.getComponentViewMap()).front();
+            const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
+                .componentId = id, .inputInversion = ConfigureGateInput{0, true}
+            }});
+            require(static_cast<bool>(result), "Cannot configure an input bubble.");
+            const auto data = buildComponentPresentation(scene.getComponentViewMap()).front();
+            require(
+                data.body.size == initial.body.size && data.body.shader == initial.body.shader,
+                "Input inversion stretched or changed the body."
+            );
+            for (const auto& pin : data.pins)
+            {
+                if (pin.direction == PinType::INPUT && pin.index == 0)
+                {
+                    require(pin.inversionBubble.has_value(), "Inverted input has no bubble.");
+                    const auto center = *pin.inversionBubble;
+                    require(
+                        std::abs(center.x - pin.position.x - 0.025f) < 0.000001f &&
+                            center.y == pin.position.y &&
+                            std::abs(pin.lead.back().x - center.x - 0.025f) < 0.000001f,
+                        "Input bubble/lead did not fit the added grid cell."
+                    );
+                    const auto bounds = scene.getCommittedComponentView(id)->getBodyBounds();
+                    require(
+                        center.y + 0.025f <= bounds.top + 0.000001f &&
+                            center.y - 0.025f >= bounds.bottom - 0.000001f,
+                        "Selection bounds clipped the input bubble."
+                    );
+                }
+                else
+                    require(
+                        !pin.inversionBubble && pin.lead.back() == pin.position,
+                        "A non-inverted pin gained a bubble or lost its lead."
+                    );
+            }
+            if (!initial.inputArc.empty())
+                require(
+                    data.inputArc == initial.inputArc, "Input inversion moved the XOR rear arc."
+                );
+        }
+}
+
 void leads()
 {
+    inputBubbles();
     inputRails();
     Scene scene;
     int x = 0;
@@ -409,6 +460,15 @@ void text()
         clocks.size() == 2 && clocks[1].bodyLabel.empty() &&
             layoutComponentLabels(clocks, font).empty(),
         "Custom clock names were hidden only for native SDF symbols."
+    );
+    const auto shown =
+        EditorActions(clockScene)
+            .apply({ConfigureComponentProperties{.componentId = clockId, .labelVisible = true}});
+    const auto shownClocks = buildComponentPresentation(clockScene.getComponentViewMap());
+    require(
+        shown && shownClocks.front().bodyLabel == "Reference" &&
+            layoutComponentLabels(shownClocks, font).size() == 1,
+        "Explicitly visible clock labels still failed to reach text rendering."
     );
     DebugMetrics metrics{};
     metrics.evalResult = SimulationResult::OK;
