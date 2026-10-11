@@ -99,6 +99,10 @@ sampling windows, cumulative propagation work, backlog and compact draw counts.
 Switching scenes or lower-panel tabs resets the timing window. Timings measure
 CPU work/driver waiting, not GPU execution; propagation overlaps simulation/input.
 The debug overlay's own cost is listed, while its draws are excluded from totals.
+F3 is available in Release too. Its display refreshes four times per second and
+reuses cached drawing buffers; measurements still run every frame. Opening F3,
+resizing, switching contexts or changing simulation error status refreshes it
+immediately.
 
 The full-width top bar reserves 30 pixels. A quiet amber **Unsaved changes** message
 on the right tracks the active tab, including new empty scenes. It clears after a successful

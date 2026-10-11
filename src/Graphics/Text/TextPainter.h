@@ -20,6 +20,11 @@ class TextPainter
         std::span<const TextRun> runs, TextSpace space, const glm::mat4& projection, Shader& shader
     );
 
+    /** Builds/uploads a retained batch using the existing font; false for empty text. */
+    bool prepareMesh(Mesh& mesh, std::span<const TextRun> runs, TextSpace space);
+    /** Draws a prepared nonempty mesh without rebuilding or uploading glyphs. */
+    int drawPrepared(const Mesh& mesh, const glm::mat4& projection, Shader& shader);
+
   private:
     FontAtlas m_font;
     std::unique_ptr<Mesh> m_mesh;

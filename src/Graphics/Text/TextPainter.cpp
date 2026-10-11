@@ -27,6 +27,15 @@ int TextPainter::draw(
 {
     if (!m_mesh || !m_font.textureId || !shader.isValid())
         return 0;
+    if (!prepareMesh(*m_mesh, runs, space))
+        return 0;
+    return drawPrepared(*m_mesh, projection, shader);
+}
+
+bool TextPainter::prepareMesh(Mesh& mesh, std::span<const TextRun> runs, TextSpace space)
+{
+    if (!m_font.textureId)
+        return false;
     auto& vertices = m_vertices;
     vertices.clear();
     for (const auto& run : runs)
@@ -34,13 +43,20 @@ int TextPainter::draw(
             run.text, run.baseline.x, run.baseline.y, run.scale, run.color, m_font, vertices, space
         );
     if (vertices.empty())
+        return false;
+    mesh.updateData(packTextVertices(vertices), 8);
+    return true;
+}
+
+int TextPainter::drawPrepared(const Mesh& mesh, const glm::mat4& projection, Shader& shader)
+{
+    if (!m_font.textureId || !shader.isValid())
         return 0;
     shader.use();
     shader.setMat4("uProjectionView", projection);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_font.textureId);
     shader.setBool("uFontTexture", false);
-    m_mesh->updateData(packTextVertices(vertices), 8);
-    m_mesh->draw();
+    mesh.draw();
     return 1;
 }

@@ -64,7 +64,13 @@ class Renderer
     const FontMetrics& fontMetrics() const { return m_text.metrics(); }
 
     void drawLabels(std::span<const ComponentRenderData> components);
-    void drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics = true);
+    void drawDebugOverlay(
+        const DebugMetrics& metrics,
+        bool showMetrics = true,
+        std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()
+    );
+
+    void invalidateDebugOverlay() { m_debugCacheValid = false; }
 
     int getDrawCallCount() const { return m_drawCalls.total(); }
 
@@ -83,6 +89,12 @@ class Renderer
     // Reused per-pass staging; contents are rebuilt from current presentation values.
     std::vector<float> m_wireData, m_leadData, m_pinData, m_intersectionData;
     TextPainter m_text;
+    std::unique_ptr<Mesh> m_debugTextMesh, m_debugBackgroundMesh;
+    CanvasSurface m_debugSurface{};
+    SimulationResult m_debugResult = SimulationResult::OK;
+    bool m_debugCacheValid = false, m_debugHasText = false, m_debugShowMetrics = false;
+    bool m_debugHasShorts = false, m_debugHasRejections = false;
+    std::chrono::steady_clock::time_point m_debugRefreshTime{};
     CanvasCameraFrame m_currentCamera{};
     std::optional<PixelViewport> m_screenClip;
     bool setCanvasViewport();
@@ -94,5 +106,4 @@ class Renderer
     std::chrono::steady_clock::time_point m_uiTimeStart;
     DrawCallCounts m_drawCalls;
     DrawCategory m_uiDrawCategory = DrawCategory::StaticUI;
-    bool m_countDrawCalls = true;
 };

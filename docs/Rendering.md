@@ -157,7 +157,18 @@ menus and grid), Dynamic UI, Components (native/custom bodies, pins, leads,
 labels/highlights), and Wires (routes, intersections/guides). Batches count once,
 empty submissions count zero, palette shader previews count as UI, and debug
 submissions are excluded. Both UI categories still draw each frame. The pie chart
-has been removed. `debug-performance.ppm`, `debug-performance-2x.ppm` and their
+has been removed. The F3 overlay remains available in Debug and Release builds.
+Measurements continue every frame, but displayed values refresh every 250 ms.
+Opening F3, changing scenes/bottom tabs, window/DPI resize, and simulation error
+status changes refresh immediately. Dedicated text/background meshes retain the
+prepared geometry between refreshes and reuse the existing font atlas; ordinary
+UI submissions cannot overwrite them. Cached frames format no strings, build no
+glyphs and upload no HUD buffers. The background stays 50% transparent and the
+HUD stays above all UI. Occasional refresh frames still appear in its worst-time
+column; the average reflects the cached frames too. Resource tests verify zero
+HUD uploads between refreshes, immediate status/lifecycle updates, and report
+cached versus forced-refresh costs without a hardware-specific pass threshold.
+`debug-performance.ppm`, `debug-performance-2x.ppm` and their
 `-messages` variants cover the timing table and both display scales.
 
 For another text presentation, produce `TextRun` values and call

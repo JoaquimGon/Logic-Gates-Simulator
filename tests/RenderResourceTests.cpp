@@ -349,3 +349,137 @@ void renderResourceChecks()
     require(retained == recovered, "Cyclic include replaced the valid program.");
     require(glGetError() == GL_NO_ERROR, "Shader/buffer resource checks caused an OpenGL error.");
 }
+
+void debugOverlayCacheChecks(Renderer& renderer)
+{
+    using Clock = std::chrono::steady_clock;
+    using namespace std::chrono_literals;
+    constexpr int extent = 1024;
+    CanvasSurface surface{extent, extent, extent, extent};
+    DebugMetrics metrics;
+    metrics.fps = 123.4f;
+    metrics.timingsReady = true;
+    const auto origin = Clock::time_point{} + 10s;
+    auto begin = [&]()
+    {
+        renderer.beginFrame(CanvasCamera{}.frame(surface));
+        // Other screen draws overwrite the ordinary UI buffers before every cached HUD draw.
+        renderer.drawScreenRect({12, surface.windowHeight - 28.0, 110, 20}, {0.2f, 0.4f, 0.6f, 1});
+        const std::vector<TextRun> text{
+            {"Other UI text", {20, surface.windowHeight - 12.0}, 0.32f, {1, 1, 1, 1}}
+        };
+        renderer.drawText(text, TextSpace::Screen);
+    };
+    auto pixels = [&]()
+    {
+        std::vector<unsigned char> image(extent * extent * 4);
+        glReadPixels(0, 0, extent, extent, GL_RGBA, GL_UNSIGNED_BYTE, image.data());
+        return image;
+    };
+    renderer.invalidateDebugOverlay();
+    begin();
+    renderer.drawDebugOverlay(metrics, true, origin);
+    const auto original = pixels();
+    metrics.fps = 987.6f;
+    begin();
+    const auto draws = renderer.getDrawCallCount();
+    {
+        DrawingProbe probe;
+        renderer.drawDebugOverlay(metrics, true, origin + 50ms);
+        require(
+            probe.uploads == 0 && probe.allocations == 0,
+            "Cached HUD rebuilt/uploaded buffers after another UI submission."
+        );
+    }
+    require(
+        pixels() == original && renderer.getDrawCallCount() == draws,
+        "HUD changed before its refresh interval or contaminated scene draw counts."
+    );
+    begin();
+    {
+        DrawingProbe probe;
+        renderer.drawDebugOverlay(metrics, true, origin + 250ms);
+        require(probe.uploads > 0, "HUD values did not refresh after 250 ms.");
+    }
+    const auto refreshed = pixels();
+    require(refreshed != original, "HUD retained old values after its refresh deadline.");
+    metrics.evalResult = SimulationResult::NON_CONVERGENT;
+    begin();
+    renderer.drawDebugOverlay(metrics, true, origin + 251ms);
+    const auto failed = pixels();
+    require(failed != refreshed, "Simulation failure waited for the numeric refresh deadline.");
+    metrics.evalResult = SimulationResult::CONNECTION_REJECTED;
+    begin();
+    renderer.drawDebugOverlay(metrics, true, origin + 252ms);
+    require(pixels() != failed, "Changed simulation error retained the previous warning.");
+    metrics.evalResult = SimulationResult::OK;
+    begin();
+    renderer.drawDebugOverlay(metrics, true, origin + 253ms);
+    require(pixels() == refreshed, "Repaired circuit retained cached error text.");
+    metrics.shortedNetCount = 1;
+    begin();
+    renderer.drawDebugOverlay(metrics, true, origin + 254ms);
+    require(pixels() != refreshed, "A new wiring short did not immediately refresh the HUD.");
+    metrics.shortedNetCount = 0;
+    begin();
+    const auto hidden = pixels();
+    renderer.drawDebugOverlay(metrics, false, origin + 255ms);
+    require(pixels() == hidden, "Hidden healthy HUD left cached text/background visible.");
+    metrics.fps = 80;
+    begin();
+    renderer.drawDebugOverlay(metrics, true, origin + 256ms);
+    require(pixels() != refreshed, "Reopening the HUD retained the previous display sample.");
+    surface = {extent / 2, extent / 2, extent, extent};
+    begin();
+    {
+        DrawingProbe probe;
+        renderer.drawDebugOverlay(metrics, true, origin + 257ms);
+        require(probe.uploads > 0, "Window/DPI resize reused stale HUD positions.");
+    }
+    surface = {extent, extent, extent, extent};
+    begin();
+    renderer.drawDebugOverlay(metrics, true, origin + 258ms);
+    metrics.fps = 90;
+    renderer.invalidateDebugOverlay();
+    begin();
+    {
+        DrawingProbe probe;
+        renderer.drawDebugOverlay(metrics, true, origin + 259ms);
+        require(probe.uploads > 0, "New profiling context retained stale cached values.");
+    }
+    renderer.shutdown();
+    require(renderer.init(), "Renderer could not reinitialize its cached HUD/font resources.");
+    begin();
+    renderer.drawDebugOverlay(metrics, true, origin + 260ms);
+    require(
+        glGetError() == GL_NO_ERROR && glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE,
+        "Cached HUD lifecycle left invalid OpenGL or clipping state."
+    );
+
+    // Report timings without a machine-specific speed threshold; upload assertions verify the win.
+    for (bool rebuild : {false, true})
+    {
+        const auto base = origin + (rebuild ? 3s : 2s);
+        begin();
+        renderer.drawDebugOverlay(metrics, true, base);
+        std::size_t uploads = 0;
+        const auto start = Clock::now();
+        for (int frame = 1; frame <= 80; ++frame)
+        {
+            begin();
+            metrics.fps = 90.0f + static_cast<float>(frame);
+            if (rebuild)
+                renderer.invalidateDebugOverlay();
+            DrawingProbe probe;
+            renderer.drawDebugOverlay(metrics, true, base + std::chrono::milliseconds(frame));
+            uploads += probe.uploads;
+        }
+        const auto ms = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+        require(
+            rebuild ? uploads > 0 : uploads == 0,
+            "Warm cached HUD uploaded per frame or forced refresh failed to update."
+        );
+        std::cout << "PROFILE HUD " << (rebuild ? "forced-refresh" : "cached") << ": " << ms
+                  << " ms/80 frames (with other UI), HUD uploads=" << uploads << '\n';
+    }
+}

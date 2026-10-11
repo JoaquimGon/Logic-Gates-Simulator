@@ -26,6 +26,7 @@ static_assert(!std::is_copy_constructible_v<Renderer>);
 
 void drawingProfile(Renderer&, const CanvasCameraFrame&);
 void renderResourceChecks();
+void debugOverlayCacheChecks(Renderer&);
 
 namespace
 {
@@ -229,6 +230,7 @@ void performanceOverlay(Renderer& renderer)
         require(ink > 30, "CPU table text did not render legibly at this DPI.");
         saveImage(dpi == 1 ? "debug-performance.ppm" : "debug-performance-2x.ppm");
         select(UI::BottomTab::Messages);
+        renderer.invalidateDebugOverlay();
         renderer.beginFrame(frame);
         require(renderer.getDrawCallCount() == 0, "Frame counters did not reset.");
         renderer.drawCanvas({components, wires, {}});
@@ -2311,13 +2313,17 @@ int main(int argc, char** argv)
             require(renderer.init(), "Renderer could not initialize required resources.");
             const auto camera = CanvasCamera{}.frame({extent, extent, extent, extent});
             if (argc > 1 && std::string(argv[1]) == "--profile")
+            {
                 drawingProfile(renderer, camera);
+                debugOverlayCacheChecks(renderer);
+            }
             else
             {
                 renderResourceChecks();
                 drawingProfile(renderer, camera);
                 mixedInstances(renderer, camera);
                 performanceOverlay(renderer);
+                debugOverlayCacheChecks(renderer);
                 nativeContacts(renderer, camera);
                 editedGate(renderer, camera);
                 inputRailPresentation(renderer, camera);

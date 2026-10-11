@@ -30,6 +30,10 @@ void Renderer::shutdown()
     m_wireMesh.reset();
     m_leadMesh.reset();
     m_boundsMesh.reset();
+    m_debugTextMesh.reset();
+    m_debugBackgroundMesh.reset();
+    invalidateDebugOverlay();
+    m_debugHasText = false;
     m_text.shutdown();
 
     // Runs every Shader destructor, i.e. glDeleteProgram(), before the context
@@ -146,6 +150,17 @@ bool Renderer::init()
         std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_TRIANGLES
     );
 
+    m_debugBackgroundMesh = std::make_unique<Mesh>(
+        std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_TRIANGLES
+    );
+    VertexLayout textLayout;
+    textLayout.addAttribute(2);
+    textLayout.addAttribute(2);
+    textLayout.addAttribute(4);
+    m_debugTextMesh = std::make_unique<Mesh>(
+        std::vector<float>{}, std::vector<unsigned int>{}, textLayout, GL_TRIANGLES
+    );
+
     ready = m_text.init(PROJECT_FONT_PATH) && ready;
     if (!ready)
     {
@@ -162,7 +177,6 @@ void Renderer::beginFrame(const CanvasCameraFrame& camera)
     m_screenClip.reset();
     m_drawCalls = {};
     m_uiDrawCategory = DrawCategory::StaticUI;
-    m_countDrawCalls = true;
     setScreenViewport();
     glClear(GL_COLOR_BUFFER_BIT);
 }
@@ -683,8 +697,7 @@ void Renderer::drawLabels(std::span<const ComponentRenderData> components)
 
 void Renderer::recordDrawCalls(DrawCategory category, int count)
 {
-    if (m_countDrawCalls)
-        m_drawCalls.calls[static_cast<std::size_t>(category)] += count;
+    m_drawCalls.calls[static_cast<std::size_t>(category)] += count;
 }
 
 void Renderer::beginUiTiming(bool enabled)
@@ -717,38 +730,86 @@ CpuTimings Renderer::endUiTiming()
     return m_uiCpuTimes;
 }
 
-void Renderer::drawDebugOverlay(const DebugMetrics& metrics, bool showMetrics)
+void Renderer::drawDebugOverlay(
+    const DebugMetrics& metrics, bool showMetrics, std::chrono::steady_clock::time_point now
+)
 {
-    const auto runs = layoutDebugOverlay(
-        metrics,
-        showMetrics,
-        m_currentCamera.surface.windowWidth,
-        m_currentCamera.surface.windowHeight,
-        m_text.metrics()
-    );
-    if (runs.empty())
+    const auto& surface = m_currentCamera.surface;
+    if ((!showMetrics && metrics.evalResult == SimulationResult::OK) || surface.windowWidth <= 0 ||
+        surface.windowHeight <= 0 || surface.framebufferWidth <= 0 ||
+        surface.framebufferHeight <= 0 || !m_debugTextMesh || !m_debugBackgroundMesh)
+    {
+        invalidateDebugOverlay();
+        return;
+    }
+    auto* backgroundShader = acquireShader("wire");
+    auto* textShader = acquireShader("text");
+    if (!backgroundShader || !textShader)
+        return;
+    const bool hasShorts = metrics.shortedNetCount > 0;
+    const bool hasRejections = metrics.rejectedConnectionCount > 0;
+    const bool refresh = !m_debugCacheValid || surface != m_debugSurface ||
+                         showMetrics != m_debugShowMetrics || metrics.evalResult != m_debugResult ||
+                         hasShorts != m_debugHasShorts || hasRejections != m_debugHasRejections ||
+                         now < m_debugRefreshTime ||
+                         now - m_debugRefreshTime >= std::chrono::milliseconds(250);
+    if (refresh)
+    {
+        const auto runs = layoutDebugOverlay(
+            metrics, showMetrics, surface.windowWidth, surface.windowHeight, m_text.metrics()
+        );
+        m_debugHasText = m_text.prepareMesh(*m_debugTextMesh, runs, TextSpace::Screen);
+        if (m_debugHasText)
+        {
+            float left = runs.front().baseline.x, top = runs.front().baseline.y;
+            float right = left, bottom = top;
+            for (const auto& run : runs)
+            {
+                const float lineHeight = m_text.metrics().fontHeight * run.scale;
+                left = std::min(left, run.baseline.x);
+                top = std::min(top, run.baseline.y - lineHeight);
+                right = std::max(
+                    right, run.baseline.x + getTextWidth(run.text, run.scale, m_text.metrics())
+                );
+                bottom = std::max(bottom, run.baseline.y + lineHeight * 0.25f);
+            }
+            constexpr float padding = 8;
+            std::vector<float> background;
+            background.reserve(42);
+            for (const auto point :
+                 {glm::vec2{left - padding, top - padding},
+                  glm::vec2{right + padding, top - padding},
+                  glm::vec2{right + padding, bottom + padding},
+                  glm::vec2{left - padding, top - padding},
+                  glm::vec2{right + padding, bottom + padding},
+                  glm::vec2{left - padding, bottom + padding}})
+                background.insert(background.end(), {point.x, point.y, 0, 0, 0, 0, 0.5f});
+            m_debugBackgroundMesh->updateData(background, 7);
+        }
+        m_debugSurface = surface;
+        m_debugShowMetrics = showMetrics;
+        m_debugResult = metrics.evalResult;
+        m_debugHasShorts = hasShorts;
+        m_debugHasRejections = hasRejections;
+        m_debugRefreshTime = now;
+        m_debugCacheValid = true;
+    }
+    if (!m_debugHasText)
         return;
     setScreenClip(std::nullopt);
-    float left = runs.front().baseline.x;
-    float top = runs.front().baseline.y;
-    float right = left, bottom = top;
-    for (const auto& run : runs)
-    {
-        const float lineHeight = m_text.metrics().fontHeight * run.scale;
-        left = std::min(left, run.baseline.x);
-        top = std::min(top, run.baseline.y - lineHeight);
-        right =
-            std::max(right, run.baseline.x + getTextWidth(run.text, run.scale, m_text.metrics()));
-        bottom = std::max(bottom, run.baseline.y + lineHeight * 0.25f);
-    }
-    constexpr float padding = 8;
-    const bool counting = std::exchange(m_countDrawCalls, false);
-    drawScreenRect(
-        {left - padding, top - padding, right - left + 2 * padding, bottom - top + 2 * padding},
-        {0, 0, 0, 0.5f}
+    const auto projection = glm::ortho(
+        0.0f,
+        static_cast<float>(surface.windowWidth),
+        static_cast<float>(surface.windowHeight),
+        0.0f,
+        -1.0f,
+        1.0f
     );
-    drawText(runs, TextSpace::Screen);
-    m_countDrawCalls = counting;
+    // Dedicated meshes survive all other UI draws. Debug submissions stay outside scene counters.
+    backgroundShader->use();
+    backgroundShader->setMat4("uViewProjection", projection);
+    m_debugBackgroundMesh->draw();
+    m_text.drawPrepared(*m_debugTextMesh, projection, *textShader);
 }
 
 void Renderer::drawCanvas(const CanvasFrame& frame)

@@ -219,12 +219,14 @@ void Engine::run()
         {
             m_showDebugOverlay = !m_showDebugOverlay;
             m_cpuTimingWindow.reset();
+            m_renderer.invalidateDebugOverlay();
         }
         const auto context = std::pair{circuits.activeIndex(), m_ui.activeBottomTab()};
         if (timingContext != context)
         {
             timingContext = context;
             m_cpuTimingWindow.reset();
+            m_renderer.invalidateDebugOverlay();
         }
         CpuTimings cpu;
         auto phaseStart = m_showDebugOverlay ? std::chrono::steady_clock::now()
