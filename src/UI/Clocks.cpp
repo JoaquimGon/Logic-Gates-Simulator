@@ -352,7 +352,7 @@ void UI::updateClockHover(double now)
 {
     m_clockHoverNow = now;
     int target = -1;
-    if (m_bottomTab == BottomTab::Clocks && !dragging() && !m_fileMenuOpen &&
+    if (m_bottomTab == BottomTab::Clocks && !m_resizingBottom && !dragging() && !m_fileMenuOpen &&
         !m_circuitTabs.popupOpen() && m_infoComponent == -1 && m_clockEditing == -1)
     {
         for (int i = 0; i <= static_cast<int>(ClockControl::Clear); ++i)
@@ -380,7 +380,7 @@ std::vector<std::string> UI::clockTooltip(const Scene& scene) const
 {
     if (m_clockHover < 0 || m_clockHoverNow - m_clockHoverSince < 0.75 ||
         m_bottomTab != BottomTab::Clocks || m_fileMenuOpen || m_circuitTabs.popupOpen() ||
-        m_infoComponent != -1 || dragging())
+        m_infoComponent != -1 || m_resizingBottom || dragging())
         return {};
     const auto readings = scene.clockReadings();
     const bool enabled = std::any_of(

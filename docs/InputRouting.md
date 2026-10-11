@@ -181,3 +181,11 @@ UI. Shift is included in scroll-event modifiers for time-history navigation.
 Space/Period remain focused Interaction-mode shortcuts, using the same shared
 pause/chronological one-edge operation. Input binds the active view's trace
 recorder and clears its history on successful undo/redo.
+
+
+The bottom panel's top edge captures pointer and keyboard input while resizing,
+in either Selection or Interaction mode. Moving it updates the shared canvas
+viewport immediately without editing scenes or recording undo history. Release,
+Escape, focus loss, window/DPI resize, or switching viewpoints ends the drag at
+its current height. Completed canvas selection is preserved. Popup and palette
+interactions retain ownership; resizing does not intercept their gestures.

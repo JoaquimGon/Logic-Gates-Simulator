@@ -1839,6 +1839,72 @@ void circuitViewsPresentation(Renderer& renderer)
     input.setScene(nullptr);
 }
 
+void bottomResizePresentation(Renderer& renderer)
+{
+    for (int dpi : {1, 2})
+    {
+        CircuitViews views;
+        Input input;
+        views.select(0, input);
+        for (int i = 0; i < 4; ++i)
+            views.activeScene().addComponent(BuiltinComponentIds::Clock, {i * 6, 0});
+        views.activeScene().stepAllClocks(1, &views.activeClockTimeline());
+        views.activeScene().stepAllClocks(2, &views.activeClockTimeline());
+        UI ui;
+        ui.setCircuitViews(&views, &renderer.fontMetrics());
+        const CanvasSurface surface{extent / dpi, extent / dpi, extent, extent};
+        ui.layout(views.activeScene().getComponentCatalog(), surface, input);
+        CanvasCamera camera;
+        camera.setViewport(input.getCanvasViewport());
+        auto frame = camera.frame(surface);
+        UiInputEvent event{UiInputKind::MouseButton};
+        event.code = GLFW_MOUSE_BUTTON_LEFT;
+        const auto tab = ui.bottomTabBounds(UI::BottomTab::Clocks);
+        event.x = tab.x + tab.width / 2;
+        event.y = tab.y + tab.height / 2;
+        event.action = GLFW_PRESS;
+        ui.handleInput(event, views.activeScene(), input, frame);
+        event.action = GLFW_RELEASE;
+        ui.handleInput(event, views.activeScene(), input, frame);
+        const auto grip = ui.bottomResizeBounds();
+        event.x = grip.x + grip.width / 2;
+        event.y = grip.y + 3;
+        event.action = GLFW_PRESS;
+        ui.handleInput(event, views.activeScene(), input, frame);
+        event.kind = UiInputKind::Cursor;
+        event.y -= 80;
+        ui.handleInput(event, views.activeScene(), input, frame);
+        camera.setViewport(input.getCanvasViewport());
+        frame = camera.frame(surface);
+        renderer.beginFrame(frame);
+        const auto components =
+            buildComponentPresentation(views.activeScene().getComponentViewMap());
+        renderer.drawCanvas({components, views.activeScene().getWires(), {}});
+        ui.draw(renderer, views.activeScene(), frame);
+        const auto resized = ui.bottomResizeBounds();
+        std::array<unsigned char, 4> color;
+        glReadPixels(
+            static_cast<int>((resized.x + resized.width / 2) * dpi),
+            extent - 1 - static_cast<int>((resized.y + 2) * dpi),
+            1,
+            1,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            color.data()
+        );
+        require(
+            color[2] > 200 && color[2] > color[0] + 80 &&
+                frame.viewport.y + frame.viewport.height == ui.bottomBounds().y &&
+                ui.clockListBounds().height >= 160,
+            "Resized panel lost its visible grip, canvas boundary, or expanded clock rows."
+        );
+        saveImage(dpi == 1 ? "bottom-resized.ppm" : "bottom-resized-2x.ppm");
+        event.kind = UiInputKind::MouseButton;
+        event.action = GLFW_RELEASE;
+        ui.handleInput(event, views.activeScene(), input, frame);
+    }
+}
+
 void clockPresentation(Renderer& renderer)
 {
     CircuitViews views;
@@ -2109,6 +2175,7 @@ int main(int argc, char** argv)
                 groupSelectionPresentation(renderer, camera);
                 routedWiresPresentation(renderer, camera);
                 circuitViewsPresentation(renderer);
+                bottomResizePresentation(renderer);
                 clockPresentation(renderer);
             }
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";

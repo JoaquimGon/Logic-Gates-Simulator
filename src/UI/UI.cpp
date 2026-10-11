@@ -24,6 +24,7 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
 {
     if (surface != m_surface)
     {
+        finishBottomResize(input);
         m_pointer = {-1, -1};
         m_clockHover = -1;
         closeClockEdit(input);
@@ -40,10 +41,10 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     m_bar = {0, 0, width, std::min(30.0, height)};
     m_panel = {0, m_bar.height, std::min(220.0, width * 0.45), height - m_bar.height};
     const double tabs = m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0;
-    const double top = m_bar.height + tabs;
     m_circuitTabs.layout({m_panel.width, m_bar.height, width - m_panel.width, tabs});
     if (m_overviewView != m_circuitTabs.activeViewIndex())
     {
+        finishBottomResize(input);
         m_overviewView = m_circuitTabs.activeViewIndex();
         m_subcircuitScroll = 0;
         m_clockScroll = 0;
@@ -61,13 +62,7 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     m_showSubcircuit = subcircuit;
     if (m_bottomTab == BottomTab::Messages)
         messageState().unread = false;
-    const double bottomHeight = std::min(180.0, (height - top) * 0.4);
-    m_bottom = {m_panel.width, height - bottomHeight, width - m_panel.width, bottomHeight};
-    const double modeHeight = std::min(36.0, std::max(0.0, m_bottom.y - top));
-    m_modes = {m_panel.width, m_bottom.y - modeHeight, std::min(144.0, m_bottom.width), modeHeight};
-    input.setCanvasViewport(
-        CanvasViewport{m_panel.width, top, width - m_panel.width, m_bottom.y - top}
-    );
+    layoutBottom(input);
     m_list = {
         12, m_panel.y + 112, std::max(0.0, m_panel.width - 24), std::max(0.0, m_panel.height - 160)
     };
@@ -107,6 +102,84 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
         };
 }
 
+void UI::layoutBottom(Input& input)
+{
+    const double height = std::max(0, m_surface.windowHeight);
+    const double top =
+        m_bar.height + (m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0);
+    const double available = std::max(0.0, height - top);
+    // Leave a usable canvas above the mode buttons, even when dragged to the limit.
+    const double maximum = available - std::min(156.0, available * 0.5);
+    const double minimum = std::min(120.0, available * 0.4);
+    const double bottomHeight = m_bottomHeight ? std::clamp(*m_bottomHeight, minimum, maximum)
+                                               : std::min(180.0, available * 0.4);
+    m_bottom = {m_panel.width, height - bottomHeight, m_bar.width - m_panel.width, bottomHeight};
+    const double modeHeight = std::min(36.0, std::max(0.0, m_bottom.y - top));
+    m_modes = {m_panel.width, m_bottom.y - modeHeight, std::min(144.0, m_bottom.width), modeHeight};
+    input.setCanvasViewport(CanvasViewport{m_panel.width, top, m_bottom.width, m_bottom.y - top});
+}
+
+CanvasViewport UI::bottomResizeBounds() const
+{
+    return {m_bottom.x, m_bottom.y, m_bottom.width, std::min(6.0, m_bottom.height)};
+}
+
+void UI::finishBottomResize(Input& input)
+{
+    if (!m_resizingBottom)
+        return;
+    m_resizingBottom = false;
+    input.setUiCapture({});
+    input.setCanvasFocused(true);
+}
+
+bool UI::handleBottomResize(const UiInputEvent& event, Input& input)
+{
+    if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
+        event.action == GLFW_RELEASE && m_bottomResizePressed)
+    {
+        m_bottomResizePressed = false;
+        finishBottomResize(input);
+        input.setCanvasFocused(true);
+        return true;
+    }
+    if (m_resizingBottom)
+    {
+        if (event.kind == UiInputKind::WindowFocus && !event.focused)
+        {
+            finishBottomResize(input);
+            m_bottomResizePressed = false;
+        }
+        else if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE)
+            finishBottomResize(input);
+        else if (event.kind == UiInputKind::Cursor)
+        {
+            m_bottomHeight = m_bottomResizeHeight + m_bottomResizeY - event.y;
+            layoutBottom(input);
+            // Store the clamped height so reversing at a limit responds immediately.
+            m_bottomResizeHeight = m_bottom.height;
+            m_bottomResizeY = event.y;
+            m_bottomHeight = m_bottom.height;
+        }
+        return true;
+    }
+    if (dragging() || m_fileMenuOpen || m_circuitTabs.popupOpen() || m_infoComponent != -1 ||
+        m_clockEditing != -1)
+        return false;
+    if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
+        event.action == GLFW_PRESS && bottomResizeBounds().contains(event.x, event.y))
+    {
+        m_resizingBottom = m_bottomResizePressed = true;
+        m_bottomResizeY = event.y;
+        m_bottomResizeHeight = m_bottom.height;
+        m_clockHover = -1;
+        input.setCanvasFocused(false);
+        input.setUiCapture({true, true});
+        return true;
+    }
+    return false;
+}
+
 void UI::setCircuitViews(CircuitViews* views, const FontMetrics* font)
 {
     m_views = views;
@@ -119,7 +192,7 @@ void UI::update(double now, Input& input)
     m_routingError = input.getLastEditError() == EditError::InvalidWire;
     m_canCreate = input.getMode() == EditorMode::Selection;
     updateClockHover(now);
-    if (m_fileMenuOpen)
+    if (m_fileMenuOpen || m_resizingBottom)
         return;
     m_circuitTabs.update(now, input);
     if (m_circuitTabs.popupOpen())
@@ -162,8 +235,8 @@ CanvasViewport UI::modeButtonBounds(EditorMode mode) const
 
 std::optional<EditorMode> UI::hoveredMode() const
 {
-    if (dragging() || m_fileMenuOpen || m_circuitTabs.popupOpen() || m_infoComponent != -1 ||
-        m_fileCommand || m_editSubcircuit)
+    if (m_resizingBottom || dragging() || m_fileMenuOpen || m_circuitTabs.popupOpen() ||
+        m_infoComponent != -1 || m_fileCommand || m_editSubcircuit)
         return std::nullopt;
     for (const auto mode : {EditorMode::Selection, EditorMode::Interaction})
         if (modeButtonBounds(mode).contains(m_pointer.x, m_pointer.y))
@@ -299,6 +372,7 @@ void UI::setFileStatus(std::string message, bool error)
 
 void UI::dismissPopups(Input& input)
 {
+    finishBottomResize(input);
     closeClockEdit(input);
     closeFileMenu(input);
     cancel(input);
@@ -595,6 +669,8 @@ bool UI::handleInput(
             m_fileMousePressed = m_infoRightPressed = false;
         return true;
     }
+    if (handleBottomResize(event, input))
+        return true;
     if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
         event.action == GLFW_RELEASE && m_infoLeftPressed)
     {

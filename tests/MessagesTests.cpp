@@ -18,6 +18,129 @@ void require(bool value, const char* message)
         throw std::runtime_error(message);
 }
 
+void bottomPanelResize(GLFWwindow* window)
+{
+    CircuitViews views;
+    Input input;
+    UI ui;
+    FontMetrics font;
+    views.select(0, input);
+    ui.setCircuitViews(&views, &font);
+    CanvasSurface surface{800, 800, 800, 800};
+    auto layout = [&]() { ui.layout(views.activeScene().getComponentCatalog(), surface, input); };
+    layout();
+    input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        { return ui.handleInput(event, views.activeScene(), input, input.getCameraFrame(window)); }
+    );
+    auto move = [&](double x, double y)
+    {
+        glfwSetCursorPos(window, x, y);
+        input.handleCursorPos(window, x, y);
+        layout();
+    };
+    auto begin = [&]()
+    {
+        const auto grip = ui.bottomResizeBounds();
+        move(grip.x + grip.width / 2, grip.y + 3);
+        input.handleMouseButton(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+        layout();
+        require(input.getUiCapture().pointer, "Panel drag did not own the pointer.");
+    };
+    auto release = [&]()
+    {
+        input.handleMouseButton(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+        require(
+            !input.getUiCapture().pointer && input.isCanvasFocused(),
+            "Ending panel resize left canvas input captured."
+        );
+    };
+    const auto palette = ui.buttons().front().bounds;
+    const auto initial = ui.bottomBounds();
+    const auto revision = views.activeScene().getRevision();
+    const auto undo = input.getUndoCount();
+    const auto zoom = input.getZoom();
+    begin();
+    move(600, initial.y + 3 - 180);
+    require(
+        ui.bottomBounds().height == initial.height + 180 &&
+            input.getCanvasViewport()->y + input.getCanvasViewport()->height ==
+                ui.bottomBounds().y &&
+            ui.clockListBounds().height > 200 && ui.buttons().front().bounds == palette,
+        "Vertical resize failed to expose content or changed the palette/canvas boundary."
+    );
+    move(900, -1000);
+    require(
+        input.getCanvasViewport()->height >= 156 && ui.bottomBounds().x == initial.x &&
+            ui.bottomBounds().width == initial.width,
+        "Panel drag outside its bounds consumed the canvas or resized horizontally."
+    );
+    release();
+    const double enlarged = ui.bottomBounds().height;
+    views.create(input, CircuitViews::Role::Subcircuit);
+    layout();
+    require(
+        ui.bottomBounds().height == enlarged && ui.subcircuitListBounds().height > 400,
+        "Switching to a subcircuit lost the panel size or its expanded content."
+    );
+    input.setMode(EditorMode::Interaction);
+    layout();
+    begin();
+    move(600, 1500);
+    require(
+        ui.bottomBounds().height >= 120 && ui.bottomBounds().height < enlarged,
+        "Panel did not shrink in Interaction mode or hid its controls."
+    );
+    release();
+    begin();
+    move(600, 450);
+    input.handleKey(GLFW_KEY_ESCAPE, GLFW_PRESS);
+    input.handleKey(GLFW_KEY_ESCAPE, GLFW_RELEASE);
+    const auto escaped = ui.bottomBounds();
+    move(600, 100);
+    require(ui.bottomBounds() == escaped, "Escape did not stop panel resizing.");
+    release();
+    begin();
+    input.handleFocus(false);
+    input.handleFocus(true);
+    move(600, 100);
+    require(
+        !input.getUiCapture().pointer && ui.bottomBounds() == escaped,
+        "Focus loss left a panel drag active."
+    );
+    release();
+    begin();
+    surface = {800, 300, 1600, 600};
+    layout();
+    const auto shortened = ui.bottomBounds();
+    move(600, 50);
+    require(
+        ui.bottomBounds() == shortened && input.getCanvasViewport()->height > 0 &&
+            shortened.y >= 60 && shortened.y + shortened.height == 300,
+        "Window/DPI resize failed to clamp the panel or end its drag."
+    );
+    release();
+    surface = {800, 800, 1600, 1600};
+    layout();
+    begin();
+    const double beforeDpi = ui.bottomBounds().height;
+    const double gripY = ui.bottomResizeBounds().y + 3;
+    move(600, gripY - 40);
+    require(
+        ui.bottomBounds().height == beforeDpi + 40,
+        "Panel sizing used framebuffer pixels instead of logical pixels."
+    );
+    release();
+    views.select(0, input);
+    layout();
+    require(
+        views.activeScene().getRevision() == revision && input.getUndoCount() == undo &&
+            input.getZoom() == zoom && views.activeScene().getComponentViewMap().empty(),
+        "Panel resizing edited the circuit, zoom, or undo history."
+    );
+    input.setUiInputHandler({});
+}
+
 void messagesPanel(GLFWwindow* window)
 {
     CircuitViews views;
@@ -379,6 +502,7 @@ int main()
     try
     {
         require(window != nullptr, "Cannot create test window.");
+        bottomPanelResize(window);
         messagesPanel(window);
         std::cout << "PASS: messages_panel\n";
     }

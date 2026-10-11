@@ -337,10 +337,13 @@ F2 and the buttons share the same mode state.
 ## Bottom panel
 
 `UI` reserves a bottom rectangle aligned to the right of the component palette.
-Its height is the smaller of 180 logical pixels or 40% of the available space
-below the top bars. The shared canvas viewport ends at its upper edge, keeping
-rendering, picking, panning, and palette placement aligned after resize. The
-left component panel retains its full height.
+It initially uses the smaller of 180 logical pixels or 40% of the available
+space below the top bars. Drag its six-pixel top edge or centered grip vertically
+to resize it in either canvas mode. The chosen height is shared across views for
+the session. Limits keep its controls and a usable canvas visible; short windows
+clamp the height. The shared canvas viewport follows its upper edge, keeping
+rendering, picking, panning, and palette placement aligned. The left component
+panel retains its width and full height.
 
 The Subcircuit tab is visible only for subcircuit editors; both roles also have
 Messages and Clocks. They reuse screen rectangles/text and the existing
@@ -353,7 +356,8 @@ Floating component/name/File popups retain their normal overlay priority.
 
 Existing layout/input and framebuffer checks cover separation from the palette
 and canvas, tab selection without edits/zoom, and normal/2x display scaling.
-`bottom-panel.ppm` and `bottom-panel-2x.ppm` were visually reviewed.
+`bottom-panel.ppm` and `bottom-panel-2x.ppm` cover the initial layout;
+`bottom-resized.ppm` and `bottom-resized-2x.ppm` show the expanded Clocks panel.
 
 Viewpoint-role regressions verify both creation choices, menu capture/cancellation,
 Main protection, name-independent intent, conversion without scene mutation,

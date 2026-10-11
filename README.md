@@ -138,13 +138,16 @@ dependencies are embedded; unused editor drafts are saved separately.
 See [circuit files](docs/CircuitFiles.md) for the format and loading behavior.
 
 A bottom panel sits beneath the simulator, beside the full-height component
-panel. **Subcircuit** is visible only in subcircuit editors; **Tab 2** remains
-an empty placeholder. The Subcircuit tab shows its name, basic interface
+panel. **Messages** and **Clocks** are always available; **Subcircuit** is
+visible only in subcircuit editors. The Subcircuit tab shows its name, basic
+interface
 validity (at least one named input and one named output), input/output/clock
 counts, and a list of each vital component's name. Scroll the list for more
-entries; the name, status, and counts stay visible. The panel is up to
-180 pixels tall and shrinks in shorter windows. It reserves canvas space and
-consumes pointer/scroll events, so it cannot draw wires, place components, or
+entries; the name, status, and counts stay visible. Drag the panel's top edge
+up or down to resize it; the centered grip highlights when hovered. Its height
+stays the same across views during the session, with limits to keep the canvas
+and controls accessible. The component catalog stays fixed. It reserves canvas
+space and consumes pointer/scroll events, so it cannot draw wires, place components, or
 zoom the canvas. Subcircuit inputs, outputs, and clocks receive editable defaults
 like `input 1`, `output 1`, and `clock 1`. Existing names are preserved and
 defaults skip names already in use. Empty/whitespace input/output edits are

@@ -100,6 +100,8 @@ class UI
 
     CanvasViewport bottomBounds() const { return m_bottom; }
 
+    CanvasViewport bottomResizeBounds() const;
+
     CanvasViewport modeBarBounds() const { return m_modes; }
 
     CanvasViewport modeButtonBounds(EditorMode mode) const;
@@ -152,6 +154,9 @@ class UI
     CanvasViewport gateInversionBounds(const Scene& scene) const;
 
   private:
+    void layoutBottom(Input& input);
+    bool handleBottomResize(const UiInputEvent& event, Input& input);
+    void finishBottomResize(Input& input);
     bool handleFileMenu(const UiInputEvent& event, Input& input);
     bool handleClocks(const UiInputEvent& event, Scene& scene, Input& input);
     void closeClockEdit(Input& input);
@@ -199,6 +204,9 @@ class UI
 
     CanvasSurface m_surface{};
     CanvasViewport m_bar{}, m_panel{}, m_list{}, m_bottom{}, m_modes{};
+    std::optional<double> m_bottomHeight;
+    bool m_resizingBottom = false, m_bottomResizePressed = false;
+    double m_bottomResizeY = 0, m_bottomResizeHeight = 0;
     std::vector<Button> m_buttons;
     Tab m_tab = Tab::Native;
     BottomTab m_bottomTab = BottomTab::Messages;

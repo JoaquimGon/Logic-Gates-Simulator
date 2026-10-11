@@ -180,7 +180,14 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     text.clear();
     renderer.setScreenClip(m_bottom);
     renderer.drawScreenRect(m_bottom, {0.075f, 0.09f, 0.12f, 1});
-    renderer.drawScreenRect({m_bottom.x, m_bottom.y, m_bottom.width, 1}, {0.18f, 0.23f, 0.3f, 1});
+    const bool resizeHover = bottomResizeBounds().contains(m_pointer.x, m_pointer.y);
+    const auto resizeColor = m_resizingBottom || resizeHover ? glm::vec4{0.3f, 0.65f, 0.95f, 1}
+                                                             : glm::vec4{0.3f, 0.37f, 0.46f, 1};
+    renderer.drawScreenRect({m_bottom.x, m_bottom.y, m_bottom.width, 1}, resizeColor);
+    const double gripWidth = std::min(40.0, m_bottom.width);
+    renderer.drawScreenRect(
+        {m_bottom.x + (m_bottom.width - gripWidth) / 2, m_bottom.y + 2, gripWidth, 2}, resizeColor
+    );
     for (const auto tab : {BottomTab::Subcircuit, BottomTab::Messages, BottomTab::Clocks})
     {
         if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
