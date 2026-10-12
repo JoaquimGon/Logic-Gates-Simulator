@@ -17,10 +17,16 @@ struct ComponentBodyInstance
     std::string shader;
     BodyStyle style;
     bool drawRearArc = true;
+    Orientation orientation = Orientation::Right;
 
     BodyBounds getBodyBounds() const
     {
-        return bodyBounds(style, position.x, position.y, size.x, size.y);
+        return orientedBounds(
+            bodyBounds(style, position.x, position.y, size.x, size.y),
+            position.x,
+            position.y,
+            orientation
+        );
     }
 };
 
@@ -41,6 +47,7 @@ struct ComponentRenderData
     std::string bodyLabel;
     bool showPinLabels;
     std::vector<RenderPin> pins;
+    // Rail bounds in the right-facing body frame; arcs and pin paths use final world positions.
     std::optional<BodyBounds> inputRail;
     std::vector<glm::vec2> inputArc;
 };
@@ -55,7 +62,8 @@ struct ComponentBatch
  */
 std::vector<ComponentBatch> buildComponentBatches(std::span<const ComponentRenderData> components);
 
-/** @brief Packs position(2), size(2), tint(4) for the component shader's instance attributes. */
+/** @brief Packs position(2), size(2), tint(4), orientation(1) for the component shader's instance
+ * attributes. */
 std::vector<float> packComponentInstances(std::span<const ComponentBodyInstance> instances);
 
 /** @brief Connects relative lead waypoints (or the anchor) to the declared silhouette. */

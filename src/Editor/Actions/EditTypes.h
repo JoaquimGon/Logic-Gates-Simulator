@@ -45,6 +45,7 @@ struct CreateComponent
     std::uint32_t version = 0;
     std::optional<std::string> label;
     std::optional<bool> labelVisible;
+    Orientation orientation = Orientation::Right;
 };
 
 // Compatibility requests adapt explicit legacy geometry into the same catalog/factory path.
@@ -124,6 +125,7 @@ struct ConfigureComponentProperties
     std::optional<bool> clockPaused;
     std::optional<bool> labelVisible;
     std::optional<ConfigureGateInput> inputInversion;
+    std::optional<Orientation> orientation;
 };
 
 struct ConfigureInput

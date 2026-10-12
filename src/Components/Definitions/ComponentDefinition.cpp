@@ -347,3 +347,10 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
     validateLayout(result.behavior, result.layout);
     return result;
 }
+
+bool supportsOrientation(const ComponentBehavior& behavior)
+{
+    return std::holds_alternative<GateType>(behavior) ||
+           std::holds_alternative<LatchType>(behavior) ||
+           std::holds_alternative<SubcircuitBehavior>(behavior);
+}

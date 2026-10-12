@@ -2,6 +2,7 @@
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/CircuitViews.h"
+#include "Editor/Clipboard.h"
 #include "Editor/Input.h"
 #include "Editor/Subcircuits.h"
 #include "Graphics/Text/TextGeometry.h"
@@ -310,6 +311,90 @@ void files()
     );
 }
 
+void orientation()
+{
+    auto authored = wireDesign(true);
+    edit(
+        authored, {ConfigureComponentProperties{.componentId = 3, .orientation = Orientation::Up}}
+    );
+    const auto design = makeSubcircuit(authored, {"subcircuit.rotated", 1}, "Inverter");
+    const auto original =
+        circuitToJson(*std::get<SubcircuitBehavior>(design.behavior).authored, "Design");
+    Scene scene;
+    edit(scene, {RegisterComponentDefinition{design}, CreateComponent{design.identity.id, {0, 0}}});
+    const int instance = 0;
+    const int source =
+        scene.addComponent(BuiltinComponentIds::Input, {-20, 0}, {.inputState = true});
+    const int sink = scene.addComponent(BuiltinComponentIds::Output, {20, 0});
+    edit(scene, {AddWire{{{-19, 0}, {-4, 0}}}, AddWire{{{4, 0}, {19, 0}}}});
+    EditorActions actions(scene);
+    for (const auto direction :
+         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+    {
+        const auto previous = scene.getCommittedComponentView(instance)->getOrientation();
+        const auto result = actions.apply(
+            {ConfigureComponentProperties{.componentId = instance, .orientation = direction}}
+        );
+        require(static_cast<bool>(result), "Subcircuit rotation failed.");
+        scene.propagate();
+        const auto* view = scene.getCommittedComponentView(instance);
+        require(
+            view->getAbsolutePinGridPos(view->getInputPins()[0]) ==
+                    rotateGridPoint(GridCoords{-4, 0}, direction) &&
+                view->getAbsolutePinGridPos(view->getOutputPins()[0]) ==
+                    rotateGridPoint(GridCoords{4, 0}, direction) &&
+                scene.netOfPin({source, 0}, PinType::OUTPUT) ==
+                    scene.netOfPin({instance, 0}, PinType::INPUT) &&
+                scene.netOfPin({instance, 0}, PinType::OUTPUT) ==
+                    scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                !scene.getLogicComponent(sink)->getStateInPin(0),
+            "Subcircuit rotation lost anchors, connectivity or indexed behavior."
+        );
+        scene.handleClick(source);
+        scene.propagate();
+        require(
+            scene.getLogicComponent(sink)->getStateInPin(0),
+            "Rotated subcircuit ignored input changes."
+        );
+        scene.handleClick(source);
+        scene.propagate();
+        require(
+            static_cast<bool>(actions.restore(*result.change->before, scene.getRevision())) &&
+                scene.getCommittedComponentView(instance)->getOrientation() == previous,
+            "Undo lost subcircuit orientation."
+        );
+        require(
+            static_cast<bool>(actions.restore(*result.change->after, scene.getRevision())) &&
+                scene.getCommittedComponentView(instance)->getOrientation() == direction,
+            "Redo lost subcircuit orientation."
+        );
+        const auto json = circuitToJson(scene, "Main");
+        const auto loaded = circuitFromJson(json);
+        require(
+            loaded.scene.getCommittedComponentView(0)->getOrientation() == direction &&
+                circuitToJson(loaded.scene, "Main") == json,
+            "Saved subcircuit instance lost its orientation or wire routes."
+        );
+        const auto& behavior = std::get<SubcircuitBehavior>(
+            loaded.scene.getComponentCatalog().find(design.identity.id)->behavior
+        );
+        require(
+            circuitToJson(*behavior.authored, "Design") == original,
+            "Rotating an instance changed the authored internal layout."
+        );
+        Selection selection;
+        selection.selectComponent(instance);
+        EditorClipboard clipboard;
+        require(clipboard.copy(scene, selection), "Subcircuit copy failed.");
+        Scene pasted;
+        edit(pasted, clipboard.pasteBatch(pasted, {0, 0}));
+        require(
+            pasted.getCommittedComponentView(0)->getOrientation() == direction,
+            "Subcircuit clipboard lost its orientation."
+        );
+    }
+}
+
 void editing()
 {
     Input input;
@@ -602,6 +687,30 @@ void uiWorkflow()
         ui.editSubcircuitBounds(views.mainScene()).width > 0,
         "Placed subcircuit popup has no Edit button."
     );
+    require(
+        ui.gateSettingsBounds(views.mainScene()).width == 0,
+        "Subcircuit gained gate-only arity/inversion controls."
+    );
+    input.setMode(EditorMode::Selection);
+    layout();
+    for (const auto direction :
+         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+    {
+        click(ui.componentOrientationBounds(views.mainScene(), direction));
+        require(
+            views.mainScene().getCommittedComponentView(0)->getOrientation() == direction,
+            "Subcircuit popup did not rotate the instance."
+        );
+    }
+    input.setMode(EditorMode::Interaction);
+    layout();
+    click(ui.componentOrientationBounds(views.mainScene(), Orientation::Up));
+    require(
+        views.mainScene().getCommittedComponentView(0)->getOrientation() == Orientation::Right,
+        "Interaction mode edited subcircuit orientation."
+    );
+    input.setMode(EditorMode::Selection);
+    layout();
     click(ui.editSubcircuitBounds(views.mainScene()));
     require(
         ui.takeEditSubcircuit() == custom.identity.id && !ui.takeEditSubcircuit(),
@@ -637,6 +746,8 @@ int main(int argc, char** argv)
             clocks();
         else if (test == "subcircuit_files")
             files();
+        else if (test == "subcircuit_orientation")
+            orientation();
         else if (test == "subcircuit_editing")
             editing();
         else if (test == "subcircuit_file_commands")

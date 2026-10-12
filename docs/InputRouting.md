@@ -251,3 +251,14 @@ Releasing on a wire intentionally joins it. Branches may return to the same inpu
 or another pin on their component, including undriven branches and feedback.
 Connectivity and bounded propagation validate the result; blocked routes still
 report an editor error. Duplicate overlapping geometry is normalized as usual.
+
+Logic-gate, latch and subcircuit popups offer Up, Down, Left and Right orientation
+buttons. Only logic gates show input-count and inversion controls.
+Right is the default; Selection mode changes it and Interaction mode displays it
+read-only. Orientation is one explicit editor property. Pin anchors and lead
+waypoints remain in the authored right-facing frame; absolute picking, topology,
+bounds and rendering apply the instance's quarter turn. Arity and inversion edits
+therefore retain their existing local layout rules. Rotation reroutes attached
+endpoints in the same undoable edit. Saved instances and clipboard data retain
+orientation; older circuit files default to Right. Subcircuit rotation affects
+only the placed box and interface pins, preserving its authored internal scene.

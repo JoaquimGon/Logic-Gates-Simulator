@@ -16,7 +16,7 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
             view->showsBodyLabel() ? view->getBodyLabel() : std::string{},
             view->showsPinLabels(),
             {},
-            view->getInputRail()
+            view->getUnrotatedInputRail()
         };
         const bool xorExtension = data.inputRail && data.body.style.contour == BodyContour::Xor;
         const float shapeWidth =
@@ -55,12 +55,17 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
                 std::vector<glm::vec2> waypoints;
                 for (const auto point : pin.lead)
                     waypoints.push_back(
-                        GridSystem::gridToWorld(
-                            {view->getGridPosition().x + point.x,
-                             view->getGridPosition().y + point.y}
-                        )
+                        view->getOrientation() == Orientation::Right
+                            ? GridSystem::gridToWorld(
+                                  {view->getGridPosition().x + point.x,
+                                   view->getGridPosition().y + point.y}
+                              )
+                            : view->getPosition() + GridSystem::gridToWorld(point)
                     );
-                const auto anchor = view->getAbsolutePinWorldPos(pin);
+                const auto anchor =
+                    view->getOrientation() == Orientation::Right
+                        ? view->getAbsolutePinWorldPos(pin)
+                        : view->getPosition() + GridSystem::gridToWorld(pin.relative_pos);
                 auto lead = buildPinLead(data.body, anchor, waypoints);
                 // Inner rows go straight to the solid gate. Outer rows meet its extension.
                 if (data.inputRail && pin.type == PinType::INPUT && waypoints.empty() &&
@@ -78,9 +83,43 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
                     lead.back() = anchor + glm::vec2(GridMetrics::Spacing, 0);
                 }
                 data.pins.push_back(
-                    {pin.type, pin.pin_index, pin.state, anchor, pin.label, std::move(lead), bubble}
+                    {pin.type,
+                     pin.pin_index,
+                     pin.state,
+                     view->getAbsolutePinWorldPos(pin),
+                     pin.label,
+                     std::move(lead),
+                     bubble}
                 );
             }
+        data.body.orientation = view->getOrientation();
+        auto orient = [&](glm::vec2 point)
+        {
+            if (data.body.orientation == Orientation::Right)
+                return point;
+            const auto rotated = rotatePoint(
+                point.x - data.body.position.x,
+                point.y - data.body.position.y,
+                data.body.orientation
+            );
+            return data.body.position + glm::vec2{rotated[0], rotated[1]};
+        };
+        for (auto& pin : data.pins)
+        {
+            for (auto& point : pin.lead)
+                point = orient(point);
+            if (pin.inversionBubble)
+            {
+                const auto inner = rotatePoint(GridMetrics::Spacing, 0, data.body.orientation);
+                const auto center = rotatePoint(GridMetrics::Spacing / 2, 0, data.body.orientation);
+                pin.lead.back() = pin.position + glm::vec2{inner[0], inner[1]};
+                pin.inversionBubble = pin.position + glm::vec2{center[0], center[1]};
+            }
+            else
+                pin.lead.back() = pin.position;
+        }
+        for (auto& point : data.inputArc)
+            point = orient(point);
         std::sort(
             data.pins.begin(),
             data.pins.end(),

@@ -48,7 +48,8 @@ bool EditorClipboard::copy(const Scene& scene, const Selection& selection)
              PlacementPolicy::RejectSameCenter,
              identity.version,
              view->getBodyLabel(),
-             view->showsBodyLabel()}
+             view->showsBodyLabel(),
+             view->getOrientation()}
         );
         if (!identity.id.starts_with("native.") && definitions.insert(identity.id).second)
             copied.m_definitions.push_back(*definition);

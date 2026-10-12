@@ -154,6 +154,7 @@ class UI
     CanvasViewport gateInputButtonBounds(const Scene& scene, bool increase) const;
     CanvasViewport gateInputListBounds(const Scene& scene) const;
     CanvasViewport gateInputInversionBounds(const Scene& scene, unsigned int index) const;
+    CanvasViewport componentOrientationBounds(const Scene& scene, Orientation orientation) const;
     CanvasViewport gateInversionBounds(const Scene& scene) const;
 
   private:
@@ -182,6 +183,9 @@ class UI
     bool canResizeGate(const Scene& scene) const;
     bool canInvertGate(const Scene& scene) const;
     bool canEditSubcircuit(const Scene& scene) const;
+    bool canOrient(const Scene& scene) const;
+    CanvasViewport orientationSettingsBounds(const Scene& scene) const;
+    double infoSettingsHeight(const Scene& scene) const;
     int infoVisibleRows(const Scene& scene) const;
     int gateInputRows(const Scene& scene) const;
     int gateInputScroll(const Scene& scene) const;
@@ -207,6 +211,7 @@ class UI
     static constexpr double infoNameHeight = 64;
     static constexpr double infoLabelHeight = 30;
     static constexpr double infoGateHeight = 64;
+    static constexpr double infoOrientationHeight = 50;
 
     CanvasSurface m_surface{};
     CanvasViewport m_bar{}, m_panel{}, m_list{}, m_bottom{}, m_modes{};

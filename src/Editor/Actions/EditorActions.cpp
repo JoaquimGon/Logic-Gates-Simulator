@@ -411,6 +411,21 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                 moved.push_back(op.componentId);
                             }
                         }
+                        if (op.orientation)
+                        {
+                            if (!supportsOrientation(definition->behavior))
+                                throw std::invalid_argument(
+                                    "Orientation editing requires a gate, latch or subcircuit."
+                                );
+                            orientationName(*op.orientation);
+                            if (view.m_orientation != *op.orientation)
+                            {
+                                view.m_orientation = *op.orientation;
+                                placement[op.componentId] = PlacementPolicy::RejectSameCenter;
+                                moved.push_back(op.componentId);
+                                changed = topologyChanged = true;
+                            }
+                        }
                         if (op.clockFrequency || op.clockPaused)
                         {
                             if (!clock)

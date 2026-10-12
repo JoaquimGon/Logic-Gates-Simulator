@@ -5,6 +5,7 @@ layout (location = 1) in vec2 aInstancePos;
 
 layout (location = 2) in vec2 aInstanceSize;
 layout (location = 3) in vec4 aInstanceTint;
+layout (location = 4) in float aInstanceOrientation;
 out vec4 instanceTint;
 out vec2 localPos;
 
@@ -18,7 +19,14 @@ void main()
     instanceTint = aInstanceTint;
 
     // Instance math (same as before)
-    vec2 worldPos = aInstancePos + (aPos.xy * aInstanceSize);
+    vec2 offset = aPos.xy * aInstanceSize;
+    if (aInstanceOrientation > 2.5)
+        offset = vec2(offset.y, -offset.x);
+    else if (aInstanceOrientation > 1.5)
+        offset = -offset;
+    else if (aInstanceOrientation > 0.5)
+        offset = vec2(-offset.y, offset.x);
+    vec2 worldPos = aInstancePos + offset;
 
     gl_Position = uViewProjection * vec4(worldPos, 0.0, 1.0);
 }

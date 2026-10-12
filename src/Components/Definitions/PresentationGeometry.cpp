@@ -73,6 +73,24 @@ BodyBounds bodyBounds(const BodyStyle& style, float x, float y, float width, flo
     };
 }
 
+BodyBounds orientedBounds(BodyBounds bounds, float x, float y, Orientation orientation)
+{
+    if (orientation == Orientation::Right)
+        return bounds;
+    const auto first = rotatePoint(bounds.left - x, bounds.bottom - y, orientation);
+    BodyBounds result{x + first[0], y + first[1], x + first[0], y + first[1]};
+    for (float px : {bounds.left, bounds.right})
+        for (float py : {bounds.bottom, bounds.top})
+        {
+            const auto point = rotatePoint(px - x, py - y, orientation);
+            result.left = std::min(result.left, x + point[0]);
+            result.right = std::max(result.right, x + point[0]);
+            result.bottom = std::min(result.bottom, y + point[1]);
+            result.top = std::max(result.top, y + point[1]);
+        }
+    return result;
+}
+
 float bodyContourDistance(const BodyStyle& style, float x, float y)
 {
     if (style.inverted)

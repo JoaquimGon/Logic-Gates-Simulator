@@ -321,7 +321,7 @@ void Renderer::drawComponents(std::span<const ComponentRenderData> components, f
         shader->setBool("uDrawRearArc", batch.instances.front().drawRearArc);
         for (auto& body : batch.instances)
             body.style.tint[3] *= opacity;
-        m_gateMesh->setInstanceData(packComponentInstances(batch.instances), {2, 2, 4}, 1);
+        m_gateMesh->setInstanceData(packComponentInstances(batch.instances), {2, 2, 4, 1}, 1);
         m_gateMesh->drawInstanced(static_cast<int>(batch.instances.size()));
         recordDrawCalls(DrawCategory::Components);
     }
@@ -340,7 +340,7 @@ void Renderer::drawComponents(std::span<const ComponentRenderData> components, f
     if (!bubbles.empty())
         if (auto* shader = acquireShader("inputBubble"); shader && useCanvasShader(*shader))
         {
-            m_gateMesh->setInstanceData(packComponentInstances(bubbles), {2, 2, 4}, 1);
+            m_gateMesh->setInstanceData(packComponentInstances(bubbles), {2, 2, 4, 1}, 1);
             m_gateMesh->drawInstanced(static_cast<int>(bubbles.size()));
             recordDrawCalls(DrawCategory::Components);
         }
@@ -374,6 +374,18 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components, flo
         {
             const auto& tint = component.body.style.tint;
             const glm::vec4 color{tint[0], tint[1], tint[2], tint[3] * opacity};
+            auto railSegment = [&](glm::vec2 a, glm::vec2 b, float halfWidth, glm::vec4 ink)
+            {
+                auto orient = [&](glm::vec2 point)
+                {
+                    const auto center = component.body.position;
+                    const auto rotated = rotatePoint(
+                        point.x - center.x, point.y - center.y, component.body.orientation
+                    );
+                    return center + glm::vec2{rotated[0], rotated[1]};
+                };
+                segment(orient(a), orient(b), halfWidth, ink);
+            };
             if (!component.inputArc.empty())
             {
                 const float width = component.body.style.inverted ? component.body.size.x / 1.5f
@@ -424,13 +436,13 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components, flo
             {
                 // Only extend past the upper/lower back corners; keep the concave middle open.
                 const float corner = 0.38f * component.body.size.y;
-                segment(
+                railSegment(
                     {rail->centerX(), rail->bottom},
                     {rail->centerX(), component.body.position.y - corner},
                     rail->width() / 2,
                     color
                 );
-                segment(
+                railSegment(
                     {rail->centerX(), component.body.position.y + corner},
                     {rail->centerX(), rail->top},
                     rail->width() / 2,
@@ -438,7 +450,7 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components, flo
                 );
             }
             else
-                segment(
+                railSegment(
                     {rail->centerX(), rail->bottom},
                     {rail->centerX(), rail->top},
                     rail->width() / 2,
@@ -686,7 +698,7 @@ void Renderer::drawScreenComponent(const ComponentBodyInstance& body)
     shader->setBool("uDrawRearArc", true);
     auto instance = body;
     instance.size.y = -instance.size.y; // Preserve the shader's upward local Y in screen space.
-    m_gateMesh->setInstanceData(packComponentInstances({&instance, 1}), {2, 2, 4}, 1);
+    m_gateMesh->setInstanceData(packComponentInstances({&instance, 1}), {2, 2, 4, 1}, 1);
     m_gateMesh->drawInstanced(1);
     recordDrawCalls(m_uiDrawCategory);
 }

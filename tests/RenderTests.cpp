@@ -5,6 +5,7 @@
 #include "Editor/Scene.h"
 #include "Editor/Subcircuits.h"
 #include "Graphics/Presentation/ComponentPresentation.h"
+#include "Graphics/Presentation/LabelLayout.h"
 #include "Graphics/Renderer.h"
 #include "UI/UI.h"
 
@@ -572,6 +573,190 @@ void inputInversionPresentation(Renderer& renderer, const CanvasCameraFrame& cam
             }
     require(glGetError() == GL_NO_ERROR, "Input bubbles caused an OpenGL error.");
     saveImage("gate-input-inversion.ppm");
+}
+
+void orientationPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    for (const auto direction :
+         {Orientation::Right, Orientation::Up, Orientation::Left, Orientation::Down})
+    {
+        Scene scene;
+        int column = 0;
+        for (const auto type : {NOT, NAND, XOR})
+        {
+            const int id = scene.addComponent(
+                builtinDefinitionId(type),
+                {-10 + column++ * 10, 0},
+                {.inputCount = type == NOT ? 1 : 8}
+            );
+            require(
+                static_cast<bool>(EditorActions(scene).apply({ConfigureComponentProperties{
+                    .componentId = id,
+                    .inputInversion = ConfigureGateInput{0, true},
+                    .orientation = direction
+                }})),
+                "Cannot prepare rotated render fixture."
+            );
+        }
+        const auto data = buildComponentPresentation(scene.getComponentViewMap());
+        renderer.beginFrame(camera);
+        renderer.drawPinLeads(data);
+        renderer.drawComponents(data);
+        renderer.drawPins(data);
+        for (const auto& component : data)
+        {
+            const auto offset = rotatePoint(
+                component.body.style.contour == BodyContour::Not ? -0.3f * component.body.size.x
+                                                                 : 0,
+                0,
+                direction
+            );
+            const auto fill = pixel(component.body.position + glm::vec2{offset[0], offset[1]});
+            require(
+                fill[1] > 50 && fill[2] > 120,
+                "Rotated shader body did not match its expected position."
+            );
+            for (const auto& pin : component.pins)
+            {
+                const auto dot = pixel(pin.position);
+                require(
+                    dot[0] > 200 || dot[1] > 200 || dot[2] > 200,
+                    "Rotated pin was not drawn at its electrical anchor."
+                );
+                if (pin.inversionBubble)
+                {
+                    const auto bubble = pixel(*pin.inversionBubble);
+                    require(
+                        bubble[1] > 50 && bubble[2] > 120,
+                        "Input bubble did not follow the rotated gate."
+                    );
+                }
+            }
+            if (!component.inputArc.empty())
+            {
+                const auto arc = pixel(component.inputArc[8]);
+                require(
+                    arc[0] > 50 || arc[2] > 80,
+                    "Extended XOR arc stayed in its previous orientation."
+                );
+            }
+            else if (component.inputRail)
+            {
+                const auto rail = *component.inputRail;
+                const auto rotated =
+                    rotatePoint(rail.centerX() - component.body.position.x, 0.175f, direction);
+                const auto extension =
+                    pixel(component.body.position + glm::vec2{rotated[0], rotated[1]});
+                require(extension[2] > 70, "Expanded input rail did not rotate with the body.");
+            }
+        }
+        const auto name = std::string("gate-orientation-") + orientationName(direction) + ".ppm";
+        saveImage(name.c_str());
+    }
+    require(glGetError() == GL_NO_ERROR, "Gate orientation caused an OpenGL error.");
+}
+
+void generalizedOrientationPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
+{
+    Scene authored;
+    authored.setInterfaceNamingRequired(true);
+    authored.addComponent(BuiltinComponentIds::Input, {-10, 0});
+    authored.addComponent(BuiltinComponentIds::Output, {10, 0});
+    require(
+        static_cast<bool>(EditorActions(authored).apply({AddWire{{{-9, 0}, {9, 0}}}})),
+        "Cannot prepare subcircuit rendering fixture."
+    );
+    const auto custom = makeSubcircuit(authored, {"subcircuit.render", 1}, "Pass through");
+    for (const auto direction :
+         {Orientation::Right, Orientation::Up, Orientation::Left, Orientation::Down})
+    {
+        Scene scene;
+        require(
+            static_cast<bool>(EditorActions(scene).apply(
+                {RegisterComponentDefinition{custom},
+                 CreateComponent{
+                     .definitionId = BuiltinComponentIds::SrLatch,
+                     .position = {-8, 0},
+                     .orientation = direction
+                 },
+                 CreateComponent{
+                     .definitionId = custom.identity.id,
+                     .position = {8, 0},
+                     .orientation = direction
+                 }}
+            )),
+            "Cannot create rotated latch/subcircuit rendering fixture."
+        );
+        const auto data = buildComponentPresentation(scene.getComponentViewMap());
+        renderer.beginFrame(camera);
+        renderer.drawPinLeads(data);
+        renderer.drawComponents(data);
+        renderer.drawPins(data);
+        for (const auto& component : data)
+        {
+            const auto rotated = rotatePoint(0.4f * component.body.size.x, 0, direction);
+            const auto fill = pixel(component.body.position + glm::vec2{rotated[0], rotated[1]});
+            require(fill[2] > 30, "Latch/subcircuit box lost its rotated dimensions.");
+            for (const auto& pin : component.pins)
+            {
+                const auto dot = pixel(pin.position);
+                require(
+                    dot[0] > 200 || dot[1] > 200 || dot[2] > 200,
+                    "Latch/subcircuit pin was not drawn at its rotated anchor."
+                );
+            }
+        }
+        const auto labels = layoutComponentLabels(data, renderer.fontMetrics());
+        require(labels.size() == 8, "Rotation omitted a latch/subcircuit body or pin label.");
+        renderer.drawLabels(data);
+        const auto name =
+            std::string("latch-subcircuit-orientation-") + orientationName(direction) + ".ppm";
+        saveImage(name.c_str());
+        if (direction == Orientation::Up)
+        {
+            Input input;
+            input.setScene(&scene);
+            input.setMode(EditorMode::Selection);
+            UI ui;
+            ui.layout(scene.getComponentCatalog(), camera.surface, input);
+            CanvasCamera popupCamera;
+            popupCamera.setViewport(input.getCanvasViewport());
+            const auto frame = popupCamera.frame(camera.surface);
+            for (int id : {0, 1})
+            {
+                ui.dismissPopups(input);
+                const auto point =
+                    *frame.worldToWindow(scene.getCommittedComponentView(id)->getPosition());
+                for (const auto action : {GLFW_PRESS, GLFW_RELEASE})
+                    ui.handleInput(
+                        {UiInputKind::MouseButton,
+                         GLFW_MOUSE_BUTTON_RIGHT,
+                         action,
+                         0,
+                         0,
+                         point.x,
+                         point.y},
+                        scene,
+                        input,
+                        frame
+                    );
+                require(
+                    ui.infoComponentId() == id &&
+                        ui.componentOrientationBounds(scene, Orientation::Up).width > 0 &&
+                        ui.gateSettingsBounds(scene).width == 0,
+                    "Latch/subcircuit popup lost orientation or exposed gate-only settings."
+                );
+                renderer.beginFrame(frame);
+                renderer.drawCanvas({data, scene.getWires(), {}});
+                ui.draw(renderer, scene, frame);
+                saveImage(
+                    id == 0 ? "latch-orientation-popup.ppm" : "subcircuit-orientation-popup.ppm"
+                );
+            }
+            input.setScene(nullptr);
+        }
+    }
+    require(glGetError() == GL_NO_ERROR, "Latch/subcircuit orientation caused an OpenGL error.");
 }
 
 void pastePreview(Renderer& renderer, const CanvasCameraFrame& camera)
@@ -1367,6 +1552,14 @@ void gateSettingsPresentation(Renderer& renderer)
         }
         draw();
         saveImage(scale == 1 ? "gate-settings.ppm" : "gate-settings-2x.ppm");
+        click(ui.componentOrientationBounds(scene, Orientation::Up));
+        draw();
+        require(
+            scene.getCommittedComponentView(id)->getOrientation() == Orientation::Up,
+            "Rendered orientation control did not update the gate."
+        );
+        saveImage(scale == 1 ? "gate-orientation-popup.ppm" : "gate-orientation-popup-2x.ppm");
+        click(ui.componentOrientationBounds(scene, Orientation::Right));
         input.setMode(EditorMode::Interaction);
         ui.layout(scene.getComponentCatalog(), surface, input);
         draw();
@@ -2521,6 +2714,8 @@ int main(int argc, char** argv)
                 inputRailPresentation(renderer, camera);
                 inversionProportions(renderer, camera);
                 inputInversionPresentation(renderer, camera);
+                orientationPresentation(renderer, camera);
+                generalizedOrientationPresentation(renderer, camera);
                 preview(renderer, camera);
                 pastePreview(renderer, camera);
                 canvasViewport(renderer);

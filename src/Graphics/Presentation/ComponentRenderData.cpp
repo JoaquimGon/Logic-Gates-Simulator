@@ -25,7 +25,7 @@ std::vector<ComponentBatch> buildComponentBatches(std::span<const ComponentRende
 std::vector<float> packComponentInstances(std::span<const ComponentBodyInstance> instances)
 {
     std::vector<float> packed;
-    packed.reserve(instances.size() * 8);
+    packed.reserve(instances.size() * 9);
     for (const auto& instance : instances)
     {
         packed.insert(
@@ -33,6 +33,7 @@ std::vector<float> packComponentInstances(std::span<const ComponentBodyInstance>
             {instance.position.x, instance.position.y, instance.size.x, instance.size.y}
         );
         packed.insert(packed.end(), instance.style.tint.begin(), instance.style.tint.end());
+        packed.push_back(static_cast<float>(instance.orientation));
     }
     return packed;
 }
@@ -41,6 +42,25 @@ std::vector<glm::vec2> buildPinLead(
     const ComponentBodyInstance& body, glm::vec2 anchor, std::span<const glm::vec2> waypoints
 )
 {
+    if (body.orientation != Orientation::Right)
+    {
+        auto right = body;
+        right.orientation = Orientation::Right;
+        const auto inverse = static_cast<Orientation>((4 - static_cast<int>(body.orientation)) % 4);
+        auto transform = [&](glm::vec2 point, Orientation orientation)
+        {
+            const auto rotated =
+                rotatePoint(point.x - body.position.x, point.y - body.position.y, orientation);
+            return body.position + glm::vec2{rotated[0], rotated[1]};
+        };
+        std::vector<glm::vec2> local;
+        for (auto point : waypoints)
+            local.push_back(transform(point, inverse));
+        auto lead = buildPinLead(right, transform(anchor, inverse), local);
+        for (auto& point : lead)
+            point = transform(point, body.orientation);
+        return lead;
+    }
     const glm::vec2 start = waypoints.empty() ? anchor : waypoints.front();
     const auto normalized = (start - body.position) / body.size;
     const auto contact = bodyContact(body.style, normalized.x, normalized.y);

@@ -11,6 +11,7 @@
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -578,7 +579,7 @@ CanvasViewport UI::gateInputListBounds(const Scene& scene) const
     const auto bounds = infoBounds(scene);
     return {
         bounds.x + 8,
-        bounds.y + infoHeaderHeight + infoNameHeight + infoLabelHeight + infoGateHeight +
+        bounds.y + infoHeaderHeight + infoNameHeight + infoLabelHeight + infoSettingsHeight(scene) +
             infoRowHeight,
         bounds.width - 16,
         gateInputRows(scene) * infoRowHeight
@@ -606,6 +607,48 @@ CanvasViewport UI::gateInputInversionBounds(const Scene& scene, unsigned int ind
     return {
         bounds.x + bounds.width - 88, bounds.y + row * infoRowHeight + 1, 78, infoRowHeight - 2
     };
+}
+
+bool UI::canOrient(const Scene& scene) const
+{
+    const auto* view = scene.getCommittedComponentView(m_infoComponent);
+    const auto* definition =
+        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    return definition && supportsOrientation(definition->behavior);
+}
+
+double UI::infoSettingsHeight(const Scene& scene) const
+{
+    return (infoGate(scene) ? infoGateHeight : 0) + (canOrient(scene) ? infoOrientationHeight : 0);
+}
+
+CanvasViewport UI::orientationSettingsBounds(const Scene& scene) const
+{
+    if (!canOrient(scene))
+        return {};
+    const auto bounds = infoBounds(scene);
+    return {
+        bounds.x + 10,
+        bounds.y + infoHeaderHeight + (canName(scene) ? infoNameHeight : 0) + infoLabelHeight +
+            (infoGate(scene) ? infoGateHeight : 0),
+        bounds.width - 20,
+        infoOrientationHeight
+    };
+}
+
+CanvasViewport UI::componentOrientationBounds(const Scene& scene, Orientation orientation) const
+{
+    const auto bounds = orientationSettingsBounds(scene);
+    if (bounds.width <= 0)
+        return {};
+    constexpr std::array order{
+        Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right
+    };
+    const auto found = std::find(order.begin(), order.end(), orientation);
+    if (found == order.end())
+        return {};
+    const double width = (bounds.width - 12) / 4;
+    return {bounds.x + (found - order.begin()) * (width + 4), bounds.y + 16, width, 26};
 }
 
 CanvasViewport UI::gateInversionBounds(const Scene& scene) const
@@ -696,7 +739,7 @@ CanvasViewport UI::infoBounds(const Scene& scene) const
     const int hiddenInputs = gate ? std::max(0, gate->getInputPinCount() - 4) : 0;
     const double height = std::min(
         infoHeaderHeight + infoFooterHeight + infoLabelHeight +
-            (canName(scene) ? infoNameHeight : 0) + (infoGate(scene) ? infoGateHeight : 0) +
+            (canName(scene) ? infoNameHeight : 0) + infoSettingsHeight(scene) +
             (canEditSubcircuit(scene) ? 28 : 0) +
             static_cast<double>(lines.size() - 1 - hiddenInputs) * infoRowHeight,
         std::max(0.0, m_surface.windowHeight - 16.0)
@@ -715,7 +758,7 @@ int UI::infoVisibleRows(const Scene& scene) const
         0,
         static_cast<int>(
             (infoBounds(scene).height - infoHeaderHeight - infoFooterHeight - infoLabelHeight -
-             (canName(scene) ? infoNameHeight : 0) - (infoGate(scene) ? infoGateHeight : 0) -
+             (canName(scene) ? infoNameHeight : 0) - infoSettingsHeight(scene) -
              (canEditSubcircuit(scene) ? 28 : 0)) /
             infoRowHeight
         )
@@ -881,24 +924,35 @@ bool UI::handleInput(
                     m_infoError = result ? "" : result.message;
                 }
                 if (m_canCreate && !m_nameEditing && event.code == GLFW_MOUSE_BUTTON_LEFT &&
-                    event.action == GLFW_PRESS && infoGate(scene))
+                    event.action == GLFW_PRESS && canOrient(scene))
                 {
                     ConfigureComponentProperties edit{.componentId = m_infoComponent};
                     const auto* gate = infoGate(scene);
-                    for (bool increase : {false, true})
-                        if (gateInputButtonBounds(scene, increase).contains(event.x, event.y) &&
-                            (increase ? gate->getInputPinCount() < 8
-                                      : gate->getInputPinCount() > 2))
-                            edit.inputCount = gate->getInputPinCount() + (increase ? 1 : -1);
-                    if (gateInversionBounds(scene).contains(event.x, event.y))
-                        edit.inverted = !gate->isInverted();
-                    const auto& pins =
-                        scene.getCommittedComponentView(m_infoComponent)->getInputPins();
-                    for (const auto& pin : pins)
-                        if (gateInputInversionBounds(scene, pin.pin_index)
-                                .contains(event.x, event.y))
-                            edit.inputInversion = ConfigureGateInput{pin.pin_index, !pin.inverted};
-                    if (edit.inputCount || edit.inverted || edit.inputInversion)
+                    if (gate)
+                    {
+                        for (bool increase : {false, true})
+                            if (gateInputButtonBounds(scene, increase).contains(event.x, event.y) &&
+                                (increase ? gate->getInputPinCount() < 8
+                                          : gate->getInputPinCount() > 2))
+                                edit.inputCount = gate->getInputPinCount() + (increase ? 1 : -1);
+                        if (gateInversionBounds(scene).contains(event.x, event.y))
+                            edit.inverted = !gate->isInverted();
+                        const auto& pins =
+                            scene.getCommittedComponentView(m_infoComponent)->getInputPins();
+                        for (const auto& pin : pins)
+                            if (gateInputInversionBounds(scene, pin.pin_index)
+                                    .contains(event.x, event.y))
+                                edit.inputInversion =
+                                    ConfigureGateInput{pin.pin_index, !pin.inverted};
+                    }
+                    for (const auto direction :
+                         {Orientation::Up,
+                          Orientation::Down,
+                          Orientation::Left,
+                          Orientation::Right})
+                        if (componentOrientationBounds(scene, direction).contains(event.x, event.y))
+                            edit.orientation = direction;
+                    if (edit.inputCount || edit.inverted || edit.inputInversion || edit.orientation)
                     {
                         const auto result = EditorActions(scene).apply({edit});
                         input.recordEdit(result);
@@ -906,9 +960,9 @@ bool UI::handleInput(
                                       : result.error == EditError::AttachedPin
                                           ? "Disconnect that input before removing it."
                                       : result.error == EditError::Overlap
-                                          ? "Not enough room to resize the gate."
+                                          ? "Not enough room to change the component."
                                       : result.error == EditError::InvalidWire
-                                          ? "No safe route; free space around the gate."
+                                          ? "No safe route; free space around the component."
                                           : result.message;
                     }
                 }

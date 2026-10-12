@@ -186,7 +186,8 @@ int Scene::addComponentRaw(const CreateComponent& request)
         request.definitionId,
         request.position,
         request.overrides,
-        request.version
+        request.version,
+        request.orientation
     );
     const int id = created.id;
     m_componentViews.emplace(id, std::move(created.view));

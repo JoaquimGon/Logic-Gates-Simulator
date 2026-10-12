@@ -60,8 +60,10 @@ Scene fixture()
              .label = "Eight inputs",
              .inputCount = 8,
              .inverted = true,
-             .inputInversion = ConfigureGateInput{7, true}
+             .inputInversion = ConfigureGateInput{7, true},
+             .orientation = Orientation::Up
          },
+         ConfigureComponentProperties{.componentId = latch, .orientation = Orientation::Down},
          ConfigureClock{clock, 2.5f, true},
          ConfigureComponentProperties{
              .componentId = clock, .label = "Reference", .labelVisible = true
@@ -77,7 +79,13 @@ Scene fixture()
     custom.presentation.body = {BodyContour::Box, false, {0.3f, 0.5f, 0.7f, 1}};
     custom.layout.pins.front().lead = {{-2, 1}, custom.layout.pins.front().anchor};
     edit(
-        scene, {RegisterComponentDefinition{custom}, CreateComponent{custom.identity.id, {600, 0}}}
+        scene,
+        {RegisterComponentDefinition{custom},
+         CreateComponent{
+             .definitionId = custom.identity.id,
+             .position = {600, 0},
+             .orientation = Orientation::Left
+         }}
     );
     auto pin = [&](int id, bool outgoing, unsigned int pinIndex)
     {
@@ -94,8 +102,9 @@ Scene fixture()
     {
         const int sink = scene.addComponent(BuiltinComponentIds::Output, {500 + 30 * i, 0});
         const auto from = pin(latch, true, static_cast<unsigned int>(i)), to = pin(sink, false, 0);
-        const int x = from.x + (i == 0 ? 4 : 2), y = i == 0 ? 20 : -20;
-        edit(scene, {AddWire{{from, {x, from.y}, {x, y}, {to.x, y}, to}}});
+        // The rotated outputs face down; leave separately before routing to the sinks.
+        const int y = i == 0 ? -10 : -20;
+        edit(scene, {AddWire{{from, {from.x, y}, {to.x, y}, to}}});
     }
     scene.propagate();
     scene.syncVisuals();
@@ -113,7 +122,10 @@ void roundtrip()
     );
     auto legacy = Json::parse(text);
     for (auto& component : legacy["components"])
+    {
         component.erase("label_visible");
+        component.erase("orientation");
+    }
     for (auto& definition : legacy["definitions"])
         definition.erase("show_body_label");
     for (auto& component : legacy["components"])
@@ -132,6 +144,10 @@ void roundtrip()
         if (const auto* gate = dynamic_cast<const Gate*>(old.scene.getLogicComponent(id)))
             for (int pin = 0; pin < gate->getInputPinCount(); ++pin)
             {
+                require(
+                    view->getOrientation() == Orientation::Right,
+                    "Old saves changed gate orientation."
+                );
                 require(!gate->isInputInverted(pin), "Old saves inverted inputs by default.");
                 require(
                     view->getInputPins()[pin].label == std::string(1, static_cast<char>('A' + pin)),
@@ -156,10 +172,18 @@ void roundtrip()
             gate && gate->getInputPinCount() == 8)
             require(
                 gate->getType() == NAND && view->getBodyStyle().inverted &&
-                    gate->isInputInverted(7) && !gate->isInputInverted(0) &&
-                    view->getInputPins()[7].inverted &&
+                    view->getOrientation() == Orientation::Up && gate->isInputInverted(7) &&
+                    !gate->isInputInverted(0) && view->getInputPins()[7].inverted &&
                     view->getInputPins()[0].relative_pos.x == -3,
                 "Edited gate arity/inversion was not reconstructed."
+            );
+        if (view->getDefinitionIdentity().id == BuiltinComponentIds::SrLatch)
+            require(
+                view->getOrientation() == Orientation::Down, "Native latch orientation was lost."
+            );
+        if (view->getDefinitionIdentity().id == "example.memory")
+            require(
+                view->getOrientation() == Orientation::Left, "Custom latch orientation was lost."
             );
         if (const auto* clock = dynamic_cast<const Clock*>(logic))
             require(

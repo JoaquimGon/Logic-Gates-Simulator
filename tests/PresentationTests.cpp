@@ -48,7 +48,8 @@ void instances()
     );
     const auto packed = packComponentInstances(batches[0].instances);
     require(
-        packed.size() == 16 && packed[3] == 0.2f && packed[11] == 0.6f,
+        packed.size() == 18 && packed[3] == 0.2f && packed[12] == 0.6f && packed[8] == 0 &&
+            packed[17] == 0,
         "Mixed-size instances still share one body size."
     );
     require(data[0].body.id == first && data[1].body.id == second, "View adaptation is unordered.");
@@ -279,8 +280,74 @@ void inputBubbles()
         }
 }
 
+void orientations()
+{
+    for (auto type : {NOT, AND, NAND, OR, NOR, XOR, NXOR})
+    {
+        Scene scene;
+        const int id = scene.addComponent(
+            builtinDefinitionId(type), {0, 0}, {.inputCount = type == NOT ? 1 : 8}
+        );
+        require(
+            static_cast<bool>(EditorActions(scene).apply({ConfigureComponentProperties{
+                .componentId = id, .inputInversion = ConfigureGateInput{0, true}
+            }})),
+            "Cannot prepare oriented gate presentation."
+        );
+        const auto original = buildComponentPresentation(scene.getComponentViewMap()).front();
+        for (auto direction :
+             {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+        {
+            require(
+                static_cast<bool>(EditorActions(scene).apply(
+                    {ConfigureComponentProperties{.componentId = id, .orientation = direction}}
+                )),
+                "Cannot rotate gate presentation."
+            );
+            const auto data = buildComponentPresentation(scene.getComponentViewMap()).front();
+            auto rotate = [=](glm::vec2 point)
+            {
+                const auto offset = rotatePoint(point.x, point.y, direction);
+                return glm::vec2{offset[0], offset[1]};
+            };
+            require(
+                data.body.orientation == direction && data.body.size == original.body.size,
+                "Orientation stretched the gate body."
+            );
+            for (std::size_t i = 0; i < data.pins.size(); ++i)
+            {
+                const auto& before = original.pins[i];
+                const auto& after = data.pins[i];
+                require(
+                    glm::length(after.position - rotate(before.position)) < 0.000001f &&
+                        after.lead.size() == before.lead.size(),
+                    "Rotated presentation does not agree with the pin layout."
+                );
+                for (std::size_t j = 0; j < after.lead.size(); ++j)
+                    require(
+                        glm::length(after.lead[j] - rotate(before.lead[j])) < 0.000001f,
+                        "A pin lead stayed in its original orientation."
+                    );
+                if (before.inversionBubble)
+                    require(
+                        after.inversionBubble &&
+                            glm::length(*after.inversionBubble - rotate(*before.inversionBubble)) <
+                                0.000001f,
+                        "Input bubble did not rotate with its pin."
+                    );
+            }
+            for (std::size_t i = 0; i < original.inputArc.size(); ++i)
+                require(
+                    glm::length(data.inputArc[i] - rotate(original.inputArc[i])) < 0.000001f,
+                    "The extended XOR arc did not rotate."
+                );
+        }
+    }
+}
+
 void leads()
 {
+    orientations();
     inputBubbles();
     inputRails();
     Scene scene;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Geometry/Orientation.h"
+
 #include <array>
 
 /** Silhouette metadata, independent of logical behavior and graphics resources. */
@@ -40,6 +42,9 @@ struct BodyBounds
 BodyBounds normalizedBodyBounds(const BodyStyle& style);
 /** @brief Scales visible bounds about the grid origin, without rounding dimensions or pins. */
 BodyBounds bodyBounds(const BodyStyle& style, float x, float y, float width, float height);
+
+/** @brief Rotates an axis-aligned envelope around the component origin. */
+BodyBounds orientedBounds(BodyBounds bounds, float x, float y, Orientation orientation);
 
 /** @brief Signed silhouette distance in normalized body coordinates, excluding inner glyphs. */
 float bodyContourDistance(const BodyStyle& style, float x, float y);

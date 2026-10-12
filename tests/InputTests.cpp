@@ -1954,6 +1954,22 @@ void gateSettings(GLFWwindow* window)
     editor.input.setMode(EditorMode::Selection);
     history(GLFW_KEY_Z);
     require(!gate()->isInputInverted(0), "Popup input inversion was not undoable.");
+    for (auto direction :
+         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+    {
+        click(ui.componentOrientationBounds(editor.scene, direction));
+        require(
+            editor.scene.getCommittedComponentView(id)->getOrientation() == direction,
+            "Popup orientation button did not rotate the gate."
+        );
+    }
+    editor.input.setMode(EditorMode::Interaction);
+    click(ui.componentOrientationBounds(editor.scene, Orientation::Up));
+    require(
+        editor.scene.getCommittedComponentView(id)->getOrientation() == Orientation::Right,
+        "Interaction mode changed the gate orientation."
+    );
+    editor.input.setMode(EditorMode::Selection);
     const auto height = editor.scene.getCommittedComponentView(id)->getSize().y;
     const auto undo = editor.input.getUndoCount();
     click(ui.gateInputButtonBounds(editor.scene, false));
@@ -2119,6 +2135,35 @@ void gateSettings(GLFWwindow* window)
                 (definition == BuiltinComponentIds::Not),
             "Clock/latch gained gate settings or NOT lost fixed settings."
         );
+        const bool rotatable = definition != BuiltinComponentIds::Clock;
+        require(
+            (ui.componentOrientationBounds(editor.scene, Orientation::Up).width > 0) == rotatable,
+            "Latch/NOT lost orientation or a clock gained orientation controls."
+        );
+        if (rotatable)
+        {
+            click(ui.componentOrientationBounds(editor.scene, Orientation::Up));
+            require(
+                editor.scene.getCommittedComponentView(fixed)->getOrientation() == Orientation::Up,
+                "Latch/NOT popup did not apply orientation."
+            );
+            history(GLFW_KEY_Z);
+            require(
+                editor.scene.getCommittedComponentView(fixed)->getOrientation() ==
+                    Orientation::Right,
+                "Latch/NOT popup rotation did not enter history."
+            );
+            editor.input.setMode(EditorMode::Interaction);
+            layout();
+            click(ui.componentOrientationBounds(editor.scene, Orientation::Left));
+            require(
+                editor.scene.getCommittedComponentView(fixed)->getOrientation() ==
+                    Orientation::Right,
+                "Interaction mode rotated a latch/NOT."
+            );
+            editor.input.setMode(EditorMode::Selection);
+            layout();
+        }
         editor.key(GLFW_KEY_ESCAPE);
         editor.scene.removeComponent(fixed);
     }

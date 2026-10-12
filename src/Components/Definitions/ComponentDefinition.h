@@ -131,6 +131,9 @@ struct ResolvedComponent
     bool clockPaused;
 };
 
+/** @brief Gates, latches and subcircuit instances support body/pin rotation. */
+bool supportsOrientation(const ComponentBehavior& behavior);
+
 /** @brief Rejects inconsistent metadata/interfaces and unsupported presentation features. */
 void validateDefinition(const ComponentDefinition& definition);
 /** @brief Applies options to a copy; validates stable pin identities and behavior pin counts. */

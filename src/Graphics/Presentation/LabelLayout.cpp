@@ -25,20 +25,19 @@ layoutComponentLabels(std::span<const ComponentRenderData> components, const Fon
     {
         const auto& body = component.body;
         const auto bounds = body.getBodyBounds();
+        const bool vertical =
+            body.orientation == Orientation::Up || body.orientation == Orientation::Down;
+        const glm::vec2 size = vertical ? glm::vec2{body.size.y, body.size.x} : body.size;
         const glm::vec2 low{bounds.left, bounds.bottom};
         const glm::vec2 high{bounds.right, bounds.top};
-        const float inset = std::min({0.01f, body.size.x * 0.05f, body.size.y * 0.05f});
+        const float inset = std::min({0.01f, size.x * 0.05f, size.y * 0.05f});
         if (!component.bodyLabel.empty())
         {
             const bool below = body.style.contour == BodyContour::Input ||
                                body.style.contour == BodyContour::Output ||
                                body.style.contour == BodyContour::Clock;
             float scale = fitScale(
-                component.bodyLabel,
-                body.size.x * (below ? 2.5f : 0.8f),
-                body.size.y * 0.2f,
-                0.0012f,
-                font
+                component.bodyLabel, size.x * (below ? 2.5f : 0.8f), size.y * 0.2f, 0.0012f, font
             );
             // Prefer the center; move into a free band when pin labels occupy that row.
             float row = below ? low.y - 0.015f - getCapHeight(scale, font) * 0.5f : body.position.y;
@@ -47,10 +46,10 @@ layoutComponentLabels(std::span<const ComponentRenderData> components, const Fon
                 float bestClearance = -1;
                 for (const float candidate :
                      {body.position.y,
-                      body.position.y + body.size.y * 0.3f,
-                      body.position.y - body.size.y * 0.3f})
+                      body.position.y + size.y * 0.3f,
+                      body.position.y - size.y * 0.3f})
                 {
-                    float clearance = body.size.y;
+                    float clearance = size.y;
                     for (const auto& pin : component.pins)
                         if (!pin.label.empty())
                             clearance = std::min(clearance, std::abs(pin.position.y - candidate));
@@ -76,9 +75,9 @@ layoutComponentLabels(std::span<const ComponentRenderData> components, const Fon
         {
             if (pin.label.empty())
                 continue;
-            const auto relative = (pin.position - body.position) / body.size;
+            const auto relative = (pin.position - body.position) / size;
             const bool horizontal = std::abs(relative.x) >= std::abs(relative.y);
-            float availableHeight = body.size.y * 0.2f;
+            float availableHeight = size.y * 0.2f;
             if (horizontal)
                 for (const auto& other : component.pins)
                 {
@@ -95,8 +94,8 @@ layoutComponentLabels(std::span<const ComponentRenderData> components, const Fon
                       )
                     : body.position.x;
             float width = horizontal ? (left ? high.x - inset - edge : edge - low.x - inset)
-                                     : body.size.x - 2 * inset;
-            width = std::min(width, body.size.x * 0.38f);
+                                     : size.x - 2 * inset;
+            width = std::min(width, size.x * 0.38f);
             const float scale = fitScale(pin.label, width, availableHeight, 0.001f, font);
             if (scale <= 0)
                 continue;

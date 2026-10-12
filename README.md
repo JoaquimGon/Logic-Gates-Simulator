@@ -471,6 +471,11 @@ cell for round bubbles, without stretching the gate body; attached wire endpoint
 reroute. Clearing the last inverted input restores the original bank. Incoming
 wire/pin states stay raw; the popup shows `0 -> 1` or `1 -> 0` for inverted inputs.
 These settings survive saving, copying, input-count edits, and undo/redo.
+Logic gates, latches, and custom subcircuit instances offer **Up**, **Down**,
+**Left**, and **Right** orientation in their popup (default Right). The body, pin positions, input rail/arcs and bubbles rotate together;
+attached wires reroute while logical pin identities stay the same. Labels stay upright.
+Orientation also survives saving, copying and undo/redo. Rotating a subcircuit
+instance changes its outer box/pins only; its authored internal layout is preserved.
 The information popup shows live
 pins/state and edits input/output names; truth tables and other limited edit
 controls remain pending.

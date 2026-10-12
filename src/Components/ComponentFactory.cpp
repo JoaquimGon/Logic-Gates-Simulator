@@ -75,16 +75,20 @@ CreatedComponent ComponentFactory::create(
     std::string_view definitionId,
     GridCoords position,
     const ComponentOverrides& overrides,
-    std::uint32_t version
+    std::uint32_t version,
+    Orientation orientation
 )
 {
     const auto resolved = catalog.resolve(definitionId, overrides, version);
+    orientationName(orientation);
+    if (orientation != Orientation::Right && !supportsOrientation(resolved.behavior))
+        throw std::invalid_argument("Orientation editing requires a gate, latch or subcircuit.");
     auto layout = viewLayout(resolved);
     for (const auto& pin : resolved.layout.pins)
     {
-        validateOffset(position, pin.anchor);
+        validateOffset(position, rotateGridPoint(pin.anchor, orientation));
         for (const auto point : pin.lead)
-            validateOffset(position, point);
+            validateOffset(position, rotateGridPoint(point, orientation));
     }
     int id;
     std::unique_ptr<ComponentView> view;
@@ -138,6 +142,7 @@ CreatedComponent ComponentFactory::create(
     view->m_showPinLabels = resolved.presentation.showPinLabels;
     view->m_showBodyLabel = resolved.presentation.showBodyLabel;
     view->m_bodyStyle = resolved.presentation.body;
+    view->m_orientation = orientation;
     return {id, std::move(view)};
 }
 
@@ -248,8 +253,8 @@ void ComponentFactory::validatePosition(const ComponentView& view, GridCoords po
     for (const auto* pins : {&view.getInputPins(), &view.getOutputPins()})
         for (const auto& pin : *pins)
         {
-            validateOffset(position, pin.relative_pos);
+            validateOffset(position, rotateGridPoint(pin.relative_pos, view.getOrientation()));
             for (const auto point : pin.lead)
-                validateOffset(position, point);
+                validateOffset(position, rotateGridPoint(point, view.getOrientation()));
         }
 }

@@ -862,6 +862,189 @@ void inputInversion()
     );
 }
 
+void gateOrientation()
+{
+    Scene scene;
+    const int a = scene.addComponent(BuiltinComponentIds::Input, {-12, 1}, {.inputState = true});
+    const int b = scene.addComponent(BuiltinComponentIds::Input, {-12, -5});
+    const int gate = scene.addComponent(BuiltinComponentIds::And, {0, 0});
+    const int sink = scene.addComponent(BuiltinComponentIds::Output, {12, 0});
+    EditorActions actions(scene);
+    accepted(actions.apply(
+        {AddWire{{{-11, 1}, {-2, 1}}},
+         AddWire{{{-11, -5}, {-6, -5}, {-6, -1}, {-2, -1}}},
+         AddWire{{{2, 0}, {11, 0}}}}
+    ));
+    const auto original = currentLayout(scene, gate);
+    for (const auto direction :
+         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+    {
+        const auto previous = scene.getCommittedComponentView(gate)->getOrientation();
+        const auto builds = scene.getTopologyBuildCount();
+        const auto result = accepted(actions.apply(
+            {ConfigureComponentProperties{.componentId = gate, .orientation = direction}}
+        ));
+        scene.propagate();
+        const auto* view = scene.getCommittedComponentView(gate);
+        require(
+            view->getOrientation() == direction && view->getSize() == original.size &&
+                view->getAbsolutePinGridPos(view->getInputPins()[0]) ==
+                    rotateGridPoint(GridCoords{-2, 1}, direction) &&
+                view->getAbsolutePinGridPos(view->getOutputPins()[0]) ==
+                    rotateGridPoint(GridCoords{2, 0}, direction) &&
+                scene.getTopologyBuildCount() == builds + 1,
+            "Gate orientation lost its local layout or rebuilt topology more than once."
+        );
+        require(
+            scene.netOfPin({a, 0}, PinType::OUTPUT) == scene.netOfPin({gate, 0}, PinType::INPUT) &&
+                scene.netOfPin({b, 0}, PinType::OUTPUT) ==
+                    scene.netOfPin({gate, 1}, PinType::INPUT) &&
+                scene.netOfPin({gate, 0}, PinType::OUTPUT) ==
+                    scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                scene.getLogicComponent(gate)->getStateInPin(0) &&
+                !scene.getLogicComponent(gate)->getStateInPin(1),
+            "Rotation swapped input identities or detached an attached wire."
+        );
+        accepted(actions.restore(*result.change->before, scene.getRevision()));
+        require(
+            scene.getCommittedComponentView(gate)->getOrientation() == previous,
+            "Undo lost gate orientation."
+        );
+        accepted(actions.restore(*result.change->after, scene.getRevision()));
+        require(
+            scene.getCommittedComponentView(gate)->getOrientation() == direction,
+            "Redo lost gate orientation."
+        );
+    }
+    const auto revision = scene.getRevision();
+    require(
+        !accepted(
+             actions.apply({ConfigureComponentProperties{
+                 .componentId = gate, .orientation = Orientation::Right
+             }})
+        ).change &&
+            scene.getRevision() == revision,
+        "Selecting the current orientation added an edit."
+    );
+    require(
+        actions.apply(
+                   {ConfigureComponentProperties{.componentId = a, .orientation = Orientation::Up}}
+        ).error == EditError::InvalidConfiguration &&
+            actions.apply(
+                       {ConfigureComponentProperties{
+                           .componentId = gate, .orientation = static_cast<Orientation>(99)
+                       }}
+            ).error == EditError::InvalidConfiguration &&
+            scene.getRevision() == revision,
+        "Invalid orientation partially committed."
+    );
+    Scene edited;
+    const int id = edited.addComponent(BuiltinComponentIds::Xor, {0, 0});
+    accepted(EditorActions(edited).apply({ConfigureComponentProperties{
+        .componentId = id,
+        .inputCount = 8,
+        .inverted = true,
+        .inputInversion = ConfigureGateInput{7, true},
+        .orientation = Orientation::Up
+    }}));
+    const auto* view = edited.getCommittedComponentView(id);
+    require(
+        view->getAbsolutePinGridPos(view->getInputPins()[7]) == GridCoords{4, -3} &&
+            view->getAbsolutePinGridPos(view->getOutputPins()[0]) == GridCoords{0, 3},
+        "Rotated arity/inversion edits moved the wrong pins."
+    );
+    const auto bounds = view->getBodyBounds();
+    require(
+        edited.hitTest(view->getPosition(), view->getGridPosition()).componentId == id &&
+            bounds.width() > bounds.height(),
+        "Rotated bounds/hit testing stayed unrotated."
+    );
+    accepted(EditorActions(edited).apply(
+        {ConfigureComponentProperties{.componentId = id, .inputCount = 2, .inverted = false}}
+    ));
+    view = edited.getCommittedComponentView(id);
+    require(
+        view->getOrientation() == Orientation::Up &&
+            view->getAbsolutePinGridPos(view->getInputPins()[0]) == GridCoords{-1, -2} &&
+            view->getAbsolutePinGridPos(view->getOutputPins()[0]) == GridCoords{0, 2},
+        "Changing pin count or output inversion reset the orientation."
+    );
+    Scene overflow;
+    const auto refused = EditorActions(overflow).apply({CreateComponent{
+        .definitionId = BuiltinComponentIds::Not,
+        .position = {0, std::numeric_limits<int>::max()},
+        .orientation = Orientation::Up
+    }});
+    require(
+        !refused && overflow.getComponentCount() == 0,
+        "Rotated pin coordinate overflow was accepted."
+    );
+}
+
+void latchOrientation()
+{
+    for (const auto type : {LatchType::SR_LATCH, LatchType::D_LATCH})
+    {
+        Scene scene;
+        const int a =
+            scene.addComponent(BuiltinComponentIds::Input, {-16, 1}, {.inputState = true});
+        const int b = scene.addComponent(
+            BuiltinComponentIds::Input, {-16, -1}, {.inputState = type == LatchType::D_LATCH}
+        );
+        const int latch = scene.addComponent(builtinDefinitionId(type), {0, 0});
+        const int q = scene.addComponent(BuiltinComponentIds::Output, {16, 1});
+        const int nq = scene.addComponent(BuiltinComponentIds::Output, {16, -1});
+        EditorActions actions(scene);
+        accepted(actions.apply(
+            {AddWire{{{-15, 1}, {-3, 1}}},
+             AddWire{{{-15, -1}, {-3, -1}}},
+             AddWire{{{3, 1}, {15, 1}}},
+             AddWire{{{3, -1}, {15, -1}}}}
+        ));
+        scene.propagate();
+        for (const auto direction :
+             {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+        {
+            const auto previous = scene.getCommittedComponentView(latch)->getOrientation();
+            const auto result = accepted(actions.apply(
+                {ConfigureComponentProperties{.componentId = latch, .orientation = direction}}
+            ));
+            scene.propagate();
+            const auto* view = scene.getCommittedComponentView(latch);
+            for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
+                for (const auto& pin : *pins)
+                    require(
+                        view->getAbsolutePinGridPos(pin) ==
+                            rotateGridPoint(pin.relative_pos, direction),
+                        "Latch rotation changed a pin identity or left its anchor unrotated."
+                    );
+            require(
+                scene.netOfPin({a, 0}, PinType::OUTPUT) ==
+                        scene.netOfPin({latch, 0}, PinType::INPUT) &&
+                    scene.netOfPin({b, 0}, PinType::OUTPUT) ==
+                        scene.netOfPin({latch, 1}, PinType::INPUT) &&
+                    scene.netOfPin({latch, 0}, PinType::OUTPUT) ==
+                        scene.netOfPin({q, 0}, PinType::INPUT) &&
+                    scene.netOfPin({latch, 1}, PinType::OUTPUT) ==
+                        scene.netOfPin({nq, 0}, PinType::INPUT) &&
+                    scene.getLogicComponent(q)->getStateInPin(0) &&
+                    !scene.getLogicComponent(nq)->getStateInPin(0),
+                "Latch rotation detached wires, exchanged Q/~Q or reset retained state."
+            );
+            accepted(actions.restore(*result.change->before, scene.getRevision()));
+            require(
+                scene.getCommittedComponentView(latch)->getOrientation() == previous,
+                "Undo lost latch orientation."
+            );
+            accepted(actions.restore(*result.change->after, scene.getRevision()));
+            require(
+                scene.getCommittedComponentView(latch)->getOrientation() == direction,
+                "Redo lost latch orientation."
+            );
+        }
+    }
+}
+
 void bodyPlacement()
 {
     Scene scene;
@@ -930,6 +1113,12 @@ int main(int argc, char** argv)
             {"editor_configuration", configuration},
             {"editor_component_properties", componentProperties},
             {"gate_input_inversion", inputInversion},
+            {"gate_orientation",
+             []
+             {
+                 gateOrientation();
+                 latchOrientation();
+             }},
             {"editor_wire_edits", wireEdits},
             {"editor_restore_snapshots", restoreSnapshots},
             {"editor_body_placement", bodyPlacement}

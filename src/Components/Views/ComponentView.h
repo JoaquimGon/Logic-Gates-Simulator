@@ -41,10 +41,18 @@ class ComponentView
     /** Shader scale in world units; need not be an even number of grid cells. */
     glm::vec2 getSize() const { return m_size; }
 
+    Orientation getOrientation() const { return m_orientation; }
+
     BodyBounds getBodyBounds() const
     {
+        return orientedBounds(getUnrotatedBodyBounds(), m_position.x, m_position.y, m_orientation);
+    }
+
+    /** Body-frame bounds and rail, before the instance's orientation is applied. */
+    BodyBounds getUnrotatedBodyBounds() const
+    {
         auto bounds = bodyBounds(m_bodyStyle, m_position.x, m_position.y, m_size.x, m_size.y);
-        if (const auto rail = getInputRail())
+        if (const auto rail = getUnrotatedInputRail())
         {
             bounds.left = std::min(bounds.left, rail->left);
             bounds.right = std::max(bounds.right, rail->right);
@@ -62,7 +70,7 @@ class ComponentView
               m_bodyStyle.contour == BodyContour::Xor)))
             for (const auto& pin : getInputPins())
             {
-                const auto point = getAbsolutePinWorldPos(pin);
+                const auto point = m_position + GridSystem::gridToWorld(pin.relative_pos);
                 bounds.left = std::min(bounds.left, point.x);
                 bounds.right = std::max(bounds.right, point.x);
                 const float radius = pin.inverted ? GridMetrics::Spacing / 2 : 0;
@@ -76,19 +84,27 @@ class ComponentView
      */
     std::optional<BodyBounds> getInputRail() const
     {
+        const auto rail = getUnrotatedInputRail();
+        return rail
+                   ? std::optional{orientedBounds(*rail, m_position.x, m_position.y, m_orientation)}
+                   : std::nullopt;
+    }
+
+    std::optional<BodyBounds> getUnrotatedInputRail() const
+    {
         const auto& pins = getInputPins();
         if (pins.size() <= 2 ||
             (m_bodyStyle.contour != BodyContour::And && m_bodyStyle.contour != BodyContour::Or &&
              m_bodyStyle.contour != BodyContour::Xor))
             return std::nullopt;
-        const auto first = getAbsolutePinWorldPos(pins.front());
+        const auto first = m_position + GridSystem::gridToWorld(pins.front().relative_pos);
         float bottom = first.y, top = first.y;
         for (const auto& pin : pins)
         {
             // Irregular/explicitly routed interfaces retain their authored presentation.
             if (pin.relative_pos.x != pins.front().relative_pos.x || !pin.lead.empty())
                 return std::nullopt;
-            const auto point = getAbsolutePinWorldPos(pin);
+            const auto point = m_position + GridSystem::gridToWorld(pin.relative_pos);
             bottom = std::min(bottom, point.y);
             top = std::max(top, point.y);
         }
@@ -130,7 +146,8 @@ class ComponentView
 
     GridCoords getAbsolutePinGridPos(const PinUI& pin) const
     {
-        return {m_grid_pos.x + pin.relative_pos.x, m_grid_pos.y + pin.relative_pos.y};
+        const auto point = rotateGridPoint(pin.relative_pos, m_orientation);
+        return {m_grid_pos.x + point.x, m_grid_pos.y + point.y};
     }
 
     glm::vec2 getAbsolutePinWorldPos(const PinUI& pin) const
@@ -167,6 +184,7 @@ class ComponentView
     bool m_showPinLabels = false;
     bool m_showBodyLabel = true;
     BodyStyle m_bodyStyle;
+    Orientation m_orientation = Orientation::Right;
     glm::vec2 m_position;
     glm::vec2 m_size;
     std::string m_shaderName;

@@ -46,7 +46,8 @@ void settings(GLFWwindow*)
              .inputCount = 8,
              .inverted = true,
              .labelVisible = false,
-             .inputInversion = ConfigureGateInput{6, true}
+             .inputInversion = ConfigureGateInput{6, true},
+             .orientation = Orientation::Down
          },
          ConfigureComponentProperties{.componentId = input, .label = "Enable"},
          ConfigureComponentProperties{
@@ -57,8 +58,16 @@ void settings(GLFWwindow*)
              .labelVisible = true
          }}
     );
+    const auto latch = edit(
+                           source,
+                           {CreateComponent{
+                               .definitionId = BuiltinComponentIds::DLatch,
+                               .position = {24, 0},
+                               .orientation = Orientation::Up
+                           }}
+    ).createdComponentIds.front();
     Selection selection;
-    const std::vector<int> ids{gate, input, clock};
+    const std::vector<int> ids{gate, input, clock, latch};
     selection.selectGroup(ids);
     EditorClipboard clipboard;
     require(clipboard.copy(source, selection), "Nonempty selection was not copied.");
@@ -66,7 +75,7 @@ void settings(GLFWwindow*)
     require(!clipboard.copy(source, selection), "Empty copy should keep the prior clipboard.");
     Scene destination;
     const auto pasted = edit(destination, clipboard.pasteBatch(destination, {0, 12}));
-    require(pasted.createdComponentIds.size() == 3, "Paste lost a selected component.");
+    require(pasted.createdComponentIds.size() == 4, "Paste lost a selected component.");
     for (std::size_t i = 0; i < ids.size(); ++i)
     {
         const auto* before = source.getCommittedComponentView(ids[i]);
@@ -74,9 +83,10 @@ void settings(GLFWwindow*)
         const int afterId = pasted.createdComponentIds[i];
         const auto* after = destination.getCommittedComponentView(afterId);
         require(
-            after->getGridPosition() == GridCoords{before->getGridPosition().x, 12} &&
+            after->getGridPosition() == GridCoords{before->getGridPosition().x - 6, 12} &&
                 before->getBodyLabel() == after->getBodyLabel() &&
                 before->showsBodyLabel() == after->showsBodyLabel() &&
+                before->getOrientation() == after->getOrientation() &&
                 before->getSize() == after->getSize() &&
                 before->getDefinitionIdentity().id == after->getDefinitionIdentity().id &&
                 before->getDefinitionIdentity().version == after->getDefinitionIdentity().version &&
@@ -97,7 +107,7 @@ void settings(GLFWwindow*)
         EditorActions(destination).apply(clipboard.pasteBatch(destination, {0, 12}));
     require(
         centered.error == EditError::Overlap && destination.getRevision() == revision &&
-            destination.getComponentCount() == 3,
+            destination.getComponentCount() == 4,
         "Direct clipboard creation accepted identical centers or partially committed."
     );
     const auto* copiedGate =

@@ -140,6 +140,16 @@ DefinitionLayout instanceLayout(const ComponentView& view)
     return layout;
 }
 
+Orientation readOrientation(const Json& component)
+{
+    const auto name = component.value("orientation", std::string("Right"));
+    for (const auto orientation :
+         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+        if (name == orientationName(orientation))
+            return orientation;
+    throw std::invalid_argument("Unknown component orientation.");
+}
+
 std::string behaviorId(const ComponentBehavior& behavior)
 {
     if (const auto* gate = std::get_if<GateType>(&behavior))
@@ -275,6 +285,8 @@ std::string circuitToJson(const Scene& scene, const std::string& name)
             {"label_visible", view.showsBodyLabel()},
             {"layout", layoutJson(instanceLayout(view))}
         };
+        if (supportsOrientation(definition->behavior))
+            component["orientation"] = orientationName(view.getOrientation());
         const auto* logic = scene.getLogicComponent(id);
         if (const auto* gate = dynamic_cast<const Gate*>(logic))
         {
@@ -357,7 +369,10 @@ SavedCircuit circuitFromJson(std::string_view text)
                 point(component.at("position")),
                 std::move(options),
                 PlacementPolicy::AllowOverlap,
-                componentVersion
+                componentVersion,
+                {},
+                {},
+                readOrientation(component)
             }
         );
     }

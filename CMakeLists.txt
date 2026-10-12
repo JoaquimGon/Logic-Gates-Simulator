@@ -141,7 +141,7 @@ if(BUILD_TESTING)
     if(WIN32)
         target_link_libraries(SubcircuitTests PRIVATE comdlg32)
     endif()
-    foreach(test_name IN ITEMS subcircuit_runtime subcircuit_clocks subcircuit_files subcircuit_editing subcircuit_file_commands subcircuit_ui)
+    foreach(test_name IN ITEMS subcircuit_runtime subcircuit_clocks subcircuit_files subcircuit_orientation subcircuit_editing subcircuit_file_commands subcircuit_ui)
         add_test(NAME ${test_name} COMMAND SubcircuitTests ${test_name})
     endforeach()
     add_executable(CircuitFileTests tests/CircuitFileTests.cpp)
@@ -177,7 +177,7 @@ if(BUILD_TESTING)
     target_link_libraries(EditorActionsTests PRIVATE simulator_scene)
     foreach(test_name IN ITEMS
         editor_atomic_batches editor_move_previews editor_configuration
-        editor_wire_edits editor_restore_snapshots editor_body_placement editor_component_properties gate_input_inversion
+        editor_wire_edits editor_restore_snapshots editor_body_placement editor_component_properties gate_input_inversion gate_orientation
     )
         add_test(NAME ${test_name} COMMAND EditorActionsTests ${test_name})
     endforeach()

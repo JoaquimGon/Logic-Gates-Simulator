@@ -34,7 +34,8 @@ class ComponentFactory
         std::string_view definitionId,
         GridCoords position,
         const ComponentOverrides& overrides = {},
-        std::uint32_t version = 0
+        std::uint32_t version = 0,
+        Orientation orientation = Orientation::Right
     );
     /** @brief Converts explicit legacy geometry into identity-preserving instance options. */
     static ComponentOverrides layoutOverrides(const ComponentLayout& layout);

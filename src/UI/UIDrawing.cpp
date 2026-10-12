@@ -426,6 +426,41 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                     muted
                 );
         }
+        if (canOrient(scene))
+        {
+            const auto settings = orientationSettingsBounds(scene);
+            label(
+                "Orientation",
+                {settings.x, settings.y - 4, settings.width, 18},
+                0.35f,
+                {0.55f, 0.65f, 0.76f, 1}
+            );
+            const auto current = scene.getCommittedComponentView(m_infoComponent)->getOrientation();
+            for (const auto direction :
+                 {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+            {
+                const auto rect = componentOrientationBounds(scene, direction);
+                const bool selected = current == direction;
+                const bool enabled = m_canCreate && !m_nameEditing;
+                renderer.drawScreenRect(
+                    rect,
+                    !enabled || selected                      ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
+                    : rect.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                                              : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+                );
+                label(
+                    orientationName(direction),
+                    rect,
+                    0.35f,
+                    enabled ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1},
+                    true
+                );
+                if (selected)
+                    renderer.drawScreenRect(
+                        {rect.x, rect.y + rect.height - 2, rect.width, 2}, {0.3f, 0.65f, 0.95f, 1}
+                    );
+            }
+        }
         const int rows = infoVisibleRows(scene);
         const int inputRows = gateInputRows(scene);
         const int offset =
@@ -497,7 +532,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                 value,
                 {bounds.x + 4,
                  bounds.y + infoHeaderHeight + infoLabelHeight + (named ? infoNameHeight : 0) +
-                     (gate ? infoGateHeight : 0) + row * infoRowHeight,
+                     infoSettingsHeight(scene) + row * infoRowHeight,
                  bounds.width - 8 - (inversion.width > 0 ? 98 : 0),
                  infoRowHeight},
                 scrollHint ? 0.35f : 0.43f,
