@@ -434,10 +434,23 @@ void overlappingPlacement(GLFWwindow* window)
             editor.input.getUndoCount() == 0,
         "An exact-center collision committed, changed history or dismissed the preview."
     );
-    editor.cursor({1, 0}); // One grid cell from the original: both bodies still overlap.
+    editor.cursor({3, 0}); // Copies have different centers, but inputs land on original outputs.
+    require(
+        editor.input.getPastePreview().blockedComponents().size() == 2,
+        "Coincident pins did not block the paste preview."
+    );
+    editor.mouse(GLFW_PRESS);
+    editor.mouse(GLFW_RELEASE);
+    require(
+        editor.input.getPastePreview().active() &&
+            editor.input.getLastEditError() == EditError::Overlap &&
+            editor.scene.getRevision() == revision && editor.input.getUndoCount() == 0,
+        "A shared-pin paste committed or dismissed the preview."
+    );
+    editor.cursor({1, 0}); // Only bodies overlap here; all centers and pins are distinct.
     require(
         editor.input.getPastePreview().blockedComponents().empty(),
-        "Moving off the exact center did not unblock placement."
+        "Moving to distinct centers and pins did not unblock placement."
     );
     require(
         editor.input.getPastePreview().overlappingComponents().size() == 2,

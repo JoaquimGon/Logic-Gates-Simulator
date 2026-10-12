@@ -198,7 +198,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             view.editOutputPins() = layout.outputs;
             view.m_size = layout.size;
             view.m_shaderName = layout.shader;
-            placement[id] = PlacementPolicy::RejectOverlap;
+            placement[id] = PlacementPolicy::RejectSharedAnchors;
             changed = topologyChanged = true;
         };
 
@@ -306,7 +306,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                             view.setGridPosition(op.position);
                             if (op.reroute)
                                 moved.push_back(op.componentId);
-                            placement[op.componentId] = PlacementPolicy::RejectOverlap;
+                            placement[op.componentId] = PlacementPolicy::RejectSharedAnchors;
                             changed = topologyChanged = true;
                         }
                     }
@@ -407,7 +407,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                 configureLayout(
                                     op.componentId, layout, RemovedPinPolicy::RejectAttached
                                 );
-                                placement[op.componentId] = PlacementPolicy::RejectSameCenter;
+                                placement[op.componentId] = PlacementPolicy::RejectSharedAnchors;
                                 moved.push_back(op.componentId);
                             }
                         }
@@ -421,7 +421,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                             if (view.m_orientation != *op.orientation)
                             {
                                 view.m_orientation = *op.orientation;
-                                placement[op.componentId] = PlacementPolicy::RejectSameCenter;
+                                placement[op.componentId] = PlacementPolicy::RejectSharedAnchors;
                                 moved.push_back(op.componentId);
                                 changed = topologyChanged = true;
                             }
@@ -561,17 +561,19 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
         {
             if (!candidate.m_componentViews.contains(id) || policy == PlacementPolicy::AllowOverlap)
                 continue;
-            if (policy == PlacementPolicy::RejectSameCenter)
+            if (policy == PlacementPolicy::RejectSharedAnchors)
             {
-                if (sharesComponentCenter(candidate.committedGeometry(), id))
+                if (sharesComponentAnchor(candidate.committedGeometry(), id))
                     throw EditFailure(
-                        EditError::Overlap, "Two components cannot share the same grid center."
+                        EditError::Overlap, "Components cannot share a grid center or pin position."
                     );
                 continue;
             }
             auto& view = getView(id);
             int attempts = 0;
-            while (candidate.checkOverlap(id))
+            while (policy == PlacementPolicy::FindFree
+                       ? sharesComponentAnchor(candidate.committedGeometry(), id)
+                       : candidate.checkOverlap(id))
             {
                 if (policy != PlacementPolicy::FindFree || attempts++ >= 4096)
                     throw EditFailure(

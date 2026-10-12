@@ -110,7 +110,7 @@ bool overlapsComponent(std::span<const ComponentGeometry> components, int compon
     return false;
 }
 
-bool sharesComponentCenter(std::span<const ComponentGeometry> components, int componentId)
+bool sharesComponentAnchor(std::span<const ComponentGeometry> components, int componentId)
 {
     const auto found = std::find_if(
         components.begin(),
@@ -123,7 +123,17 @@ bool sharesComponentCenter(std::span<const ComponentGeometry> components, int co
         components.begin(),
         components.end(),
         [&](const auto& other)
-        { return other.componentId != componentId && other.origin == found->origin; }
+        {
+            if (other.componentId == componentId)
+                return false;
+            if (other.origin == found->origin)
+                return true;
+            for (const auto& pin : found->pins)
+                for (const auto& otherPin : other.pins)
+                    if (pin.position == otherPin.position)
+                        return true;
+            return false;
+        }
     );
 }
 

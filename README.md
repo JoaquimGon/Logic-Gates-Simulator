@@ -232,7 +232,10 @@ states, and clock settings. Only selected wires are copied; an ordinary wire cli
 copies its selected segment, while Ctrl-click and box selection copy whole sections.
 The in-app clipboard works across tabs. Ctrl+V starts a translucent preview following
 the mouse. Partial overlaps get an amber notice and remain placeable; identical grid
-centers are highlighted red and block placement. Left-click to place and select the
+centers or shared pin positions are highlighted red and block placement. Palette
+placement, dragging and gate settings use this same rule. Keyboard spawning keeps
+the requested position when valid, or tries the next diagonal grid position.
+Left-click to place and select the
 group; Escape/right-click cancels. The real circuit and undo history change only on
 placement. New instances start fresh clock/latch runtime state, as when placed from
 the palette.

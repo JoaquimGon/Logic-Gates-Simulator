@@ -219,6 +219,47 @@ void dragCommit(GLFWwindow* window)
     }
 }
 
+void forgivingDrag(GLFWwindow* window)
+{
+    Editor editor(window);
+    const int gate = editor.scene.addComponent(BuiltinComponentIds::And, {0, 0});
+    editor.scene.addComponent(BuiltinComponentIds::Clock, {4, 0});
+    editor.cursor({0, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({2, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.scene.getCommittedComponentView(gate)->getGridPosition() == GridCoords{2, 0} &&
+            editor.scene.checkOverlap(gate) && editor.input.getUndoCount() == 1,
+        "Mouse drag rejected overlapping bodies or omitted undo history."
+    );
+    const auto revision = editor.scene.getRevision();
+    // A second click on an individually selected component normally deselects it.
+    editor.input.cancelCurrentAction();
+    editor.cursor({2, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.cursor({4, 0});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    require(
+        editor.input.getLastEditError() == EditError::Overlap &&
+            editor.scene.getCommittedComponentView(gate)->getGridPosition() == GridCoords{2, 0} &&
+            editor.scene.getRevision() == revision && editor.input.getUndoCount() == 1,
+        "Mouse drag accepted a shared center or partially committed its rejection."
+    );
+    Input::keyCallback(window, GLFW_KEY_Z, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+    Input::keyCallback(window, GLFW_KEY_Z, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+    require(
+        editor.scene.getCommittedComponentView(gate)->getGridPosition() == GridCoords{0, 0},
+        "Undo did not restore the overlap-permitting move."
+    );
+    Input::keyCallback(window, GLFW_KEY_Y, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
+    Input::keyCallback(window, GLFW_KEY_Y, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
+    require(
+        editor.scene.getCommittedComponentView(gate)->getGridPosition() == GridCoords{2, 0},
+        "Redo rejected the overlap-permitting move."
+    );
+}
+
 void altDrag(GLFWwindow* window)
 {
     for (bool rightAlt : {false, true})
@@ -329,7 +370,7 @@ void spawnPlacement(GLFWwindow* window)
         const int outputX =
             latch || inverted ? 3 : (key >= GLFW_KEY_3 && key <= GLFW_KEY_8 ? 2 : 1);
         const int outputY = latch ? 1 : 0;
-        const int shift = latch ? 4 : 3;
+        const int shift = 1;
         const int sink = editor.inverter({outputX + shift + 7, outputY - shift});
         editor.wire({{outputX, outputY}, {outputX + 5, outputY}});
         editor.wire({{outputX + shift, outputY - shift}, {outputX + shift + 5, outputY - shift}});
@@ -353,7 +394,11 @@ void spawnPlacement(GLFWwindow* window)
             editor.scene.getComponentView(spawned)->getGridPosition() == GridCoords{shift, -shift},
             "Spawn did not resolve the occupied position."
         );
-        require(!editor.scene.checkOverlap(spawned), "Spawn left an overlapping component.");
+        require(
+            editor.scene.getCommittedComponentView(spawned)->getGridPosition() !=
+                editor.scene.getCommittedComponentView(0)->getGridPosition(),
+            "Spawn left two components at the same center."
+        );
         const std::string expectedDefinition =
             latch
                 ? builtinDefinitionId(key == GLFW_KEY_U ? LatchType::SR_LATCH : LatchType::D_LATCH)
@@ -1284,8 +1329,20 @@ void componentPalette(GLFWwindow* window)
     require(
         editor.scene.getComponentCount() == count && !ui.message().empty() &&
             editor.scene.getTopologyBuildCount() == builds,
-        "Overlapping drop partially created a component or hid its rejection."
+        "Same-center drop partially created a component or hid its rejection."
     );
+    start();
+    editor.cursor({-7, 8});
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    const int overlapping = static_cast<int>(count);
+    require(
+        editor.scene.getComponentCount() == count + 1 && ui.message().empty() &&
+            editor.scene.getCommittedComponentView(overlapping)->getGridPosition() ==
+                GridCoords{-7, 8} &&
+            editor.scene.checkOverlap(overlapping),
+        "Palette placement rejected body overlap at a different center."
+    );
+    editor.scene.removeComponent(overlapping);
     start();
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
@@ -2167,17 +2224,18 @@ void gateSettings(GLFWwindow* window)
         editor.key(GLFW_KEY_ESCAPE);
         editor.scene.removeComponent(fixed);
     }
-    // An expanding gate must not overlap a nearby component, and a rejected edit stays atomic.
+    // Growing the input bank may overlap a nearby body without changing either center.
     Scene blocked;
     const int small = blocked.addComponent(BuiltinComponentIds::And, {0, 0});
     blocked.addComponent(BuiltinComponentIds::Input, {-2, 5});
-    const auto rejected = EditorActions(blocked).apply(
+    const auto resized = EditorActions(blocked).apply(
         {ConfigureComponentProperties{.componentId = small, .inputCount = 8}}
     );
     require(
-        rejected.error == EditError::Overlap &&
-            blocked.getLogicComponent(small)->getInputPinCount() == 2,
-        "Input-rail expansion ignored component overlap."
+        static_cast<bool>(resized) && blocked.getLogicComponent(small)->getInputPinCount() == 8 &&
+            blocked.getCommittedComponentView(small)->getGridPosition() == GridCoords{0, 0} &&
+            blocked.checkOverlap(small),
+        "Input-rail expansion rejected body overlap or moved the gate."
     );
     editor.input.setUiInputHandler({});
     glfwSetWindowSize(window, 800, 800);
@@ -2207,7 +2265,12 @@ int main(int argc, char** argv)
     {
         const std::pair<const char*, void (*)(GLFWwindow*)> tests[] = {
             {"drag_cancellation", dragCancellation},
-            {"drag_commit", dragCommit},
+            {"drag_commit",
+             [](GLFWwindow* window)
+             {
+                 dragCommit(window);
+                 forgivingDrag(window);
+             }},
             {"wire_alt_drag", altDrag},
             {"spawn_placement", spawnPlacement},
             {"wire_segment_deletion", wireSegmentDeletion},

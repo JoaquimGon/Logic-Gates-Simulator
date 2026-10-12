@@ -94,7 +94,7 @@ void PasteGesture::update(const Scene& destination, GridCoords position)
     {
         if (overlapsComponent(geometry, -component.componentId - 1))
             m_overlapping.insert(component.componentId);
-        if (sharesComponentCenter(geometry, -component.componentId - 1))
+        if (sharesComponentAnchor(geometry, -component.componentId - 1))
             m_blocked.insert(component.componentId);
     }
 }
@@ -112,7 +112,7 @@ EditResult PasteGesture::finish(Scene& destination)
     if (!m_blocked.empty())
         return {
             .error = EditError::Overlap,
-            .message = "A component already occupies that center; move the preview."
+            .message = "A component center or pin overlaps; move the preview."
         };
     try
     {

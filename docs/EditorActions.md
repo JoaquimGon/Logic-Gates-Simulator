@@ -42,13 +42,14 @@ compatibility adapters to the same factory.
 Supported operations create native gates/inputs/clocks/latches, move/delete
 components, configure layouts/input states/clock properties, and add/delete wires
 or individual segments. Creation returns component IDs. Creation defaults to
-`RejectOverlap`; shortcuts use bounded, deterministic `FindFree` placement.
-Compatibility Scene creation methods explicitly allow overlaps, retaining direct
-pin-contact behavior; new callers should choose their placement policy deliberately.
-Placement also checks full rectangular body interiors. Edges/corners may touch
-(with a small float tolerance); identical origins and coincident pin anchors remain
-invalid. Wires and pin-to-body contacts impose no additional clearance. The same
-check applies to creation, movement, configuration, and future import batches.
+`RejectSharedAnchors`: identical grid centers or shared pin positions block placement.
+Palette drops, moves, resizing, inversion, rotation and paste permit body overlap.
+Pin-to-body and pin-to-center contact remains allowed. Shortcuts use bounded,
+deterministic `FindFree` placement, advancing one cell diagonally while a center
+or pin position conflicts.
+`RejectOverlap` remains an explicit conservative policy; compatibility Scene creation
+and loading may use `AllowOverlap`. Wire rerouting still requires a valid route;
+Alt-drag leaves wires in place when moving a connected component.
 
 Invalid wire paths, stale segment endpoints, invalid layouts, and unsupported
 arity produce typed failures. Feedback is accepted and remains editable. An accepted
@@ -217,7 +218,7 @@ use `CreateComponent` with `FindFree`; defaults live in NativeDefinitions.cpp.
 
 The left palette (`UI`) uses catalog IDs too. Pressing a button captures input;
 dragging draws an outline without changing the scene. Releasing inside the canvas
-submits one `CreateComponent` with overlap rejection. Failed or cancelled drops
+submits one `CreateComponent` rejecting only an occupied grid center. Failed or cancelled drops
 create no edit record. The palette releases capture before applying the batch,
 and consumes the release so it cannot also begin a canvas gesture.
 

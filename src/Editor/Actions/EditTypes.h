@@ -19,10 +19,10 @@ class Scene;
 
 enum class PlacementPolicy
 {
-    RejectOverlap,
-    FindFree,
+    RejectOverlap, // Explicit conservative placement for callers that need body clearance.
+    FindFree,      // Find the next free center/pin positions; body overlap is allowed.
     AllowOverlap,
-    RejectSameCenter
+    RejectSharedAnchors
 };
 enum class RemovedPinPolicy
 {
@@ -41,7 +41,7 @@ struct CreateComponent
     std::string definitionId;
     GridCoords position;
     ComponentOverrides overrides;
-    PlacementPolicy placement = PlacementPolicy::RejectOverlap;
+    PlacementPolicy placement = PlacementPolicy::RejectSharedAnchors;
     std::uint32_t version = 0;
     std::optional<std::string> label;
     std::optional<bool> labelVisible;
@@ -54,7 +54,7 @@ struct CreateGate
     GateType type;
     GridCoords position;
     ComponentLayout layout;
-    PlacementPolicy placement = PlacementPolicy::RejectOverlap;
+    PlacementPolicy placement = PlacementPolicy::RejectSharedAnchors;
 };
 
 struct CreateInput
@@ -63,7 +63,7 @@ struct CreateInput
     glm::vec2 size;
     std::string shader;
     std::optional<bool> state;
-    PlacementPolicy placement = PlacementPolicy::RejectOverlap;
+    PlacementPolicy placement = PlacementPolicy::RejectSharedAnchors;
 };
 
 struct CreateClock
@@ -72,14 +72,14 @@ struct CreateClock
     glm::vec2 size;
     std::string shader;
     std::optional<float> frequency;
-    PlacementPolicy placement = PlacementPolicy::RejectOverlap;
+    PlacementPolicy placement = PlacementPolicy::RejectSharedAnchors;
 };
 
 struct CreateLatch
 {
     LatchType type;
     GridCoords position;
-    PlacementPolicy placement = PlacementPolicy::RejectOverlap;
+    PlacementPolicy placement = PlacementPolicy::RejectSharedAnchors;
 };
 
 struct MoveComponent

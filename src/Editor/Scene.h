@@ -38,7 +38,7 @@ class Scene
         const std::string& definitionId,
         GridCoords position,
         const ComponentOverrides& overrides = {},
-        PlacementPolicy placement = PlacementPolicy::RejectOverlap,
+        PlacementPolicy placement = PlacementPolicy::RejectSharedAnchors,
         std::uint32_t version = 0
     );
     Scene(const Scene& other);
