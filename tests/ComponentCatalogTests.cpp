@@ -67,7 +67,7 @@ void catalogDefaults()
 {
     Scene scene;
     const auto& definitions = scene.getComponentCatalog().definitions();
-    require(definitions.size() == 12, "A built-in definition was lost.");
+    require(definitions.size() == 15, "A built-in definition was lost.");
     int x = 0;
     for (const auto& [id, definition] : definitions)
     {

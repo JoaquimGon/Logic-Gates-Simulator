@@ -100,6 +100,40 @@ ComponentDefinition latch(const char* id, const char* name, LatchType type)
     return definition;
 }
 
+ComponentDefinition flipFlop(const char* id, const char* name, const char* label, FlipFlopType type)
+{
+    const bool jk = type == FlipFlopType::JK;
+    ComponentDefinition definition;
+    definition.identity = {id, 1};
+    definition.displayName = name;
+    definition.behavior = type;
+    definition.layout = {6 * GridMetrics::Spacing, (jk ? 6 : 4) * GridMetrics::Spacing, {}};
+    definition.layout.pins.push_back(
+        {jk                        ? "j"
+         : type == FlipFlopType::D ? "d"
+                                   : "t",
+         jk                        ? "J"
+         : type == FlipFlopType::D ? "D"
+                                   : "T",
+         PinType::INPUT,
+         0,
+         {-3, jk ? 2 : 1},
+         {}}
+    );
+    if (jk)
+        definition.layout.pins.push_back({"k", "K", PinType::INPUT, 1, {-3, 0}, {}});
+    definition.layout.pins.push_back(
+        {"clk", "CLK", PinType::INPUT, jk ? 2u : 1u, {-3, jk ? -2 : -1}, {}}
+    );
+    definition.layout.pins.push_back({"q", "Q", PinType::OUTPUT, 0, {3, 1}, {}});
+    definition.layout.pins.push_back({"not-q", "~Q", PinType::OUTPUT, 1, {3, -1}, {}});
+    definition.presentation.kind = PresentationKind::Box;
+    definition.presentation.shader = boxShaderResources();
+    definition.presentation.bodyLabel = label;
+    definition.presentation.showPinLabels = true;
+    return definition;
+}
+
 ComponentDefinition output()
 {
     ComponentDefinition definition;
@@ -173,7 +207,10 @@ const std::vector<ComponentDefinition>& nativeDefinitions()
             true
         ),
         latch(BuiltinComponentIds::SrLatch, "SR LATCH", LatchType::SR_LATCH),
-        latch(BuiltinComponentIds::DLatch, "D LATCH", LatchType::D_LATCH)
+        latch(BuiltinComponentIds::DLatch, "D LATCH", LatchType::D_LATCH),
+        flipFlop(BuiltinComponentIds::DFlipFlop, "D FLIP-FLOP", "D FF", FlipFlopType::D),
+        flipFlop(BuiltinComponentIds::TFlipFlop, "T FLIP-FLOP", "T FF", FlipFlopType::T),
+        flipFlop(BuiltinComponentIds::JkFlipFlop, "JK FLIP-FLOP", "JK FF", FlipFlopType::JK)
     };
     return definitions;
 }
@@ -202,6 +239,11 @@ const std::string& builtinDefinitionId(GateType type)
 }
 
 const std::string& builtinDefinitionId(LatchType type)
+{
+    return nativeId(type);
+}
+
+const std::string& builtinDefinitionId(FlipFlopType type)
 {
     return nativeId(type);
 }

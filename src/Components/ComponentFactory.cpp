@@ -82,7 +82,9 @@ CreatedComponent ComponentFactory::create(
     const auto resolved = catalog.resolve(definitionId, overrides, version);
     orientationName(orientation);
     if (orientation != Orientation::Right && !supportsOrientation(resolved.behavior))
-        throw std::invalid_argument("Orientation editing requires a gate, latch or subcircuit.");
+        throw std::invalid_argument(
+            "Orientation editing requires a gate, latch, flip-flop or subcircuit."
+        );
     auto layout = viewLayout(resolved);
     for (const auto& pin : resolved.layout.pins)
     {
@@ -121,6 +123,13 @@ CreatedComponent ComponentFactory::create(
         id = circuit.addOutputPin();
         view = std::make_unique<OutputPinView>(
             position, id, layout.size, layout.shader, layout.inputs
+        );
+    }
+    else if (const auto* flip = std::get_if<FlipFlopType>(&resolved.behavior))
+    {
+        id = circuit.addComponent(std::make_unique<FlipFlop>(-1, *flip));
+        view = std::make_unique<BoxView>(
+            position, id, layout.size, layout.shader, layout.inputs, layout.outputs
         );
     }
     else if (const auto* sub = std::get_if<SubcircuitBehavior>(&resolved.behavior))

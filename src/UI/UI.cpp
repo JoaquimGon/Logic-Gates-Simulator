@@ -671,6 +671,24 @@ std::vector<std::string> UI::componentInfo(const Scene& scene) const
     };
     pins(view->getInputPins(), "Inputs", "Input");
     pins(view->getOutputPins(), "Outputs", "Output");
+    if (const auto* flip = dynamic_cast<const FlipFlop*>(scene.getLogicComponent(m_infoComponent)))
+    {
+        lines.push_back("At CLK 0 -> 1:");
+        switch (flip->getType())
+        {
+        case FlipFlopType::D:
+            lines.push_back("D: Q takes D");
+            break;
+        case FlipFlopType::T:
+            lines.push_back("T: 0 holds, 1 toggles");
+            break;
+        case FlipFlopType::JK:
+            lines.push_back("JK: 00 hold, 01 reset");
+            lines.push_back("JK: 10 set, 11 toggle");
+            break;
+        }
+        lines.push_back("Other changes: hold Q");
+    }
     return lines;
 }
 

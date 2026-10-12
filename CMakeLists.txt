@@ -174,6 +174,12 @@ if(BUILD_TESTING)
         add_test(NAME ${test_name} COMMAND SimulationTests ${test_name})
     endforeach()
 
+    add_executable(FlipFlopTests tests/FlipFlopTests.cpp)
+    target_link_libraries(FlipFlopTests PRIVATE simulator_files)
+    foreach(test_name IN ITEMS flip_flop_tables flip_flop_edges flip_flop_integration)
+        add_test(NAME ${test_name} COMMAND FlipFlopTests ${test_name})
+    endforeach()
+
     add_executable(EditorActionsTests tests/EditorActionsTests.cpp)
     target_link_libraries(EditorActionsTests PRIVATE simulator_scene)
     foreach(test_name IN ITEMS

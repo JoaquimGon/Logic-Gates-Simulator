@@ -415,7 +415,8 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                         {
                             if (!supportsOrientation(definition->behavior))
                                 throw std::invalid_argument(
-                                    "Orientation editing requires a gate, latch or subcircuit."
+                                    "Orientation editing requires a gate, latch, flip-flop or "
+                                    "subcircuit."
                                 );
                             orientationName(*op.orientation);
                             if (view.m_orientation != *op.orientation)

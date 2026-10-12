@@ -18,6 +18,9 @@ inline constexpr const char* Output = "native.output";
 inline constexpr const char* Clock = "native.clock";
 inline constexpr const char* SrLatch = "native.sr-latch";
 inline constexpr const char* DLatch = "native.d-latch";
+inline constexpr const char* DFlipFlop = "native.d-flip-flop";
+inline constexpr const char* TFlipFlop = "native.t-flip-flop";
+inline constexpr const char* JkFlipFlop = "native.jk-flip-flop";
 } // namespace BuiltinComponentIds
 
 /** @brief The single declaration table for built-in editor defaults, interfaces and assets. */
@@ -25,3 +28,5 @@ const std::vector<ComponentDefinition>& nativeDefinitions();
 const ShaderResources& boxShaderResources();
 const std::string& builtinDefinitionId(GateType type);
 const std::string& builtinDefinitionId(LatchType type);
+
+const std::string& builtinDefinitionId(FlipFlopType type);

@@ -150,6 +150,12 @@ failing a Save preserves the open work. See
 nothing. Success/errors appear in the bar, with error details in the console.
 Escape, outside clicks, focus loss, and resizing dismiss the dropdown.
 
+The Native panel also includes **D**, **T**, and **JK flip-flops**. All sample on
+CLK's rising edge (0 to 1), hold between edges, and provide Q and ~Q outputs.
+D captures a value, T toggles when enabled, and JK supports hold/reset/set/toggle.
+Their right-click information explains the behavior. See
+[flip-flop examples and tables](docs/FlipFlops.md).
+
 **Simulation > Reset Simulation** resets the active circuit's manual inputs and
 all clocks (including clocks inside subcircuits) to LOW. Clock frequencies and
 pause/enable settings are preserved. Clock phases, elapsed time, pending catch-up

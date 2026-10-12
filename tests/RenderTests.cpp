@@ -1353,6 +1353,56 @@ void roundedBounds(Renderer& renderer, const CanvasCameraFrame& camera)
     saveImage("rounded-component-bounds.ppm");
 }
 
+void flipFlopPresentation(Renderer& renderer)
+{
+    for (int scale : {1, 2})
+    {
+        Scene scene;
+        Input input;
+        input.setScene(&scene);
+        UI ui;
+        const CanvasSurface surface{extent / scale, extent / scale, extent, extent};
+        ui.layout(scene.getComponentCatalog(), surface, input);
+        CanvasCamera camera;
+        camera.setViewport(input.getCanvasViewport());
+        const auto frame = camera.frame(surface);
+        for (auto [type, x] :
+             {std::pair{FlipFlopType::D, -9},
+              std::pair{FlipFlopType::T, 0},
+              std::pair{FlipFlopType::JK, 9}})
+            scene.addComponent(builtinDefinitionId(type), {x, 0});
+        scene.propagate();
+        scene.syncVisuals();
+        const auto components = buildComponentPresentation(scene.getComponentViewMap());
+        const auto junctions = scene.getWireIntersections();
+        auto draw = [&]
+        {
+            renderer.beginFrame(frame);
+            renderer.drawCanvas({components, scene.getWires(), junctions});
+            ui.draw(renderer, scene, frame);
+        };
+        draw();
+        saveImage(scale == 1 ? "flip-flops.ppm" : "flip-flops-2x.ppm");
+        const auto point = *frame.worldToWindow(GridSystem::gridToWorld({9, 0}));
+        for (const int action : {GLFW_PRESS, GLFW_RELEASE})
+            ui.handleInput(
+                {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, action, 0, 0, point.x, point.y},
+                scene,
+                input,
+                frame
+            );
+        const auto info = ui.componentInfo(scene);
+        require(
+            ui.infoComponentId() == 2 &&
+                std::find(info.begin(), info.end(), "JK: 10 set, 11 toggle") != info.end(),
+            "Flip-flop popup omitted its edge/next-state explanation."
+        );
+        draw();
+        saveImage(scale == 1 ? "flip-flop-information.ppm" : "flip-flop-information-2x.ppm");
+        input.setScene(nullptr);
+    }
+}
+
 void componentInformationPresentation(Renderer& renderer)
 {
     Scene scene;
@@ -2828,6 +2878,7 @@ int main(int argc, char** argv)
                 palettePresentation(renderer);
                 outputPresentation(renderer);
                 componentInformationPresentation(renderer);
+                flipFlopPresentation(renderer);
                 gateSettingsPresentation(renderer);
                 navigationMenuPresentation(renderer);
                 labelVisibilityPresentation(renderer, camera);

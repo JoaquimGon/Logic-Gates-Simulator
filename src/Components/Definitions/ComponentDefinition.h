@@ -1,5 +1,6 @@
 #pragma once
 #include "Components/Definitions/PresentationGeometry.h"
+#include "Components/FlipFlop.h"
 #include "Components/Gate.h"
 #include "Components/Latch.h"
 #include "Components/PinTypes.h"
@@ -41,7 +42,8 @@ using ComponentBehavior = std::variant<
     ClockBehavior,
     LatchType,
     OutputBehavior,
-    SubcircuitBehavior>;
+    SubcircuitBehavior,
+    FlipFlopType>;
 
 struct DefinitionIdentity
 {
@@ -131,7 +133,7 @@ struct ResolvedComponent
     bool clockPaused;
 };
 
-/** @brief Gates, latches and subcircuit instances support body/pin rotation. */
+/** @brief Gates, latches, flip-flops and subcircuit instances support body/pin rotation. */
 bool supportsOrientation(const ComponentBehavior& behavior);
 
 /** @brief Rejects inconsistent metadata/interfaces and unsupported presentation features. */

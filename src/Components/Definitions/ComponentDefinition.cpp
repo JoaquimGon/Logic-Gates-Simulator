@@ -95,6 +95,15 @@ void validateLayout(
         if (inputs.size() != 2 || outputs.size() != 2)
             throw std::invalid_argument("Native latches require two inputs and two outputs.");
     }
+    else if (const auto* flip = std::get_if<FlipFlopType>(&behavior))
+    {
+        FlipFlop check(-1, *flip);
+        if (inputs.size() != static_cast<std::size_t>(check.getInputPinCount()) ||
+            outputs.size() != 2)
+            throw std::invalid_argument(
+                "Flip-flops require their fixed data/clock inputs and two outputs."
+            );
+    }
     else if (std::holds_alternative<OutputBehavior>(behavior))
     {
         if (inputs.size() != 1 || !outputs.empty())
@@ -352,5 +361,6 @@ bool supportsOrientation(const ComponentBehavior& behavior)
 {
     return std::holds_alternative<GateType>(behavior) ||
            std::holds_alternative<LatchType>(behavior) ||
+           std::holds_alternative<FlipFlopType>(behavior) ||
            std::holds_alternative<SubcircuitBehavior>(behavior);
 }

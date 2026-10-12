@@ -1247,7 +1247,7 @@ void componentPalette(GLFWwindow* window)
         "Palette did not reserve the left side of the canvas."
     );
     const auto buttons = ui.buttons();
-    require(buttons.size() == 12, "Palette did not use the registered component catalog.");
+    require(buttons.size() == 15, "Palette did not use the registered component catalog.");
     const std::vector<std::string> expected{
         BuiltinComponentIds::Input,
         BuiltinComponentIds::Output,
@@ -1260,7 +1260,10 @@ void componentPalette(GLFWwindow* window)
         BuiltinComponentIds::Xor,
         BuiltinComponentIds::Nxor,
         BuiltinComponentIds::SrLatch,
-        BuiltinComponentIds::DLatch
+        BuiltinComponentIds::DLatch,
+        BuiltinComponentIds::DFlipFlop,
+        BuiltinComponentIds::TFlipFlop,
+        BuiltinComponentIds::JkFlipFlop
     };
     for (std::size_t i = 0; i < expected.size(); ++i)
         require(buttons[i].definitionId == expected[i], "Native card order is incorrect.");
@@ -1288,7 +1291,13 @@ void componentPalette(GLFWwindow* window)
     switchTab(UI::Tab::Native);
     for (std::size_t i = 0; i < buttons.size(); ++i)
     {
-        const auto button = buttons[i];
+        while (ui.buttons()[i].bounds.y + 20 >= 740)
+        {
+            editor.cursorPixels(20, 500);
+            editor.input.handleScroll(window, 0, -1);
+            layout();
+        }
+        const auto button = ui.buttons()[i];
         const auto before = editor.scene.getComponentCount();
         editor.cursorPixels(button.bounds.x + 20, button.bounds.y + 15);
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
@@ -1299,7 +1308,9 @@ void componentPalette(GLFWwindow* window)
             "Palette press leaked into a canvas gesture or created too early."
         );
         editor.key(GLFW_KEY_A);
-        const GridCoords target{-8 + static_cast<int>(i % 3) * 8, 8 - static_cast<int>(i / 3) * 8};
+        const GridCoords target =
+            i < 12 ? GridCoords{-8 + static_cast<int>(i % 3) * 8, 8 - static_cast<int>(i / 3) * 8}
+                   : GridCoords{16, 8 - static_cast<int>(i - 12) * 8};
         editor.cursor(target);
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
         require(
@@ -1314,6 +1325,8 @@ void componentPalette(GLFWwindow* window)
             "Palette drop used the wrong component/transform or leaked release to the canvas."
         );
     }
+    switchTab(UI::Tab::Custom);
+    switchTab(UI::Tab::Native);
     auto start = [&]
     {
         const auto button = ui.buttons().front();
@@ -1429,7 +1442,7 @@ void componentPalette(GLFWwindow* window)
         "Custom palette fixture could not be registered."
     );
     layout();
-    require(ui.buttons().size() == 12, "Registered custom component leaked into native cards.");
+    require(ui.buttons().size() == 15, "Registered custom component leaked into native cards.");
     switchTab(UI::Tab::Custom);
     require(
         ui.buttons().size() == 1 && ui.buttons()[0].label == "Custom memory" &&
@@ -1437,7 +1450,7 @@ void componentPalette(GLFWwindow* window)
         "Custom list omitted the registered name or indexed pin counts."
     );
     start();
-    editor.cursor({16, 8});
+    editor.cursor({16, -16});
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
         editor.scene.getComponentCount() == count + 1 && !ui.dragging(),

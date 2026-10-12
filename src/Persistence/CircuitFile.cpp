@@ -156,6 +156,8 @@ std::string behaviorId(const ComponentBehavior& behavior)
         return builtinDefinitionId(*gate);
     if (const auto* latch = std::get_if<LatchType>(&behavior))
         return builtinDefinitionId(*latch);
+    if (const auto* flip = std::get_if<FlipFlopType>(&behavior))
+        return builtinDefinitionId(*flip);
     if (std::holds_alternative<ManualInputBehavior>(behavior))
         return BuiltinComponentIds::Input;
     if (std::holds_alternative<ClockBehavior>(behavior))
