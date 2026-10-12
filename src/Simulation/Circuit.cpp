@@ -375,6 +375,20 @@ std::vector<ClockReading> Circuit::clockReadings(ClockPath prefix) const
     return readings;
 }
 
+void Circuit::resetSources()
+{
+    std::vector<Clock*> clocks;
+    collectClocks(clocks);
+    for (auto* clock : clocks)
+        clock->resetPhase();
+    for (auto& [id, component] : m_components)
+        if (auto* input = dynamic_cast<InputPin*>(component.get()))
+            input->setState(false);
+    m_clockTime = m_pendingClockTime = 0;
+    m_work = {};
+    markStateDirty();
+}
+
 void Circuit::setClocksPaused(bool paused)
 {
     m_clocksPaused = paused;

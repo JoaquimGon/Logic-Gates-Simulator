@@ -2441,6 +2441,21 @@ void circuitViewsPresentation(Renderer& renderer)
         );
     }
     ui.dismissPopups(input);
+    for (const int scale : {1, 2})
+    {
+        surface = {extent / scale, extent / scale, extent, extent};
+        draw();
+        click(ui.menuBounds(UI::Menu::Simulation), GLFW_MOUSE_BUTTON_LEFT);
+        draw();
+        const auto simulationMenu = ui.dropdownBounds(UI::Menu::Simulation);
+        require(
+            ui.menuOpen(UI::Menu::Simulation) &&
+                screenPixel(simulationMenu.x + 3, simulationMenu.y + 3)[2] > 30,
+            "Simulation dropdown did not render at this display scale."
+        );
+        saveImage(scale == 1 ? "simulation-menu.ppm" : "simulation-menu-2x.ppm");
+        ui.dismissPopups(input);
+    }
     ui.setLibraryDrafts({{"subcircuit.draft", "Learning circuit", {}, 0, 0, "draft.json"}});
     for (const int scale : {1, 2})
     {

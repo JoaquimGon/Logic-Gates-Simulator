@@ -333,8 +333,9 @@ void Engine::run()
 
         // Clocks settle the circuit at every transition; remember edits for visual synchronization.
         const bool pendingSimulation = scene.isSimulationDirty();
-        bool clockEdgeFlipped =
-            !unsaved.pending() && scene.updateClocks(deltaTime, &circuits.activeClockTimeline());
+        const bool simulationReset = m_ui.takeSimulationReset();
+        bool clockEdgeFlipped = !simulationReset && !unsaved.pending() &&
+                                scene.updateClocks(deltaTime, &circuits.activeClockTimeline());
 
         const bool syncNeeded = clockEdgeFlipped || pendingSimulation || scene.isSimulationDirty();
         if (scene.isSimulationDirty())

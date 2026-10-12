@@ -196,6 +196,13 @@ bool Scene::updateClocks(float deltaTime, ClockTimeline* timeline)
     return m_topologyResult == SimulationResult::OK && m_circuit.updateClocks(deltaTime, timeline);
 }
 
+void Scene::resetSimulation()
+{
+    m_circuit.resetSources();
+    propagate();
+    syncVisuals();
+}
+
 SimulationResult Scene::propagate()
 {
     if (m_topologyResult != SimulationResult::OK)

@@ -136,6 +136,72 @@ void steps()
     );
 }
 
+void resetSources()
+{
+    auto child = std::make_shared<Circuit>();
+    const int childInput = child->addInputPin();
+    const int childOutput = child->addOutputPin();
+    const int innerClock = child->addClock(2);
+    child->connectComponents(childInput, 0, childOutput, 0);
+    SubcircuitBehavior behavior;
+    behavior.circuit = child;
+    behavior.inputs = {childInput};
+    behavior.outputs = {childOutput};
+    Circuit circuit;
+    const int manual = circuit.addInputPin(true);
+    const int inverter = circuit.addGate(NOT);
+    const int clock = circuit.addClock(2);
+    const int disabled = circuit.addClock(5);
+    auto* disabledClock = static_cast<Clock*>(circuit.getComponent(disabled));
+    disabledClock->advanceSlice(0.1);
+    disabledClock->setPaused(true);
+    const int nested = circuit.addComponent(std::make_unique<Subcircuit>(behavior));
+    circuit.connectComponents(manual, 0, inverter, 0);
+    circuit.connectComponents(inverter, 0, nested, 0);
+    ClockTimeline timeline;
+    circuit.updateClocks(0.375f, &timeline);
+    circuit.setClocksPaused(true);
+    require(
+        circuit.getComponent(clock)->getStateOutPin() && circuit.clockReadings()[2].high &&
+            !timeline.steps().empty(),
+        "Reset fixture did not start clocks HIGH with a recorded phase."
+    );
+    circuit.resetSources();
+    timeline.clear();
+    circuit.propagate();
+    for (const auto& reading : circuit.clockReadings())
+        require(!reading.high, "Reset left a native or nested clock HIGH.");
+    require(
+        !circuit.getComponent(manual)->getStateOutPin() && circuit.clocksPaused() &&
+            disabledClock->isPaused() && disabledClock->getFrequency() == 5 &&
+            circuit.clockTime() == 0 && circuit.pendingClockTime() == 0 &&
+            timeline.traces().empty() && timeline.steps().empty(),
+        "Reset changed clock settings or retained manual inputs/time/history."
+    );
+    require(
+        circuit.getComponent(nested)->getStateOutPin() &&
+            child->getComponent(innerClock)->getStateOutPin() == false,
+        "Reset corrupted driven subcircuit ports or the shared definition template."
+    );
+    circuit.stepClocks(1, &timeline);
+    require(
+        circuit.clockTime() == 0.25 && circuit.getComponent(clock)->getStateOutPin() &&
+            circuit.clockReadings()[2].high && !disabledClock->getStateOutPin(),
+        "First post-reset edge used stale phase or advanced a disabled clock."
+    );
+    Circuit backlog;
+    const int fast = backlog.addClock(4096);
+    backlog.updateClocks(1);
+    require(backlog.pendingClockTime() > 0, "Reset backlog fixture did not exceed slice limits.");
+    backlog.resetSources();
+    backlog.propagate();
+    require(
+        backlog.pendingClockTime() == 0 && backlog.clockTime() == 0 &&
+            !backlog.getComponent(fast)->getStateOutPin() && !backlog.clocksPaused(),
+        "Reset retained old catch-up work or paused running clocks."
+    );
+}
+
 void history()
 {
     Scene names;
@@ -442,6 +508,35 @@ void panel(GLFWwindow* window)
         views.activeClockTimeline().traces().empty(), "Opening a scene retained its old trace."
     );
     ui.dismissPopups(input);
+    // Reset from the navbar must work in Interaction mode and affect this view only.
+    views.select(0, input);
+    const int manual = views.activeScene().addComponent(BuiltinComponentIds::Input, {20, 0});
+    static_cast<InputPin*>(views.activeScene().getLogicComponent(manual))->setState(true);
+    views.activeScene().propagate();
+    views.markSaved(0);
+    views.activeScene().stepAllClocks(1, &views.activeClockTimeline());
+    const auto frequency =
+        static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency();
+    const auto paused = views.activeScene().clocksPaused();
+    const auto cameraPan = input.getPanOffset();
+    input.setMode(EditorMode::Interaction);
+    layout();
+    click(ui.menuBounds(UI::Menu::Simulation));
+    require(ui.menuOpen(UI::Menu::Simulation), "Simulation menu did not open.");
+    click(ui.menuOptionBounds(UI::Menu::Simulation, 0));
+    ui.update(50, input);
+    require(
+        !views.activeScene().getLogicComponent(clock)->getStateOutPin() &&
+            !views.activeScene().getLogicComponent(manual)->getStateOutPin() &&
+            views.activeScene().clockTime() == 0 && views.activeClockTimeline().traces().empty() &&
+            views.activeClockTimeline().steps().empty() &&
+            views.activeScene().clocksPaused() == paused &&
+            static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))
+                    ->getFrequency() == frequency &&
+            input.getPanOffset() == cameraPan && views.hasUnsavedChanges(0) &&
+            ui.takeSimulationReset() && !ui.takeSimulationReset(),
+        "Navbar reset lost settings/camera or retained signals/time/traces."
+    );
     input.setUiInputHandler({});
     input.setScene(nullptr);
     glfwSetWindowUserPointer(window, nullptr);
@@ -455,6 +550,8 @@ int main(int argc, char** argv)
         const std::string test = argc > 1 ? argv[1] : "";
         if (test == "clock_steps")
             steps();
+        else if (test == "clock_reset")
+            resetSources();
         else if (test == "clock_history")
             history();
         else if (test == "clock_panel")

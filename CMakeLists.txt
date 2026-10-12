@@ -229,7 +229,7 @@ if(BUILD_TESTING)
     add_executable(ClockTests tests/ClockTests.cpp)
     target_link_libraries(ClockTests PRIVATE simulator_ui simulator_files glfw)
     target_compile_definitions(ClockTests PRIVATE GLFW_INCLUDE_NONE)
-    foreach(test_name IN ITEMS clock_steps clock_history clock_panel)
+    foreach(test_name IN ITEMS clock_steps clock_history clock_panel clock_reset)
         add_test(NAME ${test_name} COMMAND ClockTests ${test_name})
     endforeach()
 

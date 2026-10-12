@@ -585,7 +585,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     text.clear();
     renderer.drawScreenRect(m_bar, {0.075f, 0.09f, 0.12f, 1});
     renderer.drawScreenRect({0, m_bar.height - 1, m_bar.width, 1}, {0.18f, 0.23f, 0.3f, 1});
-    for (const auto menu : {Menu::File, Menu::Edit, Menu::View})
+    for (const auto menu : {Menu::File, Menu::Edit, Menu::View, Menu::Simulation})
     {
         const auto bounds = menuBounds(menu);
         if (menuOpen(menu) || bounds.contains(m_pointer.x, m_pointer.y))
@@ -593,7 +593,8 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         label(
             menu == Menu::File   ? "File"
             : menu == Menu::Edit ? "Edit"
-                                 : "View",
+            : menu == Menu::View ? "View"
+                                 : "Simulation",
             bounds,
             0.42f,
             ink,
@@ -627,7 +628,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     else if (!log.fileStatus.empty())
         label(
             log.fileStatus,
-            {204, 0, navigationStatusWidth(), m_bar.height},
+            {navigationStatusX(), 0, navigationStatusWidth(), m_bar.height},
             0.35f,
             {0.55f, 0.75f, 0.9f, 1}
         );

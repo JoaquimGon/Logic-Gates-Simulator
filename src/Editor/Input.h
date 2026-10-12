@@ -210,6 +210,8 @@ class Input
 
     void setClockTimeline(ClockTimeline* timeline) { m_clockTimeline = timeline; }
 
+    /** Resets sources and timers without adding a design-history entry. */
+    void resetSimulation();
     /** Records successful user edits, including palette/property actions made by the UI. */
     void recordEdit(const EditResult& result);
 

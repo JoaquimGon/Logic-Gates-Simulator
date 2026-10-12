@@ -9,6 +9,16 @@
 #include <limits>
 #include <vector>
 
+void Input::resetSimulation()
+{
+    if (!m_scene)
+        return;
+    cancelCurrentAction();
+    m_scene->resetSimulation();
+    if (m_clockTimeline)
+        m_clockTimeline->clear();
+}
+
 bool Input::canEditCommand(EditCommand command) const
 {
     if (!m_scene || m_mode != EditorMode::Selection || !isIdle())

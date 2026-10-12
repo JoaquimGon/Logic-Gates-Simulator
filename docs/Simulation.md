@@ -170,3 +170,15 @@ guides per view. It is separate from Scene snapshots and JSON files. Switching
 views retains history; opening a file, undo/redo, or replacing published definitions
 resets the affected history. Evicted time ranges are left blank. There is no signal
 analyzer, physical timing model, or new scheduler framework.
+
+## Reset from the navbar
+
+Simulation > Reset Simulation sets the active scene's manual inputs and native/nested
+clock outputs LOW, restarts each clock at the beginning of its LOW half-cycle,
+and clears elapsed/pending clock time and the scene's chronograms. Frequencies,
+individual clock enable settings, and the global Run/Pause setting are retained.
+The circuit settles and synchronizes its visuals; sequential components respond
+normally to the source changes. The reset state is rendered before automatic time
+advances again. Other views and reusable definition templates are unchanged.
+This uses the existing source controls rather than creating a design edit/history
+entry. Persisted manual input changes still update the unsaved indicator.

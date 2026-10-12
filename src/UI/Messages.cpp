@@ -69,7 +69,7 @@ std::string UI::unsavedNoticeText() const
         return "";
     std::string text = m_circuitTabs.activeIsSubcircuit() ? "Unsaved changes - save for Custom"
                                                           : "Unsaved changes";
-    const double statusSpace = std::max(0.0, m_bar.width - 208);
+    const double statusSpace = std::max(0.0, m_bar.width - navigationStatusX() - 4);
     const double noticeSpace = messageCount() ? std::min(130.0, statusSpace * 0.6) : 0;
     auto fits = [&](const std::string& value)
     {
@@ -89,14 +89,14 @@ double UI::unsavedNoticeWidth() const
     if (text.empty())
         return 0;
     const double width = m_font ? getTextWidth(text, 0.35f, *m_font) : text.size() * 7.0;
-    const double statusSpace = std::max(0.0, m_bar.width - 208);
+    const double statusSpace = std::max(0.0, m_bar.width - navigationStatusX() - 4);
     const double noticeSpace = messageCount() ? std::min(130.0, statusSpace * 0.6) : 0;
     return std::min(statusSpace - noticeSpace, width + 20);
 }
 
 double UI::navigationStatusWidth() const
 {
-    return std::max(0.0, m_bar.width - unsavedNoticeWidth() - 208);
+    return std::max(0.0, m_bar.width - unsavedNoticeWidth() - navigationStatusX() - 4);
 }
 
 std::string UI::messageNoticeText() const
@@ -121,7 +121,7 @@ CanvasViewport UI::messageNoticeBounds() const
     if (text.empty())
         return {};
     const double width = m_font ? getTextWidth(text, 0.35f, *m_font) : text.size() * 7.0;
-    return {204, 0, std::min(navigationStatusWidth(), width + 20), m_bar.height};
+    return {navigationStatusX(), 0, std::min(navigationStatusWidth(), width + 20), m_bar.height};
 }
 
 void UI::addMessage(std::string message, MessageKind kind)

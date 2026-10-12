@@ -150,6 +150,13 @@ failing a Save preserves the open work. See
 nothing. Success/errors appear in the bar, with error details in the console.
 Escape, outside clicks, focus loss, and resizing dismiss the dropdown.
 
+**Simulation > Reset Simulation** resets the active circuit's manual inputs and
+all clocks (including clocks inside subcircuits) to LOW. Clock frequencies and
+pause/enable settings are preserved. Clock phases, elapsed time, pending catch-up
+work, and chronograms start fresh; connected logic settles normally from the
+reset sources. Other tabs keep their simulation state. Resetting a saved HIGH
+manual input marks that design unsaved, just like toggling it.
+
 The circuit strip reserves another 30 pixels below the top bar and above the canvas. Click the square **+**
 after the last circuit tab to create and open an empty `unnamed`; click a
 tab to switch.

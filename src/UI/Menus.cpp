@@ -21,7 +21,14 @@ constexpr std::array edits{
 CanvasViewport UI::menuBounds(Menu menu) const
 {
     const double x = static_cast<int>(menu) * 64.0;
-    return {x, 0, std::clamp(m_bar.width - x, 0.0, 64.0), m_bar.height};
+    const double width = menu == Menu::Simulation ? 120.0 : 64.0;
+    return {x, 0, std::clamp(m_bar.width - x, 0.0, width), m_bar.height};
+}
+
+double UI::navigationStatusX() const
+{
+    const auto last = menuBounds(Menu::Simulation);
+    return last.x + last.width + 12;
 }
 
 CanvasViewport UI::dropdownBounds(Menu menu) const
@@ -69,6 +76,8 @@ std::vector<UI::MenuItem> UI::menuOptions(Menu menu) const
         return m_editOptions;
     if (menu == Menu::View)
         return m_viewOptions;
+    if (menu == Menu::Simulation)
+        return {{"Reset Simulation", ""}};
     std::vector<MenuItem> items;
     for (const auto& name : fileOptions())
         items.push_back({name, ""});
@@ -104,6 +113,20 @@ void UI::executeMenuOption(Menu menu, int index, Input& input)
             input.executeEditCommand(
                 edits[index], GridSystem::worldToGrid(input.getPanOffset()), true
             );
+        return;
+    }
+    if (menu == Menu::Simulation)
+    {
+        if (index == 0)
+        {
+            input.resetSimulation();
+            m_simulationReset = true;
+            clockTimeline().clear();
+            m_clockFollow = true;
+            m_clockEnd = clockWindowSeconds();
+            m_clockHover = -1;
+            m_clockError.clear();
+        }
         return;
     }
     if (menu != Menu::View)
@@ -205,7 +228,7 @@ bool UI::handleMenus(const UiInputEvent& event, Input& input)
     }
     const auto headerAt = [&]() -> std::optional<Menu>
     {
-        for (const auto menu : {Menu::File, Menu::Edit, Menu::View})
+        for (const auto menu : {Menu::File, Menu::Edit, Menu::View, Menu::Simulation})
             if (menuBounds(menu).contains(m_pointer.x, m_pointer.y))
                 return menu;
         return {};

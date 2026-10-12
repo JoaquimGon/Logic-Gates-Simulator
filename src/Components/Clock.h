@@ -51,6 +51,13 @@ class Clock : public Component
         return true;
     }
 
+    /** Returns to the start of a LOW half-cycle without changing speed or pause settings. */
+    void resetPhase()
+    {
+        m_timer = 0;
+        setStateOutPin(0, false);
+    }
+
     // -------------------------------------------------------------
     // Time Accumulator
     // -------------------------------------------------------------

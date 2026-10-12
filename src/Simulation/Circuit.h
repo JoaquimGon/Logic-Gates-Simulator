@@ -105,6 +105,8 @@ class Circuit
      * @return true if at least one clock edge was processed.
      */
     bool updateClocks(float deltaTime, ClockTimeline* timeline = nullptr);
+    /** Resets native/nested clock phases and manual sources; the caller settles the circuit. */
+    void resetSources();
     /** Pauses automatic time and processes one or two distinct scheduled edge times. */
     int stepClocks(int count = 1, ClockTimeline* timeline = nullptr);
     void setClocksPaused(bool paused);

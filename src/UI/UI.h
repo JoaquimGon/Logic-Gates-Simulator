@@ -36,7 +36,8 @@ class UI
     {
         File,
         Edit,
-        View
+        View,
+        Simulation
     };
 
     struct MenuItem
@@ -49,6 +50,9 @@ class UI
     CanvasViewport dropdownBounds(Menu menu) const;
     CanvasViewport menuOptionBounds(Menu menu, int index) const;
     std::vector<MenuItem> menuOptions(Menu menu) const;
+
+    /** Lets the frame loop present the reset state before advancing automatic clock time. */
+    bool takeSimulationReset() { return std::exchange(m_simulationReset, false); }
 
     bool menuOpen(Menu menu) const { return m_openMenu == menu; }
 
@@ -244,6 +248,7 @@ class UI
     int gateInputRows(const Scene& scene) const;
     int gateInputScroll(const Scene& scene) const;
 
+    double navigationStatusX() const;
     std::string unsavedNoticeText() const;
     double unsavedNoticeWidth() const;
     double navigationStatusWidth() const;
@@ -298,7 +303,7 @@ class UI
     std::optional<Menu> m_openMenu;
     std::optional<std::pair<Menu, int>> m_menuCommand;
     std::vector<MenuItem> m_editOptions, m_viewOptions;
-    bool m_bottomVisible = true, m_debugVisible = false;
+    bool m_bottomVisible = true, m_debugVisible = false, m_simulationReset = false;
     int m_menuShortcutKey = -1;
     bool m_fileMousePressed = false, m_fileEscapePressed = false;
     std::optional<FileCommand> m_fileCommand;

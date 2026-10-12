@@ -179,6 +179,8 @@ class Scene
     bool checkOverlap(int draggedComponentId) const;
 
     bool updateClocks(float deltaTime, ClockTimeline* timeline = nullptr);
+    /** Resets sources in this scene and settles/synchronizes existing circuitry. */
+    void resetSimulation();
 
     bool clocksPaused() const { return m_circuit.clocksPaused(); }
 
