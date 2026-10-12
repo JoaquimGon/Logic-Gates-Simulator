@@ -18,6 +18,10 @@ class CircuitTabs
   public:
     void bind(CircuitViews* views, const FontMetrics* font);
 
+    std::optional<std::size_t> takeCloseRequest();
+
+    bool hasCloseRequest() const { return m_closeRequest.has_value(); }
+
     bool enabled() const { return m_views && m_font; }
 
     void layout(CanvasViewport bar);
@@ -63,7 +67,7 @@ class CircuitTabs
     CanvasViewport m_bar{}, m_tabList{};
     double m_tabWidth = 0, m_scroll = 0, m_now = 0, m_hoverSince = 0;
     double m_pointerX = 0, m_pointerY = 0;
-    std::optional<std::size_t> m_hover, m_popup, m_lastActive;
+    std::optional<std::size_t> m_hover, m_popup, m_lastActive, m_closeRequest;
     bool m_editing = false, m_selectAll = false, m_escapePressed = false;
     bool m_confirmDelete = false;
     bool m_createMenu = false, m_popupMousePressed = false;

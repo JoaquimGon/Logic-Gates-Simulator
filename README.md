@@ -133,13 +133,19 @@ on the right tracks the active tab, including new empty scenes. It clears after 
 save/open and returns after edits; clock edges, camera movement, and selection do not count.
 Subcircuits also show a reminder to save for Custom. A saved invalid draft is clean but
 remains unpublished, as explained by the file status message. Click **File** to expand **Save**,
-**Save As**, **Open**, and **Load subcircuit** in a workspace. Save/Open operate on
+**Save As**, **Open**, and **Import subcircuit...** in a workspace. Save/Open operate on
 the **active workspace**. Save asks for a JSON path the first time, then updates
 that file; Save As always asks for a path.
 Each workspace remembers its own file. Open validates the file before replacing the active
-workspace; other authored scenes are retained. Subcircuit editors instead show **Save (subcircuit)**
-and **Save As (subcircuit)**, using their own file paths. Valid saves/imports appear
-in Custom; right-click a placed box to **Edit subcircuit**. See
+workspace; other authored scenes are retained. Subcircuit editors instead show **Save to library**
+and **Export subcircuit...**. Save writes the editable design to the persistent
+app-managed library; Export writes a portable copy. Published designs reappear
+in Custom on startup; saved drafts are editable rows which cannot be placed.
+Right-click a Custom row or a placed box to **Edit subcircuit**.
+File also offers **Open storage in Explorer** and **Change storage location...**;
+changing the location copies managed designs/drafts and preserves the originals.
+Dirty Open, tab closure, and exit ask Save/Discard/Cancel; cancelling a picker or
+failing a Save preserves the open work. See
 [subcircuit behavior and save rules](docs/Subcircuits.md). Windows uses the native file picker; cancelling it changes
 nothing. Success/errors appear in the bar, with error details in the console.
 Escape, outside clicks, focus loss, and resizing dismiss the dropdown.

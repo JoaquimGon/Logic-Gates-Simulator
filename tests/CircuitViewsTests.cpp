@@ -187,6 +187,11 @@ void run(GLFWwindow* window)
         cursor(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
         mouse(button, GLFW_PRESS);
         mouse(button, GLFW_RELEASE);
+        if (const auto index = ui.takeCloseCircuit())
+        {
+            views.remove(*index, input); // This fixture tests already-saved tab deletion.
+            input.setUiCapture({});
+        }
     };
     auto key = [&](int code)
     {
@@ -523,6 +528,8 @@ void run(GLFWwindow* window)
     retained->addComponent(BuiltinComponentIds::And, {0, 0});
     input.setPanOffset({0.21f, -0.08f});
     input.setZoom(1.4f);
+    for (std::size_t i = 0; i < views.size(); ++i)
+        views.markSaved(i);
     click(ui.circuitTabs().closeBounds(2));
     require(
         ui.circuitTabs().confirmingDelete() && ui.circuitTabs().popupIndex() == 2 &&

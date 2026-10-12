@@ -104,6 +104,9 @@ class CircuitViews
     void markSaved(std::size_t index);
     /** Stages updates in every view before replacing any; changed used interfaces reject
      * atomically. */
+    void validatePublication(const std::vector<ComponentDefinition>& definitions) const;
+    /** Adds available library designs without replacing embedded workspace versions. */
+    void loadLibrary(const std::vector<ComponentDefinition>& definitions);
     void publishSubcircuits(const std::vector<ComponentDefinition>& definitions);
     void editSubcircuit(const ComponentDefinition& definition, Input& input);
     void openSubcircuit(

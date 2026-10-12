@@ -121,10 +121,16 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         }
         else
         {
-            label(button.label, {rect.x, rect.y + 3, rect.width, 22}, 0.48f, color);
             label(
-                std::to_string(button.inputCount) + " inputs / " +
-                    std::to_string(button.outputCount) + " outputs",
+                (button.draftPath.empty() ? "" : "Draft: ") + button.label,
+                {rect.x, rect.y + 3, rect.width, 22},
+                0.48f,
+                color
+            );
+            label(
+                button.draftPath.empty() ? std::to_string(button.inputCount) + " inputs / " +
+                                               std::to_string(button.outputCount) + " outputs"
+                                         : "Click to edit; cannot place",
                 {rect.x, rect.y + 25, rect.width, 18},
                 0.35f,
                 {0.55f, 0.65f, 0.76f, 1}
@@ -710,4 +716,5 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         renderer.drawText(text, TextSpace::Screen);
     }
     drawClockTooltip(renderer, scene);
+    drawUnsavedPrompt(renderer);
 }

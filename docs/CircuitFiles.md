@@ -3,13 +3,14 @@
 In workspace views, File -> Save, Save As, and Open operate on the **active workspace**.
 Each view remembers its last successful path; Save As always chooses one. Open
 validates/builds a separate scene before replacing the active workspace.
-Other authored scenes are retained; compatible embedded definition updates also
-reach their placed subcircuits. File -> Load subcircuit imports standalone designs.
-In subcircuit editors, the menu instead saves the active subcircuit; each editor
-remembers its own path. See [Subcircuits.md](Subcircuits.md) for draft publication,
+Other authored scenes and managed library versions are retained unchanged.
+Embedded definitions stay local to the opened workspace. File -> Import subcircuit
+copies standalone designs into the managed library.
+In subcircuit editors, Save to library writes managed JSON without a picker;
+Export subcircuit writes a portable copy without changing the Save destination. See [Subcircuits.md](Subcircuits.md) for draft publication,
 interface changes, nested dependencies, and editing placed components.
 A quiet amber **Unsaved changes** message at the navigation bar's right edge tracks
-only the active view. New scenes start unsaved; successful Save/Save As/Open clears
+only the active view. New scenes start unsaved; successful managed Save or workspace Save/Save As/Open clears
 it. Cancellation and failure leave the status intact. Restoring exactly the saved
 design (including undo) clears it again. Subcircuit editors also hint to save for Custom;
 a saved invalid draft is clean, with its publication problem reported separately.
@@ -21,7 +22,10 @@ camera movement, and unused library imports do not. Converting a view between
 workspace and subcircuit clears its remembered path because the file format changes.
 Successful saves preserve edit history; Open clears history for the replaced scene.
 Undo/redo to the saved design updates the existing indicator. History is session-only
-and is not written into JSON. There is no unsaved-change confirmation on Open/delete yet.
+and is not written into JSON. Dirty Open, tab-close, and exit ask Save/Discard/Cancel.
+Exit lists dirty tabs together and offers Save All; a cancelled picker or failed
+save aborts the destructive operation. Completed saves are retained if a later
+Save All entry fails or is cancelled. This is not automatic crash recovery.
 
 The Windows application uses native JSON file pickers. Cancelling a picker has
 no effect. The bar reports success or errors; the console retains error details.

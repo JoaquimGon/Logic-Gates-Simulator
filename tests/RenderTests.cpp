@@ -2334,6 +2334,7 @@ void circuitViewsPresentation(Renderer& renderer)
         "Circuit name popup did not scale to 2x DPI."
     );
     saveImage("circuit-tabs-2x.ppm");
+    views.markSaved(1);
     click(ui.circuitTabs().closeBounds(1), GLFW_MOUSE_BUTTON_LEFT);
     require(
         ui.circuitTabs().confirmingDelete() && views.size() == 2,
@@ -2353,6 +2354,10 @@ void circuitViewsPresentation(Renderer& renderer)
     );
     click(ui.circuitTabs().closeBounds(1), GLFW_MOUSE_BUTTON_LEFT);
     click(ui.circuitTabs().deleteBounds(), GLFW_MOUSE_BUTTON_LEFT);
+    const auto closeRequest = ui.takeCloseCircuit();
+    require(closeRequest == 1, "Confirmed tab deletion was not queued for unsaved protection.");
+    views.remove(*closeRequest, input);
+    input.setUiCapture({});
     require(
         views.size() == 1 && ui.circuitTabs().closeBounds(0).width == 0,
         "Confirmed circuit removal did not retain the permanent Main tab."
@@ -2408,7 +2413,7 @@ void circuitViewsPresentation(Renderer& renderer)
     click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     require(
-        ui.fileOptions().size() == 2 && ui.fileOptionBounds(2).width == 0,
+        ui.fileOptions().size() == 5 && ui.fileOptions()[0] == "Save to library",
         "Subcircuit File menu retained Main's commands."
     );
     saveImage("subcircuit-file-menu.ppm");
@@ -2434,6 +2439,33 @@ void circuitViewsPresentation(Renderer& renderer)
             screenPixel(surface.windowWidth - 10, 24) == behind,
             "Hidden F3 diagnostics left a background visible."
         );
+    }
+    ui.dismissPopups(input);
+    ui.setLibraryDrafts({{"subcircuit.draft", "Learning circuit", {}, 0, 0, "draft.json"}});
+    for (const int scale : {1, 2})
+    {
+        surface = {extent / scale, extent / scale, extent, extent};
+        draw();
+        click(ui.tabBounds(UI::Tab::Custom), GLFW_MOUSE_BUTTON_LEFT);
+        draw();
+        saveImage(scale == 1 ? "library-drafts.ppm" : "library-drafts-2x.ppm");
+        ui.showUnsavedPrompt(
+            {"Main", "Adder", "Learning circuit", "Workspace", "Draft"}, true, input
+        );
+        draw();
+        const auto unsavedBox = ui.unsavedPromptBounds();
+        const auto save = ui.unsavedButtonBounds(UI::UnsavedChoice::Save);
+        require(
+            screenPixel(unsavedBox.x + 2, unsavedBox.y + 2)[2] > 25 &&
+                screenPixel(save.x + 3, save.y + 3)[2] > 80,
+            "Unsaved-work prompt or Save All button did not render above the UI."
+        );
+        saveImage(scale == 1 ? "unsaved-work.ppm" : "unsaved-work-2x.ppm");
+        click(ui.unsavedButtonBounds(UI::UnsavedChoice::Cancel), GLFW_MOUSE_BUTTON_LEFT);
+        require(
+            ui.takeUnsavedChoice() == UI::UnsavedChoice::Cancel, "Rendered Cancel did not dispatch."
+        );
+        input.setUiCapture({});
     }
     ui.dismissPopups(input);
     ui.setCircuitViews(nullptr, nullptr);

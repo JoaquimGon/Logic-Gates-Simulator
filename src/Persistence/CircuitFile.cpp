@@ -544,3 +544,8 @@ SavedSubcircuit loadSubcircuit(const std::filesystem::path& path)
 {
     return subcircuitFromJson(readText(path));
 }
+
+void writeTextAtomically(const std::filesystem::path& path, const std::string& text)
+{
+    writeText(path, text);
+}

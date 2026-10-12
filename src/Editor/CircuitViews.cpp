@@ -178,43 +178,11 @@ void CircuitViews::replaceWorkspaceAt(
     std::size_t index, Scene scene, std::string name, Input& input
 )
 {
-    std::vector<ComponentDefinition> imported;
-    for (const auto& [id, definition] : scene.getComponentCatalog().definitions())
-        if (std::holds_alternative<SubcircuitBehavior>(definition.behavior))
-            imported.push_back(definition);
     includeLibrary(scene);
-    EditBatch updates;
-    for (const auto& definition : imported)
-        updates.push_back(RegisterComponentDefinition{definition, true});
-    std::vector<Scene> staged;
-    for (std::size_t i = 0; i < m_views.size(); ++i)
-    {
-        staged.push_back(i == index ? std::move(scene) : *m_views[i].scene);
-        const auto result = EditorActions(staged.back()).apply(updates);
-        if (!result)
-            throw std::invalid_argument(result.message);
-    }
-    const auto result = EditorActions(*m_views[index].scene)
-                            .restore(staged[index], m_views[index].scene->getRevision());
+    const auto result =
+        EditorActions(*m_views[index].scene).restore(scene, m_views[index].scene->getRevision());
     if (!result)
         throw std::invalid_argument(result.message);
-    for (std::size_t i = 0; i < m_views.size(); ++i)
-        if (i != index)
-        {
-            for (const auto& definition : imported)
-            {
-                const auto* old =
-                    m_views[i].scene->getComponentCatalog().find(definition.identity.id);
-                if (old && old->identity.version != definition.identity.version &&
-                    m_views[i].history->referencesDefinition(definition.identity.id))
-                    m_views[i].history->clear();
-                if (old && old->identity.version != definition.identity.version)
-                    m_views[i].clockTimeline->clear();
-            }
-            *m_views[i].scene = std::move(staged[i]);
-        }
-    for (const auto& definition : imported)
-        m_library.insert_or_assign(definition.identity.id, definition);
     rename(index, std::move(name));
     select(index, input);
     activeScene().propagate();
@@ -222,6 +190,28 @@ void CircuitViews::replaceWorkspaceAt(
     m_views[index].history->clear();
     m_views[index].clockTimeline->clear();
     markSaved(index);
+}
+
+void CircuitViews::validatePublication(const std::vector<ComponentDefinition>& definitions) const
+{
+    EditBatch batch;
+    for (const auto& definition : definitions)
+        batch.push_back(RegisterComponentDefinition{definition, true});
+    for (const auto& view : m_views)
+    {
+        Scene staged(*view.scene);
+        const auto result = EditorActions(staged).apply(batch);
+        if (!result)
+            throw std::invalid_argument(result.message);
+    }
+}
+
+void CircuitViews::loadLibrary(const std::vector<ComponentDefinition>& definitions)
+{
+    for (const auto& definition : definitions)
+        m_library.insert_or_assign(definition.identity.id, definition);
+    for (auto& view : m_views)
+        includeLibrary(*view.scene);
 }
 
 void CircuitViews::publishSubcircuits(const std::vector<ComponentDefinition>& definitions)

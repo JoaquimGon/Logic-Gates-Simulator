@@ -228,7 +228,7 @@ void messagesPanel(GLFWwindow* window)
     ui.clearMessages();
     require(
         ui.messages().empty() && ui.activeBottomTab() == UI::BottomTab::Subcircuit &&
-            ui.bottomTabBounds(UI::BottomTab::Messages).width > 0 && ui.fileOptions().size() == 2,
+            ui.bottomTabBounds(UI::BottomTab::Messages).width > 0 && ui.fileOptions().size() == 5,
         "Subcircuit log inherited workspace errors or lost its separate overview/menu."
     );
     ui.reportSimulation(views.activeScene(), 1);

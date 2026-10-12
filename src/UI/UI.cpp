@@ -65,6 +65,8 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
         messageState().unread = false;
     layoutBottom(input);
     refreshMenuOptions(input);
+    if (unsavedPromptOpen())
+        input.setUiCapture({true, true});
     m_list = {
         12, m_panel.y + 112, std::max(0.0, m_panel.width - 24), std::max(0.0, m_panel.height - 160)
     };
@@ -83,9 +85,12 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
                 add(*definition);
     }
     else
+    {
         for (const auto& [id, definition] : catalog.definitions())
             if (!id.starts_with("native."))
                 add(definition);
+        m_buttons.insert(m_buttons.end(), m_libraryDrafts.begin(), m_libraryDrafts.end());
+    }
 
     const int columns = m_tab == Tab::Native && m_list.width >= 160 ? 2 : 1;
     const double step = m_tab == Tab::Native ? cardStep : rowStep;
@@ -322,8 +327,46 @@ std::optional<UI::FileCommand> UI::takeFileCommand()
 std::vector<std::string> UI::fileOptions() const
 {
     if (m_showSubcircuit)
-        return {"Save (subcircuit)", "Save As (subcircuit)"};
-    return {"Save", "Save As", "Open", "Load subcircuit"};
+        return {
+            "Save to library",
+            "Export subcircuit...",
+            "Import subcircuit...",
+            "Open storage in Explorer",
+            "Change storage location..."
+        };
+    return {
+        "Save",
+        "Save As",
+        "Open",
+        "Import subcircuit...",
+        "Open storage in Explorer",
+        "Change storage location..."
+    };
+}
+
+std::vector<UI::FileCommand> UI::fileCommands() const
+{
+    if (m_showSubcircuit)
+        return {
+            FileCommand::Save,
+            FileCommand::ExportSubcircuit,
+            FileCommand::LoadSubcircuit,
+            FileCommand::OpenStorage,
+            FileCommand::ChangeStorage
+        };
+    return {
+        FileCommand::Save,
+        FileCommand::SaveAs,
+        FileCommand::Open,
+        FileCommand::LoadSubcircuit,
+        FileCommand::OpenStorage,
+        FileCommand::ChangeStorage
+    };
+}
+
+std::optional<std::filesystem::path> UI::takeOpenDraft()
+{
+    return std::exchange(m_openDraft, std::nullopt);
 }
 
 std::optional<std::string> UI::takeEditSubcircuit()
@@ -675,8 +718,11 @@ bool UI::handleInput(
         m_pointer = {event.x, event.y};
     if (event.kind == UiInputKind::WindowFocus && !event.focused)
         m_pointer = {-1, -1};
+    if (unsavedPromptOpen() || m_unsavedChoice)
+        return handleUnsavedPrompt(event, input);
     // A queued operation belongs to this view; do not switch/delete tabs before it runs.
-    if (m_fileCommand || m_editSubcircuit || m_menuCommand)
+    if (m_fileCommand || m_editSubcircuit || m_openDraft || m_menuCommand ||
+        m_circuitTabs.hasCloseRequest())
     {
         if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE)
         {
@@ -911,11 +957,27 @@ bool UI::handleInput(
                         layout(scene.getComponentCatalog(), m_surface, input);
                         return true;
                     }
-            if (m_canCreate && input.isIdle() && event.code == GLFW_MOUSE_BUTTON_LEFT &&
-                event.action == GLFW_PRESS)
+            if (input.isIdle() && event.action == GLFW_PRESS)
                 if (const auto* button = buttonAt(m_pointer))
                 {
-                    m_dragDefinition = button->definitionId;
+                    if (!button->draftPath.empty() && event.code == GLFW_MOUSE_BUTTON_LEFT)
+                        m_openDraft = button->draftPath;
+                    else if (
+                        m_tab == Tab::Custom && event.code == GLFW_MOUSE_BUTTON_RIGHT &&
+                        button->draftPath.empty()
+                    )
+                    {
+                        const auto* definition =
+                            scene.getComponentCatalog().find(button->definitionId);
+                        if (!definition ||
+                            !std::holds_alternative<SubcircuitBehavior>(definition->behavior))
+                            return true;
+                        m_editSubcircuit = button->definitionId;
+                    }
+                    else if (m_canCreate && event.code == GLFW_MOUSE_BUTTON_LEFT)
+                        m_dragDefinition = button->definitionId;
+                    else
+                        return true;
                     m_message.clear();
                     input.setUiCapture({true, true});
                 }

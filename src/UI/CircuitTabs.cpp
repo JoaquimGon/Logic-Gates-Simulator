@@ -7,10 +7,16 @@
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace
 {
 constexpr float titleScale = 0.42f;
+}
+
+std::optional<std::size_t> CircuitTabs::takeCloseRequest()
+{
+    return std::exchange(m_closeRequest, std::nullopt);
 }
 
 void CircuitTabs::bind(CircuitViews* views, const FontMetrics* font)
@@ -304,9 +310,8 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
             {
                 const auto index = *m_popup;
                 cancel(input);
-                m_views->remove(index, input);
-                m_lastActive.reset();
-                layout(m_bar);
+                m_closeRequest = index;
+                input.setUiCapture({true, true});
             }
             else if (
                 cancelDeleteBounds().contains(event.x, event.y) ||
@@ -401,8 +406,13 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
                 {
                     if (closeBounds(*index).contains(event.x, event.y))
                     {
-                        m_popup = *index;
-                        m_confirmDelete = true;
+                        if (m_views->hasUnsavedChanges(*index))
+                            m_closeRequest = *index;
+                        else
+                        {
+                            m_popup = *index;
+                            m_confirmDelete = true;
+                        }
                         input.setUiCapture({true, true});
                     }
                     else

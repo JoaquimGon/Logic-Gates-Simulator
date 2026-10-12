@@ -1,12 +1,14 @@
 #include "Engine.h"
 
 #include "App/CircuitFiles.h"
+#include "App/UnsavedWork.h"
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/CircuitViews.h"
 #include "Editor/Scene.h"
 #include "Graphics/Presentation/ComponentPresentation.h"
 #include "Persistence/CircuitFile.h"
+#include "Persistence/SubcircuitLibrary.h"
 
 #include <GLFW/glfw3.h>
 #include <chrono>
@@ -135,6 +137,18 @@ void Engine::run()
 
     circuits.select(0, input);
     m_ui.setCircuitViews(&circuits, &m_renderer.fontMetrics());
+    std::unique_ptr<SubcircuitLibrary> library;
+    try
+    {
+        library = std::make_unique<SubcircuitLibrary>();
+        refreshSubcircuitLibrary(*library, circuits, m_ui);
+        for (const auto& error : library->errors())
+            m_ui.addMessage("Library: " + error);
+    }
+    catch (const std::exception& error)
+    {
+        m_ui.setFileStatus(std::string("Library unavailable: ") + error.what(), true);
+    }
     auto updateUiLayout = [&]()
     {
         m_ui.layout(
@@ -166,22 +180,83 @@ void Engine::run()
     double lastFrameTime = glfwGetTime();
     std::optional<std::pair<std::size_t, UI::BottomTab>> timingContext;
 
-    while (!glfwWindowShouldClose(window))
+    UnsavedWork unsaved;
+    auto runFileCommand = [&](UI::FileCommand command)
+    { return performFileCommand(command, window, m_ui, circuits, input, library.get()); };
+    while (true)
     {
+        if (glfwWindowShouldClose(window))
+        {
+            glfwSetWindowShouldClose(window, GLFW_FALSE);
+            unsaved.request(
+                {UnsavedWork::Operation::Exit, circuits.activeIndex()}, circuits, m_ui, input
+            );
+        }
+        if (const auto index = m_ui.takeCloseCircuit())
+            unsaved.request({UnsavedWork::Operation::Close, *index}, circuits, m_ui, input);
         if (const auto command = m_ui.takeFileCommand())
+        {
+            if (*command == UI::FileCommand::Open)
+                unsaved.request(
+                    {UnsavedWork::Operation::Open, circuits.activeIndex()}, circuits, m_ui, input
+                );
+            else
+            {
+                try
+                {
+                    runFileCommand(*command);
+                }
+                catch (const std::exception& error)
+                {
+                    m_ui.setFileStatus(error.what(), true);
+                    std::cerr << "[File] " << error.what() << '\n';
+                }
+                input.setUiCapture({});
+                input.setCanvasFocused(true);
+            }
+            // Native dialogs are not simulated clock time.
+            lastFrameTime = glfwGetTime();
+        }
+        const bool wasPending = unsaved.pending();
+        if (const auto approved = unsaved.resolve(
+                circuits, m_ui, input, [&]() { return runFileCommand(UI::FileCommand::Save); }
+            ))
+        {
+            if (approved->operation == UnsavedWork::Operation::Exit)
+                break;
+            if (approved->operation == UnsavedWork::Operation::Close)
+                circuits.remove(approved->index, input);
+            else
+            {
+                try
+                {
+                    runFileCommand(UI::FileCommand::Open);
+                }
+                catch (const std::exception& error)
+                {
+                    m_ui.setFileStatus(error.what(), true);
+                }
+            }
+            lastFrameTime = glfwGetTime();
+        }
+        if (wasPending && !unsaved.pending())
+            lastFrameTime = glfwGetTime();
+        if (const auto path = m_ui.takeOpenDraft())
         {
             try
             {
-                performFileCommand(*command, window, m_ui, circuits, input);
+                auto saved = loadSubcircuit(*path);
+                m_ui.dismissPopups(input);
+                input.cancelCurrentAction();
+                circuits.openSubcircuit(
+                    std::move(saved.design.scene), saved.identity, saved.design.name, *path, input
+                );
             }
             catch (const std::exception& error)
             {
                 m_ui.setFileStatus(error.what(), true);
-                std::cerr << "[File] " << error.what() << '\n';
             }
-            input.setCanvasFocused(true);
-            // Time spent in a modal file picker is not simulated clock time.
-            lastFrameTime = glfwGetTime();
+            input.setUiCapture({});
         }
         if (const auto id = m_ui.takeEditSubcircuit())
         {
@@ -199,6 +274,8 @@ void Engine::run()
             {
                 m_ui.setFileStatus(error.what(), true);
             }
+            input.setUiCapture({});
+            input.setCanvasFocused(true);
         }
         double currentFrameTime = glfwGetTime();
         float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);
@@ -256,7 +333,8 @@ void Engine::run()
 
         // Clocks settle the circuit at every transition; remember edits for visual synchronization.
         const bool pendingSimulation = scene.isSimulationDirty();
-        bool clockEdgeFlipped = scene.updateClocks(deltaTime, &circuits.activeClockTimeline());
+        bool clockEdgeFlipped =
+            !unsaved.pending() && scene.updateClocks(deltaTime, &circuits.activeClockTimeline());
 
         const bool syncNeeded = clockEdgeFlipped || pendingSimulation || scene.isSimulationDirty();
         if (scene.isSimulationDirty())

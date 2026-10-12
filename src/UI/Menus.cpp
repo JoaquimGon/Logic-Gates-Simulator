@@ -26,7 +26,7 @@ CanvasViewport UI::menuBounds(Menu menu) const
 
 CanvasViewport UI::dropdownBounds(Menu menu) const
 {
-    const double width = std::min(menu == Menu::File ? 240.0 : 320.0, m_bar.width);
+    const double width = std::min(menu == Menu::File ? 300.0 : 320.0, m_bar.width);
     return {
         std::min(menuBounds(menu).x, std::max(0.0, m_bar.width - width)),
         m_bar.height,
@@ -244,7 +244,7 @@ bool UI::handleMenus(const UiInputEvent& event, Input& input)
                     if (options[i].enabled && menuOptionBounds(menu, i).contains(event.x, event.y))
                     {
                         if (menu == Menu::File)
-                            m_fileCommand = static_cast<FileCommand>(i);
+                            m_fileCommand = fileCommands().at(i);
                         else
                             m_menuCommand = std::pair{menu, i};
                     }

@@ -4,17 +4,26 @@
 #include <filesystem>
 class CircuitViews;
 class Input;
+class SubcircuitLibrary;
 struct GLFWwindow;
 
-/** Runs a queued File command after input callbacks; cancellation preserves file associations. */
-void performFileCommand(
-    UI::FileCommand command, GLFWwindow* window, UI& ui, CircuitViews& views, Input& input
+/** Runs a queued File command. False means a cancelled picker or no operation. */
+bool performFileCommand(
+    UI::FileCommand command,
+    GLFWwindow* window,
+    UI& ui,
+    CircuitViews& views,
+    Input& input,
+    SubcircuitLibrary* library
 );
 /** Applies a chosen path; a cancelled picker has no side effects. */
-void applyFileCommand(
+bool applyFileCommand(
     UI::FileCommand command,
     const std::optional<std::filesystem::path>& chosen,
     UI& ui,
     CircuitViews& views,
-    Input& input
+    Input& input,
+    SubcircuitLibrary* library
 );
+/** Reads managed designs once, preserving embedded definitions in existing scenes. */
+void refreshSubcircuitLibrary(SubcircuitLibrary& library, CircuitViews& views, UI& ui);

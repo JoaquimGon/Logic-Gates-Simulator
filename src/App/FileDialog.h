@@ -12,3 +12,5 @@ std::optional<std::filesystem::path> chooseCircuitFile(
     const std::filesystem::path& current = {},
     bool subcircuit = false
 );
+std::optional<std::filesystem::path> chooseStorageFolder(GLFWwindow* window);
+void openStorageFolder(const std::filesystem::path& folder);

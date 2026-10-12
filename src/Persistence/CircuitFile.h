@@ -37,3 +37,6 @@ void saveSubcircuit(
     const std::string& name
 );
 SavedSubcircuit loadSubcircuit(const std::filesystem::path& path);
+
+/** Reuses the circuit writer for the small library location settings file. */
+void writeTextAtomically(const std::filesystem::path& path, const std::string& text);

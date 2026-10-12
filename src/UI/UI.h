@@ -27,7 +27,10 @@ class UI
         Save,
         SaveAs,
         Open,
-        LoadSubcircuit
+        LoadSubcircuit,
+        ExportSubcircuit,
+        OpenStorage,
+        ChangeStorage
     };
     enum class Menu
     {
@@ -52,6 +55,20 @@ class UI
     bool bottomVisible() const { return m_bottomVisible; }
 
     bool debugVisible() const { return m_debugVisible; }
+
+    enum class UnsavedChoice
+    {
+        Save,
+        Discard,
+        Cancel
+    };
+    void showUnsavedPrompt(std::vector<std::string> names, bool exiting, Input& input);
+
+    bool unsavedPromptOpen() const { return !m_unsavedNames.empty(); }
+
+    std::optional<UnsavedChoice> takeUnsavedChoice();
+    CanvasViewport unsavedPromptBounds() const;
+    CanvasViewport unsavedButtonBounds(UnsavedChoice choice) const;
 
     enum class Tab
     {
@@ -91,7 +108,14 @@ class UI
         std::string definitionId, label;
         CanvasViewport bounds;
         int inputCount = 0, outputCount = 0;
+        std::filesystem::path draftPath;
     };
+
+    void setLibraryDrafts(std::vector<Button> drafts) { m_libraryDrafts = std::move(drafts); }
+
+    std::optional<std::filesystem::path> takeOpenDraft();
+
+    std::optional<std::size_t> takeCloseCircuit() { return m_circuitTabs.takeCloseRequest(); }
 
     void layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& input);
     void setCircuitViews(CircuitViews* views, const FontMetrics* font);
@@ -108,6 +132,7 @@ class UI
     std::optional<FileCommand> takeFileCommand();
     std::optional<std::string> takeEditSubcircuit();
     std::vector<std::string> fileOptions() const;
+    std::vector<FileCommand> fileCommands() const;
     void setFileStatus(std::string message, bool error = false);
     void dismissPopups(Input& input);
 
@@ -183,6 +208,8 @@ class UI
     CanvasViewport gateInversionBounds(const Scene& scene) const;
 
   private:
+    bool handleUnsavedPrompt(const UiInputEvent& event, Input& input);
+    void drawUnsavedPrompt(Renderer& renderer) const;
     void layoutBottom(Input& input);
     bool handleBottomResize(const UiInputEvent& event, Input& input);
     void finishBottomResize(Input& input);
@@ -240,12 +267,17 @@ class UI
     static constexpr double infoGateHeight = 64;
     static constexpr double infoOrientationHeight = 50;
 
+    std::vector<std::string> m_unsavedNames;
+    std::optional<UnsavedChoice> m_unsavedChoice, m_unsavedPressed;
+    bool m_unsavedExiting = false;
+    int m_unsavedScroll = 0;
     CanvasSurface m_surface{};
     CanvasViewport m_bar{}, m_panel{}, m_list{}, m_bottom{}, m_modes{};
     std::optional<double> m_bottomHeight;
     bool m_resizingBottom = false, m_bottomResizePressed = false;
     double m_bottomResizeY = 0, m_bottomResizeHeight = 0;
-    std::vector<Button> m_buttons;
+    std::vector<Button> m_buttons, m_libraryDrafts;
+    std::optional<std::filesystem::path> m_openDraft;
     Tab m_tab = Tab::Native;
     BottomTab m_bottomTab = BottomTab::Messages;
     bool m_showSubcircuit = false;

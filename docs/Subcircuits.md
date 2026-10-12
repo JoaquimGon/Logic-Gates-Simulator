@@ -8,18 +8,26 @@ and lists input/output/clock names, including qualified names for nested clocks.
 
 ## Saving and placing
 
-- In a subcircuit editor, File shows **Save (subcircuit)** and
-  **Save As (subcircuit)**. The first Save asks for a path; later saves reuse it.
-  Save As always chooses another path and then remembers it for that editor.
-- Save accepts unfinished drafts. A valid, settling design is also published
-  to **Custom**. Shorted/rejected wiring, missing ports, duplicate names, or an
-  unstable simulation prevent publication, while the draft remains saved.
-- In a workspace, **Load subcircuit** imports a standalone JSON file. Valid
-  definitions appear in Custom; invalid drafts open in an editor instead.
+- In a subcircuit editor, **Save to library** stores the full editable design in
+  app-managed JSON files, without a file picker. Published designs automatically
+  appear in **Custom** on future launches.
+- Save accepts unfinished or incompatible drafts. **Draft:** rows in Custom open
+  their saved design for editing; they cannot be placed. A previous usable
+  published version remains available until a compatible valid Save succeeds.
+- **Export subcircuit...** writes a portable JSON copy. It does not change the
+  managed Save destination or clear pending library changes.
+- **Import subcircuit...** copies a standalone JSON design into managed storage.
+  Moving or deleting the imported source file does not remove the library copy.
+  Invalid imports open as saved drafts instead of becoming placeable components.
+- **Open storage in Explorer** opens the managed folder. **Change storage
+  location...** copies published designs and drafts before remembering the new
+  folder; original files remain intact. Conflicting destination files abort the
+  change. The default is `%LOCALAPPDATA%/LogicGateSimulator/storage/`; the small
+  location setting remains in `%LOCALAPPDATA%/LogicGateSimulator/settings.json`.
 - Drag a Custom row onto the canvas. Each placement has its own input values,
   latch memory, clock phase, and contained circuit. Boxes use the existing shader
   and display the circuit name and external pin labels.
-- Right-click a placed box and click **Edit subcircuit**. This reopens the original
+- Right-click a Custom row, or a placed box and click **Edit subcircuit**. This reopens the original
   components, positions, settings, and wire bends. An already-open editor is
   selected without replacing its unsaved work.
 
@@ -40,10 +48,18 @@ allows up to eight nested levels and 4,096 expanded components per definition.
 
 Standalone `logic-gates-subcircuit` JSON contains a stable `subcircuit.*` ID,
 definition version, ordered port mapping, and a complete editable circuit design.
-Save As preserves that definition ID; it creates another file copy, not a new
-independent component type. Main's circuit JSON embeds every used definition and
+Export preserves an existing definition ID; it creates a portable copy. Main's circuit JSON embeds every used definition and
 its authored dependencies. External files are unnecessary to run or reopen a
-saved Main design. Camera state and unsaved editor drafts are not packaged.
+saved workspace design. Opening a workspace retains its embedded versions locally;
+it does not publish them into other scenes or replace the managed library.
+Camera state and unsaved editor drafts are not packaged.
+
+Destructive Open, dirty-tab closure, and application exit ask **Save / Discard /
+Cancel**. Exit lists dirty tabs together and offers Save All. A cancelled picker
+or failed Save aborts the destructive operation; already successful saves are
+kept. Save All also saves workspace/parent changes published by subcircuit saves. Unsaved designs are protected by these prompts, not by crash recovery.
+Only the active scene is simulated, and simulation time pauses while the prompt
+is open.
 
 Placed interfaces start with false inputs driven by their enclosing circuit;
 authoring test input values and retained memory do not initialize placements.
@@ -53,10 +69,7 @@ Settling shares the 100,000-evaluation limit across contained circuits; unstable
 feedback stops the enclosing simulation. Design loads reset latch memory and
 clock phase, just like native circuit saves.
 
-`SubcircuitTests` covers indexed ports, independent state/copies, nested clocks,
-bounded feedback, draft/interface validation, embedded round trips, publication
-rollback, Save/Save As paths and failures, contextual menus, palette placement,
-and Edit dispatch. The full Debug suite passes 56 groups and 13 targeted
-AddressSanitizer checks pass. Framebuffer previews include `subcircuit-custom.ppm`,
-`subcircuit-edit.ppm`, and `subcircuit-file-menu.ppm`. Native picker interaction
-remains a manual application check.
+`SubcircuitTests` covers indexed ports, independent runtime, authored JSON,
+publication rejection, library restart, drafts, import independence, storage
+relocation/conflicts, malformed-file isolation, and cancelled/failed Save guards.
+Native file and folder pickers remain a manual application check.
