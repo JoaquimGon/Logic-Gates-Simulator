@@ -215,9 +215,9 @@ void Engine::run()
         }
 
         // Toggle Debug HUD with F3
-        if (input.consumeKeyPress(GLFW_KEY_F3))
+        if (m_showDebugOverlay != m_ui.debugVisible())
         {
-            m_showDebugOverlay = !m_showDebugOverlay;
+            m_showDebugOverlay = m_ui.debugVisible();
             m_cpuTimingWindow.reset();
             m_renderer.invalidateDebugOverlay();
         }

@@ -64,6 +64,29 @@ ticks do not add entries. During a pending gesture, the shortcut cancels that
 gesture first; press again to undo the last committed edit. Saving preserves
 history; Open replaces that view's history. History is kept only for this session.
 
+The **Edit** menu exposes Undo, Redo, Copy, Paste, Delete and Select All, with their
+shortcuts shown beside each entry. Unavailable commands are dimmed; editing stays
+restricted to Selection mode. **Ctrl+A** selects all components and whole wires.
+Opening a menu preserves the selection. Menu Paste starts a placement preview at
+the canvas center and follows the pointer once it enters the canvas.
+
+The **View** menu works in either interaction mode:
+
+| Command | Shortcut |
+|---|---|
+| Fit Circuit | Home |
+| Center Selection | F |
+| Reset Zoom | Ctrl+0 |
+| Show/hide Lower Panel | Ctrl+J |
+| Debug Overlay | F3 |
+
+Fit includes component bounds and wire routes, using the actual canvas viewport.
+Center Selection retains zoom; Reset Zoom restores 1× and retains the camera center.
+Hiding the lower panel expands the canvas and restores its previous height when
+shown again. Clicking a problem notice reveals Messages even when the panel is
+hidden. View changes do not enter editing history, and text fields retain their
+keyboard input.
+
 F2 changes modes immediately and cancels unfinished dragging, wire drawing,
 branching, box selection, and panning. Escape, right-click, focus loss, and scene switching also
 discard unfinished gestures; a later mouse release cannot commit them.

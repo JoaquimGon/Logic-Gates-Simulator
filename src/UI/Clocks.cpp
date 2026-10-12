@@ -198,7 +198,7 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
         else if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS)
             closeClockEdit(input);
     }
-    if (m_bottomTab != BottomTab::Clocks || dragging() || m_fileMenuOpen ||
+    if (m_bottomTab != BottomTab::Clocks || dragging() || m_openMenu.has_value() ||
         m_circuitTabs.popupOpen() || m_infoComponent != -1)
         return false;
     const auto list = clockListBounds();
@@ -352,8 +352,9 @@ void UI::updateClockHover(double now)
 {
     m_clockHoverNow = now;
     int target = -1;
-    if (m_bottomTab == BottomTab::Clocks && !m_resizingBottom && !dragging() && !m_fileMenuOpen &&
-        !m_circuitTabs.popupOpen() && m_infoComponent == -1 && m_clockEditing == -1)
+    if (m_bottomVisible && m_bottomTab == BottomTab::Clocks && !m_resizingBottom && !dragging() &&
+        !m_openMenu.has_value() && !m_circuitTabs.popupOpen() && m_infoComponent == -1 &&
+        m_clockEditing == -1)
     {
         for (int i = 0; i <= static_cast<int>(ClockControl::Clear); ++i)
             if (clockControlBounds(static_cast<ClockControl>(i)).contains(m_pointer.x, m_pointer.y))
@@ -378,8 +379,8 @@ void UI::updateClockHover(double now)
 
 std::vector<std::string> UI::clockTooltip(const Scene& scene) const
 {
-    if (m_clockHover < 0 || m_clockHoverNow - m_clockHoverSince < 0.75 ||
-        m_bottomTab != BottomTab::Clocks || m_fileMenuOpen || m_circuitTabs.popupOpen() ||
+    if (m_clockHover < 0 || m_clockHoverNow - m_clockHoverSince < 0.75 || !m_bottomVisible ||
+        m_bottomTab != BottomTab::Clocks || m_openMenu.has_value() || m_circuitTabs.popupOpen() ||
         m_infoComponent != -1 || m_resizingBottom || dragging())
         return {};
     const auto readings = scene.clockReadings();

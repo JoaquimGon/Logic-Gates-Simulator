@@ -179,129 +179,139 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     }
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
-    renderer.setScreenClip(m_bottom);
-    renderer.drawScreenRect(m_bottom, {0.075f, 0.09f, 0.12f, 1});
-    const bool resizeHover = bottomResizeBounds().contains(m_pointer.x, m_pointer.y);
-    const auto resizeColor = m_resizingBottom || resizeHover ? glm::vec4{0.3f, 0.65f, 0.95f, 1}
-                                                             : glm::vec4{0.3f, 0.37f, 0.46f, 1};
-    renderer.drawScreenRect({m_bottom.x, m_bottom.y, m_bottom.width, 1}, resizeColor);
-    const double gripWidth = std::min(40.0, m_bottom.width);
-    renderer.drawScreenRect(
-        {m_bottom.x + (m_bottom.width - gripWidth) / 2, m_bottom.y + 2, gripWidth, 2}, resizeColor
-    );
-    for (const auto tab : {BottomTab::Subcircuit, BottomTab::Messages, BottomTab::Clocks})
+    if (m_bottomVisible)
     {
-        if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
-            continue;
-        const auto bounds = bottomTabBounds(tab);
-        const bool active = tab == m_bottomTab;
+        renderer.setScreenClip(m_bottom);
+        renderer.drawScreenRect(m_bottom, {0.075f, 0.09f, 0.12f, 1});
+        const bool resizeHover = bottomResizeBounds().contains(m_pointer.x, m_pointer.y);
+        const auto resizeColor = m_resizingBottom || resizeHover ? glm::vec4{0.3f, 0.65f, 0.95f, 1}
+                                                                 : glm::vec4{0.3f, 0.37f, 0.46f, 1};
+        renderer.drawScreenRect({m_bottom.x, m_bottom.y, m_bottom.width, 1}, resizeColor);
+        const double gripWidth = std::min(40.0, m_bottom.width);
         renderer.drawScreenRect(
-            bounds, active ? glm::vec4{0.16f, 0.3f, 0.46f, 1} : glm::vec4{0.11f, 0.15f, 0.21f, 1}
+            {m_bottom.x + (m_bottom.width - gripWidth) / 2, m_bottom.y + 2, gripWidth, 2},
+            resizeColor
         );
-        const bool problems = tab == BottomTab::Messages && messageCount() > 0;
-        const auto accent =
-            hasMessageErrors() ? glm::vec4{1, 0.55f, 0.4f, 1} : glm::vec4{0.9f, 0.72f, 0.38f, 1};
-        if (active || problems)
-            renderer.drawScreenRect(
-                {bounds.x, bounds.y + bounds.height - 2, bounds.width, 2},
-                problems ? accent : glm::vec4{0.3f, 0.65f, 0.95f, 1}
-            );
-        label(
-            tab == BottomTab::Subcircuit ? "Subcircuit"
-            : tab == BottomTab::Clocks   ? "Clocks"
-                                         : messagesTabLabel(),
-            bounds,
-            0.42f,
-            problems ? accent : ink,
-            true
-        );
-    }
-    renderer.drawText(text, TextSpace::Screen);
-    text.clear();
-    if (m_bottomTab == BottomTab::Clocks)
-        drawClocks(renderer, scene);
-    if (m_bottomTab == BottomTab::Subcircuit && m_showSubcircuit)
-    {
-        const auto info = subcircuitInfo(scene);
-        for (int row = 0; row < 3; ++row)
-            label(
-                info[row],
-                {m_bottom.x + 8,
-                 m_bottom.y + 40 + row * 22,
-                 std::max(0.0, m_bottom.width - 16),
-                 22},
-                0.4f,
-                row == 1 ? (info[row].starts_with("Valid") ? glm::vec4{0.4f, 0.85f, 0.6f, 1}
-                                                           : glm::vec4{1, 0.55f, 0.4f, 1})
-                         : ink
-            );
-        renderer.drawText(text, TextSpace::Screen);
-        text.clear();
-        const auto list = subcircuitListBounds();
-        renderer.setScreenClip(list);
-        const int rows = static_cast<int>(list.height / 22);
-        const int offset = std::clamp(
-            m_subcircuitScroll, 0, std::max(0, static_cast<int>(info.size()) - 3 - rows)
-        );
-        for (int row = 0; row < rows && row + offset + 3 < static_cast<int>(info.size()); ++row)
-            label(info[row + offset + 3], {list.x, list.y + row * 22, list.width, 22}, 0.4f, ink);
-        renderer.drawText(text, TextSpace::Screen);
-        text.clear();
-    }
-    if (m_bottomTab == BottomTab::Messages)
-    {
-        label(
-            "Current circuit problems",
-            {m_bottom.x + 8, m_bottom.y + 38, std::max(0.0, m_bottom.width - 16), 20},
-            0.32f,
-            {0.55f, 0.65f, 0.76f, 1}
-        );
-        renderer.drawText(text, TextSpace::Screen);
-        text.clear();
-        const auto box = messageBoxBounds();
-        renderer.drawScreenRect(box, {0.045f, 0.06f, 0.08f, 1});
-        renderer.setScreenClip(box);
-        const auto lines = messageRows(&renderer.fontMetrics());
-        const int rows = static_cast<int>(box.height / 20);
-        const int offset = std::clamp(
-            messageState().scroll, 0, std::max(0, static_cast<int>(lines.size()) - rows)
-        );
-        if (lines.empty())
-            label("Circuit is fine.", {box.x, box.y, box.width, 20}, 0.4f, {0.4f, 0.85f, 0.6f, 1});
-        for (int row = 0; row < rows && row + offset < static_cast<int>(lines.size()); ++row)
+        for (const auto tab : {BottomTab::Subcircuit, BottomTab::Messages, BottomTab::Clocks})
         {
-            const auto& line = lines[row + offset];
-            const auto color = line.kind == MessageKind::Error ? glm::vec4{1, 0.55f, 0.4f, 1}
-                               : line.kind == MessageKind::Warning
-                                   ? glm::vec4{0.9f, 0.72f, 0.38f, 1}
-                                   : ink;
-            const bool find = line.issue && simulationIssues()[*line.issue].location;
-            label(
-                line.text,
-                {box.x, box.y + row * 20, box.width - (find ? 60 : 0), 20},
-                0.4f,
-                line.text == "Circuit is fine." ? glm::vec4{0.4f, 0.85f, 0.6f, 1} : color
+            if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
+                continue;
+            const auto bounds = bottomTabBounds(tab);
+            const bool active = tab == m_bottomTab;
+            renderer.drawScreenRect(
+                bounds,
+                active ? glm::vec4{0.16f, 0.3f, 0.46f, 1} : glm::vec4{0.11f, 0.15f, 0.21f, 1}
             );
-            if (find)
-            {
-                const auto target = findMessageBounds(*line.issue);
-                text.push_back(
-                    {"FIND",
-                     {static_cast<float>(target.x),
-                      static_cast<float>(target.y + target.height / 2) +
-                          getCapHeight(0.35f, renderer.fontMetrics()) / 2},
-                     0.35f,
-                     {0.4f, 0.75f, 1, 1}}
-                );
+            const bool problems = tab == BottomTab::Messages && messageCount() > 0;
+            const auto accent = hasMessageErrors() ? glm::vec4{1, 0.55f, 0.4f, 1}
+                                                   : glm::vec4{0.9f, 0.72f, 0.38f, 1};
+            if (active || problems)
                 renderer.drawScreenRect(
-                    {target.x, target.y + target.height - 2, target.width, 1}, {0.4f, 0.75f, 1, 1}
+                    {bounds.x, bounds.y + bounds.height - 2, bounds.width, 2},
+                    problems ? accent : glm::vec4{0.3f, 0.65f, 0.95f, 1}
                 );
-            }
+            label(
+                tab == BottomTab::Subcircuit ? "Subcircuit"
+                : tab == BottomTab::Clocks   ? "Clocks"
+                                             : messagesTabLabel(),
+                bounds,
+                0.42f,
+                problems ? accent : ink,
+                true
+            );
         }
         renderer.drawText(text, TextSpace::Screen);
         text.clear();
+        if (m_bottomTab == BottomTab::Clocks)
+            drawClocks(renderer, scene);
+        if (m_bottomTab == BottomTab::Subcircuit && m_showSubcircuit)
+        {
+            const auto info = subcircuitInfo(scene);
+            for (int row = 0; row < 3; ++row)
+                label(
+                    info[row],
+                    {m_bottom.x + 8,
+                     m_bottom.y + 40 + row * 22,
+                     std::max(0.0, m_bottom.width - 16),
+                     22},
+                    0.4f,
+                    row == 1 ? (info[row].starts_with("Valid") ? glm::vec4{0.4f, 0.85f, 0.6f, 1}
+                                                               : glm::vec4{1, 0.55f, 0.4f, 1})
+                             : ink
+                );
+            renderer.drawText(text, TextSpace::Screen);
+            text.clear();
+            const auto list = subcircuitListBounds();
+            renderer.setScreenClip(list);
+            const int rows = static_cast<int>(list.height / 22);
+            const int offset = std::clamp(
+                m_subcircuitScroll, 0, std::max(0, static_cast<int>(info.size()) - 3 - rows)
+            );
+            for (int row = 0; row < rows && row + offset + 3 < static_cast<int>(info.size()); ++row)
+                label(
+                    info[row + offset + 3], {list.x, list.y + row * 22, list.width, 22}, 0.4f, ink
+                );
+            renderer.drawText(text, TextSpace::Screen);
+            text.clear();
+        }
+        if (m_bottomTab == BottomTab::Messages)
+        {
+            label(
+                "Current circuit problems",
+                {m_bottom.x + 8, m_bottom.y + 38, std::max(0.0, m_bottom.width - 16), 20},
+                0.32f,
+                {0.55f, 0.65f, 0.76f, 1}
+            );
+            renderer.drawText(text, TextSpace::Screen);
+            text.clear();
+            const auto box = messageBoxBounds();
+            renderer.drawScreenRect(box, {0.045f, 0.06f, 0.08f, 1});
+            renderer.setScreenClip(box);
+            const auto lines = messageRows(&renderer.fontMetrics());
+            const int rows = static_cast<int>(box.height / 20);
+            const int offset = std::clamp(
+                messageState().scroll, 0, std::max(0, static_cast<int>(lines.size()) - rows)
+            );
+            if (lines.empty())
+                label(
+                    "Circuit is fine.", {box.x, box.y, box.width, 20}, 0.4f, {0.4f, 0.85f, 0.6f, 1}
+                );
+            for (int row = 0; row < rows && row + offset < static_cast<int>(lines.size()); ++row)
+            {
+                const auto& line = lines[row + offset];
+                const auto color = line.kind == MessageKind::Error ? glm::vec4{1, 0.55f, 0.4f, 1}
+                                   : line.kind == MessageKind::Warning
+                                       ? glm::vec4{0.9f, 0.72f, 0.38f, 1}
+                                       : ink;
+                const bool find = line.issue && simulationIssues()[*line.issue].location;
+                label(
+                    line.text,
+                    {box.x, box.y + row * 20, box.width - (find ? 60 : 0), 20},
+                    0.4f,
+                    line.text == "Circuit is fine." ? glm::vec4{0.4f, 0.85f, 0.6f, 1} : color
+                );
+                if (find)
+                {
+                    const auto target = findMessageBounds(*line.issue);
+                    text.push_back(
+                        {"FIND",
+                         {static_cast<float>(target.x),
+                          static_cast<float>(target.y + target.height / 2) +
+                              getCapHeight(0.35f, renderer.fontMetrics()) / 2},
+                         0.35f,
+                         {0.4f, 0.75f, 1, 1}}
+                    );
+                    renderer.drawScreenRect(
+                        {target.x, target.y + target.height - 2, target.width, 1},
+                        {0.4f, 0.75f, 1, 1}
+                    );
+                }
+            }
+            renderer.drawText(text, TextSpace::Screen);
+            text.clear();
+        }
+        renderer.setScreenClip(std::nullopt);
     }
-    renderer.setScreenClip(std::nullopt);
     if (dragging())
     {
         const auto* definition = scene.getComponentCatalog().find(m_dragDefinition);
@@ -569,9 +579,21 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     text.clear();
     renderer.drawScreenRect(m_bar, {0.075f, 0.09f, 0.12f, 1});
     renderer.drawScreenRect({0, m_bar.height - 1, m_bar.width, 1}, {0.18f, 0.23f, 0.3f, 1});
-    if (m_fileMenuOpen || fileBounds().contains(m_pointer.x, m_pointer.y))
-        renderer.drawScreenRect(fileBounds(), {0.16f, 0.3f, 0.46f, 1});
-    label("File", fileBounds(), 0.42f, ink, true);
+    for (const auto menu : {Menu::File, Menu::Edit, Menu::View})
+    {
+        const auto bounds = menuBounds(menu);
+        if (menuOpen(menu) || bounds.contains(m_pointer.x, m_pointer.y))
+            renderer.drawScreenRect(bounds, {0.16f, 0.3f, 0.46f, 1});
+        label(
+            menu == Menu::File   ? "File"
+            : menu == Menu::Edit ? "Edit"
+                                 : "View",
+            bounds,
+            0.42f,
+            ink,
+            true
+        );
+    }
     const auto unsaved = unsavedNoticeText();
     const double unsavedWidth = unsavedNoticeWidth();
     if (!unsaved.empty())
@@ -599,27 +621,53 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     else if (!log.fileStatus.empty())
         label(
             log.fileStatus,
-            {76, 0, navigationStatusWidth(), m_bar.height},
+            {204, 0, navigationStatusWidth(), m_bar.height},
             0.35f,
             {0.55f, 0.75f, 0.9f, 1}
         );
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
-    if (m_fileMenuOpen)
+    if (m_openMenu.has_value())
     {
-        const auto menu = fileMenuBounds();
+        const auto menu = dropdownBounds(*m_openMenu);
         renderer.setScreenClip(menu);
         renderer.drawScreenRect(menu, {0.3f, 0.45f, 0.6f, 1});
         renderer.drawScreenRect(
             {menu.x + 1, menu.y + 1, menu.width - 2, menu.height - 2}, {0.08f, 0.12f, 0.17f, 1}
         );
         int index = 0;
-        for (const auto& name : fileOptions())
+        for (const auto& item : menuOptions(*m_openMenu))
         {
-            const auto bounds = fileOptionBounds(index++);
-            if (bounds.contains(m_pointer.x, m_pointer.y))
+            const auto bounds = menuOptionBounds(*m_openMenu, index++);
+            if (item.enabled && bounds.contains(m_pointer.x, m_pointer.y))
                 renderer.drawScreenRect(bounds, {0.16f, 0.3f, 0.46f, 1});
-            label(name, bounds, 0.42f, ink);
+            const auto color = item.enabled ? ink : glm::vec4{0.4f, 0.47f, 0.55f, 1};
+            const double shortcutWidth =
+                item.shortcut.empty()
+                    ? 0
+                    : std::min(
+                          bounds.width * 0.65,
+                          static_cast<double>(
+                              getTextWidth(item.shortcut, 0.32f, renderer.fontMetrics())
+                          ) + 20
+                      );
+            const bool toggle = *m_openMenu == Menu::View && index >= 4;
+            label(
+                (toggle ? (item.checked ? "[x] " : "[ ] ") : "") + item.label,
+                {bounds.x, bounds.y, bounds.width - shortcutWidth, bounds.height},
+                0.42f,
+                color
+            );
+            if (!item.shortcut.empty())
+                label(
+                    item.shortcut,
+                    {bounds.x + bounds.width - shortcutWidth,
+                     bounds.y,
+                     shortcutWidth,
+                     bounds.height},
+                    0.32f,
+                    color
+                );
         }
         renderer.drawText(text, TextSpace::Screen);
         renderer.setScreenClip(std::nullopt);

@@ -67,8 +67,20 @@ std::string UI::unsavedNoticeText() const
 {
     if (!m_circuitTabs.activeHasUnsavedChanges())
         return "";
-    return m_circuitTabs.activeIsSubcircuit() ? "Unsaved changes - save for Custom"
-                                              : "Unsaved changes";
+    std::string text = m_circuitTabs.activeIsSubcircuit() ? "Unsaved changes - save for Custom"
+                                                          : "Unsaved changes";
+    const double statusSpace = std::max(0.0, m_bar.width - 208);
+    const double noticeSpace = messageCount() ? std::min(130.0, statusSpace * 0.6) : 0;
+    auto fits = [&](const std::string& value)
+    {
+        const double width = m_font ? getTextWidth(value, 0.35f, *m_font) : value.size() * 7.0;
+        return width + 20 <= statusSpace - noticeSpace;
+    };
+    if (!fits(text))
+        text = "Unsaved changes";
+    if (!fits(text))
+        text = "Unsaved";
+    return text;
 }
 
 double UI::unsavedNoticeWidth() const
@@ -77,12 +89,14 @@ double UI::unsavedNoticeWidth() const
     if (text.empty())
         return 0;
     const double width = m_font ? getTextWidth(text, 0.35f, *m_font) : text.size() * 7.0;
-    return std::min(std::max(0.0, m_bar.width - 76), width + 20);
+    const double statusSpace = std::max(0.0, m_bar.width - 208);
+    const double noticeSpace = messageCount() ? std::min(130.0, statusSpace * 0.6) : 0;
+    return std::min(statusSpace - noticeSpace, width + 20);
 }
 
 double UI::navigationStatusWidth() const
 {
-    return std::max(0.0, m_bar.width - unsavedNoticeWidth() - 80);
+    return std::max(0.0, m_bar.width - unsavedNoticeWidth() - 208);
 }
 
 std::string UI::messageNoticeText() const
@@ -107,7 +121,7 @@ CanvasViewport UI::messageNoticeBounds() const
     if (text.empty())
         return {};
     const double width = m_font ? getTextWidth(text, 0.35f, *m_font) : text.size() * 7.0;
-    return {76, 0, std::min(navigationStatusWidth(), width + 20), m_bar.height};
+    return {204, 0, std::min(navigationStatusWidth(), width + 20), m_bar.height};
 }
 
 void UI::addMessage(std::string message, MessageKind kind)
@@ -136,7 +150,7 @@ void UI::addMessage(std::string message, MessageKind kind)
     char timestamp[12]{};
     std::strftime(timestamp, sizeof(timestamp), "[%H:%M:%S] ", &local);
     log.entries.push_back(std::string(timestamp) + message);
-    log.unread = m_bottomTab != BottomTab::Messages ||
+    log.unread = !m_bottomVisible || m_bottomTab != BottomTab::Messages ||
                  m_overviewView != m_circuitTabs.activeViewIndex() ||
                  m_showSubcircuit != m_circuitTabs.activeIsSubcircuit();
     log.scroll = 0;
@@ -335,7 +349,7 @@ void UI::reportSimulation(const Scene& scene, double now)
         );
     if (issues != log.issues)
     {
-        log.unread = !issues.empty() && (m_bottomTab != BottomTab::Messages ||
+        log.unread = !issues.empty() && (!m_bottomVisible || m_bottomTab != BottomTab::Messages ||
                                          m_overviewView != m_circuitTabs.activeViewIndex() ||
                                          m_showSubcircuit != m_circuitTabs.activeIsSubcircuit());
         log.issues = std::move(issues);

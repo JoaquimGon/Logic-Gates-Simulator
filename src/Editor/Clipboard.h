@@ -10,6 +10,8 @@ class Selection;
 class EditorClipboard
 {
   public:
+    bool empty() const { return m_components.empty() && m_wires.empty(); }
+
     bool copy(const Scene& scene, const Selection& selection);
     EditBatch pasteBatch(const Scene& destination, GridCoords center) const;
 

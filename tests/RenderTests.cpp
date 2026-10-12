@@ -1462,6 +1462,62 @@ void labelVisibilityPresentation(Renderer& renderer, const CanvasCameraFrame& ca
     saveImage("clock-label-hidden.ppm");
 }
 
+void navigationMenuPresentation(Renderer& renderer)
+{
+    for (int scale : {1, 2})
+    {
+        Scene scene;
+        scene.addComponent(BuiltinComponentIds::And, {0, 0});
+        Input input;
+        input.setScene(&scene);
+        UI ui;
+        const CanvasSurface surface{extent / scale, extent / scale, extent, extent};
+        ui.layout(scene.getComponentCatalog(), surface, input);
+        CanvasCamera camera;
+        camera.setViewport(input.getCanvasViewport());
+        const auto frame = camera.frame(surface);
+        for (const auto menu : {UI::Menu::Edit, UI::Menu::View})
+        {
+            ui.dismissPopups(input);
+            const auto bounds = ui.menuBounds(menu);
+            for (const auto action : {GLFW_PRESS, GLFW_RELEASE})
+                ui.handleInput(
+                    {UiInputKind::MouseButton,
+                     GLFW_MOUSE_BUTTON_LEFT,
+                     action,
+                     0,
+                     0,
+                     bounds.x + bounds.width / 2,
+                     bounds.y + bounds.height / 2},
+                    scene,
+                    input,
+                    frame
+                );
+            require(ui.menuOpen(menu), "Navigation dropdown rendering fixture did not open.");
+            renderer.beginFrame(frame);
+            const auto data = buildComponentPresentation(scene.getComponentViewMap());
+            renderer.drawCanvas({data, scene.getWires(), {}});
+            ui.draw(renderer, scene, frame);
+            const auto option = ui.menuOptionBounds(menu, 0);
+            std::array<unsigned char, 4> value{};
+            glReadPixels(
+                static_cast<int>((option.x + 3) * scale),
+                extent - 1 - static_cast<int>((option.y + 3) * scale),
+                1,
+                1,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                value.data()
+            );
+            require(value[2] > 30, "Navigation menu background did not render above the canvas.");
+            const auto name = std::string(menu == UI::Menu::Edit ? "edit-menu" : "view-menu") +
+                              (scale == 2 ? "-2x.ppm" : ".ppm");
+            saveImage(name.c_str());
+        }
+        input.setScene(nullptr);
+    }
+}
+
 void gateSettingsPresentation(Renderer& renderer)
 {
     Scene scene;
@@ -2726,6 +2782,7 @@ int main(int argc, char** argv)
                 outputPresentation(renderer);
                 componentInformationPresentation(renderer);
                 gateSettingsPresentation(renderer);
+                navigationMenuPresentation(renderer);
                 labelVisibilityPresentation(renderer, camera);
                 groupSelectionPresentation(renderer, camera);
                 routedWiresPresentation(renderer, camera);

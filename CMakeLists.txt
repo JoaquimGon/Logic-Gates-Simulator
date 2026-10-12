@@ -64,6 +64,7 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
         src/Editor/InputRouting.cpp
         src/Editor/Clipboard.cpp
         src/Editor/InputClipboard.cpp
+        src/Editor/InputCommands.cpp
         src/Editor/CircuitViews.cpp
         src/Editor/ComponentShortcuts.cpp
         src/Editor/Gestures/PasteGesture.cpp
@@ -73,7 +74,7 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
     )
     target_link_libraries(simulator_input PUBLIC simulator_scene PRIVATE simulator_files glfw)
     target_compile_definitions(simulator_input PRIVATE GLFW_INCLUDE_NONE)
-    add_library(simulator_ui STATIC src/UI/UI.cpp src/UI/CircuitTabs.cpp src/UI/Messages.cpp src/UI/Clocks.cpp)
+    add_library(simulator_ui STATIC src/UI/UI.cpp src/UI/CircuitTabs.cpp src/UI/Messages.cpp src/UI/Clocks.cpp src/UI/Menus.cpp)
     target_link_libraries(simulator_ui PUBLIC simulator_input PRIVATE glfw)
     target_compile_definitions(simulator_ui PRIVATE GLFW_INCLUDE_NONE)
 endif()
@@ -210,7 +211,7 @@ if(BUILD_TESTING)
     target_link_libraries(InputTests PRIVATE simulator_ui glfw)
     target_compile_definitions(InputTests PRIVATE GLFW_INCLUDE_NONE)
     foreach(test_name IN ITEMS
-        drag_cancellation drag_commit wire_alt_drag spawn_placement wire_segment_deletion
+        navigation_menus drag_cancellation drag_commit wire_alt_drag spawn_placement wire_segment_deletion
         interaction_modes mode_cancellation wire_and_pan_gestures wire_crossings_and_feedback
         ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction
         component_palette component_information component_naming gate_settings label_visibility

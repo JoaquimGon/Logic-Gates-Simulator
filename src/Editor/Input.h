@@ -58,6 +58,7 @@ class Input
     Selection m_selection;
     EditorClipboard m_clipboard;
     PasteGesture m_paste;
+    bool m_pasteAwaitingCanvas = false;
 
     double lastMouseX = 0.0f;
     double lastMouseY = 0.0f;
@@ -69,6 +70,7 @@ class Input
     EditError m_lastEditError = EditError::None;
     std::string m_lastEditMessage;
     bool applyEdit(EditOperation operation);
+    bool deleteObjects(const HitResult& hit, std::optional<SelectedSegment> segment);
     void beginSelectionDrag(GridCoords pointer);
     void beginPaste(GridCoords position);
     void placePaste(GridCoords position);
@@ -89,6 +91,31 @@ class Input
     std::unordered_set<int> m_pressedKeys;
 
   public:
+    enum class EditCommand
+    {
+        Undo,
+        Redo,
+        Copy,
+        Paste,
+        Delete,
+        SelectAll
+    };
+    enum class ViewCommand
+    {
+        FitCircuit,
+        CenterSelection,
+        ResetZoom
+    };
+
+    bool canEditCommand(EditCommand command) const;
+    /** @brief Uses the same history, clipboard and selection operations as keyboard input. */
+    bool executeEditCommand(
+        EditCommand command, GridCoords pastePosition = {}, bool waitForCanvas = false
+    );
+    bool canViewCommand(ViewCommand command) const;
+    /** @brief Changes only the camera; selection, circuit state and history are retained. */
+    bool executeViewCommand(ViewCommand command, CanvasSurface surface);
+
     /** @brief Installs the UI-first event consumer; changing it discards unfinished canvas input.
      */
     void setUiInputHandler(UiInputHandler handler);

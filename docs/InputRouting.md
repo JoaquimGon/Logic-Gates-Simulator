@@ -265,3 +265,19 @@ therefore retain their existing local layout rules. Rotation reroutes attached
 endpoints in the same undoable edit. Saved instances and clipboard data retain
 orientation; older circuit files default to Right. Subcircuit rotation affects
 only the placed box and interface pins, preserving its authored internal scene.
+
+
+Edit/View menus reuse the File dropdown's capture/dismissal rules. Menu opening
+preserves committed selection while cancelling pending gestures. Edit commands
+share InputCommands with keyboard input; deletion still goes through EditorActions
+and undo/redo still use the active view's existing history. Click actions execute
+after mouse release so UI capture cannot cancel a newly started paste preview.
+Menu Paste waits outside the canvas until the pointer enters it; later cancellation
+retains the ordinary paste rules. Disabled entries cannot execute.
+
+Ctrl+A selects all component IDs and whole normalized wires. Home fits all visible
+body bounds and routes; F centers the current selection without changing zoom;
+Ctrl+0 restores zoom 1. Camera operations retain selection and do not change scene
+revision/history. Ctrl+J toggles the lower panel through its existing layout;
+F3 and View/Debug Overlay share one UI flag observed by Engine. Text-field capture
+prevents these shortcuts from escaping, and F3 does not interrupt canvas gestures.

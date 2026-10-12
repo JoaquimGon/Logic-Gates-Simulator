@@ -77,6 +77,7 @@ void Input::cancelGestures()
         m_drag.cancel(*m_scene);
     m_wire.cancel();
     m_paste.cancel();
+    m_pasteAwaitingCanvas = false;
     m_selection.cancelBox();
     m_committedWirePoint.reset();
     m_pan.cancel();

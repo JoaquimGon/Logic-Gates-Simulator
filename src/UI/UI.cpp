@@ -29,7 +29,7 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
         m_pointer = {-1, -1};
         m_clockHover = -1;
         closeClockEdit(input);
-        closeFileMenu(input);
+        closeMenu(input);
         closeInfo(input);
         m_circuitTabs.cancel(input);
     }
@@ -61,9 +61,10 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
         m_subcircuitScroll = 0;
     }
     m_showSubcircuit = subcircuit;
-    if (m_bottomTab == BottomTab::Messages)
+    if (m_bottomVisible && m_bottomTab == BottomTab::Messages)
         messageState().unread = false;
     layoutBottom(input);
+    refreshMenuOptions(input);
     m_list = {
         12, m_panel.y + 112, std::max(0.0, m_panel.width - 24), std::max(0.0, m_panel.height - 160)
     };
@@ -112,8 +113,9 @@ void UI::layoutBottom(Input& input)
     // Leave a usable canvas above the mode buttons, even when dragged to the limit.
     const double maximum = available - std::min(156.0, available * 0.5);
     const double minimum = std::min(120.0, available * 0.4);
-    const double bottomHeight = m_bottomHeight ? std::clamp(*m_bottomHeight, minimum, maximum)
-                                               : std::min(180.0, available * 0.4);
+    const double bottomHeight = !m_bottomVisible ? 0
+                                : m_bottomHeight ? std::clamp(*m_bottomHeight, minimum, maximum)
+                                                 : std::min(180.0, available * 0.4);
     m_bottom = {m_panel.width, height - bottomHeight, m_bar.width - m_panel.width, bottomHeight};
     const double modeHeight = std::min(36.0, std::max(0.0, m_bottom.y - top));
     m_modes = {m_panel.width, m_bottom.y - modeHeight, std::min(144.0, m_bottom.width), modeHeight};
@@ -164,8 +166,8 @@ bool UI::handleBottomResize(const UiInputEvent& event, Input& input)
         }
         return true;
     }
-    if (dragging() || m_fileMenuOpen || m_circuitTabs.popupOpen() || m_infoComponent != -1 ||
-        m_clockEditing != -1)
+    if (dragging() || m_openMenu.has_value() || m_circuitTabs.popupOpen() ||
+        m_infoComponent != -1 || m_clockEditing != -1)
         return false;
     if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
         event.action == GLFW_PRESS && bottomResizeBounds().contains(event.x, event.y))
@@ -190,10 +192,16 @@ void UI::setCircuitViews(CircuitViews* views, const FontMetrics* font)
 
 void UI::update(double now, Input& input)
 {
+    if (m_menuCommand && !m_fileMousePressed)
+    {
+        const auto [menu, index] = *std::exchange(m_menuCommand, std::nullopt);
+        executeMenuOption(menu, index, input);
+    }
+    refreshMenuOptions(input);
     m_routingError = input.getLastEditError() == EditError::InvalidWire;
     m_canCreate = input.getMode() == EditorMode::Selection;
     updateClockHover(now);
-    if (m_fileMenuOpen || m_resizingBottom)
+    if (m_openMenu.has_value() || m_resizingBottom)
         return;
     m_circuitTabs.update(now, input);
     if (m_circuitTabs.popupOpen())
@@ -236,7 +244,7 @@ CanvasViewport UI::modeButtonBounds(EditorMode mode) const
 
 std::optional<EditorMode> UI::hoveredMode() const
 {
-    if (m_resizingBottom || dragging() || m_fileMenuOpen || m_circuitTabs.popupOpen() ||
+    if (m_resizingBottom || dragging() || m_openMenu.has_value() || m_circuitTabs.popupOpen() ||
         m_infoComponent != -1 || m_fileCommand || m_editSubcircuit)
         return std::nullopt;
     for (const auto mode : {EditorMode::Selection, EditorMode::Interaction})
@@ -306,44 +314,6 @@ std::vector<std::string> UI::subcircuitInfo(const Scene& scene) const
     return lines;
 }
 
-CanvasViewport UI::fileBounds() const
-{
-    return {0, 0, std::min(64.0, m_bar.width), m_bar.height};
-}
-
-CanvasViewport UI::fileMenuBounds() const
-{
-    return {
-        0,
-        m_bar.height,
-        std::min(240.0, m_bar.width),
-        std::min(2.0 + fileOptions().size() * 30, m_panel.height)
-    };
-}
-
-CanvasViewport UI::fileOptionBounds(int index) const
-{
-    if (index < 0 || index >= static_cast<int>(fileOptions().size()))
-        return {};
-    const auto menu = fileMenuBounds();
-    return {
-        menu.x + 1,
-        menu.y + 1 + index * 30,
-        std::max(0.0, menu.width - 2),
-        std::clamp(menu.height - 1 - index * 30, 0.0, 30.0)
-    };
-}
-
-void UI::closeFileMenu(Input& input)
-{
-    if (m_fileMenuOpen)
-    {
-        m_fileMenuOpen = false;
-        input.setUiCapture({});
-        input.setCanvasFocused(true);
-    }
-}
-
 std::optional<UI::FileCommand> UI::takeFileCommand()
 {
     return std::exchange(m_fileCommand, std::nullopt);
@@ -375,78 +345,10 @@ void UI::dismissPopups(Input& input)
 {
     finishBottomResize(input);
     closeClockEdit(input);
-    closeFileMenu(input);
+    closeMenu(input);
     cancel(input);
     closeInfo(input);
     m_circuitTabs.cancel(input);
-}
-
-bool UI::handleFileMenu(const UiInputEvent& event, Input& input)
-{
-    if (event.kind == UiInputKind::WindowFocus && !event.focused)
-    {
-        closeFileMenu(input);
-        m_fileMousePressed = m_fileEscapePressed = false;
-        return false;
-    }
-    if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE &&
-        m_fileMousePressed)
-    {
-        m_fileMousePressed = false;
-        input.setCanvasFocused(true);
-        return true;
-    }
-    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
-        (m_fileMenuOpen || m_fileEscapePressed))
-    {
-        closeFileMenu(input);
-        m_fileEscapePressed = event.action != GLFW_RELEASE;
-        return true;
-    }
-    if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
-        event.action == GLFW_PRESS && messageNoticeBounds().contains(event.x, event.y))
-    {
-        dismissPopups(input);
-        m_bottomTab = BottomTab::Messages;
-        messageState().unread = false;
-        m_fileMousePressed = true;
-        input.setCanvasFocused(false);
-        return true;
-    }
-    if (m_fileMenuOpen)
-    {
-        if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS)
-        {
-            m_fileMousePressed = true;
-            if (event.code == GLFW_MOUSE_BUTTON_LEFT)
-                for (int index = 0; index < static_cast<int>(fileOptions().size()); ++index)
-                    if (fileOptionBounds(index).contains(event.x, event.y))
-                        m_fileCommand = static_cast<FileCommand>(index);
-            closeFileMenu(input);
-        }
-        return true;
-    }
-    if (event.kind == UiInputKind::MouseButton && m_bar.contains(event.x, event.y))
-    {
-        cancel(input);
-        closeInfo(input);
-        m_circuitTabs.cancel(input);
-        if (event.action == GLFW_PRESS)
-        {
-            input.cancelCurrentAction();
-            m_fileMousePressed = true;
-            if (event.code == GLFW_MOUSE_BUTTON_LEFT && fileBounds().contains(event.x, event.y))
-            {
-                m_fileMenuOpen = true;
-                input.setUiCapture({true, true});
-            }
-        }
-        if (event.action == GLFW_RELEASE)
-            input.setCanvasFocused(true);
-        return true;
-    }
-    return (event.kind == UiInputKind::Cursor || event.kind == UiInputKind::Scroll) &&
-           m_bar.contains(m_pointer.x, m_pointer.y);
 }
 
 const UI::Button* UI::buttonAt(glm::dvec2 point) const
@@ -774,10 +676,13 @@ bool UI::handleInput(
     if (event.kind == UiInputKind::WindowFocus && !event.focused)
         m_pointer = {-1, -1};
     // A queued operation belongs to this view; do not switch/delete tabs before it runs.
-    if (m_fileCommand || m_editSubcircuit)
+    if (m_fileCommand || m_editSubcircuit || m_menuCommand)
     {
         if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE)
+        {
             m_fileMousePressed = m_infoRightPressed = false;
+            input.setCanvasFocused(true);
+        }
         return true;
     }
     if (handleBottomResize(event, input))
@@ -790,9 +695,9 @@ bool UI::handleInput(
             input.setCanvasFocused(true);
         return true;
     }
-    if (handleClocks(event, scene, input))
+    if (m_bottomVisible && handleClocks(event, scene, input))
         return true;
-    if (!m_circuitTabs.confirmingDelete() && handleFileMenu(event, input))
+    if (!m_circuitTabs.confirmingDelete() && handleMenus(event, input))
         return true;
     if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS &&
         m_circuitTabs.contains(event.x, event.y))

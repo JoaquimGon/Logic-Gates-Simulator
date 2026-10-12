@@ -9,6 +9,7 @@
 
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 class ComponentCatalog;
@@ -28,6 +29,30 @@ class UI
         Open,
         LoadSubcircuit
     };
+    enum class Menu
+    {
+        File,
+        Edit,
+        View
+    };
+
+    struct MenuItem
+    {
+        std::string label, shortcut;
+        bool enabled = true, checked = false;
+    };
+
+    CanvasViewport menuBounds(Menu menu) const;
+    CanvasViewport dropdownBounds(Menu menu) const;
+    CanvasViewport menuOptionBounds(Menu menu, int index) const;
+    std::vector<MenuItem> menuOptions(Menu menu) const;
+
+    bool menuOpen(Menu menu) const { return m_openMenu == menu; }
+
+    bool bottomVisible() const { return m_bottomVisible; }
+
+    bool debugVisible() const { return m_debugVisible; }
+
     enum class Tab
     {
         Native,
@@ -78,7 +103,7 @@ class UI
     CanvasViewport fileMenuBounds() const;
     CanvasViewport fileOptionBounds(int index) const;
 
-    bool fileMenuOpen() const { return m_fileMenuOpen; }
+    bool fileMenuOpen() const { return menuOpen(Menu::File); }
 
     std::optional<FileCommand> takeFileCommand();
     std::optional<std::string> takeEditSubcircuit();
@@ -161,7 +186,9 @@ class UI
     void layoutBottom(Input& input);
     bool handleBottomResize(const UiInputEvent& event, Input& input);
     void finishBottomResize(Input& input);
-    bool handleFileMenu(const UiInputEvent& event, Input& input);
+    bool handleMenus(const UiInputEvent& event, Input& input);
+    void refreshMenuOptions(const Input& input);
+    void executeMenuOption(Menu menu, int index, Input& input);
     bool handleClocks(const UiInputEvent& event, Scene& scene, Input& input);
     void closeClockEdit(Input& input);
     void drawClocks(Renderer& renderer, const Scene& scene) const;
@@ -174,7 +201,7 @@ class UI
     int clockScroll(const Scene& scene) const;
     double clockStartTime() const;
     static std::string frequencyText(float frequency);
-    void closeFileMenu(Input& input);
+    void closeMenu(Input& input);
     const Button* buttonAt(glm::dvec2 point) const;
     std::optional<GridCoords> dropPosition(const CanvasCameraFrame& camera) const;
     void closeInfo(Input& input);
@@ -236,7 +263,12 @@ class UI
     int m_nameCommittedKey = -1;
     std::string m_nameDraft, m_infoError;
     CircuitTabs m_circuitTabs;
-    bool m_fileMenuOpen = false, m_fileMousePressed = false, m_fileEscapePressed = false;
+    std::optional<Menu> m_openMenu;
+    std::optional<std::pair<Menu, int>> m_menuCommand;
+    std::vector<MenuItem> m_editOptions, m_viewOptions;
+    bool m_bottomVisible = true, m_debugVisible = false;
+    int m_menuShortcutKey = -1;
+    bool m_fileMousePressed = false, m_fileEscapePressed = false;
     std::optional<FileCommand> m_fileCommand;
     std::optional<std::string> m_editSubcircuit;
     CircuitViews* m_views = nullptr;

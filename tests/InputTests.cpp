@@ -2241,6 +2241,199 @@ void gateSettings(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+void navigationMenus(GLFWwindow* window)
+{
+    glfwSetWindowSize(window, 900, 700);
+    Editor editor(window);
+    UI ui;
+    const int first = editor.scene.addComponent(BuiltinComponentIds::And, {-20, 0});
+    const int second = editor.scene.addComponent(BuiltinComponentIds::Not, {20, 0});
+    editor.wire({{-10, 10}, {10, 10}});
+    auto layout = [&]
+    {
+        ui.layout(
+            editor.scene.getComponentCatalog(),
+            editor.input.getCameraFrame(window).surface,
+            editor.input
+        );
+    };
+    auto refresh = [&]
+    {
+        layout();
+        editor.input.process(window);
+        ui.update(glfwGetTime(), editor.input);
+        layout();
+    };
+    layout();
+    editor.input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        {
+            layout();
+            const bool consumed = ui.handleInput(
+                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
+            );
+            layout();
+            return consumed;
+        }
+    );
+    auto click = [&](CanvasViewport bounds)
+    {
+        editor.cursorPixels(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+        refresh();
+    };
+    auto menu = [&](UI::Menu value, int index)
+    {
+        click(ui.menuBounds(value));
+        require(ui.menuOpen(value), "Navigation menu did not open.");
+        click(ui.menuOptionBounds(value, index));
+        require(!ui.menuOpen(value), "Navigation command left its dropdown open.");
+    };
+    auto key = [&](int code, int mods = 0)
+    {
+        Input::keyCallback(window, code, 0, GLFW_PRESS, mods);
+        Input::keyCallback(window, code, 0, GLFW_RELEASE, mods);
+        refresh();
+    };
+    const auto revision = editor.scene.getRevision();
+    require(
+        !ui.menuOptions(UI::Menu::Edit)[0].enabled && !ui.menuOptions(UI::Menu::Edit)[3].enabled,
+        "Empty history/clipboard commands were enabled."
+    );
+    menu(UI::Menu::Edit, 5);
+    require(
+        editor.input.getSelectedComponents() == std::set<int>{first, second} &&
+            editor.input.getSelectedWires().size() == 1 && editor.scene.getRevision() == revision,
+        "Select All missed wires/components or modified the circuit."
+    );
+    menu(UI::Menu::Edit, 2);
+    require(
+        ui.menuOptions(UI::Menu::Edit)[3].enabled &&
+            editor.input.getSelectedComponents().size() == 2,
+        "Opening Edit erased the selection or Copy failed."
+    );
+    menu(UI::Menu::Edit, 4);
+    require(
+        editor.scene.getComponentCount() == 0 && editor.scene.wireCount() == 0 &&
+            editor.input.getUndoCount() == 1,
+        "Menu Delete did not create one shared editor action."
+    );
+    menu(UI::Menu::Edit, 0);
+    require(
+        editor.scene.getComponentCount() == 2 && editor.scene.wireCount() == 1,
+        "Menu Undo did not restore deleted objects."
+    );
+    menu(UI::Menu::Edit, 1);
+    require(editor.scene.getComponentCount() == 0, "Menu Redo did not repeat the deletion.");
+    key(GLFW_KEY_Z, GLFW_MOD_CONTROL);
+    key(GLFW_KEY_A, GLFW_MOD_CONTROL);
+    require(
+        editor.input.getSelectedComponents().size() == 2 &&
+            editor.input.getSelectedWires().size() == 1,
+        "Ctrl+A did not share the menu selection implementation."
+    );
+    menu(UI::Menu::Edit, 3);
+    require(
+        editor.input.getPastePreview().active() && editor.input.getUndoCount() == 0,
+        "Menu Paste did not retain a pending preview outside the canvas."
+    );
+    editor.cursor({0, -16});
+    refresh();
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    refresh();
+    require(
+        editor.scene.getComponentCount() == 4 && editor.input.getUndoCount() == 1,
+        "Menu Paste failed to place when entering the canvas."
+    );
+    key(GLFW_KEY_Z, GLFW_MOD_CONTROL);
+    const auto cameraRevision = editor.scene.getRevision();
+    menu(UI::Menu::View, 0);
+    const auto frame = editor.input.getCameraFrame(window);
+    const auto fittedCenter = editor.input.getPanOffset();
+    for (const auto& [id, view] : editor.scene.getComponentViewMap())
+    {
+        const auto bounds = view->getBodyBounds();
+        for (const auto point :
+             {glm::vec2{bounds.left, bounds.bottom}, glm::vec2{bounds.right, bounds.top}})
+        {
+            const auto screen = frame.worldToWindow(point);
+            require(
+                screen && frame.viewport.contains(screen->x, screen->y),
+                "Fit Circuit left a component outside the actual canvas viewport."
+            );
+        }
+    }
+    editor.input.setPanOffset({5, 6});
+    menu(UI::Menu::Edit, 5);
+    menu(UI::Menu::View, 1);
+    require(
+        editor.input.getPanOffset() == fittedCenter &&
+            editor.scene.getRevision() == cameraRevision && editor.input.getUndoCount() == 0,
+        "Center Selection did not navigate without editing."
+    );
+    editor.input.setZoom(2);
+    key(GLFW_KEY_0, GLFW_MOD_CONTROL);
+    require(editor.input.getZoom() == 1, "Ctrl+0 did not reset zoom.");
+    key(GLFW_KEY_HOME);
+    require(editor.input.getZoom() != 1, "Home did not fit the circuit.");
+    const auto bottom = ui.bottomBounds();
+    menu(UI::Menu::View, 3);
+    require(
+        !ui.bottomVisible() && ui.bottomBounds().height == 0 &&
+            editor.input.getCanvasViewport()->height >
+                bottom.y - editor.input.getCanvasViewport()->y,
+        "Hiding the lower panel did not expand the canvas."
+    );
+    key(GLFW_KEY_J, GLFW_MOD_CONTROL);
+    require(
+        ui.bottomVisible() && ui.bottomBounds().height == bottom.height,
+        "Ctrl+J did not restore the previous lower-panel size."
+    );
+    menu(UI::Menu::View, 4);
+    require(
+        ui.debugVisible() && ui.menuOptions(UI::Menu::View)[4].checked,
+        "Debug menu state was not synchronized."
+    );
+    key(GLFW_KEY_F3);
+    require(!ui.debugVisible(), "F3 did not toggle the same debug state.");
+    editor.input.setMode(EditorMode::Interaction);
+    refresh();
+    for (const auto& item : ui.menuOptions(UI::Menu::Edit))
+        require(!item.enabled, "Interaction mode enabled editing commands.");
+    menu(UI::Menu::View, 2);
+    require(editor.input.getZoom() == 1, "View navigation was blocked in Interaction mode.");
+    editor.input.setMode(EditorMode::Selection);
+    refresh();
+    // Shortcuts must remain inside an active component-name editor.
+    editor.cursor(editor.scene.getCommittedComponentView(first)->getGridPosition());
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+    editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+    click(ui.nameBounds(editor.scene));
+    editor.input.setZoom(2);
+    key(GLFW_KEY_0, GLFW_MOD_CONTROL);
+    key(GLFW_KEY_J, GLFW_MOD_CONTROL);
+    key(GLFW_KEY_F3);
+    require(
+        editor.input.getZoom() == 2 && ui.bottomVisible() && !ui.debugVisible(),
+        "View shortcuts escaped a text field."
+    );
+    key(GLFW_KEY_ESCAPE);
+    click(ui.menuBounds(UI::Menu::Edit));
+    key(GLFW_KEY_ESCAPE);
+    require(
+        !ui.menuOpen(UI::Menu::Edit) && editor.input.getUiCapture() == UiInputCapture{},
+        "Escape left menu input capture active."
+    );
+    click(ui.menuBounds(UI::Menu::View));
+    editor.input.handleFocus(false);
+    require(!ui.menuOpen(UI::Menu::View), "Focus loss left a navigation menu open.");
+    editor.input.handleFocus(true);
+    editor.input.setUiInputHandler({});
+    glfwSetWindowSize(window, 800, 800);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -2264,6 +2457,7 @@ int main(int argc, char** argv)
     try
     {
         const std::pair<const char*, void (*)(GLFWwindow*)> tests[] = {
+            {"navigation_menus", navigationMenus},
             {"drag_cancellation", dragCancellation},
             {"drag_commit",
              [](GLFWwindow* window)
