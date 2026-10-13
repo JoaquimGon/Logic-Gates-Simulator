@@ -132,6 +132,8 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
         };
 
         std::vector<RemovedPin> removedPins;
+        std::vector<std::pair<GridCoords, GridCoords>> interfaceMoves;
+        std::vector<std::size_t> detachedMoves;
         bool changed = false;
         bool topologyChanged = false;
 
@@ -155,6 +157,12 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                 getView(id).m_bodyLabel = *request.label;
             if (request.labelVisible)
                 getView(id).m_showBodyLabel = *request.labelVisible;
+            if (request.portId)
+            {
+                if (request.portId->empty() || getView(id).m_portId.empty())
+                    throw std::invalid_argument("Port identity requires an input or output.");
+                getView(id).m_portId = *request.portId;
+            }
             components.push_back(id);
             placement[id] = request.placement;
             changed = topologyChanged = true;
@@ -230,24 +238,62 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                     throw std::invalid_argument(
                                         "Only subcircuit placements support definition updates."
                                     );
-                                const auto& a = old->layout;
-                                const auto& b = op.definition.layout;
-                                if (a.width != b.width || a.height != b.height ||
-                                    a.pins.size() != b.pins.size())
-                                    throw std::invalid_argument(
-                                        "Interface changed: remove placed instances before "
-                                        "publishing this draft."
-                                    );
-                                for (std::size_t i = 0; i < a.pins.size(); ++i)
-                                    if (a.pins[i].id != b.pins[i].id ||
-                                        a.pins[i].label != b.pins[i].label ||
-                                        a.pins[i].direction != b.pins[i].direction ||
-                                        a.pins[i].index != b.pins[i].index ||
-                                        a.pins[i].anchor != b.pins[i].anchor)
-                                        throw std::invalid_argument(
-                                            "Interface changed: remove placed instances before "
-                                            "publishing this draft."
+                                // Match authored ports by identity, not their label or current
+                                // index.
+                                const auto& layout = op.definition.layout;
+                                for (const auto* pins :
+                                     {&view->getInputPins(), &view->getOutputPins()})
+                                    for (const auto& pin : *pins)
+                                    {
+                                        const auto from = view->getAbsolutePinGridPos(pin);
+                                        const auto next = std::find_if(
+                                            layout.pins.begin(),
+                                            layout.pins.end(),
+                                            [&](const auto& value)
+                                            {
+                                                return value.id == pin.id &&
+                                                       value.direction == pin.type;
+                                            }
                                         );
+                                        const auto relative =
+                                            next != layout.pins.end()
+                                                ? next->anchor
+                                                : translated(
+                                                      pin.relative_pos,
+                                                      {pin.type == PinType::INPUT ? -2 : 2, 0}
+                                                  );
+                                        const auto to = translated(
+                                            view->getGridPosition(),
+                                            rotateGridPoint(relative, view->getOrientation())
+                                        );
+                                        // Leave room for pin access when another port takes this
+                                        // row. Removed ports get a loose end outside the box, so a
+                                        // new port at their former position cannot inherit the old
+                                        // wire.
+                                        if (next == layout.pins.end())
+                                            detachedMoves.push_back(interfaceMoves.size());
+                                        interfaceMoves.emplace_back(from, to);
+                                    }
+                                view->editInputPins().clear();
+                                view->editOutputPins().clear();
+                                for (const auto& pin : layout.pins)
+                                {
+                                    PinUI visual{
+                                        pin.direction,
+                                        pin.index,
+                                        PinState::DISCONNECTED,
+                                        pin.anchor,
+                                        pin.id,
+                                        pin.label,
+                                        pin.lead,
+                                        pin.inverted
+                                    };
+                                    (pin.direction == PinType::INPUT ? view->editInputPins()
+                                                                     : view->editOutputPins())
+                                        .push_back(std::move(visual));
+                                }
+                                view->m_size = {layout.width, layout.height};
+                                placement[id] = PlacementPolicy::RejectSharedAnchors;
                                 candidate.m_circuit.replaceComponent(
                                     id,
                                     std::make_unique<Subcircuit>(
@@ -639,6 +685,56 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                 throw EditFailure(
                     EditError::InvalidWire,
                     "No safe wire route. Hold Alt while moving to leave wires in place."
+                );
+            const auto geometry = candidate.committedGeometry();
+            for (const auto index : detachedMoves)
+            {
+                auto& [from, to] = interfaceMoves[index];
+                const bool attached = std::any_of(
+                    candidate.m_wires.begin(),
+                    candidate.m_wires.end(),
+                    [&](const auto& entry)
+                    {
+                        const auto& path = entry.second.getPath();
+                        return !path.empty() && (path.front() == from || path.back() == from);
+                    }
+                );
+                if (!attached)
+                    continue;
+                const GridCoords direction{to.x - from.x, to.y - from.y};
+                auto occupied = [&]
+                {
+                    for (const auto& component : geometry)
+                        for (const auto& pin : component.pins)
+                            if (pin.position == to)
+                                return true;
+                    // Stay on the former net or empty space; don't join an unrelated cable.
+                    NetId formerNet = INVALID_NET_ID;
+                    for (const auto& [id, wire] : candidate.m_wires)
+                        if (wire.getPath().front() == from || wire.getPath().back() == from)
+                            formerNet = wire.getNet();
+                    for (const auto& [id, wire] : candidate.m_wires)
+                        if (wire.getNet() != formerNet && wire.containsPoint(to))
+                            return true;
+                    return false;
+                };
+                int attempts = 0;
+                while (occupied())
+                {
+                    if (++attempts > 32)
+                        throw EditFailure(
+                            EditError::InvalidWire,
+                            "Cannot leave a disconnected wire end near the removed subcircuit pin."
+                        );
+                    to = translated(to, direction);
+                }
+            }
+            if (!interfaceMoves.empty() &&
+                !rerouteWireEndpoints(interfaceMoves, geometry, candidate.m_wires))
+                throw EditFailure(
+                    EditError::InvalidWire,
+                    "Cannot reroute the updated subcircuit pins. Move nearby components or wires "
+                    "and save again."
                 );
             candidate.rebuildNets();
         }

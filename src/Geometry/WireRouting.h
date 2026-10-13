@@ -6,6 +6,7 @@
 #include <map>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 /** Orthogonal routing with one grid cell of clearance around bodies and pins.
@@ -26,6 +27,14 @@ bool rerouteMovedWires(
     std::span<const ComponentGeometry> before,
     std::span<const ComponentGeometry> after,
     std::span<const int> moved,
+    std::map<WireId, Wire>& wires,
+    std::span<const WireId> translatedWires = {}
+);
+
+/** Follows explicit endpoint changes when a saved subcircuit's interface changes. */
+bool rerouteWireEndpoints(
+    std::span<const std::pair<GridCoords, GridCoords>> moves,
+    std::span<const ComponentGeometry> components,
     std::map<WireId, Wire>& wires,
     std::span<const WireId> translatedWires = {}
 );

@@ -11,9 +11,9 @@ and lists input/output/clock names, including qualified names for nested clocks.
 - In a subcircuit editor, **Save to library** stores the full editable design in
   app-managed JSON files, without a file picker. Published designs automatically
   appear in **Custom** on future launches.
-- Save accepts unfinished or incompatible drafts. **Draft:** rows in Custom open
+- Save accepts unfinished drafts and drafts whose new wiring cannot be routed safely. **Draft:** rows in Custom open
   their saved design for editing; they cannot be placed. A previous usable
-  published version remains available until a compatible valid Save succeeds.
+  published version remains available until a valid Save succeeds.
 - **Export subcircuit...** writes a portable JSON copy. It does not change the
   managed Save destination or clear pending library changes.
 - **Import subcircuit...** copies a standalone JSON design into managed storage.
@@ -31,12 +31,21 @@ and lists input/output/clock names, including qualified names for nested clocks.
   components, positions, settings, and wire bends. An already-open editor is
   selected without replacing its unsaved work.
 
-Publication occurs on explicit Save, not on every edit. Compatible saves update
-direct placements across open views and reset those placements' runtime state.
-Changing the number, names, or order of external pins while instances exist
-rejects publication atomically. The new draft still saves, and the previous
-published definition/wiring stays intact. Remove the old placements before
-publishing a changed interface; automatic wire migration is not implemented.
+Publication occurs on explicit Save, not on every edit. Saves update direct
+placements across open views, including their box size, pin labels and logic,
+and reset those placements' runtime state. Surviving ports retain their wires
+even after renaming or changing pin order. Adding ports reroutes existing wires
+to their new anchors. New ports receive their own identities and do not inherit
+removed connections. Removing a port leaves its
+wire end disconnected just outside the box, rather than attaching it to a
+replacement port. Instance position, orientation and custom body labels remain.
+
+Each authored input/output has a small persistent `port_id`, separate from its
+visible label and compiled pin index. Save/reopen preserves it; older files
+receive their previous direction/order identities when loaded. A deleted and
+recreated port is a new port even if its name is unchanged. If nearby components
+or wires prevent safe migration, publication still rejects atomically and saves
+the draft; the existing usable definition and its wiring remain intact.
 
 Nested subcircuits retain the dependency versions saved inside their authored
 design. Saving a child updates its direct placements in open parent editors;

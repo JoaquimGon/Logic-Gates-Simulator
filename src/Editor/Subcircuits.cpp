@@ -132,7 +132,8 @@ makeSubcircuit(const Scene& scene, DefinitionIdentity identity, const std::strin
         const auto index = static_cast<unsigned int>(ids.size());
         ids.push_back(runtimeIds.at(component.id));
         definition.layout.pins.push_back(
-            {(input ? "in." : "out.") + std::to_string(index),
+            {(input ? "in." : "out.") +
+                 authored.getCommittedComponentView(component.id)->getPortId(),
              component.name,
              input ? PinType::INPUT : PinType::OUTPUT,
              index,

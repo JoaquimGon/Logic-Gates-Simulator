@@ -10,6 +10,7 @@
 #include <cmath>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <nlohmann/json.hpp>
 #include <set>
 #include <stdexcept>
@@ -290,6 +291,8 @@ std::string circuitToJson(const Scene& scene, const std::string& name)
         if (supportsOrientation(definition->behavior))
             component["orientation"] = orientationName(view.getOrientation());
         const auto* logic = scene.getLogicComponent(id);
+        if (!view.getPortId().empty())
+            component["port_id"] = view.getPortId();
         if (const auto* gate = dynamic_cast<const Gate*>(logic))
         {
             if (gate->getType() != NOT &&
@@ -343,17 +346,34 @@ SavedCircuit circuitFromJson(std::string_view text)
         throw std::invalid_argument("Unsupported circuit file format or version.");
     SavedCircuit saved{document.at("name").get<std::string>(), {}};
     EditBatch batch;
+    std::map<std::string, PinType> portDefinitions{
+        {BuiltinComponentIds::Input, PinType::INPUT}, {BuiltinComponentIds::Output, PinType::OUTPUT}
+    };
     for (const auto& definition : array(document.at("definitions")))
-        batch.push_back(
-            RegisterComponentDefinition{
-                readDefinition(definition, saved.scene.getComponentCatalog())
-            }
-        );
+    {
+        auto parsed = readDefinition(definition, saved.scene.getComponentCatalog());
+        if (std::holds_alternative<ManualInputBehavior>(parsed.behavior))
+            portDefinitions.emplace(parsed.identity.id, PinType::INPUT);
+        else if (std::holds_alternative<OutputBehavior>(parsed.behavior))
+            portDefinitions.emplace(parsed.identity.id, PinType::OUTPUT);
+        batch.push_back(RegisterComponentDefinition{std::move(parsed)});
+    }
     const auto& components = array(document.at("components"));
     if (components.size() > 4096 || array(document.at("wires")).size() > 16384)
         throw std::invalid_argument("Circuit exceeds 4096 components or 16384 wire routes.");
+    unsigned int inputOrdinal = 0, outputOrdinal = 0;
     for (const auto& component : components)
     {
+        const auto definitionId = component.at("definition").get<std::string>();
+        std::optional<std::string> portId;
+        // Old files identified ports by direction/order. Preserve those identities on import.
+        if (const auto port = portDefinitions.find(definitionId); port != portDefinitions.end())
+        {
+            auto& ordinal = port->second == PinType::INPUT ? inputOrdinal : outputOrdinal;
+            portId = component.value("port_id", std::to_string(ordinal++));
+        }
+        else if (component.contains("port_id"))
+            throw std::invalid_argument("Only inputs and outputs have port identities.");
         const auto componentVersion = version(component.at("version"));
         ComponentOverrides options;
         options.layout = readLayout(component.at("layout"));
@@ -367,14 +387,15 @@ SavedCircuit circuitFromJson(std::string_view text)
             options.clockPaused = component.at("clock_paused").get<bool>();
         batch.push_back(
             CreateComponent{
-                component.at("definition").get<std::string>(),
+                definitionId,
                 point(component.at("position")),
                 std::move(options),
                 PlacementPolicy::AllowOverlap,
                 componentVersion,
                 {},
                 {},
-                readOrientation(component)
+                readOrientation(component),
+                portId
             }
         );
     }

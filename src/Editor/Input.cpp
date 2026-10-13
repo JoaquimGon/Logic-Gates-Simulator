@@ -381,17 +381,11 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         {
             updateHoverState(window);
             const bool drawing = m_wire.active();
-            const bool blocked = m_wire.routeBlocked();
             if (auto command = m_wire.finish())
                 if (applyEdit(std::move(*command)))
                     m_committedWirePoint = mouseGridCoords;
-            if (blocked)
-            {
-                EditResult failure;
-                failure.error = EditError::InvalidWire;
-                failure.message = "No safe wire route; choose a clear endpoint.";
-                recordEdit(failure);
-            }
+            // A blocked draft (e.g. released on a body rather than a pin) is cancellation,
+            // not a simulation fault. Real committed wiring faults still appear in Messages.
             if (drawing)
                 m_selection.clear();
         }

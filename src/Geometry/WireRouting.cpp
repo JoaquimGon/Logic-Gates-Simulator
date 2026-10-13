@@ -246,7 +246,7 @@ bool rerouteMovedWires(
     std::span<const WireId> translatedWires
 )
 {
-    std::map<Key, GridCoords> endpoints;
+    std::vector<std::pair<GridCoords, GridCoords>> endpoints;
     for (const auto& old : before)
     {
         if (std::find(moved.begin(), moved.end(), old.componentId) == moved.end())
@@ -261,8 +261,22 @@ bool rerouteMovedWires(
         for (const auto& pin : old.pins)
             for (const auto& next : current->pins)
                 if (pin.pin == next.pin && pin.type == next.type && pin.position != next.position)
-                    endpoints.insert_or_assign(key(pin.position), next.position);
+                    endpoints.emplace_back(pin.position, next.position);
     }
+    return rerouteWireEndpoints(endpoints, after, wires, translatedWires);
+}
+
+bool rerouteWireEndpoints(
+    std::span<const std::pair<GridCoords, GridCoords>> moves,
+    std::span<const ComponentGeometry> after,
+    std::map<WireId, Wire>& wires,
+    std::span<const WireId> translatedWires
+)
+{
+    std::map<Key, GridCoords> endpoints;
+    for (const auto& [from, to] : moves)
+        if (from != to)
+            endpoints.insert_or_assign(key(from), to);
     auto staged = wires;
     auto reserved = wires;
     // Old paths of wires which are moving are not obstacles at their former locations.

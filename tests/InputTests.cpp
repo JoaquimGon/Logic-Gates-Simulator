@@ -343,9 +343,9 @@ void altDrag(GLFWwindow* window)
     const auto count = editor.scene.wireCount();
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
-        editor.scene.wireCount() == count &&
-            editor.input.getLastEditError() == EditError::InvalidWire,
-        "Blocked wire gesture silently committed or failed to report its error."
+        editor.scene.wireCount() == count && editor.input.getLastEditError() == EditError::None &&
+            editor.input.isIdle(),
+        "Blocked draft wire committed or reported cancellation as an error."
     );
 }
 
@@ -855,8 +855,8 @@ void wireCrossingsAndFeedback(GLFWwindow* window)
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
         require(
             editor.scene.wireCount() == 0 && editor.input.isIdle() &&
-                editor.input.getLastEditError() == EditError::InvalidWire && !reported.empty(),
-            "A genuinely blocked route disappeared without an error message."
+                editor.input.getLastEditError() == EditError::None && reported.empty(),
+            "Dropping a draft wire on a component body raised a global error."
         );
     }
 }

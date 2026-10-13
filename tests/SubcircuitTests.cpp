@@ -259,6 +259,30 @@ void files()
     rejects(
         [&] { subcircuitFromJson(document.dump()); }, "Invalid external port mapping accepted."
     );
+    auto legacy = nlohmann::json::parse(text);
+    for (auto& component : legacy["design"]["components"])
+        component.erase("port_id");
+    auto legacyDesign = subcircuitFromJson(legacy.dump());
+    const auto legacyDefinition =
+        makeSubcircuit(legacyDesign.design.scene, legacyDesign.identity, legacyDesign.design.name);
+    require(
+        legacyDefinition.layout.pins.front().id == "in.0" &&
+            legacyDefinition.layout.pins.back().id == "out.0",
+        "Older subcircuit files lost their original port identities."
+    );
+    Scene legacyParent;
+    edit(
+        legacyParent,
+        {RegisterComponentDefinition{legacyDefinition},
+         CreateComponent{legacyDefinition.identity.id, {0, 0}}}
+    );
+    auto legacyWorkspace = nlohmann::json::parse(circuitToJson(legacyParent, "Legacy"));
+    for (auto& component : legacyWorkspace["definitions"][0]["subcircuit"]["design"]["components"])
+        component.erase("port_id");
+    require(
+        circuitFromJson(legacyWorkspace.dump()).scene.getComponentCount() == 1,
+        "An older workspace's embedded subcircuit failed to reopen."
+    );
     Scene draft;
     auto loadedDraft =
         subcircuitFromJson(subcircuitToJson(draft, {"subcircuit.draft", 1}, "Draft"));
@@ -398,6 +422,127 @@ void orientation()
     }
 }
 
+void interfaceUpdates()
+{
+    Input input;
+    CircuitViews views;
+    views.select(0, input);
+    auto authored = wireDesign();
+    auto original = makeSubcircuit(authored, {"subcircuit.interface", 1}, "Wire");
+    views.publishSubcircuits({original});
+    auto& parent = views.mainScene();
+    const int box = parent.addComponent(original.identity.id, {0, 0});
+    const int source = parent.addComponent(BuiltinComponentIds::Input, {-12, 0});
+    const int sink = parent.addComponent(BuiltinComponentIds::Output, {12, 0});
+    edit(parent, {AddWire{{{-11, 0}, {-4, 0}}}, AddWire{{{4, 0}, {11, 0}}}});
+    parent.handleClick(source);
+    parent.propagate();
+    require(parent.getLogicComponent(sink)->getStateInPin(0), "Initial interface wiring failed.");
+    const auto portId = authored.getCommittedComponentView(1)->getPortId();
+    edit(authored, {ConfigureComponentProperties{.componentId = 1, .label = "Renamed"}});
+    const int extra = authored.addComponent(BuiltinComponentIds::Input, {-30, 10});
+    auto publish = [&](unsigned version)
+    {
+        // Save reloads the authored scene; identity must survive its component-ID compaction.
+        auto saved =
+            subcircuitFromJson(subcircuitToJson(authored, {original.identity.id, version}, "Wire"));
+        views.publishSubcircuits({makeSubcircuit(saved.design.scene, saved.identity, "Wire")});
+        parent.propagate();
+    };
+    const int blocker = parent.addComponent(BuiltinComponentIds::Input, {-5, 1});
+    const auto beforeRejected = circuitToJson(parent, "Main");
+    rejects([&] { publish(2); }, "A colliding updated pin was published.");
+    require(
+        circuitToJson(parent, "Main") == beforeRejected &&
+            parent.getComponentCatalog().find(original.identity.id)->identity.version == 1,
+        "Failed interface migration partially updated the parent."
+    );
+    parent.removeComponent(blocker);
+    publish(2);
+    const auto* view = parent.getCommittedComponentView(box);
+    require(
+        view->getInputPins().size() == 2 && view->getInputPins()[0].label == "Renamed" &&
+            parent.netOfPin({box, 0}, PinType::INPUT) ==
+                parent.netOfPin({source, 0}, PinType::OUTPUT) &&
+            parent.netOfPin({box, 1}, PinType::INPUT) == INVALID_NET_ID &&
+            parent.netOfPin({box, 0}, PinType::OUTPUT) ==
+                parent.netOfPin({sink, 0}, PinType::INPUT) &&
+            parent.getLogicComponent(sink)->getStateInPin(0),
+        "Rename/expansion lost surviving wires or connected a new port."
+    );
+    const auto roundTrip = circuitFromJson(circuitToJson(parent, "Main"));
+    const auto& stored = std::get<SubcircuitBehavior>(
+        roundTrip.scene.getComponentCatalog().find(original.identity.id)->behavior
+    );
+    require(
+        stored.authored->getCommittedComponentView(0)->getPortId() == portId,
+        "Saving/reopening discarded stable authored port identity."
+    );
+
+    const int secondSource = parent.addComponent(BuiltinComponentIds::Input, {-12, -4});
+    edit(parent, {AddWire{{{-11, -4}, {-8, -4}, {-8, -1}, {-4, -1}}}});
+    parent.handleClick(secondSource);
+    parent.propagate();
+    // Removing the first port shifts the next port to index zero. Its old wire must not be
+    // inherited.
+    authored.removeComponent(1);
+    const int newInput = authored.addComponent(BuiltinComponentIds::Input, {-40, 15});
+    edit(authored, {ConfigureComponentProperties{.componentId = newInput, .label = "Renamed"}});
+    const int newOutput = authored.addComponent(BuiltinComponentIds::Output, {35, 15});
+    edit(authored, {AddWire{{{-39, 15}, {-39, 20}, {34, 20}, {34, 15}}}});
+    publish(3);
+    require(
+        parent.getLogicComponent(box)->getInputPinCount() == 2 &&
+            parent.netOfPin({box, 0}, PinType::INPUT) ==
+                parent.netOfPin({secondSource, 0}, PinType::OUTPUT) &&
+            parent.netOfPin({box, 0}, PinType::INPUT) !=
+                parent.netOfPin({source, 0}, PinType::OUTPUT) &&
+            parent.getLogicComponent(box)->getStateInPin(0) &&
+            parent.netOfPin({box, 1}, PinType::INPUT) == INVALID_NET_ID &&
+            parent.netOfPin({box, 0}, PinType::OUTPUT) ==
+                parent.netOfPin({sink, 0}, PinType::INPUT) &&
+            !parent.getLogicComponent(sink)->getStateInPin(0) && parent.wireCount() >= 2,
+        "Deleting/replacing a port silently transferred its wire to another input."
+    );
+    require(
+        authored.getCommittedComponentView(extra)->getPortId() !=
+            authored.getCommittedComponentView(newInput)->getPortId(),
+        "New input reused an existing port identity."
+    );
+
+    // Rotated instances use the same identity mapping in their own coordinate frame.
+    edit(
+        parent, {ConfigureComponentProperties{.componentId = box, .orientation = Orientation::Up}}
+    );
+    authored.removeComponent(newOutput);
+    require(views.inspectComponent(box, input), "Cannot open the instance before publication.");
+    publish(4);
+    require(
+        !views.refreshInspection(input) && !views.inspecting() && !input.isReadOnly(),
+        "Publishing an interface change left the live viewer pointing to stale runtime."
+    );
+    require(
+        parent.getCommittedComponentView(box)->getOrientation() == Orientation::Up &&
+            parent.netOfPin({box, 0}, PinType::OUTPUT) ==
+                parent.netOfPin({sink, 0}, PinType::INPUT),
+        "Shrinking a rotated interface lost surviving output wiring."
+    );
+    authored.removeComponent(2);
+    const int replacementOutput = authored.addComponent(BuiltinComponentIds::Output, {20, 0});
+    edit(
+        authored,
+        {ConfigureComponentProperties{.componentId = replacementOutput, .label = "Result"}}
+    );
+    publish(5);
+    require(
+        parent.netOfPin({box, 0}, PinType::OUTPUT) == INVALID_NET_ID &&
+            !parent.getLogicComponent(sink)->getStateInPin(0) && parent.getShortedNetCount() == 0 &&
+            parent.getLastEvalResult() == SimulationResult::OK,
+        "A recreated output inherited the removed output's wire or broke simulation."
+    );
+    input.setScene(nullptr);
+}
+
 void editing()
 {
     Input input;
@@ -431,20 +576,16 @@ void editing()
         views.mainScene().getLogicComponent(id)->getStateOutPin(0),
         "Published behavior was not installed."
     );
-    const auto stable = circuitToJson(views.mainScene(), "Main");
-    auto incompatible = wireDesign(true);
-    const int extra = incompatible.addComponent(BuiltinComponentIds::Input, {-40, 10});
-    edit(incompatible, {ConfigureComponentProperties{.componentId = extra, .label = "Extra"}});
-    auto changed = makeSubcircuit(incompatible, {"subcircuit.test", 3}, "Changed");
-    rejects(
-        [&] { views.publishSubcircuits({changed}); }, "Changed used interface was silently applied."
-    );
+    auto expanded = *std::get<SubcircuitBehavior>(replacement.behavior).authored;
+    const int extra = expanded.addComponent(BuiltinComponentIds::Input, {-40, 10});
+    edit(expanded, {ConfigureComponentProperties{.componentId = extra, .label = "Extra"}});
+    auto changed = makeSubcircuit(expanded, {"subcircuit.test", 3}, "Changed");
+    views.publishSubcircuits({changed});
     require(
-        circuitToJson(views.mainScene(), "Main") == stable && views.activeScene()
-                                                                      .getComponentCatalog()
-                                                                      .find(original.identity.id)
-                                                                      ->identity.version == 2,
-        "Rejected publish partially changed the session."
+        views.mainScene().getLogicComponent(id)->getInputPinCount() == 2 &&
+            views.mainScene().getCommittedComponentView(id)->getSize() ==
+                glm::vec2(changed.layout.width, changed.layout.height),
+        "Interface expansion did not update the placed model and box."
     );
     views.setActiveFile("example.json");
     views.create(input);
@@ -513,7 +654,8 @@ void fileCommands()
         "Export changed the Save destination or cleared unsaved work."
     );
     const int custom = views.mainScene().addComponent(identity.id, {0, 0});
-    views.activeScene().addComponent(BuiltinComponentIds::Input, {-40, 10});
+    // An actually unfinished design still saves as a draft without replacing usable instances.
+    views.activeScene().removeComponent(1);
     const auto oldVersion = loadSubcircuit(publishedPath).identity.version;
     performFileCommand(UI::FileCommand::Save, nullptr, ui, views, input, &library);
     const auto draftPath = views.activeFile();
@@ -521,7 +663,7 @@ void fileCommands()
         !views.hasUnsavedChanges(1) && draftPath.parent_path() == library.location() / "drafts" &&
             loadSubcircuit(publishedPath).identity.version == oldVersion &&
             views.mainScene().getLogicComponent(custom)->getInputPinCount() == 1,
-        "Incompatible draft overwrote the usable published version."
+        "Incomplete draft overwrote the usable published version."
     );
     views.select(0, input);
     const auto mainPath = directory / "main.json";
@@ -968,7 +1110,10 @@ int main(int argc, char** argv)
         else if (test == "subcircuit_orientation")
             orientation();
         else if (test == "subcircuit_editing")
+        {
             editing();
+            interfaceUpdates();
+        }
         else if (test == "subcircuit_file_commands")
             fileCommands();
         else if (test == "subcircuit_library")

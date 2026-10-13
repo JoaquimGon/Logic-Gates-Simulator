@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <random>
 #include <stdexcept>
 #include <utility>
 
@@ -152,6 +153,12 @@ CreatedComponent ComponentFactory::create(
     view->m_showBodyLabel = resolved.presentation.showBodyLabel;
     view->m_bodyStyle = resolved.presentation.body;
     view->m_orientation = orientation;
+    if (std::holds_alternative<ManualInputBehavior>(resolved.behavior) ||
+        std::holds_alternative<OutputBehavior>(resolved.behavior))
+    {
+        static std::mt19937_64 random(std::random_device{}());
+        view->m_portId = "port." + std::to_string(random());
+    }
     return {id, std::move(view)};
 }
 

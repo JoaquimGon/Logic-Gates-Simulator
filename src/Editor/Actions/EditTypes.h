@@ -46,6 +46,7 @@ struct CreateComponent
     std::optional<std::string> label;
     std::optional<bool> labelVisible;
     Orientation orientation = Orientation::Right;
+    std::optional<std::string> portId;
 };
 
 // Compatibility requests adapt explicit legacy geometry into the same catalog/factory path.

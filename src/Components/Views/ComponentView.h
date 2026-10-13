@@ -136,6 +136,9 @@ class ComponentView
 
     const std::string& getBodyLabel() const { return m_bodyLabel; }
 
+    /** Stable identity of an authored input/output, independent of its name or pin order. */
+    const std::string& getPortId() const { return m_portId; }
+
     bool showsBodyLabel() const { return m_showBodyLabel; }
 
     bool showsPinLabels() const { return m_showPinLabels; }
@@ -181,6 +184,7 @@ class ComponentView
 
     DefinitionIdentity m_definition;
     std::string m_bodyLabel;
+    std::string m_portId;
     bool m_showPinLabels = false;
     bool m_showBodyLabel = true;
     BodyStyle m_bodyStyle;
