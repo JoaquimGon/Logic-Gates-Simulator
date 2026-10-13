@@ -2,6 +2,7 @@
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/Input.h"
 #include "Editor/Scene.h"
+#include "Editor/Subcircuits.h"
 #include "Geometry/GridSystem.h"
 #include "UI/UI.h"
 
@@ -2573,6 +2574,69 @@ void truthTablePopup(GLFWwindow* window)
     require(
         ui.infoTabBounds(editor.scene, true).width == 0 && !ui.truthTableOpen(),
         "Source component exposed an irrelevant truth table."
+    );
+    Scene authored;
+    const int portIn = authored.addComponent(BuiltinComponentIds::Input, {-12, 0});
+    const int portOut = authored.addComponent(BuiltinComponentIds::Output, {12, 0});
+    require(
+        static_cast<bool>(EditorActions(authored).apply(
+            {ConfigureComponentProperties{.componentId = portIn, .label = "Data"},
+             ConfigureComponentProperties{.componentId = portOut, .label = "Result"},
+             AddWire{{{-11, 0}, {11, 0}}}}
+        )),
+        "Cannot create custom table fixture."
+    );
+    const auto custom = makeSubcircuit(authored, {"subcircuit.table", 1}, "Pass through");
+    require(
+        static_cast<bool>(EditorActions(editor.scene).apply({RegisterComponentDefinition{custom}})),
+        "Cannot register custom table."
+    );
+    const int customId = editor.scene.addComponent(custom.identity.id, {0, 8});
+    refresh();
+    open(customId);
+    const auto customRevision = editor.scene.getRevision();
+    const auto customHistory = editor.input.getUndoCount();
+    click(ui.infoTabBounds(editor.scene, true));
+    require(
+        ui.truthTableOpen() &&
+            ui.truthTable(editor.scene).headers == std::vector<std::string>{"Data", "Result"} &&
+            ui.truthTable(editor.scene).rows ==
+                std::vector<std::vector<std::string>>{{"0", "0"}, {"1", "1"}} &&
+            ui.truthTableCurrentRow(editor.scene) == 0,
+        "Custom popup did not calculate its named table."
+    );
+    editor.scene.getLogicComponent(customId)->setStateInPin(0, true);
+    refresh();
+    require(
+        ui.truthTableCurrentRow(editor.scene) == 1 &&
+            editor.scene.getLogicComponent(customId)->getStateOutPin(0) &&
+            editor.scene.getRevision() == customRevision &&
+            editor.input.getUndoCount() == customHistory,
+        "Custom table changed live state/history or failed to update its highlight."
+    );
+    click(ui.infoTabBounds(editor.scene, false));
+    require(
+        ui.editSubcircuitBounds(editor.scene).width > 0,
+        "Truth table removed the custom circuit's Edit control."
+    );
+    authored.addComponent(BuiltinComponentIds::Clock, {0, 8});
+    const auto clocked = makeSubcircuit(authored, {"subcircuit.table-clock", 1}, "Clocked");
+    require(
+        static_cast<bool>(
+            EditorActions(editor.scene).apply({RegisterComponentDefinition{clocked}})
+        ),
+        "Cannot register clocked custom table fixture."
+    );
+    const int clockedId = editor.scene.addComponent(clocked.identity.id, {0, -6});
+    refresh();
+    open(clockedId);
+    click(ui.infoTabBounds(editor.scene, true));
+    require(
+        ui.truthTableOpen() && ui.truthTable(editor.scene).rows.empty() &&
+            !ui.truthTableCurrentRow(editor.scene) &&
+            ui.currentTruthRowBounds(editor.scene).width == 0 &&
+            ui.truthTable(editor.scene).notes[1].find("clocks") != std::string::npos,
+        "Clocked custom circuit did not explain why its table is unavailable."
     );
     editor.key(GLFW_KEY_ESCAPE);
     editor.input.setMode(EditorMode::Selection);

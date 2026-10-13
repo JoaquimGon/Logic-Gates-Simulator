@@ -1504,6 +1504,109 @@ void truthTablePresentation(Renderer& renderer)
         }
 }
 
+void customTruthTablePresentation(Renderer& renderer)
+{
+    for (int scale : {1, 2})
+        for (bool clocked : {false, true})
+        {
+            Scene authored;
+            const int data = authored.addComponent(BuiltinComponentIds::Input, {-12, 0});
+            const int raw = authored.addComponent(BuiltinComponentIds::Output, {12, 2});
+            const int inverted = authored.addComponent(BuiltinComponentIds::Output, {12, -2});
+            authored.addComponent(BuiltinComponentIds::Not, {0, 0});
+            require(
+                static_cast<bool>(EditorActions(authored).apply(
+                    {ConfigureComponentProperties{.componentId = data, .label = "Data"},
+                     ConfigureComponentProperties{.componentId = raw, .label = "Raw"},
+                     ConfigureComponentProperties{.componentId = inverted, .label = "Inverted"},
+                     AddWire{{{-11, 0}, {-2, 0}}},
+                     AddWire{{{-11, 0}, {-11, 2}, {11, 2}}},
+                     AddWire{{{1, 0}, {11, 0}, {11, -2}}}}
+                )),
+                "Custom truth-table rendering fixture failed."
+            );
+            if (clocked)
+                authored.addComponent(BuiltinComponentIds::Clock, {-20, 8});
+            const auto definition =
+                makeSubcircuit(authored, {"subcircuit.render-table", 1}, "Custom inverter");
+            Scene scene;
+            require(
+                static_cast<bool>(
+                    EditorActions(scene).apply({RegisterComponentDefinition{definition}})
+                ),
+                "Cannot register custom truth table for rendering."
+            );
+            const int id = scene.addComponent(definition.identity.id, {0, 0});
+            scene.getLogicComponent(id)->setStateInPin(0, true);
+            scene.markSimulationDirty();
+            scene.propagate();
+            scene.syncVisuals();
+            Input input;
+            input.setScene(&scene);
+            UI ui;
+            const CanvasSurface surface{extent / scale, extent / scale, extent, extent};
+            ui.layout(scene.getComponentCatalog(), surface, input);
+            CanvasCamera camera;
+            camera.setViewport(input.getCanvasViewport());
+            const auto frame = camera.frame(surface);
+            const auto point = *frame.worldToWindow({0, 0});
+            auto click = [&](CanvasViewport bounds, int button)
+            {
+                for (int action : {GLFW_PRESS, GLFW_RELEASE})
+                    ui.handleInput(
+                        {UiInputKind::MouseButton,
+                         button,
+                         action,
+                         0,
+                         0,
+                         bounds.x + bounds.width / 2,
+                         bounds.y + bounds.height / 2},
+                        scene,
+                        input,
+                        frame
+                    );
+            };
+            click({point.x, point.y, 0, 0}, GLFW_MOUSE_BUTTON_RIGHT);
+            click(ui.infoTabBounds(scene, true), GLFW_MOUSE_BUTTON_LEFT);
+            renderer.beginFrame(frame);
+            const auto components = buildComponentPresentation(scene.getComponentViewMap());
+            renderer.drawCanvas({components, scene.getWires(), {}});
+            ui.draw(renderer, scene, frame);
+            require(
+                ui.truthTableOpen() && (ui.truthTable(scene).rows.empty() == clocked) &&
+                    glGetError() == GL_NO_ERROR,
+                "Custom table or unsupported explanation did not render."
+            );
+            if (!clocked)
+            {
+                require(
+                    ui.truthTable(scene).headers ==
+                        std::vector<std::string>{"Data", "Raw", "Inverted"},
+                    "Custom table lost its named outputs."
+                );
+                const auto area = ui.truthTableRowsBounds(scene);
+                std::array<unsigned char, 4> color{};
+                glReadPixels(
+                    static_cast<int>((area.x + 2) * scale),
+                    extent - 1 - static_cast<int>((area.y + 22 + 10) * scale),
+                    1,
+                    1,
+                    GL_RGBA,
+                    GL_UNSIGNED_BYTE,
+                    color.data()
+                );
+                require(
+                    color[1] > color[0] + 30, "Custom table did not highlight the current row."
+                );
+            }
+            const std::string name =
+                std::string(clocked ? "truth-table-custom-clock" : "truth-table-custom") +
+                (scale == 2 ? "-2x.ppm" : ".ppm");
+            saveImage(name.c_str());
+            input.setScene(nullptr);
+        }
+}
+
 void componentInformationPresentation(Renderer& renderer)
 {
     Scene scene;
@@ -2981,6 +3084,7 @@ int main(int argc, char** argv)
                 componentInformationPresentation(renderer);
                 flipFlopPresentation(renderer);
                 truthTablePresentation(renderer);
+                customTruthTablePresentation(renderer);
                 gateSettingsPresentation(renderer);
                 navigationMenuPresentation(renderer);
                 labelVisibilityPresentation(renderer, camera);

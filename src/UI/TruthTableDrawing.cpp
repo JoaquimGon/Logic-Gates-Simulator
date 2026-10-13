@@ -148,7 +148,9 @@ void UI::drawTruthTable(Renderer& renderer, const Scene& scene) const
     const int last =
         std::min(first + truthTableVisibleRows(scene), static_cast<int>(table.rows.size()));
     std::string footer = !current ? "Inputs unavailable" : "Green = current inputs";
-    if (truthTableVisibleRows(scene) == 0 && !table.rows.empty())
+    if (table.rows.empty())
+        footer = "Esc / click outside to close";
+    else if (truthTableVisibleRows(scene) == 0)
         footer = "Enlarge window to see rows";
     else if (static_cast<int>(table.rows.size()) > truthTableVisibleRows(scene))
         footer = "Rows " + std::to_string(first + 1) + "-" + std::to_string(last) + " / " +

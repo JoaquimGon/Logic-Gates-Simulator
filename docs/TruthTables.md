@@ -1,6 +1,6 @@
 # Educational truth tables
 
-Right-click a gate, latch or flip-flop, then select **Truth table**. **Info / settings**
+Right-click a gate, latch, flip-flop or custom circuit, then select **Truth table**. **Info / settings**
 returns to its existing controls. Tables work in Selection and Interaction modes.
 
 ## Logic gates
@@ -42,7 +42,26 @@ from an isolated component copy; the live scene, clock phase, history and stored
 state are untouched. Tables are cached for the selected component/design revision;
 live row selection reads synchronized pins. Rendering stays bounded by visible rows.
 
-Sources, output indicators and composed subcircuits do not advertise a table.
-Subcircuits may contain retained state and clocks; enumerating input combinations
-alone would misrepresent their behavior. Gates above eight inputs show an explicit
-limit message rather than generating an unbounded table.
+Sources and output indicators do not advertise a table. Components above eight
+inputs show **Truth table too big**, with the input limit and actual count.
+
+## Custom circuits
+
+Custom combinational circuits use their named external inputs and outputs as table
+columns. Every output is recorded for every input combination, including behavior
+inside nested custom circuits and configured gate inversions. Calculation uses a
+deep copy of the placed circuit and preserves live internal/external pin states.
+The existing scrolling and current-input highlighting also apply to these tables.
+
+Before calculation, the internal circuits are checked recursively. Clocks,
+latches, flip-flops, unsupported component behavior and feedback connections show
+an explanation instead of a table. This first version rejects feedback even when
+the current circuit settles: current stability does not establish a stateless
+input/output function for every combination and starting state. Native latches and
+flip-flops still have their explicit next-state tables.
+
+One shared work limit of 100,000 covers structural inspection and all internal
+component evaluations across every row, including nested circuits. If the limit is
+reached or a row fails to settle, all partial rows are discarded and the popup
+explains why no reliable table is available. Results are cached for the selected
+component/design revision and calculated when its table is requested.

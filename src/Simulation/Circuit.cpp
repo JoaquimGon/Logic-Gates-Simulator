@@ -85,6 +85,16 @@ const Component* Circuit::getComponent(int id) const
     return it != m_components.end() ? it->second.get() : nullptr;
 }
 
+std::vector<int> Circuit::componentIds() const
+{
+    std::vector<int> ids;
+    ids.reserve(m_components.size());
+    for (const auto& [id, component] : m_components)
+        ids.push_back(id);
+    std::sort(ids.begin(), ids.end());
+    return ids;
+}
+
 void Circuit::delComponent(int id)
 {
     Component* comp = getComponent(id);

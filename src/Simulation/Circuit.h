@@ -66,6 +66,8 @@ class Circuit
 
     Component* getComponent(int id);
     const Component* getComponent(int id) const;
+    /** Existing IDs in creation order, including before the first propagation. */
+    std::vector<int> componentIds() const;
     void delComponent(int id);
 
     /**

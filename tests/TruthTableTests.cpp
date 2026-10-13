@@ -2,6 +2,7 @@
 #include "Components/Gate.h"
 #include "Components/InputPin.h"
 #include "Components/Latch.h"
+#include "Simulation/Subcircuit.h"
 #include "UI/TruthTable.h"
 
 #include <algorithm>
@@ -145,6 +146,207 @@ void sequential()
             checkSequential(latch);
         }
 }
+
+SubcircuitBehavior passThrough(int count = 1)
+{
+    Circuit circuit;
+    const int removed = circuit.addGate(NOT);
+    circuit.delComponent(removed);
+    SubcircuitBehavior design;
+    for (int i = 0; i < count; ++i)
+    {
+        const int input = circuit.addInputPin();
+        const int output = circuit.addOutputPin();
+        require(circuit.connectComponents(input, 0, output, 0), "Cannot connect table fixture.");
+        design.inputs.push_back(input);
+        design.outputs.push_back(output);
+    }
+    design.circuit = std::make_shared<Circuit>(std::move(circuit));
+    return design;
+}
+
+bool noteContains(const TruthTable& table, const char* message)
+{
+    return std::any_of(
+        table.notes.begin(),
+        table.notes.end(),
+        [&](const auto& note) { return note.find(message) != std::string::npos; }
+    );
+}
+
+SubcircuitBehavior wrap(const SubcircuitBehavior& inner)
+{
+    Circuit circuit;
+    SubcircuitBehavior outer;
+    const int nested = circuit.addComponent(std::make_unique<Subcircuit>(inner));
+    for (int i = 0; i < static_cast<int>(inner.inputs.size()); ++i)
+    {
+        const int input = circuit.addInputPin();
+        circuit.connectComponents(input, 0, nested, i);
+        outer.inputs.push_back(input);
+    }
+    for (int i = 0; i < static_cast<int>(inner.outputs.size()); ++i)
+    {
+        const int output = circuit.addOutputPin();
+        circuit.connectComponents(nested, i, output, 0);
+        outer.outputs.push_back(output);
+    }
+    outer.circuit = std::make_shared<Circuit>(std::move(circuit));
+    return outer;
+}
+
+void customCircuits()
+{
+    Circuit circuit;
+    const int a = circuit.addInputPin(), b = circuit.addInputPin();
+    const int sum = circuit.addGate(XOR), carry = circuit.addGate(AND);
+    static_cast<Gate*>(circuit.getComponent(carry))->setInputInverted(0, true);
+    for (int gate : {sum, carry})
+    {
+        circuit.connectComponents(a, 0, gate, 0);
+        circuit.connectComponents(b, 0, gate, 1);
+    }
+    const int outSum = circuit.addOutputPin(), outCarry = circuit.addOutputPin();
+    circuit.connectComponents(sum, 0, outSum, 0);
+    circuit.connectComponents(carry, 0, outCarry, 0);
+    SubcircuitBehavior design;
+    design.inputs = {b, a}; // External order differs from internal component IDs.
+    design.outputs = {outCarry, outSum};
+    design.circuit = std::make_shared<Circuit>(std::move(circuit));
+    const std::vector<PinUI> inputs{
+        {PinType::INPUT, 1, PinState::OFF, {}, "", "A"},
+        {PinType::INPUT, 0, PinState::OFF, {}, "", "B"}
+    };
+    const std::vector<PinUI> outputs{
+        {PinType::OUTPUT, 1, PinState::OFF, {}, "", "Sum"},
+        {PinType::OUTPUT, 0, PinState::OFF, {}, "", "Masked"}
+    };
+    for (bool nested : {false, true})
+    {
+        Subcircuit sub(nested ? wrap(design) : design);
+        sub.setStateInPin(0, true);
+        sub.setStateInPin(1, false);
+        sub.evaluate();
+        const auto states = sub.getStateInPins();
+        const auto result = sub.simulationResult();
+        const auto& runtime = sub.runtimeCircuit();
+        const auto ids = runtime.componentIds();
+        std::vector<std::vector<bool>> internalInputs, internalOutputs;
+        for (int id : ids)
+        {
+            const auto* component = runtime.getComponent(id);
+            internalInputs.push_back(component->getStateInPins());
+            std::vector<bool> values;
+            for (int pin = 0; pin < component->getOutputPinCount(); ++pin)
+                values.push_back(component->getStateOutPin(pin));
+            internalOutputs.push_back(values);
+        }
+        const auto table = buildTruthTable(sub, inputs, outputs);
+        require(
+            hasTruthTable(&sub) &&
+                table.headers == std::vector<std::string>{"B", "A", "Masked", "Sum"},
+            "Custom table lost named logical port order."
+        );
+        require(
+            table.rows ==
+                std::vector<std::vector<std::string>>{
+                    {"0", "0", "0", "0"},
+                    {"0", "1", "0", "1"},
+                    {"1", "0", "1", "1"},
+                    {"1", "1", "0", "0"}
+                },
+            "Custom/nested table lost input inversion or independent outputs."
+        );
+        require(
+            sub.getStateInPins() == states && sub.getStateOutPin(0) && sub.getStateOutPin(1) &&
+                sub.simulationResult() == result,
+            "Truth table mutated live custom state."
+        );
+        for (std::size_t i = 0; i < ids.size(); ++i)
+        {
+            const auto* component = runtime.getComponent(ids[i]);
+            require(
+                component->getStateInPins() == internalInputs[i], "Internal live inputs changed."
+            );
+            for (int pin = 0; pin < component->getOutputPinCount(); ++pin)
+                require(
+                    component->getStateOutPin(pin) == internalOutputs[i][pin],
+                    "Internal live outputs changed."
+                );
+        }
+    }
+    Subcircuit eight(passThrough(8));
+    const auto wide = buildTruthTable(eight, {}, {});
+    require(
+        wide.rows.size() == 256 && wide.headers.size() == 16,
+        "Eight-input custom circuit was truncated."
+    );
+    for (const auto& row : wide.rows)
+        require(
+            std::equal(row.begin(), row.begin() + 8, row.begin() + 8),
+            "Custom circuit omitted some output columns."
+        );
+    Subcircuit nine(passThrough(9));
+    const auto tooBig = buildTruthTable(nine, {}, {});
+    require(
+        tooBig.rows.empty() && noteContains(tooBig, "Truth table too big"),
+        "Nine-input table not rejected clearly."
+    );
+}
+
+void customRestrictions()
+{
+    for (int kind = 0; kind < 5; ++kind)
+    {
+        auto design = passThrough();
+        auto circuit = std::make_shared<Circuit>(*design.circuit);
+        if (kind == 0)
+            circuit->addClock();
+        else if (kind == 1)
+            circuit->addLatch(LatchType::SR_LATCH);
+        else if (kind == 2)
+            circuit->addComponent(std::make_unique<FlipFlop>(-1, FlipFlopType::D));
+        else if (kind == 3)
+        {
+            const int loop = circuit->addGate(OR);
+            circuit->connectComponents(
+                loop, 0, loop, 0
+            ); // Can settle, but still contains feedback.
+        }
+        else
+        {
+            const int first = circuit->addGate(OR), second = circuit->addGate(AND);
+            circuit->connectComponents(first, 0, second, 0);
+            circuit->connectComponents(second, 0, first, 0);
+        }
+        design.circuit = circuit;
+        for (bool nested : {false, true})
+        {
+            Subcircuit sub(nested ? wrap(design) : design);
+            const auto table = buildTruthTable(sub, {}, {});
+            const char* reason = kind == 0 ? "clocks" : kind < 3 ? "stored state" : "feedback";
+            require(
+                table.rows.empty() && noteContains(table, reason),
+                "Nested time/state/feedback behavior was presented as combinational."
+            );
+        }
+    }
+    auto costly = passThrough(8);
+    auto circuit = std::make_shared<Circuit>(*costly.circuit);
+    for (int i = 0; i < 500; ++i)
+        circuit->addGate(AND);
+    costly.circuit = circuit;
+    Subcircuit sub(costly);
+    sub.setStateInPin(0, true);
+    sub.evaluate();
+    const auto table = buildTruthTable(sub, {}, {});
+    require(
+        table.rows.empty() && noteContains(table, "Calculation limit reached") &&
+            sub.getStateOutPin(0),
+        "Total table work was not bounded, partial results leaked or live state changed."
+    );
+}
+
 } // namespace
 
 int main()
@@ -153,6 +355,8 @@ int main()
     {
         gates();
         sequential();
+        customCircuits();
+        customRestrictions();
         std::cout << "PASS: educational truth tables\n";
         return 0;
     }

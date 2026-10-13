@@ -214,12 +214,15 @@ either mode. It shows the component name, body label when present, and live
 input/output states (`0 (OFF)` or `1 (ON)`), with pin names or numbered fallbacks.
 Blocked simulation states read `Unavailable`. Escape or a click outside closes
 it; resize and focus loss also dismiss it. Scroll inside if the rows do not fit.
-Gates, latches and flip-flops also offer a **Truth table** tab. Gates enumerate
+Gates, latches, flip-flops and custom circuits also offer a **Truth table** tab. Gates enumerate
 all input combinations (up to eight inputs), including configured inversions;
 the current input row is highlighted green. Large tables scroll eight rows at a
 time; **Current row** returns to the active combination. Sequential tables explain
 hold/toggle and next-state behavior, with flip-flop results applying only at a
-rising clock edge. Actual output states remain visible separately. See
+rising clock edge. Custom combinational circuits calculate every named output on
+an isolated copy, including nested circuits. Above eight inputs the popup says
+**Truth table too big**; clocks, stored state, feedback and calculation failures
+show explanations instead of unreliable rows. Actual output states remain visible separately. See
 [Educational truth tables](docs/TruthTables.md).
 
 Wire-point guides are larger and more opaque on hover. Pressing to draw or
