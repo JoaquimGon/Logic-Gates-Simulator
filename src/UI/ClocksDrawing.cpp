@@ -8,6 +8,89 @@
 #include <iterator>
 #include <sstream>
 
+namespace
+{
+// Shared bounded geometry for clock and selected-pin waveforms.
+bool appendWaveform(
+    const std::deque<ClockSample>& trace,
+    double start,
+    double window,
+    double now,
+    double graphX,
+    double graphWidth,
+    double y,
+    std::vector<Renderer::ScreenRect>& lines
+)
+{
+    if (trace.empty() || graphWidth <= 0)
+        return true;
+    const glm::vec4 green{0.35f, 0.88f, 0.5f, 1};
+    auto xAt = [&](double time) { return graphX + (time - start) / window * graphWidth; };
+    const double stop = std::min(start + window, now);
+    const auto first = std::upper_bound(
+        trace.begin(),
+        trace.end(),
+        start,
+        [](double time, const ClockSample& sample) { return time < sample.time; }
+    );
+    const auto last = std::upper_bound(
+        first,
+        trace.end(),
+        stop,
+        [](double time, const ClockSample& sample) { return time < sample.time; }
+    );
+    const int edgeCount = static_cast<int>(std::distance(first, last));
+    bool tooDense = edgeCount > std::min(128.0, graphWidth / 8.0);
+    // Previous frequency settings may have left a dense region in the saved session history.
+    // Scan at most 128 visible edges; a suppressed row never builds geometry.
+    if (!tooDense && first != last)
+        for (auto it = std::next(first); it != last; ++it)
+            if ((it->time - std::prev(it)->time) / window * graphWidth < 8)
+            {
+                tooDense = true;
+                break;
+            }
+    if (tooDense)
+    {
+        return false;
+    }
+    const auto baseline = first == trace.begin() ? trace.begin() : std::prev(first);
+    double from = std::max(start, baseline->time);
+    bool high = baseline->high;
+    bool available = baseline->available;
+    auto level = [&](bool state) { return y + (state ? 9 : 35); };
+    auto interval = [&](double to)
+    {
+        if (to > from)
+            lines.push_back(
+                {{xAt(from), available ? level(high) : y + 22, xAt(to) - xAt(from), 2},
+                 available ? green : glm::vec4{0.55f, 0.65f, 0.76f, 0.65f}}
+            );
+    };
+    for (auto it = first; it != last; ++it)
+    {
+        interval(it->time);
+        const double edgeX = xAt(it->time);
+        lines.push_back({{edgeX, y + 5, 1, 36}, {0.24f, 0.31f, 0.4f, 0.7f}});
+        if (available && it->available && high != it->high)
+            lines.push_back({{edgeX, y + 9, 1.5, 28}, green});
+        from = it->time;
+        high = it->high;
+        available = it->available;
+    }
+    interval(stop);
+    if (now >= start && now <= start + window)
+    {
+        lines.push_back({{xAt(now) - 1, y + 4, 2, 39}, {0.6f, 0.8f, 1, 0.85f}});
+        lines.push_back(
+            {{xAt(now), available ? level(high) : y + 22, 6, 2},
+             available ? green : glm::vec4{0.55f, 0.65f, 0.76f, 0.65f}}
+        );
+    }
+    return true;
+}
+} // namespace
+
 void UI::drawClocks(Renderer& renderer, const Scene& scene) const
 {
     renderer.setUiDrawCategory(DrawCategory::DynamicUI);
@@ -72,7 +155,7 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
     const double graphWidth = std::max(0.0, list.x + list.width - graphX);
     const double historyTime = clockTimeline().time();
     const double window = clockWindowSeconds();
-    const double start = clockStartTime(), end = start + window;
+    const double start = clockStartTime();
     const auto readings = scene.clockReadings();
     auto timeText = [](double value)
     {
@@ -83,7 +166,7 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
     const auto fit = clockControlBounds(ClockControl::Fit);
     const auto clear = clockControlBounds(ClockControl::Clear);
     const double statusX = fit.x + fit.width + 8;
-    if (!readings.empty() && clear.x - statusX > 140)
+    if ((!readings.empty() || !clockTimeline().signals().empty()) && clear.x - statusX > 140)
         label(
             "Elapsed: " + timeText(historyTime),
             {statusX, m_bottom.y + 40, clear.x - statusX - 8, 24},
@@ -106,8 +189,9 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
         frameScale
     );
     bool dense = false;
-    for (const auto& clock : readings)
-        dense |= clockWaveformTooDense(clock.frequency);
+    if (m_bottomTab == BottomTab::Clocks)
+        for (const auto& clock : readings)
+            dense |= clockWaveformTooDense(clock.frequency);
     if (wide)
         label(
             m_clockError.empty() ? (dense            ? "Hidden: Fit or zoom in"
@@ -121,6 +205,13 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
     renderer.setScreenClip(list);
+    if (m_bottomTab == BottomTab::Signals)
+    {
+        drawSignalRows(renderer);
+        renderer.setScreenClip(m_bottom);
+        renderer.setUiDrawCategory(DrawCategory::StaticUI);
+        return;
+    }
     if (readings.empty())
     {
         label("No clocks in this circuit.", list, muted);
@@ -131,7 +222,6 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
     }
     const int offset = clockScroll(scene);
     const auto& history = clockTimeline();
-    auto xAt = [&](double time) { return graphX + (time - start) / window * graphWidth; };
     for (int row = 0; row + offset < static_cast<int>(readings.size()) && row * 48 < list.height;
          ++row)
     {
@@ -204,56 +294,8 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
         const auto& trace = found->second;
         if (trace.empty())
             continue;
-        const double stop = std::min(end, history.time());
-        const auto first = std::upper_bound(
-            trace.begin(),
-            trace.end(),
-            start,
-            [](double time, const ClockSample& sample) { return time < sample.time; }
-        );
-        const auto last = std::upper_bound(
-            first,
-            trace.end(),
-            stop,
-            [](double time, const ClockSample& sample) { return time < sample.time; }
-        );
-        const int edgeCount = static_cast<int>(std::distance(first, last));
-        bool tooDense = edgeCount > std::min(128.0, graphWidth / 8.0);
-        // Previous frequency settings may have left a dense region in the saved session history.
-        // Scan at most 128 visible edges; a suppressed row never builds geometry.
-        if (!tooDense && first != last)
-            for (auto it = std::next(first); it != last; ++it)
-                if ((it->time - std::prev(it)->time) / window * graphWidth < 8)
-                {
-                    tooDense = true;
-                    break;
-                }
-        if (tooDense)
-        {
+        if (!appendWaveform(trace, start, window, history.time(), graphX, graphWidth, y, lines))
             unreadable();
-            continue;
-        }
-        const auto baseline = first == trace.begin() ? trace.begin() : std::prev(first);
-        double from = std::max(start, baseline->time);
-        bool high = baseline->high;
-        auto level = [&](bool state) { return y + (state ? 9 : 35); };
-        auto interval = [&](double to)
-        {
-            if (to > from)
-                lines.push_back({{xAt(from), level(high), xAt(to) - xAt(from), 2}, green});
-        };
-        for (auto it = first; it != last; ++it)
-        {
-            interval(it->time);
-            const double edgeX = xAt(it->time);
-            lines.push_back({{edgeX, y + 5, 1, 36}, {0.24f, 0.31f, 0.4f, 0.7f}});
-            lines.push_back({{edgeX, y + 9, 1.5, 28}, green});
-            from = it->time;
-            high = it->high;
-        }
-        interval(stop);
-        if (history.time() >= start && history.time() <= end)
-            lines.push_back({{xAt(history.time()) - 1, y + 4, 2, 39}, {0.6f, 0.8f, 1, 0.85f}});
     }
     renderer.drawScreenRects(lines);
     renderer.drawText(text, TextSpace::Screen);
@@ -293,4 +335,72 @@ void UI::drawClockTooltip(Renderer& renderer, const Scene& scene) const
     renderer.drawText(text, TextSpace::Screen);
     renderer.setScreenClip(std::nullopt);
     renderer.setUiDrawCategory(DrawCategory::StaticUI);
+}
+
+void UI::drawSignalRows(Renderer& renderer) const
+{
+    const auto list = clockListBounds();
+    const auto& signals = clockTimeline().signals();
+    const glm::vec4 ink{0.87f, 0.91f, 0.97f, 1}, muted{0.55f, 0.65f, 0.76f, 1};
+    std::vector<TextRun> text;
+    std::vector<Renderer::ScreenRect> lines;
+    auto label = [&](std::string value, CanvasViewport box, glm::vec4 color)
+    {
+        const auto& font = renderer.fontMetrics();
+        while (!value.empty() && getTextWidth(value, 0.3f, font) > box.width - 8)
+        {
+            value.resize(value.size() > 3 ? value.size() - 4 : 0);
+            if (!value.empty())
+                value += "...";
+        }
+        text.push_back(
+            {value, {static_cast<float>(box.x + 4), static_cast<float>(box.y + 14)}, 0.3f, color}
+        );
+    };
+    if (signals.empty())
+        label("Right-click a component and Trace a pin (up to 8).", list, muted);
+    const int offset = std::clamp(
+        m_clockScroll,
+        0,
+        std::max(
+            0, static_cast<int>(signals.size()) - std::max(1, static_cast<int>(list.height / 48))
+        )
+    );
+    const double graphX = list.x + clockLabelWidth();
+    const double graphWidth = std::max(0.0, list.width - clockLabelWidth());
+    for (int row = 0; row + offset < static_cast<int>(signals.size()) && row * 48 < list.height;
+         ++row)
+    {
+        const auto& signal = signals[row + offset];
+        const double y = list.y + row * 48;
+        label(signal.label, {list.x, y, clockLabelWidth() - 8, 20}, ink);
+        std::string status = "Unavailable";
+        if (!signal.samples.empty() && signal.samples.back().available)
+            status = signal.samples.back().high ? "HIGH (1)" : "LOW (0)";
+        if (signal.samples.size() > 1 &&
+            signal.samples.back().time == signal.samples[signal.samples.size() - 2].time)
+            status += " | paused changes";
+        label(status, {list.x, y + 23, clockLabelWidth() - 32, 20}, muted);
+        const auto remove = signalRemoveBounds(row);
+        renderer.drawScreenRect(remove, {0.12f, 0.2f, 0.29f, 1});
+        label("X", remove, ink);
+        if (!appendWaveform(
+                signal.samples,
+                clockStartTime(),
+                clockWindowSeconds(),
+                clockTimeline().time(),
+                graphX,
+                graphWidth,
+                y,
+                lines
+            ))
+            label(
+                "Too dense: zoom in or Fit",
+                {graphX, y + 12, graphWidth, 20},
+                {0.9f, 0.72f, 0.38f, 1}
+            );
+        lines.push_back({{list.x, y + 47, list.width, 1}, {0.18f, 0.23f, 0.3f, 1}});
+    }
+    renderer.drawScreenRects(lines);
+    renderer.drawText(text, TextSpace::Screen);
 }

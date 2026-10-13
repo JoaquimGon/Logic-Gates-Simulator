@@ -85,7 +85,8 @@ class UI
     {
         Subcircuit,
         Messages,
-        Clocks
+        Clocks,
+        Signals
     };
 
     enum class MessageKind
@@ -180,6 +181,9 @@ class UI
     CanvasViewport clockListBounds() const;
     CanvasViewport clockFrequencyBounds(int visibleRow) const;
     CanvasViewport clockPauseBounds(int visibleRow) const;
+    CanvasViewport
+    signalTraceBounds(const Scene& scene, PinType direction, unsigned int index) const;
+    CanvasViewport signalRemoveBounds(int row) const;
 
     double clockWindowSeconds() const;
     std::string clockTimeFrameText() const;
@@ -237,6 +241,11 @@ class UI
     bool handleClocks(const UiInputEvent& event, Scene& scene, Input& input);
     void closeClockEdit(Input& input);
     void drawClocks(Renderer& renderer, const Scene& scene) const;
+    std::optional<SignalTrace>
+    signalForPin(const Scene& scene, PinType direction, unsigned int index) const;
+    const PinUI* infoPinAtLine(const Scene& scene, int line) const;
+    void drawSignalRows(Renderer& renderer) const;
+    double fittedSignalWindow() const;
     void drawClockTooltip(Renderer& renderer, const Scene& scene) const;
     void updateClockHover(double now);
     static double fittedClockWindow(const std::vector<ClockReading>& readings);

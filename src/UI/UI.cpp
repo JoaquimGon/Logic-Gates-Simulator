@@ -231,7 +231,7 @@ CanvasViewport UI::bottomTabBounds(BottomTab tab) const
 {
     if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
         return {};
-    const int count = m_showSubcircuit ? 3 : 2;
+    const int count = m_showSubcircuit ? 4 : 3;
     const double width = std::min(148.0, std::max(0.0, m_bottom.width - 8 * (count + 1)) / count);
     const int index = static_cast<int>(tab) - (m_showSubcircuit ? 0 : 1);
     return {
@@ -561,7 +561,7 @@ CanvasViewport UI::gateInputInversionBounds(const Scene& scene, unsigned int ind
         return {};
     const auto bounds = gateInputListBounds(scene);
     return {
-        bounds.x + bounds.width - 88, bounds.y + row * infoRowHeight + 1, 78, infoRowHeight - 2
+        bounds.x + bounds.width - 142, bounds.y + row * infoRowHeight + 1, 78, infoRowHeight - 2
     };
 }
 
@@ -956,6 +956,28 @@ bool UI::handleInput(
                 if (!m_nameEditing && event.code == GLFW_MOUSE_BUTTON_LEFT &&
                     event.action == GLFW_PRESS)
                 {
+                    if (!m_truthTableOpen)
+                    {
+                        const auto* view = scene.getCommittedComponentView(m_infoComponent);
+                        for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
+                            for (const auto& pin : *pins)
+                                if (signalTraceBounds(scene, pin.type, pin.pin_index)
+                                        .contains(event.x, event.y))
+                                {
+                                    auto trace = signalForPin(scene, pin.type, pin.pin_index);
+                                    if (trace)
+                                    {
+                                        const auto& root = m_views ? m_views->activeScene() : scene;
+                                        root.prepareSignalTraces(clockTimeline());
+                                        m_infoError =
+                                            clockTimeline().toggleSignal(std::move(*trace))
+                                                ? ""
+                                                : "Up to eight signals can be traced.";
+                                        root.recordSignalTraces(clockTimeline());
+                                    }
+                                    return true;
+                                }
+                    }
                     for (bool table : {false, true})
                         if (infoTabBounds(scene, table).contains(event.x, event.y))
                         {
@@ -1126,7 +1148,10 @@ bool UI::handleInput(
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT)
                 {
                     for (const auto tab :
-                         {BottomTab::Subcircuit, BottomTab::Messages, BottomTab::Clocks})
+                         {BottomTab::Subcircuit,
+                          BottomTab::Messages,
+                          BottomTab::Clocks,
+                          BottomTab::Signals})
                         if (bottomTabBounds(tab).contains(event.x, event.y))
                         {
                             m_bottomTab = tab;

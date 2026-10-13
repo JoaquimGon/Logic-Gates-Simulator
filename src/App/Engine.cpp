@@ -351,6 +351,7 @@ void Engine::run()
             clockEdgeFlipped || pendingSimulation || parentScene.isSimulationDirty();
         if (parentScene.isSimulationDirty())
             parentScene.propagate();
+        parentScene.recordSignalTraces(circuits.activeClockTimeline());
         cpu[CpuPhase::Simulation] = finishPhase();
 
         if (syncNeeded)

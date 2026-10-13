@@ -190,6 +190,9 @@ class Scene
     bool checkOverlap(int draggedComponentId) const;
 
     bool updateClocks(float deltaTime, ClockTimeline* timeline = nullptr);
+    std::string signalName(int componentId, PinType direction, unsigned int index) const;
+    void prepareSignalTraces(ClockTimeline& timeline) const;
+    void recordSignalTraces(ClockTimeline& timeline) const;
     /** Resets sources in this scene and settles/synchronizes existing circuitry. */
     void resetSimulation();
 

@@ -114,3 +114,12 @@ bool CircuitViews::refreshInspection(Input& input, bool sync)
     }
     return true;
 }
+
+ClockPath CircuitViews::signalPath(int authoredId) const
+{
+    ClockPath path;
+    for (const auto& inspection : m_inspections)
+        path.push_back(inspection.runtimeId);
+    path.push_back(displayedScene().runtimeComponentId(authoredId));
+    return path;
+}

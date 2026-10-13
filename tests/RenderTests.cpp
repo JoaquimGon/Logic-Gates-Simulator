@@ -3147,6 +3147,153 @@ void clockPresentation(Renderer& renderer)
     input.setScene(nullptr);
 }
 
+void signalPresentation(Renderer& renderer)
+{
+    for (int dpi : {1, 2})
+    {
+        CircuitViews views;
+        Input input;
+        views.select(0, input);
+        auto& scene = views.mainScene();
+        const int data = scene.addComponent(BuiltinComponentIds::Input, {-12, 2});
+        const int clock = scene.addComponent(BuiltinComponentIds::Clock, {-12, -2});
+        const int flip = scene.addComponent(BuiltinComponentIds::DFlipFlop, {0, 0});
+        require(
+            static_cast<bool>(EditorActions(scene).apply(
+                {ConfigureComponentProperties{.componentId = data, .label = "Data"},
+                 ConfigureComponentProperties{.componentId = flip, .label = "Register"},
+                 AddWire{{{-11, 2}, {-3, 2}, {-3, 1}}},
+                 AddWire{{{-11, -2}, {-3, -2}, {-3, -1}}}}
+            )),
+            "Signal render fixture failed."
+        );
+        scene.handleClick(data);
+        scene.propagate();
+        auto& timeline = views.activeClockTimeline();
+        scene.prepareSignalTraces(timeline);
+        for (auto [id, index] : {std::pair{clock, 0u}, std::pair{flip, 0u}, std::pair{flip, 1u}})
+        {
+            const auto* view = scene.getCommittedComponentView(id);
+            const auto& pin = view->getOutputPins()[index];
+            timeline.toggleSignal(
+                {{id},
+                 PinType::OUTPUT,
+                 index,
+                 pin.id,
+                 scene.signalName(id, PinType::OUTPUT, index),
+                 {}}
+            );
+        }
+        scene.stepAllClocks(2, &timeline);
+        scene.stepAllClocks(1, &timeline);
+        UI ui;
+        ui.setCircuitViews(&views, &renderer.fontMetrics());
+        const CanvasSurface surface{extent / dpi, extent / dpi, extent, extent};
+        auto layout = [&] { ui.layout(scene.getComponentCatalog(), surface, input); };
+        layout();
+        auto cameraFrame = [&]
+        {
+            CanvasCamera camera;
+            camera.setViewport(input.getCanvasViewport());
+            camera.setCenter(input.getPanOffset());
+            camera.setZoom(input.getZoom());
+            return camera.frame(surface);
+        };
+        auto screenPixel = [&](double x, double y)
+        {
+            std::array<unsigned char, 4> pixel;
+            glReadPixels(
+                static_cast<int>(x * dpi),
+                extent - 1 - static_cast<int>(y * dpi),
+                1,
+                1,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                pixel.data()
+            );
+            return pixel;
+        };
+        auto event = [&](UiInputEvent e) { return ui.handleInput(e, scene, input, cameraFrame()); };
+        auto click = [&](CanvasViewport b, int button = GLFW_MOUSE_BUTTON_LEFT)
+        {
+            UiInputEvent e{UiInputKind::MouseButton};
+            e.code = button;
+            e.action = GLFW_PRESS;
+            e.x = b.x + b.width / 2;
+            e.y = b.y + b.height / 2;
+            event(e);
+            e.action = GLFW_RELEASE;
+            event(e);
+        };
+        // Give all three channels room using the existing panel grip.
+        const auto grip = ui.bottomResizeBounds();
+        UiInputEvent resize{UiInputKind::MouseButton};
+        resize.code = GLFW_MOUSE_BUTTON_LEFT;
+        resize.action = GLFW_PRESS;
+        resize.x = grip.x + 8;
+        resize.y = grip.y + 2;
+        event(resize);
+        UiInputEvent drag{UiInputKind::Cursor};
+        drag.x = resize.x;
+        drag.y = surface.windowHeight - 330;
+        event(drag);
+        resize.action = GLFW_RELEASE;
+        resize.y = drag.y;
+        event(resize);
+        layout();
+        click(ui.bottomTabBounds(UI::BottomTab::Signals));
+        auto draw = [&]
+        {
+            const auto camera = cameraFrame();
+            renderer.beginFrame(camera);
+            const auto components = buildComponentPresentation(scene.getComponentViewMap());
+            const auto junctions = scene.getWireIntersections();
+            renderer.drawCanvas(CanvasFrame{components, scene.getVisibleWires(), junctions});
+            ui.draw(renderer, scene, camera);
+        };
+        draw();
+        saveImage(dpi == 1 ? "signal-traces.ppm" : "signal-traces-2x.ppm");
+        const auto list = ui.clockListBounds();
+        const double labelWidth =
+            std::min(220.0, std::min(list.width * 0.65, std::max(160.0, list.width * 0.4)));
+        const double graphX = list.x + labelWidth;
+        int green = 0;
+        for (double x = graphX + 1; x < list.x + list.width; x += 2)
+        {
+            const auto pixel = screenPixel(x, list.y + 9);
+            green += pixel[1] > 120 && pixel[1] > pixel[0] * 1.5;
+        }
+        require(green > 4, "Signal waveform is missing from the panel.");
+        const auto point =
+            *cameraFrame().worldToWindow(scene.getCommittedComponentView(flip)->getPosition());
+        click({point.x - 1, point.y - 1, 2, 2}, GLFW_MOUSE_BUTTON_RIGHT);
+        draw();
+        require(
+            ui.signalTraceBounds(scene, PinType::OUTPUT, 0).width > 0,
+            "Popup lost its pin trace control."
+        );
+        saveImage(dpi == 1 ? "signal-trace-popup.ppm" : "signal-trace-popup-2x.ppm");
+        ui.dismissPopups(input);
+        // Bounded dense-region handling must not create hundreds of overlapping edges.
+        auto& dense = timeline.signals()[0].samples;
+        dense.clear();
+        for (int i = 0; i < 1024; ++i)
+            dense.push_back({i / 1024.0, bool(i % 2), true});
+        draw();
+        int denseGreen = 0;
+        for (double x = graphX + 1; x < list.x + list.width; x += 2)
+        {
+            const auto pixel = screenPixel(x, list.y + 9);
+            denseGreen += pixel[1] > 120 && pixel[1] > pixel[0] * 1.5;
+        }
+        require(denseGreen == 0, "Dense signal waveform was drawn instead of suppressed.");
+        saveImage(dpi == 1 ? "signal-traces-dense.ppm" : "signal-traces-dense-2x.ppm");
+
+        ui.setCircuitViews(nullptr, nullptr);
+        input.setScene(nullptr);
+    }
+}
+
 
 } // namespace
 
@@ -3232,6 +3379,7 @@ int main(int argc, char** argv)
                 circuitViewsPresentation(renderer);
                 bottomResizePresentation(renderer);
                 clockPresentation(renderer);
+                signalPresentation(renderer);
             }
             std::cout << "PASS: render_pixels (OpenGL " << glGetString(GL_VERSION) << ")\n";
         }

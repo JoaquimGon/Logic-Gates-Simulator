@@ -43,6 +43,13 @@ The far-right **Clear** starts fresh recordings without resetting the simulation
 Hover buttons briefly for explanations and disabled-clock warnings.
 See [clock timing](docs/Simulation.md).
 
+The **Signals** bottom tab watches up to eight input/output pins. Right-click a
+component and click **Trace** beside a pin, including pins inside a placed
+subcircuit's live view. It shares clock stepping and graph controls, records
+settled changes between frames, and keeps bounded session history. Inputs are
+observed before inversion; unavailable signals are gray. See
+[signal traces](docs/SignalTraces.md) for timing and edit/reset behavior.
+
 Compact Sel. and Int. buttons above the bottom feature panel also switch
 modes. The active button is faded and underlined; hover either button for
 a short explanation of its behavior.

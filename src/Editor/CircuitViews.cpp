@@ -191,6 +191,7 @@ void CircuitViews::replaceWorkspaceAt(
     activeScene().propagate();
     activeScene().syncVisuals();
     m_views[index].history->clear();
+    m_views[index].clockTimeline->signals().clear();
     m_views[index].clockTimeline->clear();
     markSaved(index);
 }

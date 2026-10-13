@@ -1,7 +1,12 @@
 #pragma once
+#include "Components/PinTypes.h"
+
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <map>
+#include <optional>
+#include <string>
 #include <vector>
 
 using ClockPath = std::vector<int>;
@@ -18,6 +23,21 @@ struct ClockSample
 {
     double time;
     bool high;
+    bool available = true;
+};
+
+class Circuit;
+
+using SignalSample = ClockSample;
+
+struct SignalTrace
+{
+    ClockPath path;
+    PinType direction;
+    unsigned int pinIndex;
+    std::string pinId, label;
+    std::deque<SignalSample> samples;
+    double shortestInterval = 0;
 };
 
 /** Session-only, bounded edge history. Never serialized or included in editor snapshots. */
@@ -27,6 +47,17 @@ class ClockTimeline
     static constexpr std::size_t sampleLimit = 2048;
     void record(double time, const std::vector<ClockReading>& readings, bool edge = false);
     void clear();
+    static constexpr std::size_t signalLimit = 8;
+    /** Toggle a pin; false means the eight-probe limit was reached. */
+    bool toggleSignal(SignalTrace trace);
+    bool tracesSignal(const SignalTrace& trace) const;
+    void removeSignal(std::size_t index);
+    bool prepareSignals(std::uint64_t revision);
+    void recordSignals(const Circuit& circuit, bool available = true);
+
+    std::vector<SignalTrace>& signals() { return m_signals; }
+
+    const std::vector<SignalTrace>& signals() const { return m_signals; }
 
     double time() const { return m_time; }
 
@@ -35,6 +66,8 @@ class ClockTimeline
     const std::deque<double>& steps() const { return m_steps; }
 
   private:
+    std::vector<SignalTrace> m_signals;
+    std::optional<std::uint64_t> m_signalRevision;
     double m_time = 0;
     std::map<ClockPath, std::deque<ClockSample>> m_traces;
     std::deque<double> m_steps;

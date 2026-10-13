@@ -435,7 +435,10 @@ int Circuit::stepClocks(int count, ClockTimeline* timeline)
         propagate();
     auto readings = timeline ? clockReadings() : std::vector<ClockReading>{};
     if (timeline)
+    {
         timeline->record(m_clockTime, readings);
+        timeline->recordSignals(*this);
+    }
     std::vector<Clock*> clocks;
     collectClocks(clocks);
     int processed = 0;
@@ -457,7 +460,10 @@ int Circuit::stepClocks(int count, ClockTimeline* timeline)
         ++m_work.edgeTimes;
         propagate();
         if (timeline)
+        {
             recordClocks(timeline, m_clockTime, readings, clocks, true);
+            timeline->recordSignals(*this);
+        }
     }
     return processed;
 }
@@ -471,7 +477,10 @@ bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
         propagate();
     auto readings = timeline ? clockReadings() : std::vector<ClockReading>{};
     if (timeline)
+    {
         timeline->record(m_clockTime, readings);
+        timeline->recordSignals(*this);
+    }
     if (m_lastEvalResult != SimulationResult::OK || m_clocksPaused)
     {
         m_pendingClockTime = 0;
@@ -505,7 +514,10 @@ bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
             changed = true;
             propagate();
             if (timeline)
+            {
                 recordClocks(timeline, m_clockTime, readings, clocks, true);
+                timeline->recordSignals(*this);
+            }
             if (m_lastEvalResult != SimulationResult::OK)
             {
                 m_pendingClockTime = 0;
@@ -522,6 +534,9 @@ bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
     if (m_pendingClockTime > 0 && m_work.clockLimit == ClockWorkLimit::None)
         m_work.clockLimit = ClockWorkLimit::SliceLimit;
     if (timeline)
+    {
         recordClocks(timeline, m_clockTime, readings, clocks);
+        timeline->recordSignals(*this);
+    }
     return changed;
 }

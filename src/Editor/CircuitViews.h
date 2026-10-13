@@ -80,6 +80,7 @@ class CircuitViews
 
     std::string inspectionLabel() const;
     bool inspectComponent(int componentId, Input& input);
+    ClockPath signalPath(int authoredId) const;
     bool leaveInspection(Input& input);
     void closeInspection(Input& input);
     /** Re-resolves the instance path; parent design changes safely dismiss stale layouts. */

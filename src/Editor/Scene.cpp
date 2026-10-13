@@ -1,5 +1,6 @@
 #include "Scene.h"
 
+#include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/InterfaceComponents.h"
 #include "Geometry/GeometryQueries.h"
 #include "Geometry/WireNormalization.h"
@@ -217,8 +218,81 @@ bool Scene::getCollinearOverlap(
     return collinearOverlap(a, b, c, d, outStart, outEnd);
 }
 
+std::string Scene::signalName(int componentId, PinType direction, unsigned int index) const
+{
+    const auto* view = getCommittedComponentView(componentId);
+    if (!view)
+        return "Removed signal";
+    const auto* definition = getComponentCatalog().find(view->getDefinitionIdentity().id);
+    if (const auto* gate = dynamic_cast<const Gate*>(getLogicComponent(componentId));
+        gate && view->getDefinitionIdentity().id.starts_with("native."))
+        definition = getComponentCatalog().find(builtinDefinitionId(gate->getType()));
+    std::string name = view->getBodyLabel();
+    if (name.empty())
+    {
+        int ordinal = 0;
+        for (const auto& [id, other] : getComponentViewMap())
+            if (id <= componentId &&
+                other->getDefinitionIdentity().id == view->getDefinitionIdentity().id)
+                ++ordinal;
+        name = (definition ? definition->displayName : "Component") + " " + std::to_string(ordinal);
+    }
+    const auto& pins = direction == PinType::INPUT ? view->getInputPins() : view->getOutputPins();
+    for (const auto& pin : pins)
+        if (pin.pin_index == index)
+            return name + " / " + (pin.label.empty() ? std::to_string(index + 1) : pin.label) +
+                   (direction == PinType::OUTPUT ? " (out)"
+                    : pin.inverted               ? " (before NOT)"
+                                                 : " (in)");
+    return name;
+}
+
+void Scene::prepareSignalTraces(ClockTimeline& timeline) const
+{
+    if (!timeline.prepareSignals(getRevision()))
+        return;
+    std::erase_if(
+        timeline.signals(),
+        [&](const auto& signal)
+        {
+            if (signal.path.size() != 1)
+                return false;
+            const auto* view = getCommittedComponentView(signal.path.front());
+            if (!view)
+                return true;
+            const auto& pins =
+                signal.direction == PinType::INPUT ? view->getInputPins() : view->getOutputPins();
+            const auto found = std::find_if(
+                pins.begin(), pins.end(), [&](const auto& pin) { return pin.id == signal.pinId; }
+            );
+            if (found == pins.end())
+                return true;
+            return false;
+        }
+    );
+    for (auto& signal : timeline.signals())
+        if (signal.path.size() == 1)
+        {
+            const auto* view = getCommittedComponentView(signal.path.front());
+            const auto& pins =
+                signal.direction == PinType::INPUT ? view->getInputPins() : view->getOutputPins();
+            for (const auto& pin : pins)
+                if (pin.id == signal.pinId)
+                    signal.pinIndex = pin.pin_index;
+            signal.label = signalName(signal.path.front(), signal.direction, signal.pinIndex);
+        }
+}
+
+void Scene::recordSignalTraces(ClockTimeline& timeline) const
+{
+    prepareSignalTraces(timeline);
+    timeline.recordSignals(m_circuit, getLastEvalResult() == SimulationResult::OK);
+}
+
 bool Scene::updateClocks(float deltaTime, ClockTimeline* timeline)
 {
+    if (timeline)
+        prepareSignalTraces(*timeline);
     return !isReadOnly() && m_topologyResult == SimulationResult::OK &&
            m_circuit.updateClocks(deltaTime, timeline);
 }
@@ -255,6 +329,8 @@ int Scene::stepAllClocks(int count, ClockTimeline* timeline)
 {
     if (isReadOnly())
         return 0;
+    if (timeline)
+        prepareSignalTraces(*timeline);
     m_circuit.setClocksPaused(true);
     if (m_topologyResult != SimulationResult::OK)
         return 0;

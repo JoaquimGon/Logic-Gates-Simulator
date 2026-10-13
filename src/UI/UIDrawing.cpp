@@ -201,7 +201,8 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             {m_bottom.x + (m_bottom.width - gripWidth) / 2, m_bottom.y + 2, gripWidth, 2},
             resizeColor
         );
-        for (const auto tab : {BottomTab::Subcircuit, BottomTab::Messages, BottomTab::Clocks})
+        for (const auto tab :
+             {BottomTab::Subcircuit, BottomTab::Messages, BottomTab::Clocks, BottomTab::Signals})
         {
             if (tab == BottomTab::Subcircuit && !m_showSubcircuit)
                 continue;
@@ -221,6 +222,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                 );
             label(
                 tab == BottomTab::Subcircuit ? "Subcircuit"
+                : tab == BottomTab::Signals  ? "Signals"
                 : tab == BottomTab::Clocks   ? (m_readOnly ? "Clocks (parent)" : "Clocks")
                                              : messagesTabLabel(),
                 bounds,
@@ -231,7 +233,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         }
         renderer.drawText(text, TextSpace::Screen);
         text.clear();
-        if (m_bottomTab == BottomTab::Clocks)
+        if (m_bottomTab == BottomTab::Clocks || m_bottomTab == BottomTab::Signals)
             drawClocks(renderer, m_readOnly && m_views ? m_views->activeScene() : scene);
         if (m_bottomTab == BottomTab::Subcircuit && m_showSubcircuit)
         {
@@ -563,6 +565,20 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                         );
                     }
                 }
+                const auto* tracedPin = infoPinAtLine(scene, line);
+                CanvasViewport traceBounds;
+                if (tracedPin)
+                {
+                    traceBounds = signalTraceBounds(scene, tracedPin->type, tracedPin->pin_index);
+                    const auto signal = signalForPin(scene, tracedPin->type, tracedPin->pin_index);
+                    const bool selected = signal && clockTimeline().tracesSignal(*signal);
+                    renderer.drawScreenRect(
+                        traceBounds,
+                        selected ? glm::vec4{0.1f, 0.23f, 0.18f, 1}
+                                 : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+                    );
+                    label(selected ? "Stop" : "Trace", traceBounds, 0.35f, ink, true);
+                }
                 const bool scrollHint =
                     gate && row == 0 && inputRows > 0 && gate->getInputPinCount() > inputRows;
                 const std::string value =
@@ -576,7 +592,8 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                      bounds.y + infoHeaderSize(scene) + infoLabelHeight +
                          (named ? infoNameHeight : 0) + infoSettingsHeight(scene) +
                          row * infoRowHeight,
-                     bounds.width - 8 - (inversion.width > 0 ? 98 : 0),
+                     bounds.width - 8 - (inversion.width > 0 ? 98 : 0) -
+                         (traceBounds.width > 0 ? 54 : 0),
                      infoRowHeight},
                     scrollHint ? 0.35f : 0.43f,
                     ink

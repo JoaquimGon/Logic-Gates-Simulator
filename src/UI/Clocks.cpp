@@ -79,7 +79,15 @@ int UI::clockScroll(const Scene& scene) const
 {
     const int rows = std::max(1, static_cast<int>(clockListBounds().height / 48));
     return std::clamp(
-        m_clockScroll, 0, std::max(0, static_cast<int>(scene.clockReadings().size()) - rows)
+        m_clockScroll,
+        0,
+        std::max(
+            0,
+            static_cast<int>(
+                m_bottomTab == BottomTab::Signals ? clockTimeline().signals().size()
+                                                  : scene.clockReadings().size()
+            ) - rows
+        )
     );
 }
 
@@ -198,8 +206,8 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
         else if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS)
             closeClockEdit(input);
     }
-    if (m_bottomTab != BottomTab::Clocks || dragging() || m_openMenu.has_value() ||
-        m_circuitTabs.popupOpen() || m_infoComponent != -1)
+    if ((m_bottomTab != BottomTab::Clocks && m_bottomTab != BottomTab::Signals) || dragging() ||
+        m_openMenu.has_value() || m_circuitTabs.popupOpen() || m_infoComponent != -1)
         return false;
     const auto list = clockListBounds();
     if (event.kind == UiInputKind::Scroll && m_bottom.contains(m_pointer.x, m_pointer.y) &&
@@ -221,7 +229,13 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
             m_clockScroll = static_cast<int>(std::clamp(
                 clockScroll(scene) - event.y,
                 0.0,
-                static_cast<double>(std::max(0, static_cast<int>(scene.clockReadings().size()) - 1))
+                static_cast<double>(std::max(
+                    0,
+                    static_cast<int>(
+                        m_bottomTab == BottomTab::Signals ? clockTimeline().signals().size()
+                                                          : scene.clockReadings().size()
+                    ) - 1
+                ))
             ));
         return true;
     }
@@ -261,7 +275,9 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
                 m_clockFollow = true;
             else if (control == ClockControl::Fit)
             {
-                m_clockWindow = fittedClockWindow(scene.clockReadings());
+                m_clockWindow = m_bottomTab == BottomTab::Signals
+                                    ? fittedSignalWindow()
+                                    : fittedClockWindow(scene.clockReadings());
                 m_clockAutoFit = m_clockFollow = true;
             }
             else if (control == ClockControl::Clear)
@@ -280,8 +296,20 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
                 m_clockAutoFit = false;
             }
             clockTimeline().record(scene.clockTime(), scene.clockReadings());
+            scene.recordSignalTraces(clockTimeline());
             return true;
         }
+    if (m_bottomTab == BottomTab::Signals)
+    {
+        const int offset = clockScroll(scene);
+        for (int row = 0; row + offset < static_cast<int>(clockTimeline().signals().size()); ++row)
+            if (signalRemoveBounds(row).contains(event.x, event.y))
+            {
+                clockTimeline().removeSignal(row + offset);
+                break;
+            }
+        return true;
+    }
     if (m_readOnly || !list.contains(event.x, event.y))
         return true;
     const auto readings = scene.clockReadings();
@@ -329,6 +357,8 @@ double UI::fittedClockWindow(const std::vector<ClockReading>& readings)
 
 double UI::clockWindowSeconds() const
 {
+    if (m_clockAutoFit && m_bottomTab == BottomTab::Signals)
+        return fittedSignalWindow();
     return m_clockAutoFit && m_views ? fittedClockWindow(m_views->activeScene().clockReadings())
                                      : m_clockWindow;
 }
@@ -352,14 +382,16 @@ void UI::updateClockHover(double now)
 {
     m_clockHoverNow = now;
     int target = -1;
-    if (m_bottomVisible && m_bottomTab == BottomTab::Clocks && !m_resizingBottom && !dragging() &&
-        !m_openMenu.has_value() && !m_circuitTabs.popupOpen() && m_infoComponent == -1 &&
-        m_clockEditing == -1)
+    if (m_bottomVisible &&
+        (m_bottomTab == BottomTab::Clocks || m_bottomTab == BottomTab::Signals) &&
+        !m_resizingBottom && !dragging() && !m_openMenu.has_value() && !m_circuitTabs.popupOpen() &&
+        m_infoComponent == -1 && m_clockEditing == -1)
     {
         for (int i = 0; i <= static_cast<int>(ClockControl::Clear); ++i)
             if (clockControlBounds(static_cast<ClockControl>(i)).contains(m_pointer.x, m_pointer.y))
                 target = i;
-        if (m_views && clockListBounds().contains(m_pointer.x, m_pointer.y))
+        if (m_bottomTab == BottomTab::Clocks && m_views &&
+            clockListBounds().contains(m_pointer.x, m_pointer.y))
         {
             const auto readings = m_views->activeScene().clockReadings();
             const int offset = clockScroll(m_views->activeScene());
@@ -380,8 +412,9 @@ void UI::updateClockHover(double now)
 std::vector<std::string> UI::clockTooltip(const Scene& scene) const
 {
     if (m_clockHover < 0 || m_clockHoverNow - m_clockHoverSince < 0.75 || !m_bottomVisible ||
-        m_bottomTab != BottomTab::Clocks || m_openMenu.has_value() || m_circuitTabs.popupOpen() ||
-        m_infoComponent != -1 || m_resizingBottom || dragging())
+        (m_bottomTab != BottomTab::Clocks && m_bottomTab != BottomTab::Signals) ||
+        m_openMenu.has_value() || m_circuitTabs.popupOpen() || m_infoComponent != -1 ||
+        m_resizingBottom || dragging())
         return {};
     if (m_readOnly && m_clockHover >= 8)
         return {
@@ -455,6 +488,12 @@ std::vector<std::string> UI::clockTooltip(const Scene& scene) const
             "Keeps your zoom level. Shift + scroll browses history."
         };
     case ClockControl::Fit:
+        if (m_bottomTab == BottomTab::Signals)
+            return {
+                "Fit the selected signals",
+                "Uses the shortest recorded interval between settled changes.",
+                "Manual changes while paused share the same simulation time."
+            };
         return {
             "Fit four cycles of the fastest enabled clock",
             "Time frame = 4 / Hz; follows frequency changes.",
@@ -464,8 +503,8 @@ std::vector<std::string> UI::clockTooltip(const Scene& scene) const
     case ClockControl::Clear:
         return {
             "Clear this view's graph recordings",
-            "Clock states, phase and simulation time stay unchanged.",
-            "New edges continue to be recorded."
+            "Circuit state, phase and simulation time stay unchanged.",
+            "Selected pins stay selected; new changes are recorded."
         };
     }
     if (!enabled)
