@@ -1607,6 +1607,144 @@ void customTruthTablePresentation(Renderer& renderer)
         }
 }
 
+void liveSubcircuitPresentation(Renderer& renderer)
+{
+    for (int scale : {1, 2})
+    {
+        Scene authored;
+        const int data = authored.addComponent(BuiltinComponentIds::Input, {-12, 2});
+        const int clockPort = authored.addComponent(BuiltinComponentIds::Input, {-12, -2});
+        const int flip = authored.addComponent(BuiltinComponentIds::DFlipFlop, {0, 0});
+        const int q = authored.addComponent(BuiltinComponentIds::Output, {12, 2});
+        const int notQ = authored.addComponent(BuiltinComponentIds::Output, {12, -2});
+        authored.addComponent(BuiltinComponentIds::Clock, {0, 8});
+        require(
+            static_cast<bool>(EditorActions(authored).apply(
+                {ConfigureComponentProperties{.componentId = data, .label = "Data"},
+                 ConfigureComponentProperties{.componentId = clockPort, .label = "CLK"},
+                 ConfigureComponentProperties{.componentId = q, .label = "Q"},
+                 ConfigureComponentProperties{.componentId = notQ, .label = "~Q"},
+                 AddWire{{{-11, 2}, {-3, 2}, {-3, 1}}},
+                 AddWire{{{-11, -2}, {-3, -2}, {-3, -1}}},
+                 AddWire{{{3, 1}, {11, 1}, {11, 2}}},
+                 AddWire{{{3, -1}, {11, -1}, {11, -2}}}}
+            )),
+            "Live viewer render design failed."
+        );
+        const auto definition = makeSubcircuit(authored, {"subcircuit.render-live", 1}, "Register");
+        CircuitViews views;
+        views.publishSubcircuits({definition});
+        auto& parent = views.activeScene();
+        const int first = parent.addComponent(definition.identity.id, {-8, 0});
+        parent.addComponent(definition.identity.id, {8, 0});
+        parent.getLogicComponent(first)->setStateInPin(0, true);
+        parent.getLogicComponent(first)->setStateInPin(1, true);
+        parent.propagate();
+        parent.stepAllClocks(1, &views.activeClockTimeline());
+        parent.syncVisuals();
+        views.markSaved(0);
+        Input input;
+        views.select(0, input);
+        UI ui;
+        ui.setCircuitViews(&views, &renderer.fontMetrics());
+        const CanvasSurface surface{extent / scale, extent / scale, extent, extent};
+        auto layout = [&]
+        { ui.layout(views.displayedScene().getComponentCatalog(), surface, input); };
+        auto frame = [&]
+        {
+            CanvasCamera camera;
+            camera.setViewport(input.getCanvasViewport());
+            camera.setCenter(input.getPanOffset());
+            camera.setZoom(input.getZoom());
+            return camera.frame(surface);
+        };
+        auto draw = [&]
+        {
+            views.refreshInspection(input);
+            layout();
+            const auto camera = frame();
+            renderer.beginFrame(camera);
+            const auto& scene = views.displayedScene();
+            const auto components = buildComponentPresentation(scene.getComponentViewMap());
+            const auto junctions = scene.getWireIntersections();
+            renderer.drawCanvas({components, scene.getWires(), junctions});
+            ui.draw(renderer, scene, camera);
+        };
+        auto click = [&](CanvasViewport bounds, int button)
+        {
+            for (int action : {GLFW_PRESS, GLFW_RELEASE})
+            {
+                ui.handleInput(
+                    {UiInputKind::MouseButton,
+                     button,
+                     action,
+                     0,
+                     0,
+                     bounds.x + bounds.width / 2,
+                     bounds.y + bounds.height / 2},
+                    views.displayedScene(),
+                    input,
+                    frame()
+                );
+                layout();
+            }
+        };
+        layout();
+        const auto position = *frame().worldToWindow(GridSystem::gridToWorld({-8, 0}));
+        click({position.x, position.y, 0, 0}, GLFW_MOUSE_BUTTON_RIGHT);
+        draw();
+        require(ui.viewInsideBounds(parent).width > 0, "Placed circuit popup omitted View inside.");
+        saveImage(scale == 1 ? "live-subcircuit-entry.ppm" : "live-subcircuit-entry-2x.ppm");
+        click(ui.viewInsideBounds(parent), GLFW_MOUSE_BUTTON_LEFT);
+        draw();
+        require(
+            views.inspecting() && input.isReadOnly() && views.size() == 1 &&
+                views.displayedScene().getCommittedComponentView(flip)->getOutputPins()[0].state ==
+                    PinState::ON,
+            "Viewer rendered a new default simulation instead of the running instance."
+        );
+        const auto back = ui.inspectionBackBounds();
+        std::array<unsigned char, 4> color{};
+        glReadPixels(
+            static_cast<int>((back.x + 2) * scale),
+            extent - 1 - static_cast<int>((back.y + 2) * scale),
+            1,
+            1,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            color.data()
+        );
+        require(
+            color[2] > 70 && glGetError() == GL_NO_ERROR,
+            "Live Back bar did not render at this DPI."
+        );
+        saveImage(scale == 1 ? "live-subcircuit.ppm" : "live-subcircuit-2x.ppm");
+        const auto inside = *frame().worldToWindow({0, 0});
+        click({inside.x, inside.y, 0, 0}, GLFW_MOUSE_BUTTON_RIGHT);
+        draw();
+        require(
+            ui.infoBounds(views.displayedScene()).y >=
+                ui.inspectionBackBounds().y + ui.inspectionBackBounds().height,
+            "Live component popup covered the Back strip."
+        );
+        const auto info = ui.componentInfo(views.displayedScene());
+        require(
+            std::find(info.begin(), info.end(), "Q: 1 (ON)") != info.end(),
+            "Live popup rendered stale flip-flop state."
+        );
+        saveImage(
+            scale == 1 ? "live-subcircuit-information.ppm" : "live-subcircuit-information-2x.ppm"
+        );
+        click(ui.inspectionBackBounds(), GLFW_MOUSE_BUTTON_LEFT);
+        draw();
+        require(
+            !views.inspecting() && !input.isReadOnly() && !views.hasUnsavedChanges(0),
+            "Back left a transient scene or unsaved viewer changes."
+        );
+        input.setScene(nullptr);
+    }
+}
+
 void componentInformationPresentation(Renderer& renderer)
 {
     Scene scene;
@@ -3085,6 +3223,7 @@ int main(int argc, char** argv)
                 flipFlopPresentation(renderer);
                 truthTablePresentation(renderer);
                 customTruthTablePresentation(renderer);
+                liveSubcircuitPresentation(renderer);
                 gateSettingsPresentation(renderer);
                 navigationMenuPresentation(renderer);
                 labelVisibilityPresentation(renderer, camera);

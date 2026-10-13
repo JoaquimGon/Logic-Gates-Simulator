@@ -66,6 +66,7 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
         src/Editor/InputClipboard.cpp
         src/Editor/InputCommands.cpp
         src/Editor/CircuitViews.cpp
+        src/Editor/SubcircuitInspection.cpp
         src/Editor/ComponentShortcuts.cpp
         src/Editor/Gestures/PasteGesture.cpp
         src/Editor/Gestures/DragGesture.cpp
@@ -266,4 +267,8 @@ if(BUILD_TESTING)
     target_link_libraries(CircuitViewsTests PRIVATE simulator_ui simulator_files glfw)
     target_compile_definitions(CircuitViewsTests PRIVATE GLFW_INCLUDE_NONE)
     add_test(NAME circuit_views COMMAND CircuitViewsTests)
+    add_executable(SubcircuitInspectionTests tests/SubcircuitInspectionTests.cpp)
+    target_link_libraries(SubcircuitInspectionTests PRIVATE simulator_ui simulator_files glfw)
+    target_compile_definitions(SubcircuitInspectionTests PRIVATE GLFW_INCLUDE_NONE)
+    add_test(NAME subcircuit_live_inspection COMMAND SubcircuitInspectionTests)
 endif()

@@ -245,6 +245,8 @@ std::vector<UI::MessageRow> UI::messageRows(const FontMetrics* font) const
 
 CanvasViewport UI::findMessageBounds(std::size_t issue) const
 {
+    if (m_readOnly)
+        return {};
     if (issue >= simulationIssues().size() || !simulationIssues()[issue].location)
         return {};
     const auto box = messageBoxBounds();

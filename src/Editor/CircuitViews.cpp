@@ -101,6 +101,7 @@ bool CircuitViews::select(std::size_t index, Input& input)
 {
     if (index >= m_views.size())
         return false;
+    closeInspection(input);
     if (index != m_active)
     {
         m_views[m_active].pan = input.getPanOffset();
@@ -132,6 +133,7 @@ bool CircuitViews::remove(std::size_t index, Input& input)
 {
     if (index == 0 || index >= m_views.size())
         return false;
+    closeInspection(input);
     if (index == m_active)
         select(index - 1, input);
     m_views.erase(m_views.begin() + index);
@@ -178,6 +180,7 @@ void CircuitViews::replaceWorkspaceAt(
     std::size_t index, Scene scene, std::string name, Input& input
 )
 {
+    closeInspection(input);
     includeLibrary(scene);
     const auto result =
         EditorActions(*m_views[index].scene).restore(scene, m_views[index].scene->getRevision());

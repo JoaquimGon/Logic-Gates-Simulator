@@ -142,6 +142,12 @@ and **Export subcircuit...**. Save writes the editable design to the persistent
 app-managed library; Export writes a portable copy. Published designs reappear
 in Custom on startup; saved drafts are editable rows which cannot be placed.
 Right-click a Custom row or a placed box to **Edit subcircuit**.
+A placed box also offers **View inside (live)**: a read-only view of that instance's
+current internal signals and retained states, using its original authored layout.
+Right-click internal components for information; nested boxes can be viewed too.
+**Back** or Escape returns to the containing circuit and restores its camera.
+The parent keeps simulating, with Run/Pause and stepping available in
+**Clocks (parent)**. This creates no editable tab or saved changes.
 File also offers **Open storage in Explorer** and **Change storage location...**;
 changing the location copies managed designs/drafts and preserves the originals.
 Dirty Open, tab closure, and exit ask Save/Discard/Cancel; cancelling a picker or

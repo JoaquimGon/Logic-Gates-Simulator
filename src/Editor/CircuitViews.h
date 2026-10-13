@@ -69,6 +69,22 @@ class CircuitViews
 
     const Scene& activeScene() const { return *m_views[m_active].scene; }
 
+    Scene& displayedScene() { return inspecting() ? *m_inspections.back().scene : activeScene(); }
+
+    const Scene& displayedScene() const
+    {
+        return inspecting() ? *m_inspections.back().scene : activeScene();
+    }
+
+    bool inspecting() const { return !m_inspections.empty(); }
+
+    std::string inspectionLabel() const;
+    bool inspectComponent(int componentId, Input& input);
+    bool leaveInspection(Input& input);
+    void closeInspection(Input& input);
+    /** Re-resolves the instance path; parent design changes safely dismiss stale layouts. */
+    bool refreshInspection(Input& input, bool sync = true);
+
     Scene& mainScene() { return *m_views[0].scene; }
 
     const std::string& name(std::size_t index) const { return m_views.at(index).name; }
@@ -119,6 +135,18 @@ class CircuitViews
     void includeLibrary(Scene& scene) const;
 
   private:
+    struct Inspection
+    {
+        int runtimeId;
+        std::string name;
+        std::unique_ptr<Scene> scene;
+        glm::vec2 parentPan;
+        float parentZoom;
+    };
+
+    std::vector<Inspection> m_inspections;
+    std::uint64_t m_inspectedRevision = 0;
+
     struct SourceSettings
     {
         int componentId;

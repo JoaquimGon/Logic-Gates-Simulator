@@ -44,6 +44,31 @@ save the parent to publish its updated snapshot to Main. There is no automatic
 dependency watcher. Direct or indirect self-containment is rejected. Packaging
 allows up to eight nested levels and 4,096 expanded components per definition.
 
+## Viewing a running instance
+
+Right-click a placed box and select **View inside (live)**. The temporary view uses
+the original authored layout and shows that specific instance's current gate,
+input/output, latch/flip-flop and clock signals. Two copies of the same definition
+can display different retained states. Powered internal wires follow the running
+instance; right-click internal components for their live information/truth tables.
+
+The top strip names the instance path and provides **Back**. Escape closes a
+component popup first, then returns one level. Nested boxes also offer View inside.
+Each Back restores the containing view's pan/zoom. Normal panning, zoom and Fit
+Circuit remain available; opening the viewer fits the authored layout.
+
+This is read-only observation: component edits, manual input toggles, wiring,
+creation/deletion, clipboard/history edits, clock settings and saving the displayed
+layout are disabled. The parent circuit continues running. The **Clocks (parent)**
+panel retains Run/Pause and Half/Full-cycle controls for following edges; Messages
+also belong to the parent, and FIND is available again after returning to it.
+
+Viewing creates no editable tab and does not change saved state or runtime memory.
+Changing workspaces exits the viewer. Parent design edits/publication dismiss it
+before stale instance references can be read. Layouts are copied once on entry;
+signal updates read the actual private runtime using the authored-to-compiled ID
+mapping recorded during packaging. No second simulation is advanced.
+
 ## File and simulation behavior
 
 Standalone `logic-gates-subcircuit` JSON contains a stable `subcircuit.*` ID,

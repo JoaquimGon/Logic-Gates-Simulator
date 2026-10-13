@@ -11,7 +11,7 @@
 
 void Input::resetSimulation()
 {
-    if (!m_scene)
+    if (!m_scene || isReadOnly())
         return;
     cancelCurrentAction();
     m_scene->resetSimulation();
@@ -21,7 +21,7 @@ void Input::resetSimulation()
 
 bool Input::canEditCommand(EditCommand command) const
 {
-    if (!m_scene || m_mode != EditorMode::Selection || !isIdle())
+    if (!m_scene || isReadOnly() || m_mode != EditorMode::Selection || !isIdle())
         return false;
     const bool selected = !m_selection.components().empty() || !m_selection.wires().empty() ||
                           m_selection.segment().has_value();
@@ -56,7 +56,7 @@ bool Input::deleteObjects(const HitResult& hit, std::optional<SelectedSegment> s
 
 bool Input::executeEditCommand(EditCommand command, GridCoords pastePosition, bool waitForCanvas)
 {
-    if (!m_scene || m_mode != EditorMode::Selection)
+    if (!m_scene || isReadOnly() || m_mode != EditorMode::Selection)
         return false;
     const bool history = command == EditCommand::Undo || command == EditCommand::Redo;
     if (history && !isIdle())

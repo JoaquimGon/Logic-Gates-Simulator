@@ -10,6 +10,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -34,6 +35,8 @@ struct SubcircuitBehavior
     std::shared_ptr<const Scene> authored;
     std::shared_ptr<const Circuit> circuit;
     std::vector<int> inputs, outputs;
+    // Authored component ID -> compiled runtime ID, for observing the original layout.
+    std::vector<std::pair<int, int>> componentIds;
 };
 
 using ComponentBehavior = std::variant<

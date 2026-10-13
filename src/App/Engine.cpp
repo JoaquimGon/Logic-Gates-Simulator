@@ -151,8 +151,11 @@ void Engine::run()
     }
     auto updateUiLayout = [&]()
     {
+        const bool wasInspecting = circuits.inspecting();
+        if (wasInspecting && !circuits.refreshInspection(input, false))
+            m_ui.dismissPopups(input);
         m_ui.layout(
-            circuits.activeScene().getComponentCatalog(),
+            circuits.displayedScene().getComponentCatalog(),
             input.getCameraFrame(window).surface,
             input
         );
@@ -164,7 +167,7 @@ void Engine::run()
             updateUiLayout();
             m_ui.update(glfwGetTime(), input);
             const bool consumed = m_ui.handleInput(
-                event, circuits.activeScene(), input, input.getCameraFrame(window)
+                event, circuits.displayedScene(), input, input.getCameraFrame(window)
             );
             updateUiLayout();
             return consumed;
@@ -174,9 +177,14 @@ void Engine::run()
     input.setEditErrorHandler([&](const std::string& message) { m_ui.addMessage(message); });
 
     auto titleForMode = [&]()
-    { return m_windowName + " - " + editorModeName(input.getMode()) + " mode (F2 to switch)"; };
+    {
+        return input.isReadOnly() ? m_windowName + " - Live subcircuit view (read only)"
+                                  : m_windowName + " - " + editorModeName(input.getMode()) +
+                                        " mode (F2 to switch)";
+    };
     glfwSetWindowTitle(window, titleForMode().c_str());
     auto displayedMode = input.getMode();
+    bool displayedReadOnly = input.isReadOnly();
     double lastFrameTime = glfwGetTime();
     std::optional<std::pair<std::size_t, UI::BottomTab>> timingContext;
 
@@ -322,31 +330,37 @@ void Engine::run()
         updateUiLayout();
         input.process(window);
         m_ui.update(currentFrameTime, input);
-        Scene& scene = circuits.activeScene();
-        if (displayedMode != input.getMode())
+        Scene& parentScene = circuits.activeScene();
+        if (displayedMode != input.getMode() || displayedReadOnly != input.isReadOnly())
         {
             displayedMode = input.getMode();
+            displayedReadOnly = input.isReadOnly();
             glfwSetWindowTitle(window, titleForMode().c_str());
         }
 
         cpu[CpuPhase::Input] = finishPhase();
 
         // Clocks settle the circuit at every transition; remember edits for visual synchronization.
-        const bool pendingSimulation = scene.isSimulationDirty();
+        const bool pendingSimulation = parentScene.isSimulationDirty();
         const bool simulationReset = m_ui.takeSimulationReset();
-        bool clockEdgeFlipped = !simulationReset && !unsaved.pending() &&
-                                scene.updateClocks(deltaTime, &circuits.activeClockTimeline());
+        bool clockEdgeFlipped =
+            !simulationReset && !unsaved.pending() &&
+            parentScene.updateClocks(deltaTime, &circuits.activeClockTimeline());
 
-        const bool syncNeeded = clockEdgeFlipped || pendingSimulation || scene.isSimulationDirty();
-        if (scene.isSimulationDirty())
-            scene.propagate();
+        const bool syncNeeded =
+            clockEdgeFlipped || pendingSimulation || parentScene.isSimulationDirty();
+        if (parentScene.isSimulationDirty())
+            parentScene.propagate();
         cpu[CpuPhase::Simulation] = finishPhase();
 
         if (syncNeeded)
-            scene.syncVisuals();
+            parentScene.syncVisuals();
+
+        circuits.refreshInspection(input);
+        Scene& scene = circuits.displayedScene();
 
         // Prepare the state used by both the canvas and the UI.
-        m_ui.reportSimulation(scene, currentFrameTime);
+        m_ui.reportSimulation(parentScene, currentFrameTime);
 
         const auto components = buildComponentPresentation(scene.getComponentViewMap());
         const auto junctions = scene.getWireIntersections();
@@ -441,7 +455,7 @@ void Engine::run()
         cpu[CpuPhase::StaticUI] = uiCpu[CpuPhase::StaticUI];
         cpu[CpuPhase::DynamicUI] = uiCpu[CpuPhase::DynamicUI];
         finishPhase(); // UI was measured independently at category boundaries.
-        const auto work = scene.takeSimulationWork();
+        const auto work = parentScene.takeSimulationWork();
         cpu[CpuPhase::Propagation] = work.propagationMs;
 
         // Diagnostics stay above the canvas, panels and popups.
@@ -455,15 +469,15 @@ void Engine::run()
             metrics.worstCpu = m_cpuTimingWindow.worst();
             metrics.timingsReady = m_cpuTimingWindow.ready();
             metrics.simulationWork = work;
-            metrics.pendingSimulationMs = scene.pendingClockTime() * 1000;
-            metrics.totalComponents = scene.getComponentCount();
-            metrics.evalResult = scene.getLastEvalResult();
+            metrics.pendingSimulationMs = parentScene.pendingClockTime() * 1000;
+            metrics.totalComponents = parentScene.getComponentCount();
+            metrics.evalResult = parentScene.getLastEvalResult();
 
             // Topology metrics
-            metrics.netCount = scene.netCount();
-            metrics.wireCount = scene.wireCount();
-            metrics.shortedNetCount = scene.getShortedNetCount();
-            metrics.rejectedConnectionCount = scene.getRejectedConnections().size();
+            metrics.netCount = parentScene.netCount();
+            metrics.wireCount = parentScene.wireCount();
+            metrics.shortedNetCount = parentScene.getShortedNetCount();
+            metrics.rejectedConnectionCount = parentScene.getRejectedConnections().size();
 
             // Interaction & Cursor metrics
             metrics.hoveredCompId = input.getHoveredComponentId();

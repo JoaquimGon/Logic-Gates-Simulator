@@ -37,12 +37,38 @@ ComponentView* Scene::getComponentView(int componentId)
 
 Component* Scene::getLogicComponent(int componentId)
 {
-    return m_circuit.getComponent(componentId);
+    return isReadOnly() ? nullptr : m_circuit.getComponent(componentId);
 }
 
 const Component* Scene::getLogicComponent(int componentId) const
 {
+    if (isReadOnly())
+        return m_observedCircuit->getComponent(runtimeComponentId(componentId));
     return m_circuit.getComponent(componentId);
+}
+
+int Scene::runtimeComponentId(int authoredId) const
+{
+    if (!isReadOnly())
+        return authoredId;
+    const auto found = m_observedIds.find(authoredId);
+    return found == m_observedIds.end() ? -1 : found->second;
+}
+
+void Scene::observeRuntime(
+    const Circuit& runtime,
+    const std::vector<std::pair<int, int>>& ids,
+    SimulationResult result,
+    bool dirty
+)
+{
+    if (!isReadOnly())
+        for (auto [authored, compiled] : ids)
+            m_observedIds.emplace(authored, compiled);
+    m_observedCircuit = &runtime;
+    m_observedResult = result == SimulationResult::OK ? runtime.getLastEvalResult() : result;
+    m_observedDirty = dirty;
+    syncVisuals();
 }
 
 WireId Scene::insertWire(Wire wire)
@@ -162,7 +188,7 @@ PinState Scene::pinState(const PinRef& pin, PinType type)
 
     if (type == PinType::OUTPUT)
     {
-        if (Component* driver = m_circuit.getComponent(pin.componentId))
+        if (const Component* driver = std::as_const(*this).getLogicComponent(pin.componentId))
         {
             // Only show ON (green) if the driver is actively HIGH; otherwise
             // keep it neutral (blue)
@@ -193,11 +219,14 @@ bool Scene::getCollinearOverlap(
 
 bool Scene::updateClocks(float deltaTime, ClockTimeline* timeline)
 {
-    return m_topologyResult == SimulationResult::OK && m_circuit.updateClocks(deltaTime, timeline);
+    return !isReadOnly() && m_topologyResult == SimulationResult::OK &&
+           m_circuit.updateClocks(deltaTime, timeline);
 }
 
 void Scene::resetSimulation()
 {
+    if (isReadOnly())
+        return;
     m_circuit.resetSources();
     propagate();
     syncVisuals();
@@ -205,6 +234,8 @@ void Scene::resetSimulation()
 
 SimulationResult Scene::propagate()
 {
+    if (isReadOnly())
+        return getLastEvalResult();
     if (m_topologyResult != SimulationResult::OK)
     {
         m_topologyInvalidNeedsUpdate = false;
@@ -215,11 +246,15 @@ SimulationResult Scene::propagate()
 
 void Scene::togglePauseAllClocks()
 {
+    if (isReadOnly())
+        return;
     m_circuit.setClocksPaused(!m_circuit.clocksPaused());
 }
 
 int Scene::stepAllClocks(int count, ClockTimeline* timeline)
 {
+    if (isReadOnly())
+        return 0;
     m_circuit.setClocksPaused(true);
     if (m_topologyResult != SimulationResult::OK)
         return 0;
@@ -292,6 +327,8 @@ std::string Scene::clockName(const ClockPath& path) const
 
 void Scene::setAllClocksFrequency(float hz)
 {
+    if (isReadOnly())
+        return;
     validateClockFrequency(hz);
     std::vector<Clock*> clocks;
     m_circuit.collectClocks(clocks);
@@ -301,12 +338,13 @@ void Scene::setAllClocksFrequency(float hz)
 
 void Scene::syncVisuals()
 {
-    const bool blocked = getLastEvalResult() != SimulationResult::OK;
+    const bool blocked =
+        getLastEvalResult() != SimulationResult::OK || (isReadOnly() && m_observedDirty);
     auto syncViews = [&](auto& views)
     {
         for (auto& [id, view] : views)
         {
-            Component* comp = m_circuit.getComponent(id);
+            const Component* comp = std::as_const(*this).getLogicComponent(id);
             if (!comp)
                 continue;
 
@@ -335,7 +373,8 @@ void Scene::syncVisuals()
         }
         else if (net.hasDriver())
         {
-            Component* driver = m_circuit.getComponent(net.getDriver()->componentId);
+            const Component* driver =
+                std::as_const(*this).getLogicComponent(net.getDriver()->componentId);
             net.setState(
                 driver ? (driver->getStateOutPin(net.getDriver()->pinIndex) ? PinState::ON
                                                                             : PinState::OFF)
@@ -361,6 +400,8 @@ void Scene::syncVisuals()
 
 bool Scene::handleClick(int componentId)
 {
+    if (isReadOnly())
+        return false;
     ComponentView* view = getComponentView(componentId);
     if (view)
     {

@@ -34,7 +34,7 @@ Scene::Scene(const Scene& other)
 
 bool Scene::setInterfaceNamingRequired(bool required)
 {
-    if (m_previewToken != 0)
+    if (isReadOnly() || m_previewToken != 0)
         return false;
     const bool previous = m_requireInterfaceNames;
     m_requireInterfaceNames = required;

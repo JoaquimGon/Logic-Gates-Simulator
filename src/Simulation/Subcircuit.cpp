@@ -20,7 +20,8 @@ Subcircuit::Subcircuit(const SubcircuitBehavior& design)
     : Component(
           -1, static_cast<int>(design.inputs.size()), static_cast<int>(design.outputs.size())
       ),
-      m_circuit(checkedTemplate(design)), m_inputs(design.inputs), m_outputs(design.outputs)
+      m_circuit(checkedTemplate(design)), m_authored(design.authored),
+      m_componentIds(design.componentIds), m_inputs(design.inputs), m_outputs(design.outputs)
 {
 }
 

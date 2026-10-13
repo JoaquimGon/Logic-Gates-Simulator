@@ -207,6 +207,7 @@ class Input
     PinType getWireOriginType() const { return m_wire.direction(); }
 
     void setScene(Scene* scene, EditHistory* history = nullptr);
+    bool isReadOnly() const;
 
     void setClockTimeline(ClockTimeline* timeline) { m_clockTimeline = timeline; }
 

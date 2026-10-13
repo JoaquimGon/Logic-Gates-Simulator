@@ -30,7 +30,7 @@ void Input::recordEdit(const EditResult& result)
 
 bool Input::applyEdit(EditOperation operation)
 {
-    if (!m_scene)
+    if (!m_scene || isReadOnly())
         return false;
     const auto result = EditorActions(*m_scene).apply({std::move(operation)});
     recordEdit(result);
@@ -71,6 +71,11 @@ void Input::setScene(Scene* scene, EditHistory* history)
     m_hoveredSegmentValid = false;
     m_lastEditError = EditError::None;
     m_lastEditMessage.clear();
+}
+
+bool Input::isReadOnly() const
+{
+    return m_scene && m_scene->isReadOnly();
 }
 
 void Input::setMode(EditorMode mode)
@@ -180,6 +185,8 @@ void Input::handleKey(int key, int action, int mods, int scanCode)
         executeViewCommand(command, m_lastSurface.value_or(CanvasSurface{}));
         return;
     }
+    if (isReadOnly())
+        return;
     // Only the modifier-checked shortcut above may queue a paste.
     if (key == GLFW_KEY_C || key == GLFW_KEY_V)
         return;
@@ -277,7 +284,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
             m_pan.cancel();
         return;
     }
-    if (button != GLFW_MOUSE_BUTTON_LEFT || m_pan.active() || !m_scene)
+    if (button != GLFW_MOUSE_BUTTON_LEFT || m_pan.active() || !m_scene || isReadOnly())
         return;
 
     if (action == GLFW_PRESS)
@@ -468,7 +475,7 @@ void Input::process(GLFWwindow* window)
         m_pasteAwaitingCanvas = false;
         m_paste.update(*m_scene, GridSystem::worldToGrid(getMouseWorldCoord(window)));
     }
-    const bool canEdit = m_scene && m_mode == EditorMode::Selection && isIdle() &&
+    const bool canEdit = m_scene && !isReadOnly() && m_mode == EditorMode::Selection && isIdle() &&
                          isCanvasPointerAvailable(window) && canvasKeyboardAvailable();
     for (int key :
          {GLFW_KEY_1,
@@ -492,7 +499,7 @@ void Input::process(GLFWwindow* window)
 
     const bool pause = consumeKeyPress(GLFW_KEY_SPACE);
     const bool step = consumeKeyPress(GLFW_KEY_PERIOD);
-    if (m_scene && m_mode == EditorMode::Interaction)
+    if (m_scene && !isReadOnly() && m_mode == EditorMode::Interaction)
     {
         if (pause)
             m_scene->togglePauseAllClocks();

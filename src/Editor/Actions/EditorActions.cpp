@@ -103,6 +103,8 @@ EditResult EditorActions::publish(
 
 EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
 {
+    if (m_scene.isReadOnly())
+        return failure(EditError::InvalidConfiguration, "Live inspection is read only.");
     if (m_scene.m_previewToken != 0 && !allowPreview)
         return failure(
             EditError::PreviewActive, "Finish or cancel the active preview before editing."
@@ -664,6 +666,8 @@ std::optional<MovePreviewHandle> EditorActions::beginMove(int componentId)
 std::optional<MovePreviewHandle>
 EditorActions::beginMove(std::span<const int> components, std::span<const WireId> wires)
 {
+    if (m_scene.isReadOnly())
+        return std::nullopt;
     if (m_scene.m_previewToken != 0 || (components.empty() && wires.empty()))
         return std::nullopt;
     for (int id : components)
@@ -774,6 +778,8 @@ EditResult EditorActions::commitMove(MovePreviewHandle handle, bool reroute)
 
 EditResult EditorActions::restore(const Scene& snapshot, std::uint64_t expectedRevision)
 {
+    if (m_scene.isReadOnly())
+        return failure(EditError::InvalidConfiguration, "Live inspection is read only.");
     if (m_scene.m_previewToken != 0)
         return failure(EditError::PreviewActive, "Finish or cancel the preview before restoring.");
     if (m_scene.m_revision != expectedRevision)

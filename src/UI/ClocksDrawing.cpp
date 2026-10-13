@@ -137,7 +137,7 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
     {
         const auto& clock = readings[row + offset];
         const double y = list.y + row * 48;
-        const bool native = clock.path.size() == 1;
+        const bool native = !m_readOnly && clock.path.size() == 1;
         label(scene.clockName(clock.path), {list.x, y, clockLabelWidth() - 76, 20}, ink);
         label(
             clock.high ? "HIGH (1)" : "LOW (0)",
@@ -164,7 +164,8 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
         else
             label(
                 frequencyText(clock.frequency) + " Hz | " +
-                    (clock.paused ? "disabled" : "enabled") + " | edit inside",
+                    (clock.paused ? "disabled" : "enabled") +
+                    (m_readOnly ? " | read only" : " | edit inside"),
                 {list.x, y + 23, clockLabelWidth() - 8, 22},
                 muted,
                 0.28f

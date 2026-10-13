@@ -106,6 +106,7 @@ makeSubcircuit(const Scene& scene, DefinitionIdentity identity, const std::strin
             view.getDefinitionIdentity().version
         );
         runtimeIds[id] = created.id;
+        behavior.componentIds.emplace_back(id, created.id);
         if (const auto* gate = dynamic_cast<const Gate*>(logic); gate && gate->getType() != NOT)
             static_cast<Gate*>(runtime.getComponent(created.id))->setInverted(gate->isInverted());
     }

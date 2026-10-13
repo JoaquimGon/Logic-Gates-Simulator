@@ -86,6 +86,17 @@ class Scene
     ComponentView* getComponentView(int componentId);
     Component* getLogicComponent(int componentId);
     const Component* getLogicComponent(int componentId) const;
+    /** Read-only layout projection; the owner must rebind before reading after a design edit. */
+    void observeRuntime(
+        const Circuit& runtime,
+        const std::vector<std::pair<int, int>>& ids,
+        SimulationResult result,
+        bool dirty
+    );
+
+    bool isReadOnly() const { return m_observedCircuit != nullptr; }
+
+    int runtimeComponentId(int authoredId) const;
 
     const std::unordered_map<int, std::unique_ptr<ComponentView>>& getComponentViewMap() const
     {
@@ -197,6 +208,8 @@ class Scene
 
     bool isSimulationDirty() const
     {
+        if (isReadOnly())
+            return m_observedDirty;
         return m_topologyResult == SimulationResult::OK ? m_circuit.isStateDirty()
                                                         : m_topologyInvalidNeedsUpdate;
     }
@@ -221,6 +234,8 @@ class Scene
 
     SimulationResult getLastEvalResult() const
     {
+        if (isReadOnly())
+            return m_observedResult;
         return m_topologyResult == SimulationResult::OK ? m_circuit.getLastEvalResult()
                                                         : m_topologyResult;
     }
@@ -265,6 +280,10 @@ class Scene
     std::shared_ptr<const ComponentCatalog> m_catalog;
 
     Circuit m_circuit;
+    const Circuit* m_observedCircuit = nullptr;
+    std::unordered_map<int, int> m_observedIds;
+    SimulationResult m_observedResult = SimulationResult::OK;
+    bool m_observedDirty = false;
     // Invalid geometry remains editable, but never runs as a partial simulation graph.
     std::vector<RejectedConnection> m_rejectedConnections;
     SimulationResult m_topologyResult = SimulationResult::OK;

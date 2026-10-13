@@ -282,7 +282,7 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
             clockTimeline().record(scene.clockTime(), scene.clockReadings());
             return true;
         }
-    if (!list.contains(event.x, event.y))
+    if (m_readOnly || !list.contains(event.x, event.y))
         return true;
     const auto readings = scene.clockReadings();
     const int offset = clockScroll(scene);
@@ -383,6 +383,10 @@ std::vector<std::string> UI::clockTooltip(const Scene& scene) const
         m_bottomTab != BottomTab::Clocks || m_openMenu.has_value() || m_circuitTabs.popupOpen() ||
         m_infoComponent != -1 || m_resizingBottom || dragging())
         return {};
+    if (m_readOnly && m_clockHover >= 8)
+        return {
+            "Live inspection is read only", "Return to the parent circuit to edit clock settings."
+        };
     const auto readings = scene.clockReadings();
     const bool enabled = std::any_of(
         readings.begin(), readings.end(), [](const auto& clock) { return !clock.paused; }

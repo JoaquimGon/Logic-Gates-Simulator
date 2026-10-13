@@ -14,9 +14,15 @@ class Subcircuit : public Component
 
     const Circuit& runtimeCircuit() const { return m_circuit; }
 
+    const Scene* authoredScene() const { return m_authored.get(); }
+
+    const std::vector<std::pair<int, int>>& componentIds() const { return m_componentIds; }
+
     SimulationResult simulationResult() const override { return m_circuit.getLastEvalResult(); }
 
   private:
     Circuit m_circuit;
+    std::shared_ptr<const Scene> m_authored;
+    std::vector<std::pair<int, int>> m_componentIds;
     std::vector<int> m_inputs, m_outputs;
 };

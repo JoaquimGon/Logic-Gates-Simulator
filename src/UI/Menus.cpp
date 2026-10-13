@@ -77,10 +77,10 @@ std::vector<UI::MenuItem> UI::menuOptions(Menu menu) const
     if (menu == Menu::View)
         return m_viewOptions;
     if (menu == Menu::Simulation)
-        return {{"Reset Simulation", ""}};
+        return {{"Reset Simulation", "", !m_readOnly}};
     std::vector<MenuItem> items;
     for (const auto& name : fileOptions())
-        items.push_back({name, ""});
+        items.push_back({name, "", !m_readOnly});
     return items;
 }
 
@@ -117,6 +117,8 @@ void UI::executeMenuOption(Menu menu, int index, Input& input)
     }
     if (menu == Menu::Simulation)
     {
+        if (m_readOnly)
+            return;
         if (index == 0)
         {
             input.resetSimulation();

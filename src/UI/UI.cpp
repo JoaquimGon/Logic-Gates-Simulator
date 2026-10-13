@@ -8,6 +8,7 @@
 #include "Editor/Subcircuits.h"
 #include "Geometry/GridMetrics.h"
 #include "Geometry/GridSystem.h"
+#include "Simulation/Subcircuit.h"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -36,13 +37,18 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     if (surface != m_surface || input.getMode() != EditorMode::Selection)
         cancel(input);
     m_surface = surface;
-    m_canCreate = input.getMode() == EditorMode::Selection;
+    m_readOnly = input.isReadOnly();
+    m_canCreate = !m_readOnly && input.getMode() == EditorMode::Selection;
     const double width = std::max(0, surface.windowWidth);
     const double height = std::max(0, surface.windowHeight);
     m_bar = {0, 0, width, std::min(30.0, height)};
     m_panel = {0, m_bar.height, std::min(220.0, width * 0.45), height - m_bar.height};
     const double tabs = m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0;
     m_circuitTabs.layout({m_panel.width, m_bar.height, width - m_panel.width, tabs});
+    m_inspectionBar =
+        m_views && m_views->inspecting()
+            ? CanvasViewport{m_panel.width, m_bar.height + tabs, width - m_panel.width, 30}
+            : CanvasViewport{};
     if (m_overviewView != m_circuitTabs.activeViewIndex())
     {
         finishBottomResize(input);
@@ -54,7 +60,7 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
         m_clockError.clear();
         closeClockEdit(input);
     }
-    const bool subcircuit = m_circuitTabs.activeIsSubcircuit();
+    const bool subcircuit = !m_readOnly && m_circuitTabs.activeIsSubcircuit();
     if (subcircuit != m_showSubcircuit)
     {
         m_bottomTab = subcircuit ? BottomTab::Subcircuit : BottomTab::Messages;
@@ -112,8 +118,9 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
 void UI::layoutBottom(Input& input)
 {
     const double height = std::max(0, m_surface.windowHeight);
-    const double top =
-        m_bar.height + (m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0);
+    const double top = m_bar.height +
+                       (m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0) +
+                       m_inspectionBar.height;
     const double available = std::max(0.0, height - top);
     // Leave a usable canvas above the mode buttons, even when dragged to the limit.
     const double maximum = available - std::min(156.0, available * 0.5);
@@ -204,7 +211,8 @@ void UI::update(double now, Input& input)
     }
     refreshMenuOptions(input);
     m_routingError = input.getLastEditError() == EditError::InvalidWire;
-    m_canCreate = input.getMode() == EditorMode::Selection;
+    m_readOnly = input.isReadOnly();
+    m_canCreate = !m_readOnly && input.getMode() == EditorMode::Selection;
     updateClockHover(now);
     if (m_openMenu.has_value() || m_resizingBottom)
         return;
@@ -236,7 +244,7 @@ CanvasViewport UI::bottomTabBounds(BottomTab tab) const
 
 CanvasViewport UI::modeButtonBounds(EditorMode mode) const
 {
-    if (m_modes.height <= 8)
+    if (m_readOnly || m_modes.height <= 8)
         return {};
     const double width = std::min(60.0, std::max(0.0, (m_modes.width - 24) / 2));
     return {
@@ -631,7 +639,8 @@ bool UI::canEditSubcircuit(const Scene& scene) const
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
     const auto* definition =
         view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
-    return definition && std::holds_alternative<SubcircuitBehavior>(definition->behavior);
+    return !m_readOnly && definition &&
+           std::holds_alternative<SubcircuitBehavior>(definition->behavior);
 }
 
 CanvasViewport UI::editSubcircuitBounds(const Scene& scene) const
@@ -640,6 +649,37 @@ CanvasViewport UI::editSubcircuitBounds(const Scene& scene) const
         return {};
     const auto bounds = infoBounds(scene);
     return {bounds.x + 10, bounds.y + bounds.height - infoFooterHeight - 28, bounds.width - 20, 26};
+}
+
+bool UI::canViewInside(const Scene& scene) const
+{
+    const auto* sub = dynamic_cast<const Subcircuit*>(scene.getLogicComponent(m_infoComponent));
+    return m_views && sub && sub->authoredScene() && !sub->componentIds().empty();
+}
+
+double UI::infoActionHeight(const Scene& scene) const
+{
+    return (canViewInside(scene) ? 28 : 0) + (canEditSubcircuit(scene) ? 28 : 0);
+}
+
+CanvasViewport UI::viewInsideBounds(const Scene& scene) const
+{
+    if (!canViewInside(scene))
+        return {};
+    const auto bounds = infoBounds(scene);
+    return {
+        bounds.x + 10,
+        bounds.y + bounds.height - infoFooterHeight - infoActionHeight(scene),
+        bounds.width - 20,
+        26
+    };
+}
+
+CanvasViewport UI::inspectionBackBounds() const
+{
+    return m_inspectionBar.height > 0
+               ? CanvasViewport{m_inspectionBar.x + 6, m_inspectionBar.y + 3, std::min(64.0, std::max(0.0, m_inspectionBar.width - 12)), 24}
+               : CanvasViewport{};
 }
 
 std::vector<std::string> UI::componentInfo(const Scene& scene) const
@@ -703,6 +743,8 @@ CanvasViewport UI::infoBounds(const Scene& scene) const
     const double desiredWidth =
         m_truthTableOpen ? std::max(300.0, truthTable(scene).headers.size() * 44.0 + 20) : 280.0;
     const double width = std::min(desiredWidth, std::max(0.0, m_surface.windowWidth - 16.0));
+    const double top =
+        m_inspectionBar.height > 0 ? m_inspectionBar.y + m_inspectionBar.height + 8 : 8;
     const auto* gate = infoGate(scene);
     const int hiddenInputs = gate ? std::max(0, gate->getInputPinCount() - 4) : 0;
     const double height = std::min(
@@ -712,13 +754,13 @@ CanvasViewport UI::infoBounds(const Scene& scene) const
                   std::min(8, static_cast<int>(truthTable(scene).rows.size())) * infoRowHeight
             : infoHeaderSize(scene) + infoFooterHeight + infoLabelHeight +
                   (canName(scene) ? infoNameHeight : 0) + infoSettingsHeight(scene) +
-                  (canEditSubcircuit(scene) ? 28 : 0) +
+                  infoActionHeight(scene) +
                   static_cast<double>(lines.size() - 1 - hiddenInputs) * infoRowHeight,
-        std::max(0.0, m_surface.windowHeight - 16.0)
+        std::max(0.0, m_surface.windowHeight - top - 8)
     );
     return {
         std::clamp(m_infoAnchor.x + 14, 8.0, std::max(8.0, m_surface.windowWidth - width - 8)),
-        std::clamp(m_infoAnchor.y + 14, 8.0, std::max(8.0, m_surface.windowHeight - height - 8)),
+        std::clamp(m_infoAnchor.y + 14, top, std::max(top, m_surface.windowHeight - height - 8)),
         width,
         height
     };
@@ -731,7 +773,7 @@ int UI::infoVisibleRows(const Scene& scene) const
         static_cast<int>(
             (infoBounds(scene).height - infoHeaderSize(scene) - infoFooterHeight - infoLabelHeight -
              (canName(scene) ? infoNameHeight : 0) - infoSettingsHeight(scene) -
-             (canEditSubcircuit(scene) ? 28 : 0)) /
+             infoActionHeight(scene)) /
             infoRowHeight
         )
     );
@@ -758,6 +800,26 @@ bool UI::handleInput(
         }
         return true;
     }
+    if (m_views && m_views->inspecting())
+    {
+        const bool backKey = event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
+                             event.action == GLFW_PRESS && m_infoComponent == -1 && !m_openMenu &&
+                             !m_circuitTabs.popupOpen();
+        const bool backClick = event.kind == UiInputKind::MouseButton &&
+                               event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
+                               inspectionBackBounds().contains(event.x, event.y);
+        if (backKey || backClick)
+        {
+            dismissPopups(input);
+            m_views->leaveInspection(input);
+            m_infoLeftPressed = backClick;
+            return true;
+        }
+        if ((event.kind == UiInputKind::Cursor || event.kind == UiInputKind::Scroll ||
+             event.kind == UiInputKind::MouseButton) &&
+            m_inspectionBar.contains(m_pointer.x, m_pointer.y))
+            return true;
+    }
     if (handleBottomResize(event, input))
         return true;
     if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
@@ -768,7 +830,8 @@ bool UI::handleInput(
             input.setCanvasFocused(true);
         return true;
     }
-    if (m_bottomVisible && handleClocks(event, scene, input))
+    if (m_bottomVisible &&
+        handleClocks(event, m_readOnly && m_views ? m_views->activeScene() : scene, input))
         return true;
     if (!m_circuitTabs.confirmingDelete() && handleMenus(event, input))
         return true;
@@ -962,6 +1025,18 @@ bool UI::handleInput(
                     }
                 }
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
+                    viewInsideBounds(scene).contains(event.x, event.y))
+                {
+                    const int component = m_infoComponent;
+                    dismissPopups(input);
+                    if (m_views->inspectComponent(component, input))
+                    {
+                        layout(m_views->displayedScene().getComponentCatalog(), m_surface, input);
+                        input.executeViewCommand(Input::ViewCommand::FitCircuit, m_surface);
+                    }
+                    return true;
+                }
+                if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
                     editSubcircuitBounds(scene).contains(event.x, event.y))
                 {
                     m_editSubcircuit = scene.getCommittedComponentView(m_infoComponent)
@@ -1004,6 +1079,8 @@ bool UI::handleInput(
             if (input.isIdle() && event.action == GLFW_PRESS)
                 if (const auto* button = buttonAt(m_pointer))
                 {
+                    if (m_readOnly)
+                        return true;
                     if (!button->draftPath.empty() && event.code == GLFW_MOUSE_BUTTON_LEFT)
                         m_openDraft = button->draftPath;
                     else if (
@@ -1035,7 +1112,8 @@ bool UI::handleInput(
                     for (const auto mode : {EditorMode::Selection, EditorMode::Interaction})
                         if (modeButtonBounds(mode).contains(event.x, event.y))
                             input.setMode(mode);
-                m_canCreate = input.getMode() == EditorMode::Selection;
+                m_readOnly = input.isReadOnly();
+                m_canCreate = !m_readOnly && input.getMode() == EditorMode::Selection;
             }
             input.setCanvasFocused(true);
             return true;

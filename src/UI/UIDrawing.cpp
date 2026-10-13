@@ -142,6 +142,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     renderer.setScreenClip(std::nullopt);
     const auto footer = !m_message.empty()  ? m_message
                         : m_routingError    ? "Route blocked; Alt-drag / retry"
+                        : m_readOnly        ? "Read-only view"
                         : !m_canCreate      ? "F2: switch to Selection"
                         : m_buttons.empty() ? "No custom components"
                         : m_maxScroll > 0   ? "Scroll for more components"
@@ -156,6 +157,8 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
     renderer.setScreenClip(m_modes);
+    if (m_readOnly)
+        label("Read only", m_modes, 0.4f, {0.55f, 0.65f, 0.76f, 1});
     for (const auto mode : {EditorMode::Selection, EditorMode::Interaction})
     {
         const auto bounds = modeButtonBounds(mode);
@@ -218,7 +221,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                 );
             label(
                 tab == BottomTab::Subcircuit ? "Subcircuit"
-                : tab == BottomTab::Clocks   ? "Clocks"
+                : tab == BottomTab::Clocks   ? (m_readOnly ? "Clocks (parent)" : "Clocks")
                                              : messagesTabLabel(),
                 bounds,
                 0.42f,
@@ -229,7 +232,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         renderer.drawText(text, TextSpace::Screen);
         text.clear();
         if (m_bottomTab == BottomTab::Clocks)
-            drawClocks(renderer, scene);
+            drawClocks(renderer, m_readOnly && m_views ? m_views->activeScene() : scene);
         if (m_bottomTab == BottomTab::Subcircuit && m_showSubcircuit)
         {
             const auto info = subcircuitInfo(scene);
@@ -263,7 +266,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         if (m_bottomTab == BottomTab::Messages)
         {
             label(
-                "Current circuit problems",
+                m_readOnly ? "Parent circuit problems" : "Current circuit problems",
                 {m_bottom.x + 8, m_bottom.y + 38, std::max(0.0, m_bottom.width - 16), 20},
                 0.32f,
                 {0.55f, 0.65f, 0.76f, 1}
@@ -579,6 +582,16 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
                     ink
                 );
             }
+            if (canViewInside(scene))
+            {
+                const auto inside = viewInsideBounds(scene);
+                renderer.drawScreenRect(
+                    inside,
+                    inside.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                                              : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+                );
+                label("View inside (live)", inside, 0.4f, ink, true);
+            }
             if (canEditSubcircuit(scene))
             {
                 const auto edit = editSubcircuitBounds(scene);
@@ -591,6 +604,7 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             }
             label(
                 !m_infoError.empty()                       ? m_infoError
+                : m_readOnly                               ? "Read only; Esc: close"
                 : m_nameEditing                            ? "Enter: save; Esc: cancel"
                 : gate && m_canCreate                      ? "Edit settings; Esc: close"
                 : gate                                     ? "F2: Selection to edit settings"
@@ -611,6 +625,26 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
     renderer.drawText(text, TextSpace::Screen);
     renderer.setUiDrawCategory(DrawCategory::StaticUI);
     m_circuitTabs.draw(renderer);
+    text.clear();
+    if (m_inspectionBar.height > 0)
+    {
+        renderer.setScreenClip(m_inspectionBar);
+        renderer.drawScreenRect(m_inspectionBar, {0.08f, 0.12f, 0.17f, 1});
+        const auto back = inspectionBackBounds();
+        renderer.drawScreenRect(back, {0.16f, 0.3f, 0.46f, 1});
+        label("Back", back, 0.4f, ink, true);
+        label(
+            "Live: " + m_views->inspectionLabel() + " (read only)",
+            {back.x + back.width + 4,
+             m_inspectionBar.y,
+             m_inspectionBar.width - back.width - 16,
+             m_inspectionBar.height},
+            0.4f,
+            ink
+        );
+        renderer.drawText(text, TextSpace::Screen);
+        renderer.setScreenClip(std::nullopt);
+    }
     text.clear();
     renderer.drawScreenRect(m_bar, {0.075f, 0.09f, 0.12f, 1});
     renderer.drawScreenRect({0, m_bar.height - 1, m_bar.width, 1}, {0.18f, 0.23f, 0.3f, 1});
@@ -745,6 +779,6 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         );
         renderer.drawText(text, TextSpace::Screen);
     }
-    drawClockTooltip(renderer, scene);
+    drawClockTooltip(renderer, m_readOnly && m_views ? m_views->activeScene() : scene);
     drawUnsavedPrompt(renderer);
 }
