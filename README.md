@@ -214,7 +214,13 @@ either mode. It shows the component name, body label when present, and live
 input/output states (`0 (OFF)` or `1 (ON)`), with pin names or numbered fallbacks.
 Blocked simulation states read `Unavailable`. Escape or a click outside closes
 it; resize and focus loss also dismiss it. Scroll inside if the rows do not fit.
-Pin editing and truth-table presentation remain future work.
+Gates, latches and flip-flops also offer a **Truth table** tab. Gates enumerate
+all input combinations (up to eight inputs), including configured inversions;
+the current input row is highlighted green. Large tables scroll eight rows at a
+time; **Current row** returns to the active combination. Sequential tables explain
+hold/toggle and next-state behavior, with flip-flop results applying only at a
+rising clock edge. Actual output states remain visible separately. See
+[Educational truth tables](docs/TruthTables.md).
 
 Wire-point guides are larger and more opaque on hover. Pressing to draw or
 branch keeps a highlighted dot at the starting point throughout the drag, with
@@ -521,9 +527,8 @@ Logic gates, latches, and custom subcircuit instances offer **Up**, **Down**,
 attached wires reroute while logical pin identities stay the same. Labels stay upright.
 Orientation also survives saving, copying and undo/redo. Rotating a subcircuit
 instance changes its outer box/pins only; its authored internal layout is preserved.
-The information popup shows live
-pins/state and edits input/output names; truth tables and other limited edit
-controls remain pending.
+The information popup shows live pins/state, edits input/output names and supported
+gate settings, and displays bounded educational truth/next-state tables.
 
 See [Editor action contracts and examples](docs/EditorActions.md) for API use,
 pointer lifetimes, migration rules, and snapshot-restoration semantics.

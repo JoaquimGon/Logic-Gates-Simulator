@@ -351,233 +351,262 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
             {0.08f, 0.12f, 0.17f, 1}
         );
         label(info.front(), {bounds.x, bounds.y, bounds.width, infoHeaderHeight}, 0.6f, ink);
-        const bool named = canName(scene);
-        if (named)
+        if (hasTruthTable(scene))
+            for (bool table : {false, true})
+            {
+                const auto tab = infoTabBounds(scene, table);
+                renderer.drawScreenRect(
+                    tab,
+                    table == m_truthTableOpen ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                              : glm::vec4{0.11f, 0.15f, 0.21f, 1}
+                );
+                label(table ? "Truth table" : "Info / settings", tab, 0.4f, ink, true);
+            }
+        if (m_truthTableOpen)
         {
-            const auto field = nameBounds(scene);
-            label(
-                infoGate(scene) ? "Label" : "Name",
-                {field.x - 10, field.y - 18, field.width + 20, 18},
-                0.35f,
-                {0.55f, 0.65f, 0.76f, 1}
-            );
-            renderer.drawScreenRect(
-                field,
-                m_nameEditing  ? glm::vec4{0.3f, 0.65f, 0.95f, 1}
-                : !m_canCreate ? glm::vec4{0.14f, 0.2f, 0.27f, 1}
-                               : glm::vec4{0.25f, 0.35f, 0.46f, 1}
-            );
-            renderer.drawScreenRect(
-                {field.x + 1, field.y + 1, field.width - 2, field.height - 2},
-                {0.06f, 0.09f, 0.13f, 1}
-            );
-            const auto& name = scene.getCommittedComponentView(m_infoComponent)->getBodyLabel();
-            label(
-                m_nameEditing ? m_nameDraft + "|" : (name.empty() ? "(unnamed)" : name),
-                field,
-                0.43f,
-                m_canCreate ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1}
-            );
+            renderer.drawText(text, TextSpace::Screen);
+            text.clear();
+            drawTruthTable(renderer, scene);
         }
-        const auto visibility = labelVisibilityBounds(scene);
-        const bool editableLabel = m_canCreate && !m_nameEditing;
-        renderer.drawScreenRect(
-            visibility,
-            !editableLabel                                  ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
-            : visibility.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
-                                                            : glm::vec4{0.12f, 0.2f, 0.29f, 1}
-        );
-        label(
-            std::string("Show label: ") +
-                (scene.getCommittedComponentView(m_infoComponent)->showsBodyLabel() ? "On" : "Off"),
-            visibility,
-            0.43f,
-            editableLabel ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1},
-            true
-        );
-        const auto* gate = infoGate(scene);
-        if (gate)
+        else
         {
-            const auto settings = gateSettingsBounds(scene);
-            const bool editable = m_canCreate && !m_nameEditing;
-            const auto muted = glm::vec4{0.45f, 0.52f, 0.6f, 1};
-            label("Inputs", {settings.x, settings.y, settings.width - 100, 26}, 0.43f, ink);
+            const bool named = canName(scene);
+            if (named)
+            {
+                const auto field = nameBounds(scene);
+                label(
+                    infoGate(scene) ? "Label" : "Name",
+                    {field.x - 10, field.y - 18, field.width + 20, 18},
+                    0.35f,
+                    {0.55f, 0.65f, 0.76f, 1}
+                );
+                renderer.drawScreenRect(
+                    field,
+                    m_nameEditing  ? glm::vec4{0.3f, 0.65f, 0.95f, 1}
+                    : !m_canCreate ? glm::vec4{0.14f, 0.2f, 0.27f, 1}
+                                   : glm::vec4{0.25f, 0.35f, 0.46f, 1}
+                );
+                renderer.drawScreenRect(
+                    {field.x + 1, field.y + 1, field.width - 2, field.height - 2},
+                    {0.06f, 0.09f, 0.13f, 1}
+                );
+                const auto& name = scene.getCommittedComponentView(m_infoComponent)->getBodyLabel();
+                label(
+                    m_nameEditing ? m_nameDraft + "|" : (name.empty() ? "(unnamed)" : name),
+                    field,
+                    0.43f,
+                    m_canCreate ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1}
+                );
+            }
+            const auto visibility = labelVisibilityBounds(scene);
+            const bool editableLabel = m_canCreate && !m_nameEditing;
+            renderer.drawScreenRect(
+                visibility,
+                !editableLabel                                  ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
+                : visibility.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                                                : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+            );
             label(
-                std::to_string(gate->getInputPinCount()) + (canResizeGate(scene) ? "" : " (fixed)"),
-                {settings.x + settings.width - (canResizeGate(scene) ? 64 : 100),
-                 settings.y,
-                 canResizeGate(scene) ? 36.0 : 100.0,
-                 26},
+                std::string("Show label: ") +
+                    (scene.getCommittedComponentView(m_infoComponent)->showsBodyLabel() ? "On"
+                                                                                        : "Off"),
+                visibility,
                 0.43f,
-                ink,
+                editableLabel ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1},
                 true
             );
-            auto button = [&](CanvasViewport rect, const std::string& value, bool enabled)
+            const auto* gate = infoGate(scene);
+            if (gate)
             {
-                renderer.drawScreenRect(
-                    rect,
-                    !enabled                                  ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
-                    : rect.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
-                                                              : glm::vec4{0.12f, 0.2f, 0.29f, 1}
-                );
-                label(value, rect, 0.43f, enabled ? ink : muted, true);
-            };
-            if (canResizeGate(scene))
-                for (bool increase : {false, true})
-                    button(
-                        gateInputButtonBounds(scene, increase),
-                        increase ? "+" : "-",
-                        editable &&
-                            (increase ? gate->getInputPinCount() < 8 : gate->getInputPinCount() > 2)
-                    );
-            const std::string inversion =
-                std::string("Inverted: ") + (gate->isInverted() ? "On" : "Off");
-            if (canInvertGate(scene))
-                button(gateInversionBounds(scene), inversion, editable);
-            else
+                const auto settings = gateSettingsBounds(scene);
+                const bool editable = m_canCreate && !m_nameEditing;
+                const auto muted = glm::vec4{0.45f, 0.52f, 0.6f, 1};
+                label("Inputs", {settings.x, settings.y, settings.width - 100, 26}, 0.43f, ink);
                 label(
-                    inversion + " (fixed)",
-                    {settings.x, settings.y + 30, settings.width, 26},
+                    std::to_string(gate->getInputPinCount()) +
+                        (canResizeGate(scene) ? "" : " (fixed)"),
+                    {settings.x + settings.width - (canResizeGate(scene) ? 64 : 100),
+                     settings.y,
+                     canResizeGate(scene) ? 36.0 : 100.0,
+                     26},
                     0.43f,
-                    muted
-                );
-        }
-        if (canOrient(scene))
-        {
-            const auto settings = orientationSettingsBounds(scene);
-            label(
-                "Orientation",
-                {settings.x, settings.y - 4, settings.width, 18},
-                0.35f,
-                {0.55f, 0.65f, 0.76f, 1}
-            );
-            const auto current = scene.getCommittedComponentView(m_infoComponent)->getOrientation();
-            for (const auto direction :
-                 {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
-            {
-                const auto rect = componentOrientationBounds(scene, direction);
-                const bool selected = current == direction;
-                const bool enabled = m_canCreate && !m_nameEditing;
-                renderer.drawScreenRect(
-                    rect,
-                    !enabled || selected                      ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
-                    : rect.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
-                                                              : glm::vec4{0.12f, 0.2f, 0.29f, 1}
-                );
-                label(
-                    orientationName(direction),
-                    rect,
-                    0.35f,
-                    enabled ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1},
+                    ink,
                     true
                 );
-                if (selected)
+                auto button = [&](CanvasViewport rect, const std::string& value, bool enabled)
+                {
                     renderer.drawScreenRect(
-                        {rect.x, rect.y + rect.height - 2, rect.width, 2}, {0.3f, 0.65f, 0.95f, 1}
+                        rect,
+                        !enabled                                  ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
+                        : rect.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                                                  : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+                    );
+                    label(value, rect, 0.43f, enabled ? ink : muted, true);
+                };
+                if (canResizeGate(scene))
+                    for (bool increase : {false, true})
+                        button(
+                            gateInputButtonBounds(scene, increase),
+                            increase ? "+" : "-",
+                            editable && (increase ? gate->getInputPinCount() < 8
+                                                  : gate->getInputPinCount() > 2)
+                        );
+                const std::string inversion =
+                    std::string("Inverted: ") + (gate->isInverted() ? "On" : "Off");
+                if (canInvertGate(scene))
+                    button(gateInversionBounds(scene), inversion, editable);
+                else
+                    label(
+                        inversion + " (fixed)",
+                        {settings.x, settings.y + 30, settings.width, 26},
+                        0.43f,
+                        muted
                     );
             }
-        }
-        const int rows = infoVisibleRows(scene);
-        const int inputRows = gateInputRows(scene);
-        const int offset =
-            gate ? gateInputScroll(scene)
-                 : std::clamp(
-                       m_infoScroll, 0, std::max(0, static_cast<int>(info.size()) - 1 - rows)
-                   );
-        const auto inputs = gateInputListBounds(scene);
-        if (inputs.height > 0)
-        {
-            renderer.drawScreenRect(inputs, {0.045f, 0.075f, 0.11f, 1});
-            if (gate->getInputPinCount() > inputRows)
+            if (canOrient(scene))
             {
-                const double thumb = inputs.height * inputRows / gate->getInputPinCount();
-                const double y = inputs.y + (inputs.height - thumb) * offset /
-                                                (gate->getInputPinCount() - inputRows);
-                renderer.drawScreenRect(
-                    {inputs.x + inputs.width - 5, inputs.y, 3, inputs.height},
-                    {0.16f, 0.22f, 0.29f, 1}
+                const auto settings = orientationSettingsBounds(scene);
+                label(
+                    "Orientation",
+                    {settings.x, settings.y - 4, settings.width, 18},
+                    0.35f,
+                    {0.55f, 0.65f, 0.76f, 1}
                 );
-                renderer.drawScreenRect(
-                    {inputs.x + inputs.width - 5, y, 3, thumb}, {0.38f, 0.58f, 0.76f, 1}
-                );
-            }
-        }
-        for (int row = 0; row < rows; ++row)
-        {
-            const bool inputRow = gate && row >= 1 && row <= inputRows;
-            const int line = !gate      ? row + offset + 1
-                             : row == 0 ? 1
-                             : inputRow ? row + offset + 1
-                                        : row - inputRows + gate->getInputPinCount() + 1;
-            if (line >= static_cast<int>(info.size()))
-                break;
-            const int pinRow = line - 2;
-            CanvasViewport inversion;
-            const auto& pins = scene.getCommittedComponentView(m_infoComponent)->getInputPins();
-            if (inputRow && pinRow >= 0 && pinRow < static_cast<int>(pins.size()))
-            {
-                const auto& pin = pins[pinRow];
-                inversion = gateInputInversionBounds(scene, pin.pin_index);
-                if (inversion.width > 0)
+                const auto current =
+                    scene.getCommittedComponentView(m_infoComponent)->getOrientation();
+                for (const auto direction :
+                     {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
                 {
-                    const bool editable = m_canCreate && !m_nameEditing;
+                    const auto rect = componentOrientationBounds(scene, direction);
+                    const bool selected = current == direction;
+                    const bool enabled = m_canCreate && !m_nameEditing;
                     renderer.drawScreenRect(
-                        inversion,
-                        !editable ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
-                        : inversion.contains(m_pointer.x, m_pointer.y)
-                            ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
-                            : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+                        rect,
+                        !enabled || selected                      ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
+                        : rect.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                                                  : glm::vec4{0.12f, 0.2f, 0.29f, 1}
                     );
                     label(
-                        pin.inverted ? "Invert: On" : "Invert: Off",
-                        inversion,
+                        orientationName(direction),
+                        rect,
                         0.35f,
-                        editable ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1},
+                        enabled ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1},
                         true
+                    );
+                    if (selected)
+                        renderer.drawScreenRect(
+                            {rect.x, rect.y + rect.height - 2, rect.width, 2},
+                            {0.3f, 0.65f, 0.95f, 1}
+                        );
+                }
+            }
+            const int rows = infoVisibleRows(scene);
+            const int inputRows = gateInputRows(scene);
+            const int offset =
+                gate ? gateInputScroll(scene)
+                     : std::clamp(
+                           m_infoScroll, 0, std::max(0, static_cast<int>(info.size()) - 1 - rows)
+                       );
+            const auto inputs = gateInputListBounds(scene);
+            if (inputs.height > 0)
+            {
+                renderer.drawScreenRect(inputs, {0.045f, 0.075f, 0.11f, 1});
+                if (gate->getInputPinCount() > inputRows)
+                {
+                    const double thumb = inputs.height * inputRows / gate->getInputPinCount();
+                    const double y = inputs.y + (inputs.height - thumb) * offset /
+                                                    (gate->getInputPinCount() - inputRows);
+                    renderer.drawScreenRect(
+                        {inputs.x + inputs.width - 5, inputs.y, 3, inputs.height},
+                        {0.16f, 0.22f, 0.29f, 1}
+                    );
+                    renderer.drawScreenRect(
+                        {inputs.x + inputs.width - 5, y, 3, thumb}, {0.38f, 0.58f, 0.76f, 1}
                     );
                 }
             }
-            const bool scrollHint =
-                gate && row == 0 && inputRows > 0 && gate->getInputPinCount() > inputRows;
-            const std::string value = scrollHint ? "Inputs " + std::to_string(offset + 1) + "-" +
-                                                       std::to_string(offset + inputRows) + " / " +
-                                                       std::to_string(gate->getInputPinCount()) +
-                                                       " (scroll)"
-                                                 : info[line];
+            for (int row = 0; row < rows; ++row)
+            {
+                const bool inputRow = gate && row >= 1 && row <= inputRows;
+                const int line = !gate      ? row + offset + 1
+                                 : row == 0 ? 1
+                                 : inputRow ? row + offset + 1
+                                            : row - inputRows + gate->getInputPinCount() + 1;
+                if (line >= static_cast<int>(info.size()))
+                    break;
+                const int pinRow = line - 2;
+                CanvasViewport inversion;
+                const auto& pins = scene.getCommittedComponentView(m_infoComponent)->getInputPins();
+                if (inputRow && pinRow >= 0 && pinRow < static_cast<int>(pins.size()))
+                {
+                    const auto& pin = pins[pinRow];
+                    inversion = gateInputInversionBounds(scene, pin.pin_index);
+                    if (inversion.width > 0)
+                    {
+                        const bool editable = m_canCreate && !m_nameEditing;
+                        renderer.drawScreenRect(
+                            inversion,
+                            !editable ? glm::vec4{0.1f, 0.14f, 0.19f, 1}
+                            : inversion.contains(m_pointer.x, m_pointer.y)
+                                ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+                        );
+                        label(
+                            pin.inverted ? "Invert: On" : "Invert: Off",
+                            inversion,
+                            0.35f,
+                            editable ? ink : glm::vec4{0.45f, 0.52f, 0.6f, 1},
+                            true
+                        );
+                    }
+                }
+                const bool scrollHint =
+                    gate && row == 0 && inputRows > 0 && gate->getInputPinCount() > inputRows;
+                const std::string value =
+                    scrollHint ? "Inputs " + std::to_string(offset + 1) + "-" +
+                                     std::to_string(offset + inputRows) + " / " +
+                                     std::to_string(gate->getInputPinCount()) + " (scroll)"
+                               : info[line];
+                label(
+                    value,
+                    {bounds.x + 4,
+                     bounds.y + infoHeaderSize(scene) + infoLabelHeight +
+                         (named ? infoNameHeight : 0) + infoSettingsHeight(scene) +
+                         row * infoRowHeight,
+                     bounds.width - 8 - (inversion.width > 0 ? 98 : 0),
+                     infoRowHeight},
+                    scrollHint ? 0.35f : 0.43f,
+                    ink
+                );
+            }
+            if (canEditSubcircuit(scene))
+            {
+                const auto edit = editSubcircuitBounds(scene);
+                renderer.drawScreenRect(
+                    edit,
+                    edit.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
+                                                            : glm::vec4{0.12f, 0.2f, 0.29f, 1}
+                );
+                label("Edit subcircuit", edit, 0.4f, ink, true);
+            }
             label(
-                value,
-                {bounds.x + 4,
-                 bounds.y + infoHeaderHeight + infoLabelHeight + (named ? infoNameHeight : 0) +
-                     infoSettingsHeight(scene) + row * infoRowHeight,
-                 bounds.width - 8 - (inversion.width > 0 ? 98 : 0),
-                 infoRowHeight},
-                scrollHint ? 0.35f : 0.43f,
-                ink
+                !m_infoError.empty()                       ? m_infoError
+                : m_nameEditing                            ? "Enter: save; Esc: cancel"
+                : gate && m_canCreate                      ? "Edit settings; Esc: close"
+                : gate                                     ? "F2: Selection to edit settings"
+                : named && m_canCreate                     ? "Click name to edit; Esc: close"
+                : named                                    ? "F2: Selection to rename"
+                : static_cast<int>(info.size()) - 1 > rows ? "Scroll; Esc / outside to close"
+                                                           : "Esc / click outside to close",
+                {bounds.x,
+                 bounds.y + bounds.height - infoFooterHeight,
+                 bounds.width,
+                 infoFooterHeight},
+                0.33f,
+                m_infoError.empty() ? glm::vec4{0.55f, 0.65f, 0.76f, 1}
+                                    : glm::vec4{1, 0.55f, 0.4f, 1}
             );
         }
-        if (canEditSubcircuit(scene))
-        {
-            const auto edit = editSubcircuitBounds(scene);
-            renderer.drawScreenRect(
-                edit,
-                edit.contains(m_pointer.x, m_pointer.y) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
-                                                        : glm::vec4{0.12f, 0.2f, 0.29f, 1}
-            );
-            label("Edit subcircuit", edit, 0.4f, ink, true);
-        }
-        label(
-            !m_infoError.empty()                       ? m_infoError
-            : m_nameEditing                            ? "Enter: save; Esc: cancel"
-            : gate && m_canCreate                      ? "Edit settings; Esc: close"
-            : gate                                     ? "F2: Selection to edit settings"
-            : named && m_canCreate                     ? "Click name to edit; Esc: close"
-            : named                                    ? "F2: Selection to rename"
-            : static_cast<int>(info.size()) - 1 > rows ? "Scroll; Esc / outside to close"
-                                                       : "Esc / click outside to close",
-            {bounds.x, bounds.y + bounds.height - infoFooterHeight, bounds.width, infoFooterHeight},
-            0.33f,
-            m_infoError.empty() ? glm::vec4{0.55f, 0.65f, 0.76f, 1} : glm::vec4{1, 0.55f, 0.4f, 1}
-        );
     }
     renderer.drawText(text, TextSpace::Screen);
     renderer.setUiDrawCategory(DrawCategory::StaticUI);

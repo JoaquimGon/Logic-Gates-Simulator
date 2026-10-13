@@ -442,6 +442,9 @@ void UI::closeInfo(Input& input)
         cancel(input);
     m_infoComponent = -1;
     m_infoScroll = 0;
+    m_truthTableOpen = false;
+    m_truthComponent = -1;
+    m_truthScroll = 0;
     m_infoError.clear();
 }
 
@@ -489,7 +492,7 @@ CanvasViewport UI::gateSettingsBounds(const Scene& scene) const
     const auto bounds = infoBounds(scene);
     return {
         bounds.x + 10,
-        bounds.y + infoHeaderHeight + infoNameHeight + infoLabelHeight,
+        bounds.y + infoHeaderSize(scene) + infoNameHeight + infoLabelHeight,
         bounds.width - 20,
         infoGateHeight
     };
@@ -524,8 +527,8 @@ CanvasViewport UI::gateInputListBounds(const Scene& scene) const
     const auto bounds = infoBounds(scene);
     return {
         bounds.x + 8,
-        bounds.y + infoHeaderHeight + infoNameHeight + infoLabelHeight + infoSettingsHeight(scene) +
-            infoRowHeight,
+        bounds.y + infoHeaderSize(scene) + infoNameHeight + infoLabelHeight +
+            infoSettingsHeight(scene) + infoRowHeight,
         bounds.width - 16,
         gateInputRows(scene) * infoRowHeight
     };
@@ -574,7 +577,7 @@ CanvasViewport UI::orientationSettingsBounds(const Scene& scene) const
     const auto bounds = infoBounds(scene);
     return {
         bounds.x + 10,
-        bounds.y + infoHeaderHeight + (canName(scene) ? infoNameHeight : 0) + infoLabelHeight +
+        bounds.y + infoHeaderSize(scene) + (canName(scene) ? infoNameHeight : 0) + infoLabelHeight +
             (infoGate(scene) ? infoGateHeight : 0),
         bounds.width - 20,
         infoOrientationHeight
@@ -609,7 +612,7 @@ CanvasViewport UI::nameBounds(const Scene& scene) const
     if (!canName(scene))
         return {};
     const auto bounds = infoBounds(scene);
-    return {bounds.x + 10, bounds.y + infoHeaderHeight + 18, bounds.width - 20, 28};
+    return {bounds.x + 10, bounds.y + infoHeaderSize(scene) + 18, bounds.width - 20, 28};
 }
 
 CanvasViewport UI::labelVisibilityBounds(const Scene& scene) const
@@ -617,7 +620,7 @@ CanvasViewport UI::labelVisibilityBounds(const Scene& scene) const
     const auto bounds = infoBounds(scene);
     return {
         bounds.x + 10,
-        bounds.y + infoHeaderHeight + (canName(scene) ? infoNameHeight : 0),
+        bounds.y + infoHeaderSize(scene) + (canName(scene) ? infoNameHeight : 0),
         bounds.width - 20,
         26
     };
@@ -697,14 +700,20 @@ CanvasViewport UI::infoBounds(const Scene& scene) const
     const auto lines = componentInfo(scene);
     if (lines.empty())
         return {};
-    const double width = std::min(280.0, std::max(0.0, m_surface.windowWidth - 16.0));
+    const double desiredWidth =
+        m_truthTableOpen ? std::max(300.0, truthTable(scene).headers.size() * 44.0 + 20) : 280.0;
+    const double width = std::min(desiredWidth, std::max(0.0, m_surface.windowWidth - 16.0));
     const auto* gate = infoGate(scene);
     const int hiddenInputs = gate ? std::max(0, gate->getInputPinCount() - 4) : 0;
     const double height = std::min(
-        infoHeaderHeight + infoFooterHeight + infoLabelHeight +
-            (canName(scene) ? infoNameHeight : 0) + infoSettingsHeight(scene) +
-            (canEditSubcircuit(scene) ? 28 : 0) +
-            static_cast<double>(lines.size() - 1 - hiddenInputs) * infoRowHeight,
+        m_truthTableOpen
+            ? infoHeaderSize(scene) + infoFooterHeight + truthTable(scene).notes.size() * 20 + 48 +
+                  infoRowHeight +
+                  std::min(8, static_cast<int>(truthTable(scene).rows.size())) * infoRowHeight
+            : infoHeaderSize(scene) + infoFooterHeight + infoLabelHeight +
+                  (canName(scene) ? infoNameHeight : 0) + infoSettingsHeight(scene) +
+                  (canEditSubcircuit(scene) ? 28 : 0) +
+                  static_cast<double>(lines.size() - 1 - hiddenInputs) * infoRowHeight,
         std::max(0.0, m_surface.windowHeight - 16.0)
     );
     return {
@@ -720,7 +729,7 @@ int UI::infoVisibleRows(const Scene& scene) const
     return std::max(
         0,
         static_cast<int>(
-            (infoBounds(scene).height - infoHeaderHeight - infoFooterHeight - infoLabelHeight -
+            (infoBounds(scene).height - infoHeaderSize(scene) - infoFooterHeight - infoLabelHeight -
              (canName(scene) ? infoNameHeight : 0) - infoSettingsHeight(scene) -
              (canEditSubcircuit(scene) ? 28 : 0)) /
             infoRowHeight
@@ -881,6 +890,23 @@ bool UI::handleInput(
             {
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS)
                     m_infoLeftPressed = true;
+                if (!m_nameEditing && event.code == GLFW_MOUSE_BUTTON_LEFT &&
+                    event.action == GLFW_PRESS)
+                {
+                    for (bool table : {false, true})
+                        if (infoTabBounds(scene, table).contains(event.x, event.y))
+                        {
+                            m_truthTableOpen = table;
+                            m_truthScroll = 0;
+                            if (table)
+                                revealCurrentTruthRow(scene);
+                            return true;
+                        }
+                    if (currentTruthRowBounds(scene).contains(event.x, event.y))
+                        revealCurrentTruthRow(scene);
+                }
+                if (m_truthTableOpen)
+                    return true;
                 if (m_canCreate && !m_nameEditing && event.code == GLFW_MOUSE_BUTTON_LEFT &&
                     event.action == GLFW_PRESS &&
                     labelVisibilityBounds(scene).contains(event.x, event.y))
@@ -1054,6 +1080,9 @@ bool UI::handleInput(
                     m_infoComponent = hit.componentId;
                     m_infoAnchor = m_pointer;
                     m_infoScroll = 0;
+                    m_truthTableOpen = false;
+                    m_truthComponent = -1;
+                    m_truthScroll = 0;
                     m_infoRightPressed = true;
                     return true;
                 }
@@ -1063,6 +1092,18 @@ bool UI::handleInput(
     {
         if (event.kind == UiInputKind::Scroll && std::isfinite(event.y))
         {
+            if (m_truthTableOpen)
+            {
+                const int maximum = std::max(
+                    0,
+                    static_cast<int>(truthTable(scene).rows.size()) -
+                        std::max(1, truthTableVisibleRows(scene))
+                );
+                m_truthScroll = static_cast<int>(
+                    std::clamp(truthTableScroll(scene) - event.y, 0.0, static_cast<double>(maximum))
+                );
+                return true;
+            }
             const auto* gate = infoGate(scene);
             if (!gate || gateInputListBounds(scene).contains(m_pointer.x, m_pointer.y))
             {

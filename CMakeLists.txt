@@ -74,7 +74,7 @@ if(BUILD_SIMULATOR_APP OR BUILD_TESTING)
     )
     target_link_libraries(simulator_input PUBLIC simulator_scene PRIVATE simulator_files glfw)
     target_compile_definitions(simulator_input PRIVATE GLFW_INCLUDE_NONE)
-    add_library(simulator_ui STATIC src/UI/UI.cpp src/UI/CircuitTabs.cpp src/UI/Messages.cpp src/UI/Clocks.cpp src/UI/Menus.cpp src/UI/UnsavedPrompt.cpp)
+    add_library(simulator_ui STATIC src/UI/UI.cpp src/UI/CircuitTabs.cpp src/UI/Messages.cpp src/UI/Clocks.cpp src/UI/Menus.cpp src/UI/UnsavedPrompt.cpp src/UI/TruthTable.cpp src/UI/TruthTablePopup.cpp)
     target_link_libraries(simulator_ui PUBLIC simulator_input PRIVATE glfw)
     target_compile_definitions(simulator_ui PRIVATE GLFW_INCLUDE_NONE)
 endif()
@@ -115,7 +115,7 @@ if(BUILD_SIMULATOR_APP)
         PROJECT_FONT_PATH="${PROJECT_FONT_PATH}"
     )
 
-    target_sources(simulator_ui PRIVATE src/UI/UIDrawing.cpp src/UI/CircuitTabsDrawing.cpp src/UI/ClocksDrawing.cpp src/UI/UnsavedPromptDrawing.cpp)
+    target_sources(simulator_ui PRIVATE src/UI/UIDrawing.cpp src/UI/CircuitTabsDrawing.cpp src/UI/ClocksDrawing.cpp src/UI/UnsavedPromptDrawing.cpp src/UI/TruthTableDrawing.cpp)
     target_link_libraries(simulator_ui PRIVATE simulator_graphics)
     add_executable(${PROJECT_NAME} src/App/main.cpp src/App/Engine.cpp src/App/FileDialog.cpp src/App/CircuitFiles.cpp src/App/UnsavedWork.cpp)
     target_link_libraries(${PROJECT_NAME} PRIVATE simulator_ui simulator_graphics simulator_files glfw)
@@ -180,6 +180,10 @@ if(BUILD_TESTING)
         add_test(NAME ${test_name} COMMAND FlipFlopTests ${test_name})
     endforeach()
 
+    add_executable(TruthTableTests tests/TruthTableTests.cpp)
+    target_link_libraries(TruthTableTests PRIVATE simulator_ui)
+    add_test(NAME educational_truth_tables COMMAND TruthTableTests)
+
     add_executable(EditorActionsTests tests/EditorActionsTests.cpp)
     target_link_libraries(EditorActionsTests PRIVATE simulator_scene)
     foreach(test_name IN ITEMS
@@ -220,7 +224,7 @@ if(BUILD_TESTING)
         navigation_menus drag_cancellation drag_commit wire_alt_drag spawn_placement wire_segment_deletion
         interaction_modes mode_cancellation wire_and_pan_gestures wire_crossings_and_feedback
         ui_input_routing ui_gesture_cancellation canvas_input_bounds canvas_camera_interaction
-        component_palette component_information component_naming gate_settings label_visibility
+        component_palette component_information component_naming gate_settings label_visibility truth_table_popup
     )
         add_test(NAME ${test_name} COMMAND InputTests ${test_name})
     endforeach()

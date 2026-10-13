@@ -6,7 +6,9 @@
 #include "Geometry/CanvasCamera.h"
 #include "Geometry/GridCoords.h"
 #include "UI/CircuitTabs.h"
+#include "UI/TruthTable.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <utility>
@@ -210,6 +212,16 @@ class UI
     CanvasViewport gateInputInversionBounds(const Scene& scene, unsigned int index) const;
     CanvasViewport componentOrientationBounds(const Scene& scene, Orientation orientation) const;
     CanvasViewport gateInversionBounds(const Scene& scene) const;
+    CanvasViewport infoTabBounds(const Scene& scene, bool table) const;
+
+    bool truthTableOpen() const { return m_truthTableOpen; }
+
+    const TruthTable& truthTable(const Scene& scene) const;
+    std::optional<int> truthTableCurrentRow(const Scene& scene) const;
+    CanvasViewport truthTableRowsBounds(const Scene& scene) const;
+    CanvasViewport currentTruthRowBounds(const Scene& scene) const;
+    int truthTableVisibleRows(const Scene& scene) const;
+    int truthTableScroll(const Scene& scene) const;
 
   private:
     bool handleUnsavedPrompt(const UiInputEvent& event, Input& input);
@@ -236,6 +248,10 @@ class UI
     const Button* buttonAt(glm::dvec2 point) const;
     std::optional<GridCoords> dropPosition(const CanvasCameraFrame& camera) const;
     void closeInfo(Input& input);
+    bool hasTruthTable(const Scene& scene) const;
+    double infoHeaderSize(const Scene& scene) const;
+    void revealCurrentTruthRow(const Scene& scene);
+    void drawTruthTable(Renderer& renderer, const Scene& scene) const;
     bool canName(const Scene& scene) const;
     const Gate* infoGate(const Scene& scene) const;
     bool canResizeGate(const Scene& scene) const;
@@ -294,6 +310,11 @@ class UI
     double m_scroll = 0, m_maxScroll = 0;
     bool m_canCreate = true;
     int m_infoComponent = -1, m_infoScroll = 0;
+    bool m_truthTableOpen = false;
+    int m_truthScroll = 0;
+    mutable int m_truthComponent = -1;
+    mutable std::uint64_t m_truthRevision = 0;
+    mutable TruthTable m_truthTable;
     glm::dvec2 m_infoAnchor{0};
     bool m_infoRightPressed = false, m_infoLeftPressed = false, m_infoEscapePressed = false;
     bool m_nameEditing = false;

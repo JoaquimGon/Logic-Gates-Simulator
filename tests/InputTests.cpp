@@ -2447,6 +2447,153 @@ void navigationMenus(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+void truthTablePopup(GLFWwindow* window)
+{
+    glfwSetWindowSize(window, 800, 600);
+    Editor editor(window);
+    UI ui;
+    auto layout = [&]
+    {
+        ui.layout(
+            editor.scene.getComponentCatalog(),
+            editor.input.getCameraFrame(window).surface,
+            editor.input
+        );
+    };
+    editor.input.setUiInputHandler(
+        [&](const UiInputEvent& event)
+        {
+            layout();
+            return ui.handleInput(
+                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
+            );
+        }
+    );
+    layout();
+    auto click = [&](CanvasViewport bounds)
+    {
+        require(bounds.width > 0, "Missing truth-table control.");
+        editor.cursorPixels(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
+    };
+    auto refresh = [&]
+    {
+        editor.scene.markSimulationDirty();
+        editor.scene.propagate();
+        editor.scene.syncVisuals();
+    };
+    auto open = [&](int id)
+    {
+        if (ui.infoComponentId() != -1)
+            editor.key(GLFW_KEY_ESCAPE);
+        editor.cursor(editor.scene.getCommittedComponentView(id)->getGridPosition());
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
+        editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
+        require(ui.infoComponentId() == id, "Truth-table fixture popup did not open.");
+    };
+    const int id = editor.scene.addComponent(BuiltinComponentIds::And, {0, 0});
+    refresh();
+    open(id);
+    require(
+        !ui.truthTableOpen() && ui.truthTable(editor.scene).rows.size() == 4,
+        "Information should initially show its existing settings."
+    );
+    const auto revision = editor.scene.getRevision();
+    const auto history = editor.input.getUndoCount();
+    click(ui.infoTabBounds(editor.scene, true));
+    require(
+        ui.truthTableOpen() && ui.truthTableCurrentRow(editor.scene) == 0 &&
+            editor.scene.getRevision() == revision && editor.input.getUndoCount() == history &&
+            editor.input.isIdle(),
+        "Opening a table changed the model, history or canvas gesture."
+    );
+    auto change = EditorActions(editor.scene)
+                      .apply({ConfigureComponentProperties{
+                          .componentId = id,
+                          .inputCount = 8,
+                          .inverted = true,
+                          .inputInversion = ConfigureGateInput{0, true}
+                      }});
+    require(static_cast<bool>(change), "Cannot prepare an inverted eight-input table.");
+    refresh();
+    require(
+        ui.truthTable(editor.scene).rows.size() == 256 &&
+            ui.truthTable(editor.scene).headers[0] == "A*" &&
+            ui.truthTable(editor.scene).rows[255].back() == "1",
+        "An open table retained stale arity/inversion data."
+    );
+    auto* logic = editor.scene.getLogicComponent(id);
+    for (int i = 0; i < 8; ++i)
+        logic->setStateInPin(i, true);
+    refresh();
+    require(
+        ui.truthTableCurrentRow(editor.scene) == 255,
+        "Current row used effective rather than incoming levels."
+    );
+    click(ui.currentTruthRowBounds(editor.scene));
+    require(
+        ui.truthTableScroll(editor.scene) + ui.truthTableVisibleRows(editor.scene) == 256 &&
+            ui.truthTableVisibleRows(editor.scene) == 8,
+        "Current-row navigation failed at the last combination."
+    );
+    const auto area = ui.truthTableRowsBounds(editor.scene);
+    editor.cursorPixels(area.x + 10, area.y + 10);
+    const auto zoom = editor.input.getZoom();
+    Input::scrollCallback(window, 0, 500);
+    require(
+        ui.truthTableScroll(editor.scene) == 0 && editor.input.getZoom() == zoom,
+        "Table scrolling leaked to the canvas or did not clamp."
+    );
+    click(ui.currentTruthRowBounds(editor.scene));
+    editor.scene.markSimulationDirty();
+    require(
+        !ui.truthTableCurrentRow(editor.scene), "Dirty simulation highlighted stale input values."
+    );
+    refresh();
+    click(ui.infoTabBounds(editor.scene, false));
+    require(
+        !ui.truthTableOpen() && ui.gateInputListBounds(editor.scene).height == 88,
+        "Returning to information broke the four-input scrolling list."
+    );
+    const int ff = editor.scene.addComponent(BuiltinComponentIds::JkFlipFlop, {-12, 0});
+    refresh();
+    editor.input.setMode(EditorMode::Interaction);
+    open(ff);
+    click(ui.infoTabBounds(editor.scene, true));
+    require(
+        ui.truthTable(editor.scene).rows.size() == 4 &&
+            ui.truthTable(editor.scene).inputCount == 2 &&
+            ui.truthTable(editor.scene).rows[3][2] == "~Q",
+        "JK table omitted edge-triggered toggle behavior."
+    );
+    const int input = editor.scene.addComponent(BuiltinComponentIds::Input, {12, 0});
+    refresh();
+    open(input);
+    require(
+        ui.infoTabBounds(editor.scene, true).width == 0 && !ui.truthTableOpen(),
+        "Source component exposed an irrelevant truth table."
+    );
+    editor.key(GLFW_KEY_ESCAPE);
+    editor.input.setMode(EditorMode::Selection);
+    const int oscillator = editor.scene.addComponent(BuiltinComponentIds::Not, {0, -10});
+    editor.wire({{1, -10}, {2, -10}, {2, -14}, {-2, -14}, {-2, -10}});
+    refresh();
+    open(oscillator);
+    click(ui.infoTabBounds(editor.scene, true));
+    require(
+        !ui.truthTableCurrentRow(editor.scene) && ui.truthTable(editor.scene).rows.size() == 2,
+        "A failed simulation should keep theoretical rows but suppress live highlighting."
+    );
+    editor.input.handleFocus(false);
+    require(
+        ui.infoComponentId() == -1 && !ui.truthTableOpen(), "Focus loss retained the table popup."
+    );
+    editor.input.handleFocus(true);
+    editor.input.setUiInputHandler({});
+    glfwSetWindowSize(window, 800, 800);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -2493,7 +2640,8 @@ int main(int argc, char** argv)
             {"component_information", componentInformation},
             {"component_naming", componentNaming},
             {"gate_settings", gateSettings},
-            {"label_visibility", labelVisibility}
+            {"label_visibility", labelVisibility},
+            {"truth_table_popup", truthTablePopup}
         };
         bool matched = false;
         for (const auto& [name, run] : tests)

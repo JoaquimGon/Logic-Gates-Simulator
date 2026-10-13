@@ -1403,6 +1403,107 @@ void flipFlopPresentation(Renderer& renderer)
     }
 }
 
+void truthTablePresentation(Renderer& renderer)
+{
+    for (int scale : {1, 2})
+        for (const auto definition :
+             {BuiltinComponentIds::Not,
+              BuiltinComponentIds::And,
+              BuiltinComponentIds::SrLatch,
+              BuiltinComponentIds::DLatch,
+              BuiltinComponentIds::JkFlipFlop})
+        {
+            Scene scene;
+            const int id = scene.addComponent(definition, {0, 0});
+            if (definition == BuiltinComponentIds::And)
+                require(
+                    static_cast<bool>(EditorActions(scene).apply({ConfigureComponentProperties{
+                        .componentId = id,
+                        .inputCount = 8,
+                        .inverted = true,
+                        .inputInversion = ConfigureGateInput{0, true}
+                    }})),
+                    "Cannot configure the rendered truth table."
+                );
+            auto* logic = scene.getLogicComponent(id);
+            for (int i = 0; i < logic->getInputPinCount(); ++i)
+                logic->setStateInPin(i, i != logic->clockInputPin());
+            scene.markSimulationDirty();
+            scene.propagate();
+            scene.syncVisuals();
+            Input input;
+            input.setScene(&scene);
+            UI ui;
+            const CanvasSurface surface{extent / scale, extent / scale, extent, extent};
+            ui.layout(scene.getComponentCatalog(), surface, input);
+            CanvasCamera camera;
+            camera.setViewport(input.getCanvasViewport());
+            const auto frame = camera.frame(surface);
+            auto click = [&](CanvasViewport bounds, int button)
+            {
+                for (int action : {GLFW_PRESS, GLFW_RELEASE})
+                    ui.handleInput(
+                        {UiInputKind::MouseButton,
+                         button,
+                         action,
+                         0,
+                         0,
+                         bounds.x + bounds.width / 2,
+                         bounds.y + bounds.height / 2},
+                        scene,
+                        input,
+                        frame
+                    );
+            };
+            const auto point = *frame.worldToWindow({0, 0});
+            click({point.x, point.y, 0, 0}, GLFW_MOUSE_BUTTON_RIGHT);
+            click(ui.infoTabBounds(scene, true), GLFW_MOUSE_BUTTON_LEFT);
+            require(ui.truthTableOpen(), "Truth-table rendering fixture did not open.");
+            auto draw = [&]
+            {
+                renderer.beginFrame(frame);
+                const auto components = buildComponentPresentation(scene.getComponentViewMap());
+                renderer.drawCanvas({components, scene.getWires(), {}});
+                ui.draw(renderer, scene, frame);
+            };
+            draw();
+            const auto current = ui.truthTableCurrentRow(scene);
+            require(current.has_value(), "Rendered table omitted the current input row.");
+            const auto area = ui.truthTableRowsBounds(scene);
+            const double y = area.y + (*current - ui.truthTableScroll(scene)) * 22 + 10;
+            std::array<unsigned char, 4> color{};
+            glReadPixels(
+                static_cast<int>((area.x + 2) * scale),
+                extent - 1 - static_cast<int>(y * scale),
+                1,
+                1,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                color.data()
+            );
+            require(
+                color[1] > color[0] + 30 && glGetError() == GL_NO_ERROR,
+                "Table did not highlight the live row at this DPI."
+            );
+            std::string name = "truth-table-" + std::string(definition).substr(7) +
+                               (scale == 2 ? "-2x.ppm" : ".ppm");
+            saveImage(name.c_str());
+            if (definition == BuiltinComponentIds::And)
+            {
+                ui.handleInput(
+                    {UiInputKind::Cursor, 0, 0, 0, 0, area.x + 10, area.y + 10}, scene, input, frame
+                );
+                ui.handleInput({UiInputKind::Scroll, 0, 0, 0, 0, 0, 500}, scene, input, frame);
+                draw();
+                require(ui.truthTableScroll(scene) == 0, "Large table preview did not scroll.");
+                name = scale == 2 ? "truth-table-eight-inputs-scrolled-2x.ppm"
+                                  : "truth-table-eight-inputs-scrolled.ppm";
+                saveImage(name.c_str());
+            }
+            input.setScene(nullptr);
+        }
+}
+
 void componentInformationPresentation(Renderer& renderer)
 {
     Scene scene;
@@ -2879,6 +2980,7 @@ int main(int argc, char** argv)
                 outputPresentation(renderer);
                 componentInformationPresentation(renderer);
                 flipFlopPresentation(renderer);
+                truthTablePresentation(renderer);
                 gateSettingsPresentation(renderer);
                 navigationMenuPresentation(renderer);
                 labelVisibilityPresentation(renderer, camera);
