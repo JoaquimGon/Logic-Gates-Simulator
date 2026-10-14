@@ -93,5 +93,8 @@ double UI::fittedSignalWindow() const
     for (const auto& signal : clockTimeline().signals())
         if (signal.shortestInterval > 0)
             shortest = std::min(shortest, signal.shortestInterval);
-    return std::isfinite(shortest) ? std::clamp(shortest * 8, 0.000001, 3600.0) : m_clockWindow;
+    if (!std::isfinite(shortest))
+        return m_signalWindow;
+    const double duration = std::clamp(shortest * 8, 0.000001, 3600.0);
+    return std::clamp(std::exp2(std::ceil(std::log2(duration))), 0.000001, 3600.0);
 }

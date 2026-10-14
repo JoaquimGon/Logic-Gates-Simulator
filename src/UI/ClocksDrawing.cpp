@@ -19,7 +19,8 @@ bool appendWaveform(
     double graphX,
     double graphWidth,
     double y,
-    std::vector<Renderer::ScreenRect>& lines
+    std::vector<Renderer::ScreenRect>& lines,
+    bool terminal = false
 )
 {
     if (trace.empty() || graphWidth <= 0)
@@ -82,12 +83,48 @@ bool appendWaveform(
     if (now >= start && now <= start + window)
     {
         lines.push_back({{xAt(now) - 1, y + 4, 2, 39}, {0.6f, 0.8f, 1, 0.85f}});
-        lines.push_back(
-            {{xAt(now), available ? level(high) : y + 22, 6, 2},
-             available ? green : glm::vec4{0.55f, 0.65f, 0.76f, 0.65f}}
-        );
+        if (terminal)
+            lines.push_back(
+                {{xAt(now), available ? level(high) : y + 22, 6, 2},
+                 available ? green : glm::vec4{0.55f, 0.65f, 0.76f, 0.65f}}
+            );
     }
     return true;
+}
+
+void appendClockPreview(
+    const std::deque<ClockSample>& preview,
+    double start,
+    double window,
+    double graphX,
+    double graphWidth,
+    double y,
+    std::vector<Renderer::ScreenRect>& lines
+)
+{
+    if (preview.empty() || graphWidth <= 0)
+        return;
+    const glm::vec4 forecast{0.35f, 0.88f, 0.5f, 0.4f};
+    const double dash = std::max(8.0, graphWidth / 256);
+    auto xAt = [&](double time) { return graphX + (time - start) / window * graphWidth; };
+    double from = preview.front().time;
+    bool high = preview.front().high;
+    auto interval = [&](double to)
+    {
+        const double end = xAt(to);
+        for (double x = xAt(from); x < end; x += dash)
+            lines.push_back({{x, y + (high ? 9 : 35), std::min(dash / 2, end - x), 2}, forecast});
+    };
+    for (auto it = std::next(preview.begin()); it != preview.end(); ++it)
+    {
+        interval(it->time);
+        const double x = xAt(it->time);
+        for (double edgeY = y + 9; edgeY < y + 37; edgeY += 8)
+            lines.push_back({{x, edgeY, 1.5, 4}, forecast});
+        from = it->time;
+        high = it->high;
+    }
+    interval(start + window);
 }
 } // namespace
 
@@ -194,10 +231,13 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
             dense |= clockWaveformTooDense(clock.frequency);
     if (wide)
         label(
-            m_clockError.empty() ? (dense            ? "Hidden: Fit or zoom in"
-                                    : m_clockAutoFit ? "Auto Fit | Shift: history"
-                                                     : "Shift + scroll: history")
-                                 : m_clockError,
+            m_clockError.empty()
+                ? (dense ? "Preview: Fit or zoom in"
+                   : m_bottomTab == BottomTab::Clocks
+                       ? (scene.clocksPaused() ? "Preview on Run | Shift: history"
+                                               : "Dashed: preview | Shift: history")
+                       : "Shift + scroll: history")
+                : m_clockError,
             {list.x, m_bottom.y + 67, clockLabelWidth() - 8, 18},
             m_clockError.empty() ? muted : glm::vec4{1, 0.55f, 0.4f, 1},
             0.28f
@@ -261,33 +301,27 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
                 0.28f
             );
         lines.push_back({{list.x, y + 47, list.width, 1}, {0.18f, 0.23f, 0.3f, 1}});
-        auto unreadable = [&]()
+        const double cursorX =
+            graphX + std::clamp((history.time() - start) / window, 0.0, 1.0) * graphWidth;
+        auto unreadable = [&](bool future)
         {
-            // Do not generate any waveform/guide/cursor geometry for this row.
-            const std::string title =
-                graphWidth >= 340 ? "Too fast for this time frame." : "Too fast to display";
+            const double x = future ? cursorX : graphX;
+            const double width = future ? graphX + graphWidth - cursorX : cursorX - graphX;
+            if (width <= 0)
+                return;
+            const std::string title = future ? "Preview too fast" : "History too dense";
             const std::string hint = "Zoom in or Fit";
             for (int line = 0; line < 2; ++line)
             {
                 const auto& value = line == 0 ? title : hint;
                 const float scale = std::min(
                     0.32f,
-                    static_cast<float>(std::max(0.0, graphWidth - 12)) /
+                    static_cast<float>(std::max(0.0, width - 12)) /
                         std::max(1.0f, getTextWidth(value, 1, renderer.fontMetrics()))
                 );
-                label(
-                    value,
-                    {graphX, y + 3 + line * 20, graphWidth, 20},
-                    {0.9f, 0.72f, 0.38f, 1},
-                    scale
-                );
+                label(value, {x, y + 3 + line * 20, width, 20}, {0.9f, 0.72f, 0.38f, 1}, scale);
             }
         };
-        if (clockWaveformTooDense(clock.frequency))
-        {
-            unreadable();
-            continue;
-        }
         auto found = history.traces().find(clock.path);
         if (found == history.traces().end() || graphWidth <= 0)
             continue;
@@ -295,7 +329,20 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
         if (trace.empty())
             continue;
         if (!appendWaveform(trace, start, window, history.time(), graphX, graphWidth, y, lines))
-            unreadable();
+        {
+            unreadable(false);
+            if (history.time() >= start && history.time() <= start + window)
+                lines.push_back({{cursorX - 1, y + 4, 2, 39}, {0.6f, 0.8f, 1, 0.85f}});
+        }
+        if (scene.getLastEvalResult() == SimulationResult::OK && !scene.isSimulationDirty())
+        {
+            if (clockWaveformTooDense(clock.frequency))
+                unreadable(true);
+            else
+                appendClockPreview(
+                    clockPreview(clock), start, window, graphX, graphWidth, y, lines
+                );
+        }
     }
     renderer.drawScreenRects(lines);
     renderer.drawText(text, TextSpace::Screen);
@@ -392,7 +439,8 @@ void UI::drawSignalRows(Renderer& renderer) const
                 graphX,
                 graphWidth,
                 y,
-                lines
+                lines,
+                true
             ))
             label(
                 "Too dense: zoom in or Fit",

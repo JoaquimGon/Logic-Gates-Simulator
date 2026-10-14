@@ -279,6 +279,124 @@ void history()
     );
 }
 
+void previewPanel(GLFWwindow* window)
+{
+    CircuitViews views;
+    Input input;
+    UI ui;
+    FontMetrics font;
+    views.select(0, input);
+    ui.setCircuitViews(&views, &font);
+    auto& scene = views.activeScene();
+    const int id = scene.addComponent(BuiltinComponentIds::Clock, {0, 0});
+    ui.layout(scene.getComponentCatalog(), {800, 800, 800, 800}, input);
+    const auto frame = input.getCameraFrame(window);
+    auto click = [&](CanvasViewport bounds)
+    {
+        UiInputEvent event{UiInputKind::MouseButton};
+        event.code = GLFW_MOUSE_BUTTON_LEFT;
+        event.x = bounds.x + bounds.width / 2;
+        event.y = bounds.y + bounds.height / 2;
+        event.action = GLFW_PRESS;
+        ui.handleInput(event, scene, input, frame);
+        event.action = GLFW_RELEASE;
+        ui.handleInput(event, scene, input, frame);
+    };
+    click(ui.bottomTabBounds(UI::BottomTab::Clocks));
+    require(ui.clockStartTime() == -2, "The initial current-time marker was not centred.");
+    auto& timeline = views.activeClockTimeline();
+    scene.updateClocks(0.25f, &timeline);
+    const auto before = timeline.traces().at({id});
+    const auto reading = scene.clockReadings().front();
+    const auto originalWindow = ui.clockWindowSeconds();
+    const auto originalStart = ui.clockStartTime();
+    const auto predicted = ui.clockPreview(reading);
+    require(
+        ui.clockStartTime() + ui.clockWindowSeconds() / 2 == timeline.time() &&
+            reading.timeUntilEdge == 0.25 && predicted.front().time == 0.25 &&
+            !predicted.front().high && predicted[1].time == 0.5 && predicted[1].high &&
+            scene.clockTime() == 0.25 && !scene.getLogicComponent(id)->getStateOutPin(),
+        "Clock preview ignored the live phase, moved the cursor or changed simulation."
+    );
+    scene.togglePauseAllClocks();
+    require(
+        ui.clockPreview(scene.clockReadings().front()).size() > 1,
+        "Globally paused clocks lost their scheduled preview."
+    );
+    require(
+        static_cast<bool>(EditorActions(scene).apply(
+            {ConfigureComponentProperties{.componentId = id, .clockFrequency = 2.0f}}
+        )),
+        "Cannot edit preview frequency."
+    );
+    const auto changed = ui.clockPreview(scene.clockReadings().front());
+    ui.layout(scene.getComponentCatalog(), {800, 800, 800, 800}, input);
+    require(
+        changed[1].time == 0.375 && changed[2].time == 0.625 &&
+            ui.clockWindowSeconds() == originalWindow && ui.clockStartTime() == originalStart &&
+            timeline.traces().at({id}).size() == before.size() &&
+            timeline.traces().at({id}).front().time == before.front().time &&
+            timeline.traces().at({id}).back().time == before.back().time,
+        "Hz changes reset phase, kept an old forecast or modified recorded history."
+    );
+    click(ui.clockPauseBounds(0));
+    require(
+        ui.clockPreview(scene.clockReadings().front()).size() == 1 &&
+            ui.clockWindowSeconds() == originalWindow,
+        "A disabled clock preview invented future transitions."
+    );
+    click(ui.clockPauseBounds(0));
+    click(ui.clockControlBounds(UI::ClockControl::ZoomOut));
+    // Zoom stays explicit; later Fit will use the new configured frequency.
+    const auto manualWindow = ui.clockWindowSeconds();
+    const ClockReading fast{{id}, 1e8f, false, false, 1e-9};
+    require(ui.clockPreview(fast).size() == 129, "Preview geometry is not bounded to 128 edges.");
+
+    scene.togglePauseAllClocks();
+    scene.updateClocks(5, &timeline);
+    while (scene.pendingClockTime() > 0)
+        scene.updateClocks(0, &timeline);
+    const auto bounds = ui.clockListBounds();
+    UiInputEvent hover{UiInputKind::Cursor};
+    hover.x = bounds.x + bounds.width - 10;
+    hover.y = bounds.y + 10;
+    ui.handleInput(hover, scene, input, frame);
+    UiInputEvent scroll{UiInputKind::Scroll};
+    scroll.y = 2;
+    scroll.modifiers = GLFW_MOD_SHIFT;
+    ui.handleInput(scroll, scene, input, frame);
+    const double browsed = ui.clockStartTime();
+    scene.updateClocks(1, &timeline);
+    require(
+        ui.clockStartTime() == browsed && ui.clockWindowSeconds() == manualWindow,
+        "Inspecting history snapped back to live time or changed zoom."
+    );
+    click(ui.clockControlBounds(UI::ClockControl::Live));
+    require(
+        ui.clockStartTime() + manualWindow / 2 == timeline.time(),
+        "Live did not restore the centred cursor at the existing zoom."
+    );
+    click(ui.bottomTabBounds(UI::BottomTab::Signals));
+    require(
+        ui.clockStartTime() + ui.clockWindowSeconds() == timeline.time(),
+        "Signals moved current time away from the right edge of recorded history."
+    );
+    click(ui.clockControlBounds(UI::ClockControl::ZoomOut));
+    click(ui.bottomTabBounds(UI::BottomTab::Clocks));
+    require(
+        ui.clockWindowSeconds() == manualWindow,
+        "Changing the Signals time frame rescaled the Clocks history."
+    );
+    click(ui.clockControlBounds(UI::ClockControl::Clear));
+    require(
+        ui.clockStartTime() + manualWindow / 2 == timeline.time() &&
+            ui.clockPreview(scene.clockReadings().front()).front().time == scene.clockTime(),
+        "Clear left the preview anchored to old history."
+    );
+    ui.setCircuitViews(nullptr, nullptr);
+    input.setScene(nullptr);
+}
+
 void panel(GLFWwindow* window)
 {
     Input input;
@@ -352,8 +470,7 @@ void panel(GLFWwindow* window)
     require(
         static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency() ==
                 8 &&
-            input.getUndoCount() == 1 && views.hasUnsavedChanges(0) &&
-            ui.clockWindowSeconds() == 0.5,
+            input.getUndoCount() == 1 && views.hasUnsavedChanges(0) && ui.clockWindowSeconds() == 4,
         "Frequency edit was not undoable/savable."
     );
     input.setCanvasFocused(true);
@@ -498,9 +615,11 @@ void panel(GLFWwindow* window)
         "Frequency changes overwrote manual zoom."
     );
     click(ui.clockControlBounds(UI::ClockControl::Fit));
-    require(ui.clockWindowSeconds() == 4.0 / 1024, "Fit did not restore automatic scaling.");
+    require(ui.clockWindowSeconds() == 4.0 / 1024, "Fit did not explicitly rescale the graph.");
     click(ui.clockPauseBounds(0));
-    require(ui.clockWindowSeconds() == 4, "A disabled fast clock dominated automatic fitting.");
+    require(ui.clockWindowSeconds() == 4.0 / 1024, "Disabling a clock rescaled recorded history.");
+    click(ui.clockControlBounds(UI::ClockControl::Fit));
+    require(ui.clockWindowSeconds() == 4, "Fit did not use the fastest enabled clock.");
 
     auto loaded = views.activeScene();
     views.replaceWorkspace(std::move(loaded), "Opened", input);
@@ -554,14 +673,17 @@ int main(int argc, char** argv)
             resetSources();
         else if (test == "clock_history")
             history();
-        else if (test == "clock_panel")
+        else if (test == "clock_panel" || test == "clock_preview")
         {
             glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_NULL);
             require(glfwInit(), "Cannot initialize headless GLFW.");
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
             auto* window = glfwCreateWindow(800, 800, "Clock controls", nullptr, nullptr);
             require(window, "Cannot create headless window.");
-            panel(window);
+            if (test == "clock_preview")
+                previewPanel(window);
+            else
+                panel(window);
             glfwDestroyWindow(window);
             glfwTerminate();
         }

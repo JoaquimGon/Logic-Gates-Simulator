@@ -449,7 +449,9 @@ void interfaceUpdates()
         views.publishSubcircuits({makeSubcircuit(saved.design.scene, saved.identity, "Wire")});
         parent.propagate();
     };
-    const int blocker = parent.addComponent(BuiltinComponentIds::Input, {-5, 1});
+    // Import the intentionally colliding fixture without routing its existing port wire.
+    const int blocker =
+        parent.addComponent(BuiltinComponentIds::Input, {-5, 1}, {}, PlacementPolicy::AllowOverlap);
     const auto beforeRejected = circuitToJson(parent, "Main");
     rejects([&] { publish(2); }, "A colliding updated pin was published.");
     require(

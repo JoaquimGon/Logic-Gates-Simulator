@@ -274,7 +274,7 @@ void landings()
         WireId nextId = 2;
         const std::array<int, 1> moved{component};
         require(
-            fitWiresToMovedComponents(geometry.committedGeometry(), moved, wires, nextId),
+            fitWiresToComponents(geometry.committedGeometry(), moved, wires, nextId),
             "A new junction from attached-wire rerouting prevented a safe landing."
         );
         int degree = 0;
@@ -470,6 +470,165 @@ void landings()
         );
     }
 }
+
+void placements()
+{
+    {
+        Scene scene;
+        scene.addComponent(BuiltinComponentIds::Clock, {0, 0});
+        const int source =
+            scene.addComponent(BuiltinComponentIds::Input, {-10, -1}, {.inputState = true});
+        edit(scene, {AddWire{{{-9, -1}, {8, -1}}}});
+        const auto result = edit(
+            scene,
+            {CreateComponent{BuiltinComponentIds::Output, {0, 0}, {}, PlacementPolicy::FindFree}}
+        );
+        const int sink = result.createdComponentIds.front();
+        scene.propagate();
+        require(
+            scene.getCommittedComponentView(sink)->getGridPosition() == GridCoords{1, -1} &&
+                scene.getWires().begin()->second.containsPoint({0, -1}) &&
+                !scene.getWires().begin()->second.containsPoint({8, -1}) &&
+                scene.netOfPin({source, 0}, PinType::OUTPUT) ==
+                    scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                scene.getLogicComponent(sink)->getStateInPin(0),
+            "FindFree trimmed at the requested position instead of the resolved landing pin."
+        );
+    }
+    for (const bool reverse : {false, true})
+    {
+        Scene scene;
+        const int source =
+            scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
+        std::vector<GridCoords> path{{-9, 0}, {8, 0}};
+        if (reverse)
+            std::reverse(path.begin(), path.end());
+        edit(scene, {AddWire{path}});
+        const auto builds = scene.getTopologyBuildCount();
+        const auto result = edit(scene, {CreateComponent{BuiltinComponentIds::Output, {0, 0}}});
+        const int sink = result.createdComponentIds.front();
+        scene.propagate();
+        require(
+            scene.wireCount() == 1 && scene.getWires().begin()->second.containsPoint({-1, 0}) &&
+                !scene.getWires().begin()->second.containsPoint({8, 0}) &&
+                scene.netOfPin({source, 0}, PinType::OUTPUT) ==
+                    scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                scene.getLogicComponent(sink)->getStateInPin(0) &&
+                scene.getTopologyBuildCount() == builds + 1,
+            "New placement did not trim the dangling tail and connect in one rebuild."
+        );
+        require(
+            static_cast<bool>(
+                EditorActions(scene).restore(*result.change->before, scene.getRevision())
+            ) && scene.getComponentCount() == 1 &&
+                scene.getWires().begin()->second.getPath() == path,
+            "Undo did not remove the placed component and restore its trimmed tail together."
+        );
+        require(
+            static_cast<bool>(
+                EditorActions(scene).restore(*result.change->after, scene.getRevision())
+            ) && scene.getLogicComponent(sink) &&
+                !scene.getWires().begin()->second.containsPoint({8, 0}),
+            "Redo did not restore placement and trimming together."
+        );
+    }
+    for (const bool fromLeft : {false, true})
+    {
+        Scene scene;
+        const int source = scene.addComponent(BuiltinComponentIds::Input, {fromLeft ? -10 : 10, 4});
+        const int sourceX = fromLeft ? -9 : 11;
+        edit(scene, {AddWire{{{sourceX, 4}, {sourceX, 0}, {fromLeft ? 8 : -8, 0}}}});
+        const int gate = scene.addComponent(BuiltinComponentIds::Not, {0, 0});
+        require(
+            scene.netOfPin({gate, 0}, fromLeft ? PinType::INPUT : PinType::OUTPUT) ==
+                    scene.netOfPin({source, 0}, PinType::OUTPUT) &&
+                scene.netOfPin({gate, 0}, fromLeft ? PinType::OUTPUT : PinType::INPUT) ==
+                    INVALID_NET_ID,
+            "Another pin on a new gate protected its body-side dangling tail."
+        );
+    }
+    for (const bool branch : {false, true})
+    {
+        Scene scene;
+        const int source =
+            scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
+        const int sink = scene.addComponent(BuiltinComponentIds::Output, {10, 0});
+        edit(scene, {AddWire{{{-9, 0}, {branch ? 8 : 9, 0}}}});
+        if (branch)
+            edit(scene, {AddWire{{{4, 0}, {4, 5}}}});
+        const int placed = scene.addComponent(BuiltinComponentIds::Output, {0, 0});
+        scene.propagate();
+        require(
+            scene.netOfPin({source, 0}, PinType::OUTPUT) ==
+                    scene.netOfPin({placed, 0}, PinType::INPUT) &&
+                scene.getLogicComponent(placed)->getStateInPin(0) &&
+                (branch || scene.getLogicComponent(sink)->getStateInPin(0)),
+            "Placement disconnected a continuation attached to another pin."
+        );
+        bool hasBranch = false, hasTail = false;
+        for (const auto& [id, wire] : scene.getWires())
+        {
+            require(
+                !wire.containsPoint({0, 0}),
+                "A preserved continuation remained inside the placed body."
+            );
+            hasBranch |= wire.containsPoint({4, 5});
+            hasTail |= wire.containsPoint({8, 0});
+        }
+        require(
+            !branch || (hasBranch && hasTail), "Placement deleted a junction or its continuation."
+        );
+    }
+    {
+        Scene scene;
+        edit(scene, {AddWire{{{-6, 1}, {6, 1}}}});
+        scene.addComponent(BuiltinComponentIds::Clock, {0, 0});
+        const auto& wire = scene.getWires().begin()->second;
+        require(
+            wire.containsPoint({-6, 1}) && wire.containsPoint({6, 1}) &&
+                !wire.containsPoint({0, 1}),
+            "Placement without a pin landing did not preserve and reroute the covered wire."
+        );
+    }
+    {
+        Scene scene;
+        edit(scene, {AddWire{{{-1, 1}, {1, 1}, {1, -1}, {-1, -1}, {-1, 1}}}});
+        const auto revision = scene.getRevision();
+        const auto path = scene.getWires().begin()->second.getPath();
+        const auto result =
+            EditorActions(scene).apply({CreateComponent{BuiltinComponentIds::Clock, {0, 0}}});
+        require(
+            !result && !result.change && scene.getRevision() == revision &&
+                scene.getComponentCount() == 0 &&
+                scene.getWires().begin()->second.getPath() == path,
+            "Unroutable placement deleted a loop or partially committed."
+        );
+        require(
+            scene.addComponent(BuiltinComponentIds::Clock, {10, 10}) == 0,
+            "Failed placement consumed a component identity."
+        );
+    }
+    {
+        Scene scene;
+        const std::vector<GridCoords> path{{-6, 0}, {6, 0}};
+        edit(scene, {AddWire{path}});
+        edit(
+            scene,
+            {CreateComponent{BuiltinComponentIds::Clock, {0, 0}, {}, PlacementPolicy::AllowOverlap}}
+        );
+        int length = 0;
+        for (const auto& [id, wire] : scene.getWires())
+        {
+            const auto& fixed = wire.getPath();
+            require(
+                fixed.front().y == 0 && fixed.back().y == 0,
+                "Explicit import rerouted its authored wire."
+            );
+            length += std::abs(fixed.back().x - fixed.front().x);
+        }
+        require(length == 12, "Explicit import trimmed its authored wire geometry.");
+    }
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -480,7 +639,8 @@ int main(int argc, char** argv)
             {"wire_routing_clearance", clearance},
             {"wire_routing_moves", moves},
             {"wire_routing_rollback", rollback},
-            {"wire_routing_landings", landings}
+            {"wire_routing_landings", landings},
+            {"wire_routing_placements", placements}
         };
         for (const auto& [name, run] : tests)
             if (argc == 1 || std::string(argv[1]) == name)

@@ -374,7 +374,11 @@ std::vector<ClockReading> Circuit::clockReadings(ClockPath prefix) const
         path.push_back(id);
         if (clock)
             readings.push_back(
-                {path, clock->getFrequency(), clock->isPaused(), clock->getStateOutPin()}
+                {path,
+                 clock->getFrequency(),
+                 clock->isPaused(),
+                 clock->getStateOutPin(),
+                 clock->timeUntilEdge()}
             );
         else if (sub)
         {

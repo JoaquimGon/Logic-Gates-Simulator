@@ -351,6 +351,24 @@ void altDrag(GLFWwindow* window)
 
 void spawnPlacement(GLFWwindow* window)
 {
+    for (const int key : {GLFW_KEY_1, GLFW_KEY_9})
+    {
+        Editor editor(window);
+        editor.wire({{-6, 0}, {6, 0}});
+        editor.cursor({0, 0});
+        const auto builds = editor.scene.getTopologyBuildCount();
+        editor.key(key);
+        require(
+            editor.scene.getComponentCount() == 1 && editor.scene.wireCount() == 1 &&
+                editor.scene.getTopologyBuildCount() == builds + 1 &&
+                editor.input.getUndoCount() == 1 &&
+                editor.scene.getWires().begin()->second.containsPoint({1, 0}) &&
+                editor.scene.getWires().begin()->second.containsPoint({6, 0}) &&
+                !editor.scene.getWires().begin()->second.containsPoint({-6, 0}),
+            "Spawn shortcut did not trim the body-side tail in the placement edit."
+        );
+        editor.verifyPinLocations();
+    }
     for (int key :
          {GLFW_KEY_1,
           GLFW_KEY_2,
@@ -373,7 +391,6 @@ void spawnPlacement(GLFWwindow* window)
         const int outputY = latch ? 1 : 0;
         const int shift = 1;
         const int sink = editor.inverter({outputX + shift + 7, outputY - shift});
-        editor.wire({{outputX, outputY}, {outputX + 5, outputY}});
         editor.wire({{outputX + shift, outputY - shift}, {outputX + shift + 5, outputY - shift}});
 
         editor.cursor({0, 0});

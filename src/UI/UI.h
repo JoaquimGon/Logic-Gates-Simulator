@@ -186,6 +186,10 @@ class UI
     CanvasViewport signalRemoveBounds(int row) const;
 
     double clockWindowSeconds() const;
+    /** Clocks centre live time; Signals retain their history-only frame. */
+    double clockStartTime() const;
+    /** Display-only scheduled edges, bounded independently of the recorded history. */
+    std::deque<ClockSample> clockPreview(const ClockReading& clock) const;
     std::string clockTimeFrameText() const;
     bool clockWaveformTooDense(float frequency) const;
     std::vector<std::string> clockTooltip(const Scene& scene) const;
@@ -253,7 +257,6 @@ class UI
     const ClockTimeline& clockTimeline() const;
     double clockLabelWidth() const;
     int clockScroll(const Scene& scene) const;
-    double clockStartTime() const;
     static std::string frequencyText(float frequency);
     void closeMenu(Input& input);
     const Button* buttonAt(glm::dvec2 point) const;
@@ -349,8 +352,8 @@ class UI
     CircuitViews::Messages m_messages;
     ClockTimeline m_clockTimeline;
     int m_clockScroll = 0;
-    double m_clockWindow = 2, m_clockEnd = 2;
-    bool m_clockFollow = true, m_clockAutoFit = true;
+    double m_clockWindow = 2, m_signalWindow = 2, m_clockEnd = 2;
+    bool m_clockFollow = true, m_clockFitPending = true;
     int m_clockHover = -1;
     double m_clockHoverSince = 0, m_clockHoverNow = 0;
     int m_clockEditing = -1, m_clockCommittedKey = -1;

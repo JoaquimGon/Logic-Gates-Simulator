@@ -2981,7 +2981,10 @@ void clockPresentation(Renderer& renderer)
         {
             std::array<unsigned char, 4> color;
             glReadPixels(
-                static_cast<int>((graphX + time / ui.clockWindowSeconds() * graphWidth) * dpi),
+                static_cast<int>(
+                    (graphX + (time - ui.clockStartTime()) / ui.clockWindowSeconds() * graphWidth) *
+                    dpi
+                ),
                 extent - 1 - static_cast<int>((list.y + rowY) * dpi),
                 1,
                 1,
@@ -2996,12 +2999,72 @@ void clockPresentation(Renderer& renderer)
                 sample(0.25, 9)[1] < 80,
             "Clock diagram omitted digital levels/edges or ignored DPI."
         );
+        const double now = views.activeClockTimeline().time();
+        require(
+            sample(now, 5)[2] > 150 &&
+                std::abs((now - ui.clockStartTime()) / ui.clockWindowSeconds() - 0.5) < 1e-9,
+            "The current-time marker is missing from the centre of the clock graph."
+        );
+        const auto future = sample(2.0, 10);
+        require(
+            future[1] > 65 && future[1] < 160 && future[1] > future[0] + 15,
+            "Clock preview edges were missing or looked like recorded history."
+        );
         const auto clear = ui.clockControlBounds(UI::ClockControl::Clear);
         require(
             clear.x + clear.width == ui.bottomBounds().x + ui.bottomBounds().width - 8,
             "Clock toolbar overflowed a narrow window."
         );
         saveImage(dpi == 1 ? "clock-panel.ppm" : "clock-panel-2x.ppm");
+        auto graphRegion = [&](bool future)
+        {
+            const int width = std::max(1, static_cast<int>((graphWidth / 2 - 4) * dpi));
+            const int height = 40 * dpi;
+            std::vector<unsigned char> pixels(width * height * 4);
+            glReadPixels(
+                static_cast<int>((graphX + (future ? graphWidth / 2 + 2 : 0)) * dpi),
+                extent - static_cast<int>((list.y + 44) * dpi),
+                width,
+                height,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                pixels.data()
+            );
+            return pixels;
+        };
+        const auto past = graphRegion(false), forecast = graphRegion(true);
+        const auto window = ui.clockWindowSeconds(), start = ui.clockStartTime();
+        for (const float hz : {0.5f, 256.0f})
+        {
+            require(
+                static_cast<bool>(EditorActions(views.activeScene())
+                                      .apply({ConfigureComponentProperties{
+                                          .componentId = 0, .clockFrequency = hz
+                                      }})),
+                "Cannot change the preview frequency."
+            );
+            ui.layout(views.activeScene().getComponentCatalog(), surface, input);
+            renderer.beginFrame(frame);
+            ui.draw(renderer, views.activeScene(), frame);
+            require(
+                ui.clockWindowSeconds() == window && ui.clockStartTime() == start &&
+                    graphRegion(false) == past && graphRegion(true) != forecast,
+                "Changing Hz rescaled/redrew past history or left the old future preview."
+            );
+            if (hz == 0.5f)
+                saveImage(
+                    dpi == 1 ? "clock-preview-rate-change.ppm" : "clock-preview-rate-change-2x.ppm"
+                );
+        }
+        require(
+            static_cast<bool>(
+                EditorActions(views.activeScene())
+                    .apply({ConfigureComponentProperties{.componentId = 0, .clockFrequency = 1.0f}})
+            ),
+            "Cannot restore the original clock frequency."
+        );
+        renderer.beginFrame(frame);
+        ui.draw(renderer, views.activeScene(), frame);
     }
     const auto list = ui.clockListBounds();
     const double labelWidth =
@@ -3021,7 +3084,7 @@ void clockPresentation(Renderer& renderer)
         );
         return color;
     };
-    const double cursor = graphX + 1.5 / ui.clockWindowSeconds() * graphWidth;
+    const double cursor = graphX + graphWidth / 2;
     require(
         colorAt(cursor, list.y + 45)[2] < 65,
         "Clock cursor/edge guide extended into the gap between rows."
@@ -3033,10 +3096,7 @@ void clockPresentation(Renderer& renderer)
         views.activeScene(),
         CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent})
     );
-    require(
-        colorAt(graphX + 1.5 / ui.clockWindowSeconds() * graphWidth, list.y + 10)[2] < 65,
-        "No-clock panel retained a time cursor."
-    );
+    require(colorAt(cursor, list.y + 10)[2] < 65, "No-clock panel retained a time cursor.");
     saveImage("clock-panel-empty.ppm");
 
     const int fast = views.activeScene().addComponent(
@@ -3063,15 +3123,18 @@ void clockPresentation(Renderer& renderer)
             click, scene, input, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent})
         );
     };
+    clickControl(UI::ClockControl::Fit);
     for (int i = 0; i < 11; ++i)
         clickControl(UI::ClockControl::ZoomOut);
     renderer.beginFrame(CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
     ui.draw(renderer, scene, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
-    auto greenPixels = [&]()
+    auto greenPixels = [&](bool future = false)
     {
         int count = 0;
         for (int y = 0; y < 44; ++y)
-            for (int x = 0; x < static_cast<int>(graphWidth); ++x)
+            for (int x = future ? static_cast<int>(graphWidth / 2) + 2 : 0;
+                 x < static_cast<int>(future ? graphWidth : graphWidth / 2) - 2;
+                 ++x)
             {
                 const auto color = colorAt(graphX + x, list.y + y);
                 if (color[1] > color[0] + 20 && color[1] > color[2] + 20)
@@ -3080,7 +3143,7 @@ void clockPresentation(Renderer& renderer)
         return count;
     };
     require(
-        ui.clockWaveformTooDense(1000) && greenPixels() == 0,
+        ui.clockWaveformTooDense(1000) && greenPixels() == 0 && greenPixels(true) == 0,
         "An unreadable clock still drew dense lines or a shaded block."
     );
     saveImage("clock-panel-too-fast.ppm");
@@ -3093,7 +3156,10 @@ void clockPresentation(Renderer& renderer)
     );
     renderer.beginFrame(CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
     ui.draw(renderer, scene, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
-    require(greenPixels() == 0, "Earlier high-frequency history bypassed the drawing cutoff.");
+    require(
+        greenPixels() == 0 && greenPixels(true) > 0,
+        "Dense history was drawn or suppressed the independently readable clock preview."
+    );
     const auto restoreRate = EditorActions(scene).apply(
         {ConfigureComponentProperties{.componentId = fast, .clockFrequency = 1000.0f}}
     );
@@ -3137,7 +3203,8 @@ void clockPresentation(Renderer& renderer)
     const auto multipleFrame = CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent});
     renderer.beginFrame(multipleFrame);
     ui.draw(renderer, multiple, multipleFrame);
-    const double fastOnlyEdge = graphX + 0.25 / ui.clockWindowSeconds() * graphWidth;
+    const double fastOnlyEdge =
+        graphX + (0.25 - ui.clockStartTime()) / ui.clockWindowSeconds() * graphWidth;
     require(
         colorAt(fastOnlyEdge, list.y + 5)[2] < 65 && colorAt(fastOnlyEdge, list.y + 53)[2] > 65,
         "One clock's edge guide crossed into another clock's row."
@@ -3264,6 +3331,21 @@ void signalPresentation(Renderer& renderer)
             green += pixel[1] > 120 && pixel[1] > pixel[0] * 1.5;
         }
         require(green > 4, "Signal waveform is missing from the panel.");
+        const double nowFraction =
+            (timeline.time() - ui.clockStartTime()) / ui.clockWindowSeconds();
+        require(
+            nowFraction > 0 && nowFraction <= 1 &&
+                (timeline.time() < ui.clockWindowSeconds() || std::abs(nowFraction - 1) < 1e-9),
+            "Signals no longer use their original history-only time frame."
+        );
+        int futureGreen = 0;
+        const double nowX = graphX + nowFraction * (list.width - labelWidth);
+        for (double x = nowX + 8; x < list.x + list.width; x += 2)
+        {
+            const auto pixel = screenPixel(x, list.y + 9);
+            futureGreen += pixel[1] > 120 && pixel[1] > pixel[0] * 1.5;
+        }
+        require(futureGreen == 0, "Signals projected unrecorded values into the future.");
         const auto point =
             *cameraFrame().worldToWindow(scene.getCommittedComponentView(flip)->getPosition());
         click({point.x - 1, point.y - 1, 2, 2}, GLFW_MOUSE_BUTTON_RIGHT);
@@ -3343,6 +3425,11 @@ int main(int argc, char** argv)
             {
                 drawingProfile(renderer, camera);
                 debugOverlayCacheChecks(renderer);
+            }
+            else if (argc > 1 && std::string(argv[1]) == "--clocks")
+            {
+                clockPresentation(renderer);
+                signalPresentation(renderer);
             }
             else
             {

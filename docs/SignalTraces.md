@@ -9,8 +9,14 @@ names, current LOW/HIGH states and waveforms; **X** removes a row.
 Signals use the same simulation time and controls as Clocks. Run/Pause and
 Half/Full cycle operate the circuit's enabled clocks. Clear clears both graph
 histories while keeping selected probes and current circuit state. Fit uses the
-shortest recorded positive interval between signal changes. Manual zoom stops
-automatic fitting; Live follows current time; Shift + scroll browses history.
+shortest recorded positive interval between signal changes, multiplied by eight
+and rounded up to a power-of-two frame (0.5, 1, 2, 4, 8 seconds, etc.), within
+the existing zoom limits. Recorded timestamps stay exact. Signals start with a
+two-second frame and keep their scale until Fit or zoom is pressed. New signal
+changes, probe changes and clock edits do not automatically rescale the frame.
+Live follows the newest recorded time; Shift + scroll browses history.
+Signals retain their history-only layout, with current time at the right edge once
+the time frame is full. Only the Clocks tab centres current time and previews edges.
 
 Recording happens after settling at each scheduled clock edge, including edges
 between rendered frames, and after manual input changes settle. Input traces

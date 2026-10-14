@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <limits>
 #include <map>
 #include <optional>
 #include <string>
@@ -17,6 +18,7 @@ struct ClockReading
     ClockPath path;
     float frequency;
     bool paused, high;
+    double timeUntilEdge = std::numeric_limits<double>::infinity();
 };
 
 struct ClockSample

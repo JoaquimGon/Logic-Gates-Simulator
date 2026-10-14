@@ -55,10 +55,19 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
         m_overviewView = m_circuitTabs.activeViewIndex();
         m_subcircuitScroll = 0;
         m_clockScroll = 0;
-        m_clockFollow = m_clockAutoFit = true;
+        m_clockFollow = m_clockFitPending = true;
         m_clockHover = -1;
         m_clockError.clear();
         closeClockEdit(input);
+    }
+    if (m_clockFitPending && m_views)
+    {
+        const auto readings = m_views->activeScene().clockReadings();
+        if (!readings.empty())
+        {
+            m_clockWindow = fittedClockWindow(readings);
+            m_clockFitPending = false;
+        }
     }
     const bool subcircuit = !m_readOnly && m_circuitTabs.activeIsSubcircuit();
     if (subcircuit != m_showSubcircuit)

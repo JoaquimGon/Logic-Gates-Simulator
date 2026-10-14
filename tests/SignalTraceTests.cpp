@@ -174,12 +174,36 @@ void controls(GLFWwindow* window)
     ui.dismissPopups(input);
     click(ui.bottomTabBounds(UI::BottomTab::Signals));
     require(ui.activeBottomTab() == UI::BottomTab::Signals, "Signals tab did not open.");
+    require(ui.clockWindowSeconds() == 2, "Signals did not start with a fixed two-second frame.");
     click(ui.clockControlBounds(UI::ClockControl::SingleStep));
     require(
         scene.getLogicComponent(ff)->getStateOutPin(0) &&
             views.activeClockTimeline().signals()[1].samples.back().high,
         "Signals controls did not step the owning circuit."
     );
+    require(
+        ui.clockWindowSeconds() == 2, "Recording a signal change automatically rescaled Signals."
+    );
+    click(ui.clockControlBounds(UI::ClockControl::Fit));
+    require(
+        ui.clockWindowSeconds() == 4, "Explicit Fit did not fit the recorded signal intervals."
+    );
+    views.activeClockTimeline().toggleSignal(
+        {{clock},
+         PinType::OUTPUT,
+         0,
+         scene.getCommittedComponentView(clock)->getOutputPins().front().id,
+         "Clock",
+         {}}
+    );
+    edit(scene, {ConfigureComponentProperties{.componentId = clock, .clockFrequency = 4.0f}});
+    scene.recordSignalTraces(views.activeClockTimeline());
+    click(ui.clockControlBounds(UI::ClockControl::SingleStep));
+    layout();
+    require(ui.clockWindowSeconds() == 4, "New probes or faster edges overwrote the fitted frame.");
+    click(ui.clockControlBounds(UI::ClockControl::Fit));
+    require(ui.clockWindowSeconds() == 1, "Explicit Fit ignored the new shorter signal intervals.");
+    views.activeClockTimeline().removeSignal(2);
     const auto time = scene.clockTime();
     click(ui.clockControlBounds(UI::ClockControl::Clear));
     require(
@@ -200,8 +224,8 @@ void controls(GLFWwindow* window)
     edit(authored, {AddWire{{{-7, 0}, {7, 0}}}});
     const auto definition = makeSubcircuit(authored, {"subcircuit.signals", 1}, "Wire");
     views.publishSubcircuits({definition});
-    const int placed = scene.addComponent(definition.identity.id, {0, 0});
-    edit(scene, {AddWire{{{-11, 2}, {-6, 2}, {-6, 0}, {-4, 0}}}});
+    const int placed = scene.addComponent(definition.identity.id, {0, 8});
+    edit(scene, {AddWire{{{-11, 2}, {-6, 2}, {-6, 8}, {-4, 8}}}});
     scene.propagate();
     scene.recordSignalTraces(views.activeClockTimeline());
     require(views.inspectComponent(placed, input), "Cannot inspect nested probe fixture.");

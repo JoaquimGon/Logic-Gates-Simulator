@@ -460,36 +460,42 @@ void overlappingPlacement(GLFWwindow* window)
     editor.mouse(GLFW_PRESS);
     editor.mouse(GLFW_RELEASE);
     require(
+        editor.input.getPastePreview().active() && editor.scene.getRevision() == revision &&
+            editor.scene.getTopologyBuildCount() == builds && editor.input.getUndoCount() == 0 &&
+            editor.input.getLastEditError() == EditError::InvalidWire,
+        "A paste covering existing connected pins did not cancel atomically."
+    );
+    editor.cursor({1, 4});
+    editor.mouse(GLFW_PRESS);
+    editor.mouse(GLFW_RELEASE);
+    require(
         !editor.input.getPastePreview().active() && editor.scene.getComponentCount() == 4 &&
             editor.input.getSelectedComponents().size() == 2 && editor.input.getUndoCount() == 1 &&
             editor.scene.getTopologyBuildCount() == builds + 1 &&
             editor.input.getLastEditError() == EditError::None,
-        "Overlapping paste was rejected, moved automatically or created extra undo entries."
+        "Retrying paste in a clear area failed or created extra undo entries."
     );
     auto selected = editor.input.getSelectedComponents().begin();
     require(
         editor.scene.getCommittedComponentView(*selected++)->getGridPosition() ==
-                GridCoords{-4, 0} &&
+                GridCoords{-4, 4} &&
             editor.scene.getCommittedComponentView(*selected)->getGridPosition() ==
-                GridCoords{6, 0},
-        "Overlapping paste did not respect the chosen position."
+                GridCoords{6, 4},
+        "Retried paste did not respect the chosen position."
     );
-    // The overlapping wire joins two drivers; acceptance must still expose the electrical conflict.
     editor.scene.propagate();
     bool shorted = false;
     for (const auto& [id, net] : editor.scene.getNets())
         shorted = shorted || net.shorted();
-    require(shorted, "Permissive placement suppressed the resulting short-circuit diagnostic.");
+    require(!shorted, "Retried paste accidentally connected to the original wires.");
     editor.key(GLFW_KEY_Z);
     require(
         editor.scene.getComponentCount() == 2 && editor.scene.wireCount() == 2 &&
             editor.input.getRedoCount() == 1,
-        "Undo did not remove the overlapping paste as one edit."
+        "Undo did not remove the retried paste as one edit."
     );
     editor.key(GLFW_KEY_Y);
-    require(
-        editor.scene.getComponentCount() == 4, "Redo rejected the previously accepted overlap."
-    );
+    require(editor.scene.getComponentCount() == 4, "Redo rejected the previously accepted paste.");
 }
 
 void appRouting(GLFWwindow* window)

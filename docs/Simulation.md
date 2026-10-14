@@ -135,19 +135,30 @@ to change them. Names use the authored layout's labels, mapped to compiled IDs.
 The green digital waveforms use processed simulation seconds, not rendered frames.
 Every clock transition is recorded, even when several occur between frames.
 Each clock's edge guides and blue current-time marker stay inside its own row.
+In **Live** mode the marker stays in the middle, with recorded history on the left.
+Faint dashed lines on the right preview scheduled clock edges using the actual
+phase and current Hz. Changing frequency updates the preview immediately without
+rewriting recorded history. While globally paused, the preview shows what will
+happen when simulation time resumes; individually disabled clocks hold their level.
+The preview is display-only and never advances the circuit or enters recorded history.
 The centered **Time frame = N s** label states the visible duration; the toolbar's
 Elapsed value is processed simulation time. There are no axis/cursor lines when
 the circuit has no clocks.
 
 **Fit** (the initial view) shows four cycles of the fastest enabled clock:
 time frame = 4 / Hz, bounded by the existing zoom limits. At 256 Hz this is
-0.015625 seconds. It follows frequency/enable changes; if all clocks are disabled,
-it uses the fastest configured clock. **−/+** double/halve the duration and stop
-automatic fitting. **Fit** restores it. Scroll moves between clocks, Shift+scroll
-moves through history, and **Live** follows the newest time without changing zoom.
+0.015625 seconds. The initial frame is fitted once. Frequency and enable changes
+then keep this time frame fixed, so recorded history stays at the same scale and
+only the preview's spacing changes. **Fit** explicitly recalculates the frame;
+if all clocks are disabled, it uses the fastest configured clock.
+**−/+** double/halve the duration. Signals retain their separate history-only frame.
+Scroll moves between clocks, Shift+scroll
+moves through history without snapping back, and **Live** recentres current time
+without changing zoom. Empty space before time zero has no recorded waveform.
 
-Unreadable rows show **Too fast for this time frame. Zoom in or Fit**, with no
-waveform, edge-guide, or cursor geometry. A row needs at least eight logical pixels
+Unreadable history or preview regions show a zoom/Fit hint independently.
+A new fast frequency does not hide previously readable history; dense past history
+does not hide a readable future preview. A region needs at least eight logical pixels
 per half-cycle and at most 128 visible edges: 2 × Hz × time frame must not exceed
 min(128, graph width / 8). At 256 Hz over four seconds, drawing is skipped outright.
 Fit or zooming in restores the waveform when the displayed edges are readable.

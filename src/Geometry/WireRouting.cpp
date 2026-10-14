@@ -351,9 +351,9 @@ bool rerouteWireEndpoints(
     return true;
 }
 
-bool fitWiresToMovedComponents(
+bool fitWiresToComponents(
     std::span<const ComponentGeometry> components,
-    std::span<const int> moved,
+    std::span<const int> placed,
     std::map<WireId, Wire>& wires,
     WireId& nextWireId,
     std::span<const WireId> translatedWires
@@ -366,8 +366,8 @@ bool fitWiresToMovedComponents(
         return std::find(translatedWires.begin(), translatedWires.end(), id) !=
                translatedWires.end();
     };
-    auto wasMoved = [&](int id)
-    { return std::find(moved.begin(), moved.end(), id) != moved.end(); };
+    auto wasPlaced = [&](int id)
+    { return std::find(placed.begin(), placed.end(), id) != placed.end(); };
     std::map<Key, int> degree;
     for (const auto& [id, wire] : staged)
         if (wire.getPath().size() >= 2)
@@ -409,13 +409,13 @@ bool fitWiresToMovedComponents(
         return true;
     };
     // Classify tails before splitting at all newly landed pins. Otherwise another
-    // pin on this moving body could falsely protect a previously dangling tail.
+    // pin on this body could falsely protect a previously dangling tail.
     for (auto it = staged.begin(); it != staged.end();)
     {
         bool remove = false;
         if (!translated(it->first))
             for (const auto& component : components)
-                if (wasMoved(component.componentId) && !remove)
+                if (wasPlaced(component.componentId) && !remove)
                     for (const auto& pin : component.pins)
                     {
                         Wire first, second;
@@ -476,7 +476,7 @@ bool fitWiresToMovedComponents(
         const auto& path = wire.getPath();
         bool blocked = false;
         for (const auto& component : components)
-            if (wasMoved(component.componentId))
+            if (wasPlaced(component.componentId))
                 for (std::size_t i = 1; i < path.size(); ++i)
                     blocked |= blockedSegment(path, i, component);
         if (blocked)
@@ -501,7 +501,7 @@ bool fitWiresToMovedComponents(
                     components.end(),
                     [&](const auto& component)
                     {
-                        return wasMoved(component.componentId) &&
+                        return wasPlaced(component.componentId) &&
                                crossesObstacle(
                                    path[last], path[last], componentObstacle(component)
                                );
@@ -510,7 +510,7 @@ bool fitWiresToMovedComponents(
                 continue;
             bool blocked = false;
             for (const auto& component : components)
-                if (wasMoved(component.componentId))
+                if (wasPlaced(component.componentId))
                     for (std::size_t i = first + 1; i <= last; ++i)
                         blocked |= blockedSegment(path, i, component);
             std::vector<GridCoords> span;

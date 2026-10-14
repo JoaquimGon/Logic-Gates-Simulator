@@ -94,10 +94,36 @@ int UI::clockScroll(const Scene& scene) const
 double UI::clockStartTime() const
 {
     const double window = clockWindowSeconds();
-    const double end = m_clockFollow
-                           ? std::max(window, clockTimeline().time())
-                           : std::min(m_clockEnd, std::max(window, clockTimeline().time()));
-    return std::max(0.0, end - window);
+    if (m_bottomTab == BottomTab::Signals)
+    {
+        const double end = m_clockFollow
+                               ? std::max(window, clockTimeline().time())
+                               : std::min(m_clockEnd, std::max(window, clockTimeline().time()));
+        return std::max(0.0, end - window);
+    }
+    const double liveStart = clockTimeline().time() - window / 2;
+    return m_clockFollow ? liveStart : std::clamp(m_clockEnd - window, -window / 2, liveStart);
+}
+
+std::deque<ClockSample> UI::clockPreview(const ClockReading& clock) const
+{
+    const double now = clockTimeline().time();
+    const double stop = clockStartTime() + clockWindowSeconds();
+    if (stop <= now)
+        return {};
+    std::deque<ClockSample> preview{{now, clock.high}};
+    if (clock.paused || !std::isfinite(clock.timeUntilEdge) || !std::isfinite(clock.frequency) ||
+        clock.frequency <= 0)
+        return preview;
+    const double halfPeriod = 0.5 / clock.frequency;
+    for (int i = 0; i < 128; ++i)
+    {
+        const double edge = now + clock.timeUntilEdge + i * halfPeriod;
+        if (edge > stop || (i > 0 && edge <= preview.back().time))
+            break;
+        preview.push_back({edge, !preview.back().high});
+    }
+    return preview;
 }
 
 void UI::closeClockEdit(Input& input)
@@ -220,8 +246,9 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
             const double window = clockWindowSeconds();
             m_clockEnd = std::clamp(
                 clockStartTime() + window - (event.x != 0 ? event.x : event.y) * window * 0.1,
-                window,
-                std::max(window, clockTimeline().time())
+                m_bottomTab == BottomTab::Signals ? window : window / 2,
+                m_bottomTab == BottomTab::Signals ? std::max(window, clockTimeline().time())
+                                                  : clockTimeline().time() + window / 2
             );
             m_clockFollow = false;
         }
@@ -275,10 +302,14 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
                 m_clockFollow = true;
             else if (control == ClockControl::Fit)
             {
-                m_clockWindow = m_bottomTab == BottomTab::Signals
-                                    ? fittedSignalWindow()
-                                    : fittedClockWindow(scene.clockReadings());
-                m_clockAutoFit = m_clockFollow = true;
+                if (m_bottomTab == BottomTab::Signals)
+                    m_signalWindow = fittedSignalWindow();
+                else
+                {
+                    m_clockWindow = fittedClockWindow(scene.clockReadings());
+                    m_clockFitPending = false;
+                }
+                m_clockFollow = true;
             }
             else if (control == ClockControl::Clear)
             {
@@ -290,10 +321,13 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
             {
                 const double window = clockWindowSeconds();
                 m_clockEnd = clockStartTime() + window;
-                m_clockWindow = std::clamp(
+                auto& selectedWindow =
+                    m_bottomTab == BottomTab::Signals ? m_signalWindow : m_clockWindow;
+                selectedWindow = std::clamp(
                     window * (control == ClockControl::ZoomIn ? 0.5 : 2.0), 0.000001, 3600.0
                 );
-                m_clockAutoFit = false;
+                if (m_bottomTab == BottomTab::Clocks)
+                    m_clockFitPending = false;
             }
             clockTimeline().record(scene.clockTime(), scene.clockReadings());
             scene.recordSignalTraces(clockTimeline());
@@ -357,10 +391,9 @@ double UI::fittedClockWindow(const std::vector<ClockReading>& readings)
 
 double UI::clockWindowSeconds() const
 {
-    if (m_clockAutoFit && m_bottomTab == BottomTab::Signals)
-        return fittedSignalWindow();
-    return m_clockAutoFit && m_views ? fittedClockWindow(m_views->activeScene().clockReadings())
-                                     : m_clockWindow;
+    if (m_bottomTab == BottomTab::Signals)
+        return m_signalWindow;
+    return m_clockWindow;
 }
 
 bool UI::clockWaveformTooDense(float frequency) const
@@ -483,8 +516,15 @@ std::vector<std::string> UI::clockTooltip(const Scene& scene) const
             "Only the graph scale changes; clock Hz stays the same."
         };
     case ClockControl::Live:
+        if (m_bottomTab == BottomTab::Signals)
+            return {
+                "Follow the newest recorded time",
+                "Keeps your zoom level. Shift + scroll browses history."
+            };
         return {
-            "Follow the newest recorded time",
+            "Centre the current time",
+            "Recorded history left; dashed clock preview right.",
+            "Preview uses the current Hz and phase; settings can change.",
             "Keeps your zoom level. Shift + scroll browses history."
         };
     case ClockControl::Fit:
@@ -492,12 +532,15 @@ std::vector<std::string> UI::clockTooltip(const Scene& scene) const
             return {
                 "Fit the selected signals",
                 "Uses the shortest recorded interval between settled changes.",
+                "Rounds the frame up: 0.5, 1, 2, 4, 8 seconds, etc.",
+                "Keeps this frame until you press Fit or zoom again.",
                 "Manual changes while paused share the same simulation time."
             };
         return {
             "Fit four cycles of the fastest enabled clock",
-            "Time frame = 4 / Hz; follows frequency changes.",
-            "Manual zoom stops automatic fitting.",
+            "Sets time frame = 4 / Hz at the current settings.",
+            "Hz and Enable edits keep the time frame fixed.",
+            "Use Fit or zoom to change the displayed time frame.",
             "If all clocks are disabled, uses their configured Hz."
         };
     case ClockControl::Clear:

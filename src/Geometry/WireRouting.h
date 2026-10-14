@@ -32,10 +32,11 @@ bool rerouteMovedWires(
 );
 
 /** Trims simple body-side dangling tails at landing pins and reroutes covered continuations.
- * Pins, junctions and loops are preserved; failure leaves wires and allocation unchanged. */
-bool fitWiresToMovedComponents(
+ * Applies to moved or newly placed components. Pins, junctions and loops are preserved;
+ * failure leaves wires and allocation unchanged. */
+bool fitWiresToComponents(
     std::span<const ComponentGeometry> components,
-    std::span<const int> moved,
+    std::span<const int> placed,
     std::map<WireId, Wire>& wires,
     WireId& nextWireId,
     std::span<const WireId> translatedWires = {}

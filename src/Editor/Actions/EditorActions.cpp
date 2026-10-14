@@ -687,13 +687,23 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     "No safe wire route. Hold Alt while moving to leave wires in place."
                 );
             const auto geometry = candidate.committedGeometry();
-            if (!moved.empty() &&
-                !fitWiresToMovedComponents(
-                    geometry, moved, candidate.m_wires, candidate.m_nextWireId, translatedWires
-                ))
+            auto fittedComponents = moved;
+            for (const int id : components)
+                if (candidate.m_componentViews.contains(id) &&
+                    placement.at(id) != PlacementPolicy::AllowOverlap &&
+                    std::find(fittedComponents.begin(), fittedComponents.end(), id) ==
+                        fittedComponents.end())
+                    fittedComponents.push_back(id);
+            if (!fittedComponents.empty() && !fitWiresToComponents(
+                                                 geometry,
+                                                 fittedComponents,
+                                                 candidate.m_wires,
+                                                 candidate.m_nextWireId,
+                                                 translatedWires
+                                             ))
                 throw EditFailure(
                     EditError::InvalidWire,
-                    "Cannot preserve nearby wire connections. Move the component to a clear area."
+                    "Cannot preserve nearby wire connections. Place the component in a clear area."
                 );
             for (const auto index : detachedMoves)
             {
