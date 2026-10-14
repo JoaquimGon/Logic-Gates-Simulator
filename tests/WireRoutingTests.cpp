@@ -55,9 +55,42 @@ void clearance()
             };
             require(
                 p.x <= -3 || p.x >= 5 || p.y <= -3 || p.y >= 3,
-                "Route crossed the body/pins or their one-cell padding."
+                "Route crossed the body/pins or their half-cell padding."
             );
         }
+    }
+    // Actual source/bulb bounds sit near a grid threshold: the clock must not
+    // acquire an extra blocked row just because its body is slightly wider.
+    for (const auto* definition :
+         {BuiltinComponentIds::Clock, BuiltinComponentIds::Input, BuiltinComponentIds::Output})
+    {
+        Scene scene;
+        scene.addComponent(definition, {0, 0});
+        const auto geometry = scene.committedGeometry();
+        require(
+            routeWire({-6, 2}, {6, 2}, geometry, {}) ==
+                std::optional{std::vector<GridCoords>{{-6, 2}, {6, 2}}},
+            "Source/bulb routing still blocked the second grid row outside the body."
+        );
+        for (const bool reverse : {false, true})
+        {
+            const GridCoords start = reverse ? GridCoords{-6, 0} : GridCoords{-2, 0};
+            const GridCoords end = reverse ? GridCoords{-2, 0} : GridCoords{-6, 0};
+            require(
+                routeWire(start, end, geometry, {}) ==
+                    std::optional{std::vector<GridCoords>{start, end}},
+                "A wire could not start/end two cells from a source/bulb centre."
+            );
+        }
+        const auto around = routeWire({-6, 0}, {6, 0}, geometry, {});
+        require(around.has_value(), "Could not reroute around a source/bulb body.");
+        for (const auto point : *around)
+            require(std::abs(point.y) <= 2, "Source/bulb detour left an excessive vertical gap.");
+        require(
+            !routeWire({-1, 1}, {-6, 1}, geometry, {}) &&
+                !routeWire({-6, 1}, {-1, 1}, geometry, {}),
+            "Reduced clearance allowed a non-pin endpoint too close to a source/bulb body."
+        );
     }
     auto access = routeWire({4, 0}, {10, 0}, {&obstacle, 1}, {});
     require(

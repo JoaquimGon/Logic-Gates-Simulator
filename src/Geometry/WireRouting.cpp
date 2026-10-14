@@ -67,10 +67,11 @@ std::optional<std::vector<GridCoords>> routeWire(
             bounds.bottom = std::min(bounds.bottom, double(pin.position.y));
             bounds.top = std::max(bounds.top, double(pin.position.y));
         }
-        bounds.left -= 1;
-        bounds.right += 1;
-        bounds.bottom -= 1;
-        bounds.top += 1;
+        constexpr double clearance = 0.5;
+        bounds.left -= clearance;
+        bounds.right += clearance;
+        bounds.bottom -= clearance;
+        bounds.top += clearance;
         obstacles.push_back(bounds);
     }
     NetId targetNet = INVALID_NET_ID;

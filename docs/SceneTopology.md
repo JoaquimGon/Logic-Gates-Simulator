@@ -64,7 +64,7 @@ snapshot, cancellation, and simulation tests remain part of the same runners.
 `Geometry/WireRouting` uses padded body/pin bounds and orthogonal paths. It first
 tries the two simple bends, then a bounded A* search (20,000 visited/expanded
 points) with a small turn penalty. Endpoint pins may leave their own padding via
-a short outward access segment; other components keep one grid cell of clearance.
+a short outward access segment; other components keep half a grid cell of clearance.
 Unrelated nets' wire segments are blocked to prevent accidental joining; an
 explicit wire endpoint may join its target net. Old paths of moving wires are
 excluded while computing replacements, then each completed path is reserved. Routes in
