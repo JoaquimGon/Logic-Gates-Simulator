@@ -31,6 +31,16 @@ bool rerouteMovedWires(
     std::span<const WireId> translatedWires = {}
 );
 
+/** Trims simple body-side dangling tails at landing pins and reroutes covered continuations.
+ * Pins, junctions and loops are preserved; failure leaves wires and allocation unchanged. */
+bool fitWiresToMovedComponents(
+    std::span<const ComponentGeometry> components,
+    std::span<const int> moved,
+    std::map<WireId, Wire>& wires,
+    WireId& nextWireId,
+    std::span<const WireId> translatedWires = {}
+);
+
 /** Follows explicit endpoint changes when a saved subcircuit's interface changes. */
 bool rerouteWireEndpoints(
     std::span<const std::pair<GridCoords, GridCoords>> moves,

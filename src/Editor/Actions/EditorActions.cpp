@@ -687,6 +687,14 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     "No safe wire route. Hold Alt while moving to leave wires in place."
                 );
             const auto geometry = candidate.committedGeometry();
+            if (!moved.empty() &&
+                !fitWiresToMovedComponents(
+                    geometry, moved, candidate.m_wires, candidate.m_nextWireId, translatedWires
+                ))
+                throw EditFailure(
+                    EditError::InvalidWire,
+                    "Cannot preserve nearby wire connections. Move the component to a clear area."
+                );
             for (const auto index : detachedMoves)
             {
                 auto& [from, to] = interfaceMoves[index];

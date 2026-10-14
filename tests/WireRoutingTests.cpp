@@ -259,6 +259,217 @@ void rollback()
         "Rejected move changed the committed circuit."
     );
 }
+
+void landings()
+{
+    {
+        Scene geometry;
+        const int component = geometry.addComponent(BuiltinComponentIds::Output, {0, 0});
+        Wire main, branch;
+        main.setPath({{-6, 0}, {6, 0}});
+        branch.setPath({{4, 0}, {4, 5}});
+        main.setNet(1);
+        branch.setNet(1);
+        std::map<WireId, Wire> wires{{0, main}, {1, branch}};
+        WireId nextId = 2;
+        const std::array<int, 1> moved{component};
+        require(
+            fitWiresToMovedComponents(geometry.committedGeometry(), moved, wires, nextId),
+            "A new junction from attached-wire rerouting prevented a safe landing."
+        );
+        int degree = 0;
+        bool tail = false;
+        for (const auto& [id, wire] : wires)
+        {
+            degree += wire.getPath().front() == GridCoords{4, 0};
+            degree += wire.getPath().back() == GridCoords{4, 0};
+            tail |= wire.containsPoint({6, 0});
+            require(!wire.containsPoint({0, 0}), "A junction continuation stayed inside the body.");
+        }
+        require(
+            degree == 3 && tail, "Landing deleted or bypassed a junction before normalization."
+        );
+    }
+    for (const bool fromLeft : {false, true})
+    {
+        Scene scene;
+        const int source = scene.addComponent(BuiltinComponentIds::Input, {fromLeft ? -10 : 10, 4});
+        const int gate = scene.addComponent(BuiltinComponentIds::Not, {0, 8});
+        const int sourceX = fromLeft ? -9 : 11;
+        edit(scene, {AddWire{{{sourceX, 4}, {sourceX, 0}, {fromLeft ? 8 : -8, 0}}}});
+        edit(scene, {MoveComponent{gate, {0, 0}}});
+        require(
+            scene.netOfPin({gate, 0}, fromLeft ? PinType::INPUT : PinType::OUTPUT) ==
+                    scene.netOfPin({source, 0}, PinType::OUTPUT) &&
+                scene.netOfPin({gate, 0}, fromLeft ? PinType::OUTPUT : PinType::INPUT) ==
+                    INVALID_NET_ID,
+            "A second newly landed gate pin falsely protected the dangling body-side tail."
+        );
+        for (const auto& [id, wire] : scene.getWires())
+            require(!wire.containsPoint({0, 0}), "The tail remained inside a gate after landing.");
+    }
+    for (const bool reverse : {false, true})
+    {
+        Scene scene;
+        const int source =
+            scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
+        const int sink = scene.addComponent(BuiltinComponentIds::Output, {0, 6});
+        std::vector<GridCoords> path{{-9, 0}, {8, 0}};
+        if (reverse)
+            std::reverse(path.begin(), path.end());
+        edit(scene, {AddWire{path}});
+        const auto builds = scene.getTopologyBuildCount();
+        const auto result = edit(scene, {MoveComponent{sink, {0, 0}}});
+        scene.propagate();
+        require(
+            scene.wireCount() == 1 && scene.getWires().begin()->second.containsPoint({-1, 0}) &&
+                !scene.getWires().begin()->second.containsPoint({0, 0}) &&
+                !scene.getWires().begin()->second.containsPoint({8, 0}) &&
+                scene.netOfPin({source, 0}, PinType::OUTPUT) ==
+                    scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                scene.getLogicComponent(sink)->getStateInPin(0) &&
+                scene.getTopologyBuildCount() == builds + 1,
+            "Landing did not trim only the body-side dangling tail and connect the pin."
+        );
+        require(
+            static_cast<bool>(
+                EditorActions(scene).restore(*result.change->before, scene.getRevision())
+            ) && scene.getWires().begin()->second.getPath() == path &&
+                scene.getCommittedComponentView(sink)->getGridPosition() == GridCoords{0, 6},
+            "Undo did not restore the shortened tail and component together."
+        );
+        require(
+            static_cast<bool>(
+                EditorActions(scene).restore(*result.change->after, scene.getRevision())
+            ) && !scene.getWires().begin()->second.containsPoint({8, 0}),
+            "Redo did not restore the landing trim."
+        );
+    }
+    for (const bool branch : {false, true})
+    {
+        Scene scene;
+        const int source =
+            scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
+        const int landing = scene.addComponent(BuiltinComponentIds::Output, {0, 6});
+        const int sink = scene.addComponent(BuiltinComponentIds::Output, {10, 0});
+        edit(scene, {AddWire{{{-9, 0}, {branch ? 8 : 9, 0}}}});
+        if (branch)
+            edit(scene, {AddWire{{{4, 0}, {4, 5}}}});
+        edit(scene, {MoveComponent{landing, {0, 0}}});
+        scene.propagate();
+        require(
+            (!branch || scene.netOfPin({sink, 0}, PinType::INPUT) == INVALID_NET_ID) &&
+                (branch || (scene.netOfPin({source, 0}, PinType::OUTPUT) ==
+                                scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                            scene.getLogicComponent(sink)->getStateInPin(0))) &&
+                scene.netOfPin({source, 0}, PinType::OUTPUT) ==
+                    scene.netOfPin({landing, 0}, PinType::INPUT) &&
+                scene.getLogicComponent(landing)->getStateInPin(0),
+            "Landing deleted or disconnected a continuation with another pin or junction."
+        );
+        bool hasBranch = false, hasTail = false;
+        for (const auto& [id, wire] : scene.getWires())
+        {
+            require(
+                !wire.containsPoint({0, 0}),
+                "Preserved continuation remained inside the moved body."
+            );
+            hasBranch |= wire.containsPoint({4, 5});
+            hasTail |= wire.containsPoint({8, 0});
+        }
+        require(
+            !branch || (hasBranch && hasTail), "Landing removed a junction or its dangling branch."
+        );
+    }
+    {
+        Scene scene;
+        const int landing = scene.addComponent(BuiltinComponentIds::Output, {0, 6});
+        edit(scene, {AddWire{{{-9, 0}, {8, 0}}}, AddWire{{{4, -5}, {4, 5}}}});
+        edit(scene, {MoveComponent{landing, {0, 0}}});
+        require(scene.netCount() == 2, "A visual crossing was treated as a connected branch.");
+        bool crossing = false;
+        for (const auto& [id, wire] : scene.getWires())
+        {
+            crossing |= wire.containsPoint({4, -5}) && wire.containsPoint({4, 5});
+            require(!wire.containsPoint({8, 0}), "A visual crossing protected a dangling tail.");
+        }
+        require(crossing, "Trimming the tail changed a separate crossing wire.");
+    }
+    {
+        Scene scene;
+        const int clock = scene.addComponent(BuiltinComponentIds::Clock, {0, 6});
+        edit(scene, {AddWire{{{-6, 0}, {6, 0}}}});
+        edit(scene, {MoveComponent{clock, {0, 0}}});
+        // Its output lands on the line; the left tail is body-side, the right tail stays.
+        require(
+            scene.wireCount() == 1 && scene.getWires().begin()->second.containsPoint({1, 0}) &&
+                scene.getWires().begin()->second.containsPoint({6, 0}) &&
+                !scene.getWires().begin()->second.containsPoint({-6, 0}),
+            "A clock landing trimmed the outward tail instead of the body-side tail."
+        );
+    }
+    {
+        Scene scene;
+        const int clock = scene.addComponent(BuiltinComponentIds::Clock, {0, 6});
+        edit(scene, {AddWire{{{-6, 1}, {6, 1}}}});
+        edit(scene, {MoveComponent{clock, {0, 0}}});
+        const auto& wire = scene.getWires().begin()->second;
+        require(
+            wire.containsPoint({-6, 1}) && wire.containsPoint({6, 1}) &&
+                !wire.containsPoint({0, 1}),
+            "Moving a body without a pin landing did not preserve and reroute the covered wire."
+        );
+    }
+    {
+        Scene scene;
+        const int landing = scene.addComponent(BuiltinComponentIds::Output, {0, 6});
+        edit(scene, {AddWire{{{-6, 0}, {6, 0}, {6, 4}, {-6, 4}, {-6, 0}}}});
+        edit(scene, {MoveComponent{landing, {0, 0}}});
+        bool loop = false, contact = false;
+        for (const auto& [id, wire] : scene.getWires())
+        {
+            const auto& path = wire.getPath();
+            loop |= path.front() == path.back();
+            contact |= wire.containsPoint({-1, 0});
+            require(!wire.containsPoint({0, 0}), "Landing left a loop inside the body.");
+        }
+        require(
+            loop && contact && scene.netCount() == 1,
+            "Landing deleted a loop or disconnected it from the pin."
+        );
+    }
+    {
+        Scene scene;
+        const int clock = scene.addComponent(BuiltinComponentIds::Clock, {0, 6});
+        edit(scene, {AddWire{{{-1, 1}, {1, 1}, {1, -1}, {-1, -1}, {-1, 1}}}});
+        const auto revision = scene.getRevision();
+        const auto path = scene.getWires().begin()->second.getPath();
+        const auto result = EditorActions(scene).apply({MoveComponent{clock, {0, 0}}});
+        require(
+            !result && scene.getRevision() == revision &&
+                scene.getWires().begin()->second.getPath() == path &&
+                scene.getCommittedComponentView(clock)->getGridPosition() == GridCoords{0, 6},
+            "An unroutable loop was deleted or the failed landing partially committed."
+        );
+    }
+    {
+        Scene scene;
+        const int clock = scene.addComponent(BuiltinComponentIds::Clock, {0, 6});
+        edit(scene, {AddWire{{{-6, 0}, {6, 0}}}});
+        edit(scene, {MoveComponent{clock, {0, 0}, false}});
+        int length = 0;
+        for (const auto& [id, wire] : scene.getWires())
+        {
+            const auto& fixed = wire.getPath();
+            require(fixed.front().y == 0 && fixed.back().y == 0, "Alt movement rerouted a wire.");
+            length += std::abs(fixed.back().x - fixed.front().x);
+        }
+        require(
+            length == 12,
+            "Alt movement trimmed a fixed wire rather than only splitting at its new pin."
+        );
+    }
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -268,7 +479,8 @@ int main(int argc, char** argv)
         const std::pair<const char*, void (*)()> tests[] = {
             {"wire_routing_clearance", clearance},
             {"wire_routing_moves", moves},
-            {"wire_routing_rollback", rollback}
+            {"wire_routing_rollback", rollback},
+            {"wire_routing_landings", landings}
         };
         for (const auto& [name, run] : tests)
             if (argc == 1 || std::string(argv[1]) == name)

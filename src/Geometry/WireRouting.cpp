@@ -36,6 +36,70 @@ std::int64_t distance(GridCoords a, GridCoords b)
 {
     return std::abs(std::int64_t(a.x) - b.x) + std::abs(std::int64_t(a.y) - b.y);
 }
+
+Obstacle componentObstacle(const ComponentGeometry& component)
+{
+    const double spacing = GridMetrics::Spacing;
+    Obstacle bounds{
+        component.componentId,
+        (component.centerX - component.width / 2) / spacing,
+        (component.centerX + component.width / 2) / spacing,
+        (component.centerY - component.height / 2) / spacing,
+        (component.centerY + component.height / 2) / spacing
+    };
+    for (const auto& pin : component.pins)
+    {
+        bounds.left = std::min(bounds.left, double(pin.position.x));
+        bounds.right = std::max(bounds.right, double(pin.position.x));
+        bounds.bottom = std::min(bounds.bottom, double(pin.position.y));
+        bounds.top = std::max(bounds.top, double(pin.position.y));
+    }
+    constexpr double clearance = 0.5;
+    bounds.left -= clearance;
+    bounds.right += clearance;
+    bounds.bottom -= clearance;
+    bounds.top += clearance;
+    return bounds;
+}
+
+bool crossesObstacle(GridCoords a, GridCoords b, const Obstacle& o)
+{
+    constexpr double tolerance = 1e-5;
+    return a.y == b.y ? a.y > o.bottom + tolerance && a.y < o.top - tolerance &&
+                            std::max(a.x, b.x) > o.left + tolerance &&
+                            std::min(a.x, b.x) < o.right - tolerance
+                      : a.x > o.left + tolerance && a.x < o.right - tolerance &&
+                            std::max(a.y, b.y) > o.bottom + tolerance &&
+                            std::min(a.y, b.y) < o.top - tolerance;
+}
+
+bool hasPin(const ComponentGeometry& component, GridCoords position)
+{
+    return std::any_of(
+        component.pins.begin(),
+        component.pins.end(),
+        [&](const auto& pin) { return pin.position == position; }
+    );
+}
+
+double bodyDirection(GridCoords pin, GridCoords next, const ComponentGeometry& component)
+{
+    return (double(next.x) - pin.x) * (component.centerX / GridMetrics::Spacing - pin.x) +
+           (double(next.y) - pin.y) * (component.centerY / GridMetrics::Spacing - pin.y);
+}
+
+bool blockedSegment(
+    const std::vector<GridCoords>& path, std::size_t i, const ComponentGeometry& component
+)
+{
+    // Outward pin access is allowed, just as it is for a new wire gesture.
+    if ((i == 1 && hasPin(component, path.front()) &&
+         bodyDirection(path.front(), path[1], component) < 0) ||
+        (i + 1 == path.size() && hasPin(component, path.back()) &&
+         bodyDirection(path.back(), path[i - 1], component) < 0))
+        return false;
+    return crossesObstacle(path[i - 1], path[i], componentObstacle(component));
+}
 } // namespace
 
 std::optional<std::vector<GridCoords>> routeWire(
@@ -51,29 +115,7 @@ std::optional<std::vector<GridCoords>> routeWire(
         return std::vector<GridCoords>{start};
     std::vector<Obstacle> obstacles;
     for (const auto& component : components)
-    {
-        const double spacing = GridMetrics::Spacing;
-        Obstacle bounds{
-            component.componentId,
-            (component.centerX - component.width / 2) / spacing,
-            (component.centerX + component.width / 2) / spacing,
-            (component.centerY - component.height / 2) / spacing,
-            (component.centerY + component.height / 2) / spacing
-        };
-        for (const auto& pin : component.pins)
-        {
-            bounds.left = std::min(bounds.left, double(pin.position.x));
-            bounds.right = std::max(bounds.right, double(pin.position.x));
-            bounds.bottom = std::min(bounds.bottom, double(pin.position.y));
-            bounds.top = std::max(bounds.top, double(pin.position.y));
-        }
-        constexpr double clearance = 0.5;
-        bounds.left -= clearance;
-        bounds.right += clearance;
-        bounds.bottom -= clearance;
-        bounds.top += clearance;
-        obstacles.push_back(bounds);
-    }
+        obstacles.push_back(componentObstacle(component));
     NetId targetNet = INVALID_NET_ID;
     for (const auto& [id, wire] : wires)
         if (wire.containsPoint(end))
@@ -83,17 +125,11 @@ std::optional<std::vector<GridCoords>> routeWire(
         }
     auto clear = [&](GridCoords a, GridCoords b, int access = -1)
     {
-        constexpr double tolerance = 1e-5;
         for (const auto& o : obstacles)
         {
             if (o.id == access)
                 continue;
-            if (a.y == b.y ? a.y > o.bottom + tolerance && a.y < o.top - tolerance &&
-                                 std::max(a.x, b.x) > o.left + tolerance &&
-                                 std::min(a.x, b.x) < o.right - tolerance
-                           : a.x > o.left + tolerance && a.x < o.right - tolerance &&
-                                 std::max(a.y, b.y) > o.bottom + tolerance &&
-                                 std::min(a.y, b.y) < o.top - tolerance)
+            if (crossesObstacle(a, b, o))
                 return false;
         }
         for (const auto& [id, wire] : wires)
@@ -312,5 +348,194 @@ bool rerouteWireEndpoints(
         reserved.insert_or_assign(id, wire);
     }
     wires = std::move(staged);
+    return true;
+}
+
+bool fitWiresToMovedComponents(
+    std::span<const ComponentGeometry> components,
+    std::span<const int> moved,
+    std::map<WireId, Wire>& wires,
+    WireId& nextWireId,
+    std::span<const WireId> translatedWires
+)
+{
+    auto staged = wires;
+    auto nextId = nextWireId;
+    auto translated = [&](WireId id)
+    {
+        return std::find(translatedWires.begin(), translatedWires.end(), id) !=
+               translatedWires.end();
+    };
+    auto wasMoved = [&](int id)
+    { return std::find(moved.begin(), moved.end(), id) != moved.end(); };
+    std::map<Key, int> degree;
+    for (const auto& [id, wire] : staged)
+        if (wire.getPath().size() >= 2)
+        {
+            ++degree[key(wire.getPath().front())];
+            ++degree[key(wire.getPath().back())];
+        }
+    auto freeEnd = [&](GridCoords end)
+    {
+        return degree.contains(key(end)) && degree.at(key(end)) == 1 &&
+               std::none_of(
+                   components.begin(),
+                   components.end(),
+                   [&](const auto& component) { return hasPin(component, end); }
+               );
+    };
+    auto bodyTail =
+        [&](WireId id, const Wire& wire, GridCoords pin, const ComponentGeometry& component)
+    {
+        const auto& path = wire.getPath();
+        const bool dangling =
+            path.size() >= 2 && ((path.front() == pin && freeEnd(path.back()) &&
+                                  bodyDirection(pin, path[1], component) > 0) ||
+                                 (path.back() == pin && freeEnd(path.front()) &&
+                                  bodyDirection(pin, path[path.size() - 2], component) > 0));
+        if (!dangling)
+            return false;
+        for (const auto& other : components)
+            if (other.componentId != component.componentId)
+                for (const auto& anchor : other.pins)
+                    if (anchor.position != pin && wire.containsPoint(anchor.position))
+                        return false;
+        // Attached-wire rerouting can create a junction before normalization runs.
+        for (const auto& [otherId, other] : wires)
+            if (otherId != id && other.getPath().size() >= 2)
+                for (const auto endpoint : {other.getPath().front(), other.getPath().back()})
+                    if (endpoint != pin && wire.containsPoint(endpoint))
+                        return false;
+        return true;
+    };
+    // Classify tails before splitting at all newly landed pins. Otherwise another
+    // pin on this moving body could falsely protect a previously dangling tail.
+    for (auto it = staged.begin(); it != staged.end();)
+    {
+        bool remove = false;
+        if (!translated(it->first))
+            for (const auto& component : components)
+                if (wasMoved(component.componentId) && !remove)
+                    for (const auto& pin : component.pins)
+                    {
+                        Wire first, second;
+                        if (it->second.splitAt(pin.position, first, second))
+                        {
+                            if (bodyTail(it->first, first, pin.position, component))
+                                it->second = std::move(second);
+                            else if (bodyTail(it->first, second, pin.position, component))
+                                it->second = std::move(first);
+                        }
+                        else if (bodyTail(it->first, it->second, pin.position, component))
+                        {
+                            remove = true;
+                            break;
+                        }
+                    }
+        if (remove)
+            it = staged.erase(it);
+        else
+            ++it;
+    }
+    // Pins and whole-wire endpoints anchor connections, including new junctions
+    // from attached-wire rerouting. Interior visual crossings remain separate.
+    auto splitAt = [&](GridCoords position)
+    {
+        std::vector<std::pair<WireId, Wire>> fragments;
+        for (auto& [id, wire] : staged)
+        {
+            if (translated(id))
+                continue;
+            Wire first, second;
+            if (wire.splitAt(position, first, second))
+            {
+                wire = std::move(first);
+                if (nextId == std::numeric_limits<WireId>::max())
+                    return false;
+                fragments.emplace_back(nextId++, std::move(second));
+            }
+        }
+        for (auto& [id, fragment] : fragments)
+            staged.emplace(id, std::move(fragment));
+        return true;
+    };
+    for (const auto& component : components)
+        for (const auto& pin : component.pins)
+            if (!splitAt(pin.position))
+                return false;
+    for (const auto& [id, wire] : wires)
+        if (wire.getPath().size() >= 2)
+            if (!splitAt(wire.getPath().front()) || !splitAt(wire.getPath().back()))
+                return false;
+
+    std::vector<WireId> affected;
+    for (const auto& [id, wire] : staged)
+    {
+        if (translated(id))
+            continue;
+        const auto& path = wire.getPath();
+        bool blocked = false;
+        for (const auto& component : components)
+            if (wasMoved(component.componentId))
+                for (std::size_t i = 1; i < path.size(); ++i)
+                    blocked |= blockedSegment(path, i, component);
+        if (blocked)
+            affected.push_back(id);
+    }
+    auto reserved = staged;
+    for (const auto id : affected)
+        reserved.erase(id);
+    for (const auto id : affected)
+    {
+        auto& wire = staged.at(id);
+        const auto& path = wire.getPath();
+        std::vector<GridCoords> replacement;
+        std::size_t first = 0;
+        // Keep safe bends as anchors. Replacing a whole loop with its shortest
+        // endpoint route could collapse it into another existing continuation.
+        for (std::size_t last = 1; last < path.size(); ++last)
+        {
+            if (last + 1 < path.size() &&
+                std::any_of(
+                    components.begin(),
+                    components.end(),
+                    [&](const auto& component)
+                    {
+                        return wasMoved(component.componentId) &&
+                               crossesObstacle(
+                                   path[last], path[last], componentObstacle(component)
+                               );
+                    }
+                ))
+                continue;
+            bool blocked = false;
+            for (const auto& component : components)
+                if (wasMoved(component.componentId))
+                    for (std::size_t i = first + 1; i <= last; ++i)
+                        blocked |= blockedSegment(path, i, component);
+            std::vector<GridCoords> span;
+            if (blocked)
+            {
+                if (path[first] == path[last])
+                    return false;
+                const auto route =
+                    routeWire(path[first], path[last], components, reserved, wire.getNet());
+                if (!route)
+                    return false;
+                span = *route;
+            }
+            else
+                span.assign(path.begin() + first, path.begin() + last + 1);
+            replacement.insert(
+                replacement.end(), span.begin() + (replacement.empty() ? 0 : 1), span.end()
+            );
+            first = last;
+        }
+        wire.setPath(replacement);
+        wire.simplifyPath();
+        reserved.insert_or_assign(id, wire);
+    }
+    wires = std::move(staged);
+    nextWireId = nextId;
     return true;
 }

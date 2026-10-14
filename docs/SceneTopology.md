@@ -77,6 +77,13 @@ paths belong to the same candidate scene/change record as the component move;
 failed placement/routing publishes nothing and successful movement rebuilds once.
 Rerouting recalculates affected sections, so their manual bends can change.
 
+When a moved pin lands on an existing wire, the wire is split at that pin. A simple
+dangling tail heading into the component body is trimmed back to the pin. A continuation
+reaching another pin, a junction or a loop is preserved. Covered wire sections reroute
+around the moved component while their endpoints and branch junctions stay fixed;
+an unsafe route cancels the complete move. Visual crossings do not protect a dangling
+tail or become connections. Trimming and rerouting belong to the same undo/redo edit.
+
 `MoveComponent{id, position, false}` leaves routes fixed. Input uses this while
 Alt is held at mouse release. The usual rebuild reconnects matching pin/wire
 geometry, including a drop back in the original position. Simulation connectivity
@@ -85,7 +92,7 @@ New wire gestures preview the same router. A blocked endpoint produces no wire
 and a brief palette-footer hint. Deleting components leaves dangling wiring;
 resizing/arity/definition migrations and live movement-route previews remain future work.
 
-`wire_routing_clearance`, `wire_routing_moves`, `wire_routing_rollback`, and
+`wire_routing_clearance`, `wire_routing_moves`, `wire_routing_rollback`, `wire_routing_landings`, and
 `wire_alt_drag` cover padding/access, unrelated wires, branches, multiple outputs,
 atomic routing failure, restore, both Alt keys, release-time modifiers, same/new
 wire reconnection, and powered-route/fixed-wire framebuffer previews.
