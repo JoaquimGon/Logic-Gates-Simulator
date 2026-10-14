@@ -475,7 +475,9 @@ only a successfully linked replacement clears that cache.
 
 Mesh keeps allocated vertex/instance capacity, grows it when needed, and uses
 `glBufferSubData` for changed contents. Identical packed values skip uploading;
-instance attributes are configured again only when their layout changes. Smaller
+instance attributes are reset and rebound on every submission. This avoids stale
+instance colors on drivers that reuse attribute fetch state across interleaved
+batch updates, including the first cached batch of a later frame. Smaller
 submissions update their draw count without shrinking storage. Renderer reuses
 wire, lead, pin, and junction staging vectors; wire geometry appends directly
 without a temporary vector per wire. Leads have their own mesh so wire/UI drawing
@@ -505,6 +507,8 @@ local Debug build/OpenGL 3.3 NVIDIA 581.57, the initial before/after run was:
 
 Timings vary with the machine and do not predict total application frame time.
 Tests assert deterministic storage/upload/lookup behavior rather than speed.
+`RenderTests --instances` checks translucent A/B/A batches across all six container
+orders over repeated frames, with exact pixel equality and stable draw counts.
 Resource regressions cover vertex growth/shrink/empty restoration, instance color
 changes, present/missing uniform caching, failed compile/link retention, nested
 include reloads, backward timestamps, missing-file recovery, and include cycles.

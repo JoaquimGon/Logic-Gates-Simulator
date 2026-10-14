@@ -121,12 +121,8 @@ void Mesh::setInstanceData(
 
     glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
     upload(instanceData, m_uploadedInstances, m_instanceCapacity);
-    if (m_instanceAttributes == attributeSizes &&
-        m_instanceAttributeStart == startingAttributeLocation)
-    {
-        glBindVertexArray(0);
-        return;
-    }
+    // Reset instance attribute state even when data/layout are unchanged. Some
+    // drivers otherwise retain stale fetches after interleaved batch updates.
     for (std::size_t i = 0; i < m_instanceAttributes.size(); ++i)
         glDisableVertexAttribArray(m_instanceAttributeStart + static_cast<int>(i));
     m_instanceAttributes = attributeSizes;
@@ -139,7 +135,7 @@ void Mesh::setInstanceData(
         totalStride += size;
     }
 
-    // Set up the attribute pointers
+    // Set up the attribute pointers.
     int currentOffset = 0;
     for (size_t i = 0; i < attributeSizes.size(); ++i)
     {
@@ -153,8 +149,7 @@ void Mesh::setInstanceData(
             totalStride * sizeof(float),
             (void*)(currentOffset * sizeof(float))
         );
-        glVertexAttribDivisor(location, 1); // Tell OpenGL this advances PER INSTANCE
-
+        glVertexAttribDivisor(location, 1);
         currentOffset += attributeSizes[i];
     }
 

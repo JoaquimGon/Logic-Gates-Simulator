@@ -114,10 +114,20 @@ void mixedInstances(Renderer& renderer, const CanvasCameraFrame& camera)
         renderer.getDrawCallCount() == 3 && expected[0] > expected[1],
         "Shader regrouping changed alpha compositing order or draw metrics."
     );
-    std::reverse(data.begin(), data.end());
-    renderer.beginFrame(camera);
-    renderer.drawComponents(data);
-    require(pixel({0, 0}) == expected, "Container order changed rendered pixels.");
+    const auto byId = [](const auto& a, const auto& b) { return a.body.id < b.body.id; };
+    std::sort(data.begin(), data.end(), byId);
+    // The last red batch matches the first batch of the next frame: its upload is
+    // cached, but the GPU must still fetch red after the intervening green batch.
+    for (int repeat = 0; repeat < 2; ++repeat)
+        do
+        {
+            renderer.beginFrame(camera);
+            renderer.drawComponents(data);
+            require(
+                renderer.getDrawCallCount() == 3 && pixel({0, 0}) == expected,
+                "Container order or cached instance data changed rendered pixels."
+            );
+        } while (std::next_permutation(data.begin(), data.end(), byId));
     renderer.beginFrame(camera);
     renderer.drawComponents({});
     require(renderer.getDrawCallCount() == 0, "Empty bodies counted a draw.");
@@ -3431,6 +3441,8 @@ int main(int argc, char** argv)
                 clockPresentation(renderer);
                 signalPresentation(renderer);
             }
+            else if (argc > 1 && std::string(argv[1]) == "--instances")
+                mixedInstances(renderer, camera);
             else
             {
                 renderResourceChecks();
