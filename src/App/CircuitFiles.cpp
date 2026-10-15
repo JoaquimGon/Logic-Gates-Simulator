@@ -53,6 +53,32 @@ storeDesign(SavedSubcircuit& design, SubcircuitLibrary& library, CircuitViews& v
 }
 } // namespace
 
+void openExampleCircuit(
+    CircuitExample example, UI& ui, CircuitViews& views, Input& input, CanvasSurface surface
+)
+{
+    auto scene = buildExampleCircuit(example);
+    const auto examples = circuitExamples();
+    const auto info = std::find_if(
+        examples.begin(), examples.end(), [&](const auto& value) { return value.id == example; }
+    );
+    ui.dismissPopups(input);
+    input.cancelCurrentAction();
+    views.create(input);
+    views.replaceWorkspace(std::move(scene), std::string(info->name), input);
+    input.setMode(EditorMode::Interaction);
+    ui.layout(views.activeScene().getComponentCatalog(), surface, input);
+    if (example == CircuitExample::Counter)
+    {
+        ui.showClockPanel(input);
+        views.activeClockTimeline().record(
+            views.activeScene().clockTime(), views.activeScene().clockReadings()
+        );
+    }
+    input.executeViewCommand(Input::ViewCommand::FitCircuit, surface);
+    ui.setFileStatus(std::string(info->description));
+}
+
 void refreshSubcircuitLibrary(SubcircuitLibrary& library, CircuitViews& views, UI& ui)
 {
     std::vector<ComponentDefinition> definitions;

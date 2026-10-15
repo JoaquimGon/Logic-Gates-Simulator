@@ -27,3 +27,7 @@ bool applyFileCommand(
 );
 /** Reads managed designs once, preserving embedded definitions in existing scenes. */
 void refreshSubcircuitLibrary(SubcircuitLibrary& library, CircuitViews& views, UI& ui);
+/** Opens an example in a fresh workspace, preserving all existing tabs. */
+void openExampleCircuit(
+    CircuitExample example, UI& ui, CircuitViews& views, Input& input, CanvasSurface surface
+);

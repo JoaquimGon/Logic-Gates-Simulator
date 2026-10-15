@@ -221,8 +221,13 @@ void run(GLFWwindow* window)
         !ui.dragging() && !input.getUiCapture().pointer && !ui.takeOpenDraft(),
         "Read-only palette trapped input capture."
     );
-    for (const auto& item : ui.menuOptions(UI::Menu::File))
-        require(!item.enabled, "Viewer offered saving or replacing the observed scene.");
+    const auto fileOptions = ui.menuOptions(UI::Menu::File);
+    for (std::size_t i = 0; i < ui.fileCommands().size(); ++i)
+        require(!fileOptions[i].enabled, "Viewer offered saving or replacing the observed scene.");
+    require(
+        fileOptions.back().label == "Examples" && fileOptions.back().enabled,
+        "Viewer blocked examples that open in a separate workspace."
+    );
     require(!ui.menuOptions(UI::Menu::Simulation)[0].enabled, "Viewer offered reset simulation.");
     click(ui.bottomTabBounds(UI::BottomTab::Clocks));
     click(ui.clockControlBounds(UI::ClockControl::SingleStep));

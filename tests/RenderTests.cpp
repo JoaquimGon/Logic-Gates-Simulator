@@ -1864,6 +1864,107 @@ void labelVisibilityPresentation(Renderer& renderer, const CanvasCameraFrame& ca
     saveImage("clock-label-hidden.ppm");
 }
 
+void examplesPresentation(Renderer& renderer)
+{
+    for (const int dpi : {1, 2})
+    {
+        const CanvasSurface surface{extent / dpi, extent / dpi, extent, extent};
+        CircuitViews views;
+        Input input;
+        UI ui;
+        views.select(0, input);
+        ui.setCircuitViews(&views, &renderer.fontMetrics());
+        for (const auto& example : circuitExamples())
+        {
+            views.create(input);
+            views.replaceWorkspace(
+                buildExampleCircuit(example.id), std::string(example.name), input
+            );
+            input.setMode(EditorMode::Interaction);
+            ui.layout(views.activeScene().getComponentCatalog(), surface, input);
+            if (example.id == CircuitExample::Counter)
+            {
+                ui.showClockPanel(input);
+                views.activeClockTimeline().record(0, views.activeScene().clockReadings());
+            }
+            input.executeViewCommand(Input::ViewCommand::FitCircuit, surface);
+            ui.setFileStatus(std::string(example.description));
+            CanvasCamera camera;
+            camera.setViewport(input.getCanvasViewport());
+            camera.setCenter(input.getPanOffset());
+            camera.setZoom(input.getZoom());
+            const auto frame = camera.frame(surface);
+            auto draw = [&]
+            {
+                renderer.beginFrame(frame);
+                const auto data =
+                    buildComponentPresentation(views.activeScene().getComponentViewMap());
+                renderer.drawCanvas(
+                    {data,
+                     views.activeScene().getWires(),
+                     views.activeScene().getWireIntersections()}
+                );
+                ui.draw(renderer, views.activeScene(), frame);
+            };
+            draw();
+            for (const auto& [id, view] : views.activeScene().getComponentViewMap())
+            {
+                const auto point = *frame.worldToWindow(view->getPosition());
+                require(
+                    frame.viewport.contains(point.x, point.y),
+                    "Example did not fit into the canvas."
+                );
+            }
+            const std::string name = "example-" + std::to_string(static_cast<int>(example.id)) +
+                                     (dpi == 1 ? ".ppm" : "-2x.ppm");
+            saveImage(name.c_str());
+            if (example.id != CircuitExample::HalfAdder)
+                continue;
+            const auto file = ui.fileBounds();
+            for (const auto action : {GLFW_PRESS, GLFW_RELEASE})
+                ui.handleInput(
+                    {UiInputKind::MouseButton,
+                     GLFW_MOUSE_BUTTON_LEFT,
+                     action,
+                     0,
+                     0,
+                     file.x + file.width / 2,
+                     file.y + file.height / 2},
+                    views.activeScene(),
+                    input,
+                    frame
+                );
+            const auto parent = ui.fileOptionBounds(static_cast<int>(ui.fileCommands().size()));
+            UiInputEvent hover{UiInputKind::Cursor};
+            hover.x = parent.x + parent.width / 2;
+            hover.y = parent.y + parent.height / 2;
+            ui.handleInput(hover, views.activeScene(), input, frame);
+            require(
+                ui.examplesMenuOpen(), "Examples submenu did not expand in the rendering fixture."
+            );
+            draw();
+            const auto menu = ui.examplesMenuBounds();
+            std::array<unsigned char, 4> value{};
+            glReadPixels(
+                static_cast<int>((menu.x + 3) * dpi),
+                extent - 1 - static_cast<int>((menu.y + 3) * dpi),
+                1,
+                1,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                value.data()
+            );
+            require(
+                value[2] > 30 && value[2] > value[0], "Examples submenu was clipped or missing."
+            );
+            saveImage(dpi == 1 ? "examples-menu.ppm" : "examples-menu-2x.ppm");
+            ui.dismissPopups(input);
+        }
+        ui.setCircuitViews(nullptr, nullptr);
+        input.setScene(nullptr);
+    }
+}
+
 void navigationMenuPresentation(Renderer& renderer)
 {
     for (int scale : {1, 2})
@@ -3443,6 +3544,8 @@ int main(int argc, char** argv)
             }
             else if (argc > 1 && std::string(argv[1]) == "--instances")
                 mixedInstances(renderer, camera);
+            else if (argc > 1 && std::string(argv[1]) == "--examples")
+                examplesPresentation(renderer);
             else
             {
                 renderResourceChecks();
@@ -3472,6 +3575,7 @@ int main(int argc, char** argv)
                 liveSubcircuitPresentation(renderer);
                 gateSettingsPresentation(renderer);
                 navigationMenuPresentation(renderer);
+                examplesPresentation(renderer);
                 labelVisibilityPresentation(renderer, camera);
                 groupSelectionPresentation(renderer, camera);
                 routedWiresPresentation(renderer, camera);

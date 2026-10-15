@@ -45,6 +45,7 @@ target_link_libraries(simulator_component_factory PUBLIC simulator_views)
 add_library(simulator_scene STATIC
     src/Editor/Scene.cpp
     src/Editor/SceneEditing.cpp
+    src/Editor/ExampleCircuits.cpp
     src/Editor/InterfaceComponents.cpp
     src/Editor/Subcircuits.cpp
     src/Editor/Connectivity/ConnectivityBuilder.cpp
@@ -185,6 +186,14 @@ if(BUILD_TESTING)
     target_link_libraries(SignalTraceTests PRIVATE simulator_ui simulator_files glfw)
     target_compile_definitions(SignalTraceTests PRIVATE GLFW_INCLUDE_NONE)
     add_test(NAME signal_traces COMMAND SignalTraceTests)
+
+    add_executable(ExampleCircuitTests tests/ExampleCircuitTests.cpp src/App/CircuitFiles.cpp src/App/FileDialog.cpp)
+    target_link_libraries(ExampleCircuitTests PRIVATE simulator_ui simulator_files glfw)
+    target_compile_definitions(ExampleCircuitTests PRIVATE GLFW_INCLUDE_NONE)
+    if(WIN32)
+        target_link_libraries(ExampleCircuitTests PRIVATE comdlg32 shell32 ole32 uuid)
+    endif()
+    add_test(NAME example_circuits COMMAND ExampleCircuitTests)
 
     add_executable(TruthTableTests tests/TruthTableTests.cpp)
     target_link_libraries(TruthTableTests PRIVATE simulator_ui)

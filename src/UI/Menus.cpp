@@ -60,6 +60,44 @@ CanvasViewport UI::fileBounds() const
     return menuBounds(Menu::File);
 }
 
+CanvasViewport UI::examplesMenuBounds() const
+{
+    const auto parent = menuOptionBounds(Menu::File, static_cast<int>(fileCommands().size()));
+    const auto menu = dropdownBounds(Menu::File);
+    const double width = std::min(230.0, m_bar.width);
+    const double height = std::min(2.0 + circuitExamples().size() * 30, m_panel.height);
+    double x = menu.x + menu.width - 1, y = parent.y;
+    if (x + width > m_bar.width)
+    {
+        if (menu.x >= width)
+            x = menu.x - width + 1;
+        else
+        {
+            x = std::clamp(menu.x, 0.0, std::max(0.0, m_bar.width - width));
+            y = parent.y + parent.height;
+        }
+    }
+    return {
+        x,
+        std::clamp(y, m_bar.height, std::max(m_bar.height, m_surface.windowHeight - height)),
+        width,
+        height
+    };
+}
+
+CanvasViewport UI::exampleOptionBounds(int index) const
+{
+    if (index < 0 || index >= static_cast<int>(circuitExamples().size()))
+        return {};
+    const auto menu = examplesMenuBounds();
+    return {
+        menu.x + 1,
+        menu.y + 1 + index * 30,
+        std::max(0.0, menu.width - 2),
+        std::clamp(menu.height - 1 - index * 30, 0.0, 30.0)
+    };
+}
+
 CanvasViewport UI::fileMenuBounds() const
 {
     return dropdownBounds(Menu::File);
@@ -81,6 +119,7 @@ std::vector<UI::MenuItem> UI::menuOptions(Menu menu) const
     std::vector<MenuItem> items;
     for (const auto& name : fileOptions())
         items.push_back({name, "", !m_readOnly});
+    items.push_back({"Examples", ">"});
     return items;
 }
 
@@ -164,6 +203,7 @@ void UI::closeMenu(Input& input)
     if (!m_openMenu)
         return;
     m_openMenu.reset();
+    m_examplesOpen = false;
     input.setUiCapture({});
     input.setCanvasFocused(true);
 }
@@ -210,9 +250,15 @@ bool UI::handleMenus(const UiInputEvent& event, Input& input)
     if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
         (m_openMenu || m_fileEscapePressed))
     {
-        closeMenu(input);
+        if (event.action == GLFW_PRESS)
+        {
+            if (examplesMenuOpen())
+                m_examplesOpen = false;
+            else
+                closeMenu(input);
+        }
         m_fileEscapePressed = event.action != GLFW_RELEASE;
-        if (!m_fileEscapePressed)
+        if (!m_fileEscapePressed && !m_openMenu)
             input.setCanvasFocused(true);
         return true;
     }
@@ -238,7 +284,23 @@ bool UI::handleMenus(const UiInputEvent& event, Input& input)
     if (m_openMenu && event.kind == UiInputKind::Cursor)
     {
         if (const auto header = headerAt())
+        {
+            if (m_openMenu != header)
+                m_examplesOpen = false;
             m_openMenu = header;
+        }
+        else if (*m_openMenu == Menu::File)
+        {
+            const auto parent =
+                menuOptionBounds(Menu::File, static_cast<int>(fileCommands().size()));
+            if (parent.contains(m_pointer.x, m_pointer.y))
+                m_examplesOpen = true;
+            else if (
+                dropdownBounds(Menu::File).contains(m_pointer.x, m_pointer.y) &&
+                (!m_examplesOpen || !examplesMenuBounds().contains(m_pointer.x, m_pointer.y))
+            )
+                m_examplesOpen = false;
+        }
         return true;
     }
     if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS)
@@ -264,12 +326,28 @@ bool UI::handleMenus(const UiInputEvent& event, Input& input)
             m_fileMousePressed = true;
             if (event.code == GLFW_MOUSE_BUTTON_LEFT)
             {
+                if (examplesMenuOpen())
+                    for (int i = 0; i < static_cast<int>(circuitExamples().size()); ++i)
+                        if (exampleOptionBounds(i).contains(event.x, event.y))
+                        {
+                            m_example = circuitExamples()[i].id;
+                            closeMenu(input);
+                            return true;
+                        }
                 const auto options = menuOptions(menu);
                 for (int i = 0; i < static_cast<int>(options.size()); ++i)
                     if (options[i].enabled && menuOptionBounds(menu, i).contains(event.x, event.y))
                     {
                         if (menu == Menu::File)
-                            m_fileCommand = fileCommands().at(i);
+                        {
+                            const auto commands = fileCommands();
+                            if (i == static_cast<int>(commands.size()))
+                            {
+                                m_examplesOpen = true;
+                                return true;
+                            }
+                            m_fileCommand = commands.at(i);
+                        }
                         else
                             m_menuCommand = std::pair{menu, i};
                     }

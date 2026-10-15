@@ -2,6 +2,7 @@
 
 #include "Editor/CircuitViews.h"
 #include "Editor/EditorMode.h"
+#include "Editor/ExampleCircuits.h"
 #include "Editor/UiInput.h"
 #include "Geometry/CanvasCamera.h"
 #include "Geometry/GridCoords.h"
@@ -52,6 +53,12 @@ class UI
     CanvasViewport dropdownBounds(Menu menu) const;
     CanvasViewport menuOptionBounds(Menu menu, int index) const;
     std::vector<MenuItem> menuOptions(Menu menu) const;
+    CanvasViewport examplesMenuBounds() const;
+    CanvasViewport exampleOptionBounds(int index) const;
+
+    bool examplesMenuOpen() const { return m_openMenu == Menu::File && m_examplesOpen; }
+
+    std::optional<CircuitExample> takeExample() { return std::exchange(m_example, std::nullopt); }
 
     /** Lets the frame loop present the reset state before advancing automatic clock time. */
     bool takeSimulationReset() { return std::exchange(m_simulationReset, false); }
@@ -95,6 +102,8 @@ class UI
         Warning,
         Error
     };
+
+    void showClockPanel(Input& input);
 
     void addMessage(std::string message, MessageKind kind = MessageKind::Error);
     void reportSimulation(const Scene& scene, double now);
@@ -340,6 +349,8 @@ class UI
     std::string m_nameDraft, m_infoError;
     CircuitTabs m_circuitTabs;
     std::optional<Menu> m_openMenu;
+    bool m_examplesOpen = false;
+    std::optional<CircuitExample> m_example;
     std::optional<std::pair<Menu, int>> m_menuCommand;
     std::vector<MenuItem> m_editOptions, m_viewOptions;
     bool m_bottomVisible = true, m_debugVisible = false, m_simulationReset = false;

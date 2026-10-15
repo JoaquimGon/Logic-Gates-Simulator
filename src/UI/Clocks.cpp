@@ -17,6 +17,14 @@ std::string UI::frequencyText(float frequency)
     return text.str();
 }
 
+void UI::showClockPanel(Input& input)
+{
+    dismissPopups(input);
+    m_bottomVisible = true;
+    m_bottomTab = BottomTab::Clocks;
+    layoutBottom(input);
+}
+
 ClockTimeline& UI::clockTimeline()
 {
     return m_views ? m_views->activeClockTimeline() : m_clockTimeline;

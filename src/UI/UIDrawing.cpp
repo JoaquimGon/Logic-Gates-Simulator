@@ -759,6 +759,26 @@ void UI::draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& c
         renderer.drawText(text, TextSpace::Screen);
         renderer.setScreenClip(std::nullopt);
     }
+    if (examplesMenuOpen())
+    {
+        text.clear();
+        const auto submenu = examplesMenuBounds();
+        renderer.setScreenClip(submenu);
+        renderer.drawScreenRect(submenu, {0.3f, 0.45f, 0.6f, 1});
+        renderer.drawScreenRect(
+            {submenu.x + 1, submenu.y + 1, submenu.width - 2, submenu.height - 2},
+            {0.08f, 0.12f, 0.17f, 1}
+        );
+        for (int i = 0; i < static_cast<int>(circuitExamples().size()); ++i)
+        {
+            const auto bounds = exampleOptionBounds(i);
+            if (bounds.contains(m_pointer.x, m_pointer.y))
+                renderer.drawScreenRect(bounds, {0.16f, 0.3f, 0.46f, 1});
+            label(std::string(circuitExamples()[i].name), bounds, 0.42f, ink);
+        }
+        renderer.drawText(text, TextSpace::Screen);
+        renderer.setScreenClip(std::nullopt);
+    }
     if (const auto mode = hoveredMode())
     {
         const auto bounds = modeTooltipBounds();

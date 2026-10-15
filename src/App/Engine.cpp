@@ -202,6 +202,20 @@ void Engine::run()
         }
         if (const auto index = m_ui.takeCloseCircuit())
             unsaved.request({UnsavedWork::Operation::Close, *index}, circuits, m_ui, input);
+        if (const auto example = m_ui.takeExample())
+        {
+            try
+            {
+                openExampleCircuit(
+                    *example, m_ui, circuits, input, input.getCameraFrame(window).surface
+                );
+            }
+            catch (const std::exception& error)
+            {
+                m_ui.setFileStatus(error.what(), true);
+            }
+            lastFrameTime = glfwGetTime();
+        }
         if (const auto command = m_ui.takeFileCommand())
         {
             if (*command == UI::FileCommand::Open)
