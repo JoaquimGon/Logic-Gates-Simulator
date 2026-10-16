@@ -1,5 +1,6 @@
 #include "Editor/Actions/EditHistory.h"
 
+#include "Diagnostics/EditProfile.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/Scene.h"
 
@@ -24,7 +25,9 @@ void EditHistory::clear()
 
 EditResult EditHistory::restore(Scene& scene, const Scene& snapshot)
 {
-    Scene target(snapshot);
+    edit_profile::Scope restoreScope(edit_profile::Phase::Restore);
+    Scene target =
+        edit_profile::measure(edit_profile::Phase::SceneCopy, [&] { return Scene(snapshot); });
     // Keep unused session-library entries added/updated since the historical edit.
     std::set<std::string> used;
     for (const auto& [id, view] : target.getComponentViewMap())

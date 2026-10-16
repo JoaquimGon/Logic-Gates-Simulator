@@ -2,6 +2,7 @@
 
 #include "Components/ComponentFactory.h"
 #include "Components/Definitions/NativeDefinitions.h"
+#include "Diagnostics/EditProfile.h"
 #include "Editor/InterfaceComponents.h"
 #include "Editor/Scene.h"
 #include "Geometry/GeometryQueries.h"
@@ -85,7 +86,9 @@ EditResult EditorActions::publish(
 {
     auto record = std::make_shared<EditRecord>();
     record->before = std::move(before);
-    record->after = std::make_shared<Scene>(candidate);
+    record->after = edit_profile::measure(
+        edit_profile::Phase::Snapshot, [&] { return std::make_shared<Scene>(candidate); }
+    );
     for (const auto& [id, wire] : candidate.m_wires)
         if (!record->before->m_wires.contains(id))
             record->addedWireIds.push_back(id);
@@ -114,8 +117,11 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
 
     try
     {
-        auto before = std::make_shared<Scene>(m_scene);
-        Scene candidate(*before);
+        auto before = edit_profile::measure(
+            edit_profile::Phase::Snapshot, [&] { return std::make_shared<Scene>(m_scene); }
+        );
+        Scene candidate =
+            edit_profile::measure(edit_profile::Phase::SceneCopy, [&] { return Scene(*before); });
         std::vector<int> components;
         std::vector<int> moved;
         std::vector<WireId> translatedWires;
@@ -902,8 +908,11 @@ EditResult EditorActions::restore(const Scene& snapshot, std::uint64_t expectedR
         );
     try
     {
-        auto before = std::make_shared<Scene>(m_scene);
-        Scene candidate(snapshot);
+        auto before = edit_profile::measure(
+            edit_profile::Phase::Snapshot, [&] { return std::make_shared<Scene>(m_scene); }
+        );
+        Scene candidate =
+            edit_profile::measure(edit_profile::Phase::SceneCopy, [&] { return Scene(snapshot); });
         candidate.m_requireInterfaceNames = m_scene.m_requireInterfaceNames;
         if (candidate.m_requireInterfaceNames)
             for (const auto& operation : missingInterfaceNames(candidate))

@@ -11,9 +11,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(BUILD_SIMULATOR_APP "Build the OpenGL simulator application" ON)
+option(BUILD_BENCHMARKS "Build the opt-in performance benchmark runner" OFF)
+option(BENCHMARK_EDIT_PROFILING "Compile opt-in edit phase probes (benchmark builds only)" ON)
 include(CTest)
 include(cmake/ProjectOptions.cmake)
 include(cmake/Dependencies.cmake)
+
+if(BUILD_BENCHMARKS AND BENCHMARK_EDIT_PROFILING)
+    target_compile_definitions(project_options INTERFACE LOGIC_BENCHMARK_EDIT_PROFILE=1)
+endif()
 
 add_library(simulator_components STATIC
     src/Components/Gate.cpp
@@ -130,6 +136,50 @@ if(BUILD_SIMULATOR_APP)
         RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin/Debug"
         RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin/Release"
     )
+endif()
+
+if(BUILD_BENCHMARKS)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    # Always refresh, including edits made since configuration. Embed the snapshot
+    # in the binary so subsequent builds cannot replace an older executable's identity.
+    set(BENCHMARK_MANIFEST_HEADER "${CMAKE_CURRENT_BINARY_DIR}/benchmark-generated/BuildManifest.h")
+    add_custom_target(benchmark_manifest
+        COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/benchmarks/build_manifest.py"
+            --source "${PROJECT_SOURCE_DIR}" --build "${CMAKE_BINARY_DIR}"
+            --output "${BENCHMARK_MANIFEST_HEADER}" --config "$<CONFIG>"
+            --compiler "${CMAKE_CXX_COMPILER}" --compiler-version "${CMAKE_CXX_COMPILER_VERSION}"
+            --cmake-version "${CMAKE_VERSION}"
+        BYPRODUCTS "${BENCHMARK_MANIFEST_HEADER}" VERBATIM)
+    add_executable(PerformanceBenchmarks benchmarks/PerformanceBenchmarks.cpp benchmarks/Correctness.cpp
+        benchmarks/EditProfiling.cpp benchmarks/Coverage.cpp)
+    add_dependencies(PerformanceBenchmarks benchmark_manifest)
+    target_include_directories(PerformanceBenchmarks PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/benchmark-generated")
+    target_link_libraries(PerformanceBenchmarks PRIVATE simulator_files nlohmann_json::nlohmann_json)
+    target_compile_definitions(PerformanceBenchmarks PRIVATE
+        BENCHMARK_BUILD_TYPE="$<CONFIG>"
+        BENCHMARK_RENDERING=$<BOOL:${BUILD_SIMULATOR_APP}>)
+    if(WIN32)
+        target_link_libraries(PerformanceBenchmarks PRIVATE psapi advapi32)
+    endif()
+    if(BUILD_SIMULATOR_APP)
+        target_sources(PerformanceBenchmarks PRIVATE benchmarks/RenderBenchmarks.cpp)
+        target_link_libraries(PerformanceBenchmarks PRIVATE simulator_graphics glfw)
+        target_compile_definitions(PerformanceBenchmarks PRIVATE GLFW_INCLUDE_NONE)
+    endif()
+    if(BUILD_TESTING)
+        add_test(NAME benchmark_smoke COMMAND PerformanceBenchmarks --smoke --suite cpu)
+        set_tests_properties(benchmark_smoke PROPERTIES TIMEOUT 60)
+        add_test(NAME benchmark_validators COMMAND PerformanceBenchmarks --suite validators --smoke)
+        add_test(NAME benchmark_report_validators COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/benchmarks/test_tools.py" --executable "$<TARGET_FILE:PerformanceBenchmarks>")
+        if(BUILD_SIMULATOR_APP)
+            add_test(NAME benchmark_render_validators COMMAND PerformanceBenchmarks --suite render --smoke --require-rendering)
+            set_tests_properties(benchmark_render_validators PROPERTIES TIMEOUT 60)
+        else()
+            add_test(NAME benchmark_headless_rendering_contract COMMAND "${Python3_EXECUTABLE}"
+                "${PROJECT_SOURCE_DIR}/benchmarks/test_headless.py" "$<TARGET_FILE:PerformanceBenchmarks>")
+            set_tests_properties(benchmark_headless_rendering_contract PROPERTIES TIMEOUT 120)
+        endif()
+    endif()
 endif()
 
 if(BUILD_TESTING)

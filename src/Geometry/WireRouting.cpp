@@ -1,5 +1,6 @@
 #include "Geometry/WireRouting.h"
 
+#include "Diagnostics/EditProfile.h"
 #include "Geometry/GridMetrics.h"
 
 #include <algorithm>
@@ -111,6 +112,7 @@ std::optional<std::vector<GridCoords>> routeWire(
     bool horizontalFirst
 )
 {
+    edit_profile::Scope profileScope(edit_profile::Phase::Routing);
     if (start == end)
         return std::vector<GridCoords>{start};
     std::vector<Obstacle> obstacles;
@@ -310,6 +312,7 @@ bool rerouteWireEndpoints(
     std::span<const WireId> translatedWires
 )
 {
+    edit_profile::Scope profileScope(edit_profile::Phase::Routing);
     std::map<Key, GridCoords> endpoints;
     for (const auto& [from, to] : moves)
         if (from != to)
@@ -359,6 +362,7 @@ bool fitWiresToComponents(
     std::span<const WireId> translatedWires
 )
 {
+    edit_profile::Scope profileScope(edit_profile::Phase::Routing);
     auto staged = wires;
     auto nextId = nextWireId;
     auto translated = [&](WireId id)

@@ -1,5 +1,7 @@
 #include "Geometry/WireNormalization.h"
 
+#include "Diagnostics/EditProfile.h"
+
 #include <algorithm>
 #include <cstdlib>
 #include <utility>
@@ -315,6 +317,7 @@ void WireNormalizer::dropDegenerateWires()
 WireChanges
 normalizeWires(std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins, WireId& nextWireId)
 {
+    edit_profile::Scope profileScope(edit_profile::Phase::Normalization);
     std::vector<WireId> before;
     for (const auto& [id, wire] : wires)
         before.push_back(id);

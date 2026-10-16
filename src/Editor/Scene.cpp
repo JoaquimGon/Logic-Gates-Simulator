@@ -1,6 +1,7 @@
 #include "Scene.h"
 
 #include "Components/Definitions/NativeDefinitions.h"
+#include "Diagnostics/EditProfile.h"
 #include "Editor/InterfaceComponents.h"
 #include "Geometry/GeometryQueries.h"
 #include "Geometry/WireNormalization.h"
@@ -123,7 +124,10 @@ void Scene::rebuildNets()
     for (const auto& component : geometry)
         pins.insert(pins.end(), component.pins.begin(), component.pins.end());
     normalizeWires(m_wires, pins, m_nextWireId);
-    auto topology = buildConnectivity(m_wires, pins, m_circuit, m_nextNetId);
+    auto topology = edit_profile::measure(
+        edit_profile::Phase::Connectivity,
+        [&] { return buildConnectivity(m_wires, pins, m_circuit, m_nextNetId); }
+    );
     m_nets = std::move(topology.nets);
     m_pinNet = std::move(topology.pinNets);
     m_nextNetId = topology.nextNetId;
