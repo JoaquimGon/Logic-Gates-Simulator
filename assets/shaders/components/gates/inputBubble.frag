@@ -4,6 +4,7 @@ out vec4 FragColor;
 in vec4 instanceTint;
 in vec2 localPos;
 
+
 void main()
 {
     // One-cell diameter with space around the quad for antialiasing.

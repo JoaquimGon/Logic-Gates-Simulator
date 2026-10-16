@@ -21,6 +21,8 @@ struct Graphics
     Renderer renderer;
     bool loaded = false;
 
+
+    /** @brief Release renderer resources while the benchmark's graphics context is still current. */
     ~Graphics()
     {
         renderer.shutdown();
@@ -35,6 +37,7 @@ struct Graphics
     }
 };
 
+
 std::vector<Pixel> image()
 {
     std::vector<Pixel> pixels(1920 * 1080);
@@ -42,12 +45,14 @@ std::vector<Pixel> image()
     return pixels;
 }
 
+
 struct PixelProbe
 {
     int index;
     Pixel expected;
     std::string kind;
 };
+
 
 int pixelIndex(const CanvasCameraFrame& frame, glm::vec2 world)
 {
@@ -57,20 +62,18 @@ int pixelIndex(const CanvasCameraFrame& frame, glm::vec2 world)
     return y * 1920 + x;
 }
 
+
+/** @brief Choose raster-covered interior sample pixels and derive expected component, lead and wire colours. */
 std::vector<PixelProbe> probes(
-    const CanvasCameraFrame& frame,
-    const std::vector<ComponentRenderData>& data,
-    const std::map<WireId, Wire>& wires,
+    const CanvasCameraFrame& frame, const std::vector<ComponentRenderData>& data, const std::map<WireId, Wire>& wires,
     const std::vector<Pixel>& background
 )
 {
     std::vector<PixelProbe> result;
     for (const auto& component : data)
-        for (const auto offset :
-             std::array{glm::vec2{0, 0}, glm::vec2{.08f, .08f}, glm::vec2{.08f, -.08f}})
+        for (const auto offset : std::array{glm::vec2{0, 0}, glm::vec2{.08f, .08f}, glm::vec2{.08f, -.08f}})
         {
-            const int index =
-                pixelIndex(frame, component.body.position + offset * component.body.size);
+            const int index = pixelIndex(frame, component.body.position + offset * component.body.size);
             const auto& tint = component.body.style.tint;
             Pixel expected{0, 0, 0, 255};
             // Interior samples avoid SDF edges/rims. RGB8 blending is alpha*tint+(1-alpha)*grid.
@@ -83,8 +86,7 @@ std::vector<PixelProbe> probes(
     for (const auto& [id, wire] : wires)
     {
         const auto& path = wire.getPath();
-        const auto a = GridSystem::gridToWorld(path.front()),
-                   b = GridSystem::gridToWorld(path.back());
+        const auto a = GridSystem::gridToWorld(path.front()), b = GridSystem::gridToWorld(path.back());
         for (const float t : {.45f, .7f})
         {
             const auto world = a + (b - a) * t;
@@ -102,27 +104,23 @@ std::vector<PixelProbe> probes(
         }
     }
     check(
-        std::count_if(
-            result.begin(), result.end(), [](const auto& p) { return p.kind == "wire"; }
-        ) >= 2,
+        std::count_if(result.begin(), result.end(), [](const auto& p) { return p.kind == "wire"; }) >= 2,
         "Fixture has insufficient rasterized wire probes at this zoom."
     );
     return result;
 }
 
-bool matches(
-    const std::vector<Pixel>& pixels,
-    const std::vector<PixelProbe>& expected,
-    const std::string& kind = ""
-)
+
+bool matches(const std::vector<Pixel>& pixels, const std::vector<PixelProbe>& expected, const std::string& kind = "")
 {
     for (const auto& probe : expected)
-        if ((kind.empty() || probe.kind == kind) &&
-            !pixelMatches(pixels[probe.index], probe.expected))
+        if ((kind.empty() || probe.kind == kind) && !pixelMatches(pixels[probe.index], probe.expected))
             return false;
     return true;
 }
 
+
+/** @brief Compare actual framebuffer pixels against independently derived expected RGB values. */
 void validate(const std::vector<Pixel>& pixels, const std::vector<PixelProbe>& expected)
 {
     for (const auto& probe : expected)
@@ -131,13 +129,14 @@ void validate(const std::vector<Pixel>& pixels, const std::vector<PixelProbe>& e
             const auto a = pixels[probe.index], b = probe.expected;
             throw std::runtime_error(
                 "Wrong " + probe.kind + " pixel at " + std::to_string(probe.index) + ": actual " +
-                std::to_string(a[0]) + "," + std::to_string(a[1]) + "," + std::to_string(a[2]) +
-                "; expected " + std::to_string(b[0]) + "," + std::to_string(b[1]) + "," +
-                std::to_string(b[2])
+                std::to_string(a[0]) + "," + std::to_string(a[1]) + "," + std::to_string(a[2]) + "; expected " +
+                std::to_string(b[0]) + "," + std::to_string(b[1]) + "," + std::to_string(b[2])
             );
         }
 }
 
+
+/** @brief Check fixed-scale native pin colours and require deliberately invalid frames to fail the pixel validator. */
 void validatePins(Renderer& renderer)
 {
     // Keep pin cores well above one pixel; fitted benchmark scenes can shrink
@@ -148,8 +147,7 @@ void validatePins(Renderer& renderer)
     const auto definitions = nativeDefinitions();
     std::vector<ComponentRenderData> components;
     for (const auto& definition : definitions)
-        if (definition.identity.id == BuiltinComponentIds::And ||
-            definition.identity.id == BuiltinComponentIds::Or ||
+        if (definition.identity.id == BuiltinComponentIds::And || definition.identity.id == BuiltinComponentIds::Or ||
             definition.identity.id == BuiltinComponentIds::Xor)
         {
             const glm::vec2 position{(int(components.size()) - 1) * .5f, 0};
@@ -167,12 +165,7 @@ void validatePins(Renderer& renderer)
             {
                 const auto anchor = position + GridSystem::gridToWorld(pin.anchor);
                 component.pins.push_back(
-                    {pin.direction,
-                     pin.index,
-                     PinState::OFF,
-                     anchor,
-                     "",
-                     buildPinLead(component.body, anchor)}
+                    {pin.direction, pin.index, PinState::OFF, anchor, "", buildPinLead(component.body, anchor)}
                 );
             }
             components.push_back(std::move(component));
@@ -203,6 +196,7 @@ void validatePins(Renderer& renderer)
 }
 } // namespace
 
+
 void rendering(const Config& config, Recorder& results)
 {
     Graphics graphics;
@@ -219,16 +213,12 @@ void rendering(const Config& config, Recorder& results)
     graphics.window = glfwCreateWindow(64, 64, "Release rendering benchmark", nullptr, nullptr);
     if (!graphics.window)
     {
-        check(
-            !config.requireRendering, "Required rendering validation cannot create OpenGL context."
-        );
+        check(!config.requireRendering, "Required rendering validation cannot create OpenGL context.");
         results.outcome("rendering", 0, "unavailable", "Cannot create an OpenGL 3.3 context.");
         return;
     }
     glfwMakeContextCurrent(graphics.window);
-    check(
-        gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)), "Cannot load OpenGL."
-    );
+    check(gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)), "Cannot load OpenGL.");
     graphics.loaded = true;
     results.metadata["gpu"] = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
     results.metadata["gpu_vendor"] = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
@@ -247,8 +237,7 @@ void rendering(const Config& config, Recorder& results)
         "anti-aliasing. Background, missing body/wire and wrong state controls. Reads/checks "
         "outside timings.";
     results.metadata["render_controlled_pair"] = {
-        "render_mixed_static vs render_mixed_grouped_static",
-        "render_mixed_active vs render_mixed_grouped_active"
+        "render_mixed_static vs render_mixed_grouped_static", "render_mixed_active vs render_mixed_grouped_active"
     };
     glGenTextures(1, &graphics.texture);
     glBindTexture(GL_TEXTURE_2D, graphics.texture);
@@ -257,19 +246,12 @@ void rendering(const Config& config, Recorder& results)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glGenFramebuffers(1, &graphics.framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, graphics.framebuffer);
-    glFramebufferTexture2D(
-        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, graphics.texture, 0
-    );
-    check(
-        glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
-        "Benchmark framebuffer incomplete."
-    );
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, graphics.texture, 0);
+    check(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Benchmark framebuffer incomplete.");
     check(graphics.renderer.init(), "Renderer initialization failed.");
     validatePins(graphics.renderer);
     results.outcome(
-        "render_pin_state_controls",
-        3,
-        "pass",
+        "render_pin_state_controls", 3, "pass",
         "Nine native gate pin cores checked against exact OFF/ON/disconnected colors at fixed "
         "zoom; wrong states rejected. Untimed."
     );
@@ -295,11 +277,8 @@ void rendering(const Config& config, Recorder& results)
                 std::array<const ComponentDefinition*, 3> types{};
                 for (const auto& definition : definitions)
                     for (int i = 0; i < 3; ++i)
-                        if (definition.identity.id == std::array{
-                                                          BuiltinComponentIds::And,
-                                                          BuiltinComponentIds::Or,
-                                                          BuiltinComponentIds::Xor
-                                                      }[i])
+                        if (definition.identity.id ==
+                            std::array{BuiltinComponentIds::And, BuiltinComponentIds::Or, BuiltinComponentIds::Xor}[i])
                             types[i] = &definition;
                 std::vector<ComponentRenderData> data;
                 std::map<WireId, Wire> wires;
@@ -322,12 +301,7 @@ void rendering(const Config& config, Recorder& results)
                     {
                         const auto anchor = position + GridSystem::gridToWorld(pin.anchor);
                         component.pins.push_back(
-                            {pin.direction,
-                             pin.index,
-                             PinState::OFF,
-                             anchor,
-                             "",
-                             buildPinLead(component.body, anchor)}
+                            {pin.direction, pin.index, PinState::OFF, anchor, "", buildPinLead(component.body, anchor)}
                         );
                     }
                     data.push_back(std::move(component));
@@ -340,12 +314,7 @@ void rendering(const Config& config, Recorder& results)
                 camera.setCenter(GridSystem::gridToWorld({(columns - 1) * 4, (rows - 1) * 4}));
                 const double spacing = GridSystem::GRID_SPACING;
                 camera.setZoom(
-                    float(
-                        std::min(
-                            2.0 * 1920 / 1080 / (columns * 8 * spacing), 2.0 / (rows * 8 * spacing)
-                        ) /
-                        1.05
-                    )
+                    float(std::min(2.0 * 1920 / 1080 / (columns * 8 * spacing), 2.0 / (rows * 8 * spacing)) / 1.05)
                 );
                 const auto frame = camera.frame({1920, 1080, 1920, 1080});
                 auto mutate = [&](int sample)
@@ -370,22 +339,14 @@ void rendering(const Config& config, Recorder& results)
                 graphics.renderer.drawCanvas({{}, {}, {}});
                 const auto background = image();
                 auto expected = probes(frame, data, wires, background);
-                check(
-                    !matches(background, expected, "component"),
-                    "Component validator accepted a grid-only frame."
-                );
+                check(!matches(background, expected, "component"), "Component validator accepted a grid-only frame.");
                 // Actual GL negative controls, not only synthetic byte-array tests.
                 graphics.renderer.beginFrame(frame);
                 graphics.renderer.drawCanvas({{}, wires, {}});
-                check(
-                    !matches(image(), expected, "component"),
-                    "Component validator accepted missing bodies."
-                );
+                check(!matches(image(), expected, "component"), "Component validator accepted missing bodies.");
                 graphics.renderer.beginFrame(frame);
                 graphics.renderer.drawCanvas({data, {}, {}});
-                check(
-                    !matches(image(), expected, "wire"), "Wire validator accepted missing wires."
-                );
+                check(!matches(image(), expected, "wire"), "Wire validator accepted missing wires.");
                 for (const PinState state : {PinState::OFF, PinState::ON, PinState::DISCONNECTED})
                 {
                     for (auto& component : data)
@@ -398,10 +359,7 @@ void rendering(const Config& config, Recorder& results)
                     const auto stateExpected = probes(frame, data, wires, background);
                     validate(pixels, stateExpected);
                     if (state == PinState::ON)
-                        check(
-                            !matches(pixels, expected, "wire"),
-                            "Wire validator accepted the wrong logic state."
-                        );
+                        check(!matches(pixels, expected, "wire"), "Wire validator accepted the wrong logic state.");
                 }
                 for (auto& component : data)
                     for (auto& pin : component.pins)
@@ -448,54 +406,35 @@ void rendering(const Config& config, Recorder& results)
                         for (int i = 0; i < size; ++i)
                             data[i].body.id = i;
                         draw();
-                        check(
-                            image() == pixels,
-                            "Batch ordering changed the controlled fixture's visual composition."
-                        );
+                        check(image() == pixels, "Batch ordering changed the controlled fixture's visual composition.");
                         for (int i = 0; i < size; ++i)
                             data[i].body.id = (i % 3) * size + i;
                     }
                     for (int sample = 0; sample < config.samples; ++sample)
                     {
-                        results.sample(
-                            scenario, size, trial, sample, "cpu_submit_ms", cpu[sample], "ms"
-                        );
+                        results.sample(scenario, size, trial, sample, "cpu_submit_ms", cpu[sample], "ms");
                         if (timerBits)
                         {
                             GLuint64 nanoseconds = 0;
                             glGetQueryObjectui64v(queries[sample], GL_QUERY_RESULT, &nanoseconds);
                             results.sample(
-                                scenario,
-                                size,
-                                trial,
-                                sample,
-                                "gpu_ms",
-                                double(nanoseconds) / 1000000,
-                                "ms"
+                                scenario, size, trial, sample, "gpu_ms", double(nanoseconds) / 1000000, "ms"
                             );
                         }
                     }
                     results.sample(
-                        scenario,
-                        size,
-                        trial,
-                        0,
-                        "completed_batch_frame_ms",
-                        completed / config.samples,
-                        "ms"
+                        scenario, size, trial, 0, "completed_batch_frame_ms", completed / config.samples, "ms"
                     );
                     results.sample(scenario, size, trial, 0, "draw_calls", drawCalls, "count");
                 }
                 results.outcome(
-                    scenario,
-                    size,
-                    "pass",
+                    scenario, size, "pass",
                     ordering == 2 ? "Same mixed composition/positions/shaders as interleaved case; "
                                     "only body IDs determining batch order change. Full "
                                     "framebuffer equivalence checked."
-                    : mixed ? "Interleaved shaders; paired with mixed_grouped, identical visual "
-                              "composition."
-                            : "Identical shader, favorable batching."
+                    : mixed       ? "Interleaved shaders; paired with mixed_grouped, identical visual "
+                                    "composition."
+                                  : "Identical shader, favorable batching."
                 );
             }
     if (timerBits)

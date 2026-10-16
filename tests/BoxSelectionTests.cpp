@@ -18,6 +18,7 @@ void require(bool value, const char* message)
         throw std::runtime_error(message);
 }
 
+
 struct Editor
 {
     Scene scene;
@@ -26,6 +27,8 @@ struct Editor
     int source, first, second, outside;
     WireId internal, extra;
 
+
+    /** @brief Create a connected scene and bind headless input for box-selection gestures. */
     explicit Editor(GLFWwindow* window) : window(window)
     {
         input.setScene(&scene);
@@ -43,7 +46,9 @@ struct Editor
         scene.propagate();
     }
 
+
     ~Editor() { glfwSetWindowUserPointer(window, nullptr); }
+
 
     void cursor(GridCoords grid)
     {
@@ -53,10 +58,9 @@ struct Editor
         input.handleCursorPos(window, point->x, point->y);
     }
 
-    void mouse(int action, int mods = 0)
-    {
-        input.handleMouseButton(window, GLFW_MOUSE_BUTTON_LEFT, action, mods);
-    }
+
+    void mouse(int action, int mods = 0) { input.handleMouseButton(window, GLFW_MOUSE_BUTTON_LEFT, action, mods); }
+
 
     void key(int key)
     {
@@ -64,6 +68,7 @@ struct Editor
         input.process(window);
         input.handleKey(key, GLFW_RELEASE);
     }
+
 
     void box(GridCoords a = {-9, -4}, GridCoords b = {9, 4})
     {
@@ -73,6 +78,7 @@ struct Editor
         mouse(GLFW_RELEASE, GLFW_MOD_SHIFT);
     }
 
+
     void ctrl(GridCoords point)
     {
         cursor(point);
@@ -81,6 +87,8 @@ struct Editor
     }
 };
 
+
+/** @brief Verify box selection, modifier policies and the distinction between candidates and committed highlights. */
 void selection(GLFWwindow* window)
 {
     Editor editor(window);
@@ -89,14 +97,11 @@ void selection(GLFWwindow* window)
     editor.mouse(GLFW_PRESS);
     editor.mouse(GLFW_RELEASE);
     require(
-        editor.input.getSelectedComponents() == std::set<int>{editor.first} &&
-            !editor.input.isBoxSelection(),
+        editor.input.getSelectedComponents() == std::set<int>{editor.first} && !editor.input.isBoxSelection(),
         "Ordinary gate selection acquired the box highlight style."
     );
     editor.ctrl({0, 0});
-    require(
-        !editor.input.isBoxSelection(), "Ordinary Ctrl selection acquired the box highlight style."
-    );
+    require(!editor.input.isBoxSelection(), "Ordinary Ctrl selection acquired the box highlight style.");
 
     const auto priorComponents = editor.input.getSelectedComponents();
     const auto priorWires = editor.input.getSelectedWires();
@@ -105,8 +110,7 @@ void selection(GLFWwindow* window)
     editor.cursor({-9, -4});
     editor.mouse(GLFW_PRESS, GLFW_MOD_SHIFT);
     require(
-        editor.input.getHighlightedComponents().empty() &&
-            editor.input.getHighlightedWires().empty() &&
+        editor.input.getHighlightedComponents().empty() && editor.input.getHighlightedWires().empty() &&
             editor.input.getSelectionHighlightOpacity() == 0.35f,
         "Starting a new box retained old highlights instead of faint candidates."
     );
@@ -125,8 +129,7 @@ void selection(GLFWwindow* window)
     require(
         editor.input.getHighlightedComponents() == std::set<int>{editor.first, editor.second} &&
             editor.input.getHighlightedWires() == std::set<WireId>{editor.internal} &&
-            editor.input.getSelectedComponents() == priorComponents &&
-            editor.input.getSelectedWires() == priorWires &&
+            editor.input.getSelectedComponents() == priorComponents && editor.input.getSelectedWires() == priorWires &&
             editor.input.getSelectionHighlightOpacity() == 0.35f,
         "Live box candidates were missing or changed the committed selection."
     );
@@ -138,21 +141,20 @@ void selection(GLFWwindow* window)
     editor.mouse(GLFW_RELEASE);
     require(
         editor.input.getSelectedComponents() == std::set<int>{editor.first, editor.second} &&
-            editor.input.getSelectedWires() == std::set<WireId>{editor.internal} &&
-            !editor.input.getSelectionBox() && editor.input.isBoxSelection() &&
+            editor.input.getSelectedWires() == std::set<WireId>{editor.internal} && !editor.input.getSelectionBox() &&
+            editor.input.isBoxSelection() &&
             editor.input.getHighlightedComponents() == editor.input.getSelectedComponents() &&
             editor.input.getHighlightedWires() == editor.input.getSelectedWires() &&
-            editor.input.getSelectionHighlightOpacity() == 1.0f &&
-            editor.input.getUndoCount() == undoCount && editor.input.getRedoCount() == redoCount &&
-            editor.scene.getRevision() == revision,
+            editor.input.getSelectionHighlightOpacity() == 1.0f && editor.input.getUndoCount() == undoCount &&
+            editor.input.getRedoCount() == redoCount && editor.scene.getRevision() == revision,
         "Box did not select precisely the fully contained objects."
     );
     editor.box({9, 4}, {-9, -4});
     require(editor.input.getSelectedComponents().size() == 2, "Reverse-direction box failed.");
     editor.ctrl({0, 0});
     require(
-        editor.input.getSelectedWires().empty() &&
-            editor.input.getSelectedComponents().size() == 2 && editor.input.isIdle(),
+        editor.input.getSelectedWires().empty() && editor.input.getSelectedComponents().size() == 2 &&
+            editor.input.isIdle(),
         "Ctrl wire toggle cleared gates or started a branch."
     );
     editor.ctrl({0, 0});
@@ -168,8 +170,8 @@ void selection(GLFWwindow* window)
     );
     editor.box({-9, -4}, {-2, 4});
     require(
-        editor.input.getSelectedComponents() == std::set<int>{editor.first} &&
-            editor.input.isBoxSelection() && editor.input.getSelectionHighlightOpacity() == 1.0f,
+        editor.input.getSelectedComponents() == std::set<int>{editor.first} && editor.input.isBoxSelection() &&
+            editor.input.getSelectionHighlightOpacity() == 1.0f,
         "Single-component box lost its box highlight style."
     );
     editor.cursor({-5, 0});
@@ -177,8 +179,7 @@ void selection(GLFWwindow* window)
     editor.cursor({-5, 6});
     editor.mouse(GLFW_RELEASE);
     require(
-        editor.scene.getCommittedComponentView(editor.first)->getGridPosition() ==
-            GridCoords{-5, 6},
+        editor.scene.getCommittedComponentView(editor.first)->getGridPosition() == GridCoords{-5, 6},
         "Box-selected single component was deselected instead of dragged."
     );
     require(editor.input.isBoxSelection(), "Moving a box selection lost its selection origin.");
@@ -186,8 +187,7 @@ void selection(GLFWwindow* window)
     editor.mouse(GLFW_PRESS);
     editor.mouse(GLFW_RELEASE);
     require(
-        editor.input.getSelectedComponents() == std::set<int>{editor.outside} &&
-            !editor.input.isBoxSelection(),
+        editor.input.getSelectedComponents() == std::set<int>{editor.outside} && !editor.input.isBoxSelection(),
         "An ordinary selection retained the previous box highlight style."
     );
     editor.input.setMode(EditorMode::Interaction);
@@ -199,8 +199,11 @@ void selection(GLFWwindow* window)
     );
 }
 
+
 void normalizedSelection(GLFWwindow* window);
 
+
+/** @brief Verify group moves preserve selected geometry, connectivity and undo behaviour. */
 void movement(GLFWwindow* window)
 {
     Editor editor(window);
@@ -213,10 +216,8 @@ void movement(GLFWwindow* window)
     require(
         editor.scene.getComponentView(editor.first)->getGridPosition() == GridCoords{0, 6} &&
             editor.scene.getComponentView(editor.second)->getGridPosition() == GridCoords{10, 6} &&
-            editor.scene.getVisibleWires().at(editor.internal).getPath() ==
-                std::vector<GridCoords>{{1, 6}, {8, 6}} &&
-            circuitToJson(editor.scene, "Group") == before &&
-            editor.scene.getRevision() == revision,
+            editor.scene.getVisibleWires().at(editor.internal).getPath() == std::vector<GridCoords>{{1, 6}, {8, 6}} &&
+            circuitToJson(editor.scene, "Group") == before && editor.scene.getRevision() == revision,
         "Group preview changed committed save data or did not keep relative positions/wires."
     );
     editor.mouse(GLFW_RELEASE);
@@ -225,8 +226,7 @@ void movement(GLFWwindow* window)
         editor.scene.getTopologyBuildCount() == builds + 1 && editor.input.isIdle() &&
             editor.input.getSelectedComponents().size() == 2 &&
             editor.input.getSelectedWires().contains(editor.internal) &&
-            editor.scene.getCommittedComponentView(editor.outside)->getGridPosition() ==
-                GridCoords{14, 0},
+            editor.scene.getCommittedComponentView(editor.outside)->getGridPosition() == GridCoords{14, 0},
         "Group drop rebuilt repeatedly, moved an unselected item, or lost selection."
     );
     require(
@@ -243,8 +243,7 @@ void movement(GLFWwindow* window)
     editor.cursor({2, 10});
     editor.mouse(GLFW_RELEASE);
     require(
-        editor.scene.getWire(editor.extra)->getPath() ==
-            std::vector<GridCoords>{{-8, 10}, {12, 10}},
+        editor.scene.getWire(editor.extra)->getPath() == std::vector<GridCoords>{{-8, 10}, {12, 10}},
         "Selected wire could not move by itself as a whole section."
     );
     editor.key(GLFW_KEY_DELETE);
@@ -255,16 +254,15 @@ void movement(GLFWwindow* window)
     normalizedSelection(window);
 }
 
+
+/** @brief Verify selection follows surviving fragments when wire normalization changes route identities. */
 void normalizedSelection(GLFWwindow* window)
 {
     Editor editor(window);
     auto branch = EditorActions(editor.scene).apply({AddWire{{{0, 0}, {0, 6}}}});
     require(static_cast<bool>(branch), "Selection seam fixture failed.");
     editor.box();
-    require(
-        editor.input.getSelectedWires().size() == 2,
-        "Branch did not split the selected internal wire."
-    );
+    require(editor.input.getSelectedWires().size() == 2, "Branch did not split the selected internal wire.");
     editor.cursor({-5, 0});
     editor.mouse(GLFW_PRESS);
     editor.cursor({0, -6});
@@ -279,6 +277,8 @@ void normalizedSelection(GLFWwindow* window)
     );
 }
 
+
+/** @brief Verify one deletion command removes the selected objects and remains undoable. */
 void deletion(GLFWwindow* window)
 {
     for (int key : {GLFW_KEY_DELETE, GLFW_KEY_BACKSPACE})
@@ -293,16 +293,16 @@ void deletion(GLFWwindow* window)
             !editor.scene.getCommittedComponentView(editor.first) &&
                 !editor.scene.getCommittedComponentView(editor.second) &&
                 editor.scene.getCommittedComponentView(editor.outside) &&
-                editor.scene.getCommittedComponentView(editor.source) &&
-                !editor.scene.getWire(editor.internal) && !editor.scene.getWire(editor.extra) &&
-                editor.scene.getTopologyBuildCount() == builds + 1 &&
-                editor.input.getSelectedComponents().empty() &&
-                editor.input.getSelectedWires().empty(),
+                editor.scene.getCommittedComponentView(editor.source) && !editor.scene.getWire(editor.internal) &&
+                !editor.scene.getWire(editor.extra) && editor.scene.getTopologyBuildCount() == builds + 1 &&
+                editor.input.getSelectedComponents().empty() && editor.input.getSelectedWires().empty(),
             "Group delete did not delete exactly the selected objects in one rebuild."
         );
     }
 }
 
+
+/** @brief Verify cancelled or interrupted box gestures preserve committed selection and geometry. */
 void cancellation(GLFWwindow* window)
 {
     Editor editor(window);
@@ -314,10 +314,8 @@ void cancellation(GLFWwindow* window)
     editor.cursor({4, 0}); // The second selected gate would overlap the unselected clock.
     editor.mouse(GLFW_RELEASE);
     require(
-        editor.input.getLastEditError() == EditError::Overlap &&
-            circuitToJson(editor.scene, "Group") == before &&
-            editor.scene.getRevision() == revision &&
-            editor.input.getSelectedComponents().size() == 2,
+        editor.input.getLastEditError() == EditError::Overlap && circuitToJson(editor.scene, "Group") == before &&
+            editor.scene.getRevision() == revision && editor.input.getSelectedComponents().size() == 2,
         "A blocked group move partially committed or lost the selection."
     );
     editor.cursor({-5, 0});
@@ -336,8 +334,7 @@ void cancellation(GLFWwindow* window)
     editor.cursor({2, 2});
     require(
         editor.input.getHighlightedComponents() == std::set<int>{editor.first} &&
-            editor.input.getSelectedComponents().size() == 2 &&
-            editor.input.getSelectionHighlightOpacity() == 0.35f,
+            editor.input.getSelectedComponents().size() == 2 && editor.input.getSelectionHighlightOpacity() == 0.35f,
         "Pending replacement selection was not distinct from the prior selection."
     );
     editor.input.setUiCapture({true, true});
@@ -348,8 +345,7 @@ void cancellation(GLFWwindow* window)
         !editor.input.getSelectionBox() && editor.input.getSelectedComponents().size() == 2 &&
             editor.input.getHighlightedComponents() == editor.input.getSelectedComponents() &&
             editor.input.getHighlightedWires() == editor.input.getSelectedWires() &&
-            editor.input.getSelectionHighlightOpacity() == 1.0f &&
-            editor.scene.getRevision() == revision,
+            editor.input.getSelectionHighlightOpacity() == 1.0f && editor.scene.getRevision() == revision,
         "UI capture committed a pending box or destroyed the prior selection."
     );
     editor.cursor({-5, 0});
@@ -359,11 +355,11 @@ void cancellation(GLFWwindow* window)
     editor.input.handleFocus(true);
     editor.mouse(GLFW_RELEASE);
     require(
-        editor.input.isIdle() && circuitToJson(editor.scene, "Group") == before,
-        "Focus loss committed a group preview."
+        editor.input.isIdle() && circuitToJson(editor.scene, "Group") == before, "Focus loss committed a group preview."
     );
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {

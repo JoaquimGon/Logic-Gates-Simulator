@@ -25,7 +25,6 @@ class PanGesture
     }
 
     void cancel() { m_active = false; }
-
     bool active() const { return m_active; }
 
   private:

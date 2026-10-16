@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <utility>
 
+
 void Input::setUiInputHandler(UiInputHandler handler)
 {
     interruptCanvas();
@@ -12,12 +13,14 @@ void Input::setUiInputHandler(UiInputHandler handler)
     m_uiCapture = {};
 }
 
+
 bool Input::dispatchUi(const UiInputEvent& event)
 {
     // Keep the current callable alive if its owner replaces/unregisters it while handling an event.
     const auto handler = m_uiInputHandler;
     return handler && handler(event);
 }
+
 
 void Input::setUiCapture(UiInputCapture capture)
 {
@@ -29,6 +32,7 @@ void Input::setUiCapture(UiInputCapture capture)
         interruptCanvas();
 }
 
+
 void Input::setCanvasFocused(bool focused)
 {
     if (m_canvasFocused == focused)
@@ -38,6 +42,7 @@ void Input::setCanvasFocused(bool focused)
         interruptCanvas();
 }
 
+
 void Input::setCanvasViewport(std::optional<CanvasViewport> bounds)
 {
     const auto previous = m_camera.viewport();
@@ -46,16 +51,19 @@ void Input::setCanvasViewport(std::optional<CanvasViewport> bounds)
         interruptCanvas();
 }
 
+
 bool Input::canvasKeyboardAvailable() const
 {
     return m_windowFocused && m_canvasFocused && !m_uiCapture.keyboard;
 }
+
 
 bool Input::containsCanvasPoint(GLFWwindow* window, double x, double y) const
 {
     const auto frame = getCameraFrame(window);
     return frame.valid() && frame.viewport.contains(x, y);
 }
+
 
 bool Input::isCanvasPointerAvailable(GLFWwindow* window) const
 {
@@ -64,6 +72,7 @@ bool Input::isCanvasPointerAvailable(GLFWwindow* window) const
     return m_windowFocused && !m_uiCapture.pointer && containsCanvasPoint(window, x, y);
 }
 
+
 void Input::clearHover()
 {
     hoveredComponentId = hoveredPinComponentId = hoveredPinIndex = -1;
@@ -71,6 +80,8 @@ void Input::clearHover()
     m_hoveredSegmentValid = false;
 }
 
+
+/** @brief Cancel every canvas preview so focus or ownership changes cannot leave a partial edit active. */
 void Input::cancelGestures()
 {
     if (m_scene)
@@ -84,6 +95,7 @@ void Input::cancelGestures()
     m_canvasMouseButtons.clear();
 }
 
+
 void Input::interruptCanvas()
 {
     cancelGestures();
@@ -91,11 +103,13 @@ void Input::interruptCanvas()
     m_pendingKeyPresses.clear();
 }
 
+
 void Input::charCallback(GLFWwindow* window, unsigned int codepoint)
 {
     if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
         input->handleText(codepoint);
 }
+
 
 void Input::handleText(std::uint32_t codepoint)
 {
@@ -107,6 +121,7 @@ void Input::handleText(std::uint32_t codepoint)
         interruptCanvas();
     }
 }
+
 
 void Input::handleFocus(bool focused)
 {
@@ -124,6 +139,7 @@ void Input::handleFocus(bool focused)
     }
 }
 
+
 CanvasSurface Input::surfaceFor(GLFWwindow* window)
 {
     CanvasSurface surface;
@@ -132,10 +148,12 @@ CanvasSurface Input::surfaceFor(GLFWwindow* window)
     return surface;
 }
 
+
 CanvasCameraFrame Input::getCameraFrame(GLFWwindow* window) const
 {
     return m_camera.frame(surfaceFor(window));
 }
+
 
 void Input::synchronizeSurface(GLFWwindow* window)
 {
@@ -145,6 +163,7 @@ void Input::synchronizeSurface(GLFWwindow* window)
     m_lastSurface = surface;
 }
 
+
 void Input::setZoom(float zoom)
 {
     const auto previous = m_camera.zoom();
@@ -152,6 +171,7 @@ void Input::setZoom(float zoom)
     if (previous != zoom)
         interruptCanvas();
 }
+
 
 void Input::setPanOffset(glm::vec2 offset)
 {

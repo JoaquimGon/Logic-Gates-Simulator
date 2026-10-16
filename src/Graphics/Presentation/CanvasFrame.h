@@ -23,12 +23,12 @@ struct GridHighlight
     float opacity = 1;
 };
 
-/** Borrowed frame values; drawCanvas consumes them synchronously and retains no scene pointers. */
+/** @brief Borrowed frame values; drawCanvas consumes them synchronously and retains no scene pointers. */
 struct CanvasFrame
 {
     std::span<const ComponentRenderData> components;
     const std::map<WireId, Wire>& wires;
-    std::span<const glm::vec3> junctions; // Typed grid junction integration remains RM-A8.
+    std::span<const glm::vec3> junctions;
     const Wire* activeWire = nullptr;
     std::optional<BodyHighlight> bodyHighlight;
     std::optional<SegmentHighlight> segmentHighlight;

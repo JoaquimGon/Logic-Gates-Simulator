@@ -13,49 +13,48 @@ namespace
 constexpr std::size_t timestampPrefixLength = sizeof("[00:00:00] ") - 1;
 }
 
+
 CircuitViews::Messages& UI::messageState()
 {
     return m_views ? m_views->activeMessages() : m_messages;
 }
+
 
 const CircuitViews::Messages& UI::messageState() const
 {
     return m_views ? m_views->activeMessages() : m_messages;
 }
 
+
 const std::vector<std::string>& UI::messages() const
 {
     return messageState().entries;
 }
+
 
 bool UI::hasUnreadMessages() const
 {
     return messageState().unread;
 }
 
+
 std::size_t UI::messageCount() const
 {
     return simulationIssues().size() + messages().size();
 }
 
+
 bool UI::hasMessageErrors() const
 {
     return std::any_of(
-               simulationIssues().begin(),
-               simulationIssues().end(),
-               [](const auto& issue) { return !issue.warning; }
+               simulationIssues().begin(), simulationIssues().end(), [](const auto& issue) { return !issue.warning; }
            ) ||
            std::any_of(
-               messages().begin(),
-               messages().end(),
-               [](const auto& message)
-               {
-                   return std::string_view(message)
-                       .substr(timestampPrefixLength)
-                       .starts_with("Error:");
-               }
+               messages().begin(), messages().end(), [](const auto& message)
+               { return std::string_view(message).substr(timestampPrefixLength).starts_with("Error:"); }
            );
 }
+
 
 std::string UI::messagesTabLabel() const
 {
@@ -63,12 +62,13 @@ std::string UI::messagesTabLabel() const
     return count ? "Messages (" + std::to_string(count) + ")" : "Messages";
 }
 
+
+/** @brief Describe pending unsaved work without confusing it with simulation diagnostics. */
 std::string UI::unsavedNoticeText() const
 {
     if (!m_circuitTabs.activeHasUnsavedChanges())
         return "";
-    std::string text = m_circuitTabs.activeIsSubcircuit() ? "Unsaved changes - save for Custom"
-                                                          : "Unsaved changes";
+    std::string text = m_circuitTabs.activeIsSubcircuit() ? "Unsaved changes - save for Custom" : "Unsaved changes";
     const double statusSpace = std::max(0.0, m_bar.width - navigationStatusX() - 4);
     const double noticeSpace = messageCount() ? std::min(130.0, statusSpace * 0.6) : 0;
     auto fits = [&](const std::string& value)
@@ -83,6 +83,7 @@ std::string UI::unsavedNoticeText() const
     return text;
 }
 
+
 double UI::unsavedNoticeWidth() const
 {
     const auto text = unsavedNoticeText();
@@ -94,10 +95,12 @@ double UI::unsavedNoticeWidth() const
     return std::min(statusSpace - noticeSpace, width + 20);
 }
 
+
 double UI::navigationStatusWidth() const
 {
     return std::max(0.0, m_bar.width - unsavedNoticeWidth() - navigationStatusX() - 4);
 }
+
 
 std::string UI::messageNoticeText() const
 {
@@ -115,6 +118,7 @@ std::string UI::messageNoticeText() const
     return hasMessageErrors() ? "Action failed - see Messages" : "Warning - see Messages";
 }
 
+
 CanvasViewport UI::messageNoticeBounds() const
 {
     const auto text = messageNoticeText();
@@ -124,6 +128,7 @@ CanvasViewport UI::messageNoticeBounds() const
     return {navigationStatusX(), 0, std::min(navigationStatusWidth(), width + 20), m_bar.height};
 }
 
+
 void UI::addMessage(std::string message, MessageKind kind)
 {
     if (message.empty() || kind == MessageKind::Info)
@@ -131,13 +136,10 @@ void UI::addMessage(std::string message, MessageKind kind)
         clearMessages();
         return;
     }
-    const char* prefix = kind == MessageKind::Error     ? "Error: "
-                         : kind == MessageKind::Warning ? "Warning: "
-                                                        : "Info: ";
+    const char* prefix = kind == MessageKind::Error ? "Error: " : kind == MessageKind::Warning ? "Warning: " : "Info: ";
     message.insert(0, prefix);
     auto& log = messageState();
-    if (!log.entries.empty() &&
-        log.entries.back().compare(timestampPrefixLength, std::string::npos, message) == 0)
+    if (!log.entries.empty() && log.entries.back().compare(timestampPrefixLength, std::string::npos, message) == 0)
         return;
     log.entries.clear();
     const auto now = std::time(nullptr);
@@ -156,6 +158,7 @@ void UI::addMessage(std::string message, MessageKind kind)
     log.scroll = 0;
 }
 
+
 void UI::clearMessages()
 {
     auto& log = messageState();
@@ -170,31 +173,27 @@ void UI::clearMessages()
     }
 }
 
+
 CanvasViewport UI::messageBoxBounds() const
 {
-    return {
-        m_bottom.x + 8,
-        m_bottom.y + 60,
-        std::max(0.0, m_bottom.width - 16),
-        std::max(0.0, m_bottom.height - 68)
-    };
+    return {m_bottom.x + 8, m_bottom.y + 60, std::max(0.0, m_bottom.width - 16), std::max(0.0, m_bottom.height - 68)};
 }
+
 
 const std::vector<CircuitViews::SimulationIssue>& UI::simulationIssues() const
 {
     return messageState().issues;
 }
 
+
+/** @brief Compose readable rows from application messages and live electrical or simulation failures. */
 std::vector<UI::MessageRow> UI::messageRows(const FontMetrics* font) const
 {
     std::vector<MessageRow> rows;
-    auto append = [&](const std::string& message,
-                      MessageKind kind,
-                      std::optional<std::size_t> issue = std::nullopt)
+    auto append = [&](const std::string& message, MessageKind kind, std::optional<std::size_t> issue = std::nullopt)
     {
         const bool find = issue && simulationIssues()[*issue].location;
-        const float width =
-            static_cast<float>(std::max(1.0, messageBoxBounds().width - 20 - (find ? 60 : 0)));
+        const float width = static_cast<float>(std::max(1.0, messageBoxBounds().width - 20 - (find ? 60 : 0)));
         std::size_t start = 0;
         while (start < message.size())
         {
@@ -202,8 +201,7 @@ std::vector<UI::MessageRow> UI::messageRows(const FontMetrics* font) const
             float used = 0;
             while (end < message.size() && message[end] != '\n')
             {
-                const float advance =
-                    font ? getTextWidth(std::string(1, message[end]), 0.4f, *font) : 7.0f;
+                const float advance = font ? getTextWidth(std::string(1, message[end]), 0.4f, *font) : 7.0f;
                 if (end > start && used + advance > width)
                     break;
                 used += advance;
@@ -211,8 +209,7 @@ std::vector<UI::MessageRow> UI::messageRows(const FontMetrics* font) const
                     space = end;
                 ++end;
             }
-            if (end < message.size() && message[end] != '\n' && space != std::string::npos &&
-                space > start)
+            if (end < message.size() && message[end] != '\n' && space != std::string::npos && space > start)
                 end = space;
             rows.push_back({message.substr(start, end - start), kind, std::nullopt});
             start = end;
@@ -236,12 +233,11 @@ std::vector<UI::MessageRow> UI::messageRows(const FontMetrics* font) const
     for (const auto& message : messages())
     {
         const auto content = std::string_view(message).substr(timestampPrefixLength);
-        append(
-            message, content.starts_with("Warning:") ? MessageKind::Warning : MessageKind::Error
-        );
+        append(message, content.starts_with("Warning:") ? MessageKind::Warning : MessageKind::Error);
     }
     return rows;
 }
+
 
 CanvasViewport UI::findMessageBounds(std::size_t issue) const
 {
@@ -252,8 +248,7 @@ CanvasViewport UI::findMessageBounds(std::size_t issue) const
     const auto box = messageBoxBounds();
     const auto lines = messageRows(m_font);
     const int rows = static_cast<int>(box.height / 20);
-    const int offset =
-        std::clamp(messageState().scroll, 0, std::max(0, static_cast<int>(lines.size()) - rows));
+    const int offset = std::clamp(messageState().scroll, 0, std::max(0, static_cast<int>(lines.size()) - rows));
     for (int row = 0; row < rows && row + offset < static_cast<int>(lines.size()); ++row)
         if (lines[row + offset].issue == issue)
         {
@@ -266,8 +261,10 @@ CanvasViewport UI::findMessageBounds(std::size_t issue) const
     return {};
 }
 
+
 namespace
 {
+/** @brief Format a diagnostic pin endpoint using its component label and logical pin direction. */
 std::optional<GridCoords> pinLocation(const Scene& scene, PinRef pin, PinType direction)
 {
     const auto* view = scene.getCommittedComponentView(pin.componentId);
@@ -280,11 +277,13 @@ std::optional<GridCoords> pinLocation(const Scene& scene, PinRef pin, PinType di
     return view->getGridPosition();
 }
 
+
 std::string positionText(std::optional<GridCoords> point)
 {
     return point ? " at (" + std::to_string(point->x) + ", " + std::to_string(point->y) + ")" : "";
 }
 } // namespace
+
 
 void UI::reportSimulation(const Scene& scene, double now)
 {
@@ -292,8 +291,7 @@ void UI::reportSimulation(const Scene& scene, double now)
     log.simulationResult = scene.getLastEvalResult();
     log.shortedNets = scene.getShortedNetCount();
     // Brief catch-up is normal. Report only an accumulated delay lasting at least one second.
-    const bool pending =
-        log.simulationResult == SimulationResult::OK && scene.pendingClockTime() > 0.1;
+    const bool pending = log.simulationResult == SimulationResult::OK && scene.pendingClockTime() > 0.1;
     if (pending && log.backlogSince < 0)
         log.backlogSince = now;
     if (pending && now - log.backlogSince >= 1)
@@ -309,25 +307,17 @@ void UI::reportSimulation(const Scene& scene, double now)
         std::optional<GridCoords> point;
         if (const auto* view = scene.getCommittedComponentView(scene.unsettledComponent()))
             point = view->getGridPosition();
-        issues.push_back(
-            {"Simulation did not settle. Pending activity" + positionText(point) + ".", point}
-        );
+        issues.push_back({"Simulation did not settle. Pending activity" + positionText(point) + ".", point});
     }
     if (log.simulationResult == SimulationResult::CONNECTION_REJECTED)
     {
         for (const auto& rejected : scene.getRejectedConnections())
         {
             const auto& connection = rejected.connection;
-            auto point = pinLocation(
-                scene, {connection.destComponentId, connection.destPinIndex}, PinType::INPUT
-            );
+            auto point = pinLocation(scene, {connection.destComponentId, connection.destPinIndex}, PinType::INPUT);
             if (!point)
-                point = pinLocation(
-                    scene, {connection.srcComponentId, connection.srcPinIndex}, PinType::OUTPUT
-                );
-            issues.push_back(
-                {"Connection rejected" + positionText(point) + ". Repair the wiring.", point}
-            );
+                point = pinLocation(scene, {connection.srcComponentId, connection.srcPinIndex}, PinType::OUTPUT);
+            issues.push_back({"Connection rejected" + positionText(point) + ". Repair the wiring.", point});
         }
         if (scene.getRejectedConnections().empty())
             issues.push_back({"Connection rejected. Repair the wiring.", std::nullopt});
@@ -337,18 +327,12 @@ void UI::reportSimulation(const Scene& scene, double now)
         {
             auto point = pinLocation(scene, net.getDrivers().back(), PinType::OUTPUT);
             if (!point && !net.getGeometry().empty())
-                if (const auto* wire = scene.getWire(net.getGeometry().front());
-                    wire && !wire->getPath().empty())
+                if (const auto* wire = scene.getWire(net.getGeometry().front()); wire && !wire->getPath().empty())
                     point = wire->getPath().front();
-            issues.push_back(
-                {"Short circuit" + positionText(point) + ": multiple outputs drive this net.",
-                 point}
-            );
+            issues.push_back({"Short circuit" + positionText(point) + ": multiple outputs drive this net.", point});
         }
     if (log.behind)
-        issues.push_back(
-            {"Simulation falling behind real time. Reduce clock frequency.", std::nullopt, true}
-        );
+        issues.push_back({"Simulation falling behind real time. Reduce clock frequency.", std::nullopt, true});
     if (issues != log.issues)
     {
         log.unread = !issues.empty() && (!m_bottomVisible || m_bottomTab != BottomTab::Messages ||

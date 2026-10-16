@@ -23,6 +23,8 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
+/** @brief Require invalid model operations to fail with the expected exception category. */
 template <typename Exception, typename Action>
 void expectThrows(Action action)
 {
@@ -37,6 +39,8 @@ void expectThrows(Action action)
     throw std::runtime_error("Expected exception was not thrown.");
 }
 
+
+/** @brief Verify native and configurable gate behaviour against every input combination and inversion setting. */
 void gateTruthTables()
 {
     for (GateType type : {AND, NAND, OR, NOR, XOR, NXOR})
@@ -101,12 +105,15 @@ void gateTruthTables()
     expectThrows<std::invalid_argument>([] { Gate gate(0, static_cast<GateType>(999), 2); });
 }
 
+
 class PinProbe : public Component
 {
   public:
     using Component::Component;
 
+
     std::unique_ptr<Component> clone() const override { return std::make_unique<PinProbe>(*this); }
+
 
     void evaluate() override
     {
@@ -115,6 +122,8 @@ class PinProbe : public Component
     }
 };
 
+
+/** @brief Verify pin access rejects invalid indices without changing component state. */
 void componentPinBounds()
 {
     PinProbe probe(0, 4, 4);
@@ -139,6 +148,8 @@ void componentPinBounds()
     expectThrows<std::out_of_range>([&] { latch.getStateOutPin(2); });
 }
 
+
+/** @brief Verify directed connections validate component identities, pin directions and existing drivers. */
 void connectionEndpoints()
 {
     Circuit circuit;
@@ -191,6 +202,8 @@ void connectionEndpoints()
     require(circuit.getComponent(gate)->getStateInPin(3), "Reconnect lost output index.");
 }
 
+
+/** @brief Verify latch state and complementary outputs propagate correctly through downstream logic. */
 void latchOutputPropagation()
 {
     for (LatchType type : {LatchType::SR_LATCH, LatchType::D_LATCH})
@@ -218,13 +231,10 @@ void latchOutputPropagation()
             require(circuit.getComponent(latch)->getStateOutPin(0) == q, "Q state mismatch.");
             require(circuit.getComponent(latch)->getStateOutPin(1) == notQ, "~Q state mismatch.");
             require(circuit.getComponent(qSink)->getStateOutPin() == !q, "Q sink state mismatch.");
-            require(
-                circuit.getComponent(notQSink)->getStateOutPin() == !notQ, "~Q sink state mismatch."
-            );
+            require(circuit.getComponent(notQSink)->getStateOutPin() == !notQ, "~Q sink state mismatch.");
             for (int pin = 0; pin < 3; ++pin)
                 require(
-                    circuit.getComponent(fanout)->getStateInPin(pin) == notQ,
-                    "Fanout lost the source output index."
+                    circuit.getComponent(fanout)->getStateInPin(pin) == notQ, "Fanout lost the source output index."
                 );
         };
 
@@ -245,6 +255,8 @@ void latchOutputPropagation()
     }
 }
 
+
+/** @brief Verify component replacement and deletion remove reciprocal edges and refresh runtime wiring. */
 void connectionLifecycle()
 {
     Circuit circuit;
@@ -257,15 +269,10 @@ void connectionLifecycle()
     circuit.propagate();
 
     circuit.delComponent(first);
-    require(
-        circuit.getComponent(latch)->getOutConnections().size() == 1,
-        "Deleting a sink removed unrelated edges."
-    );
+    require(circuit.getComponent(latch)->getOutConnections().size() == 1, "Deleting a sink removed unrelated edges.");
     require(circuit.getComponent(second)->getStateInPin(0), "Unrelated sink changed.");
     circuit.delComponent(latch);
-    require(
-        circuit.getComponent(second)->getInConnections().empty(), "Deleted driver left an edge."
-    );
+    require(circuit.getComponent(second)->getInConnections().empty(), "Deleted driver left an edge.");
     require(!circuit.getComponent(second)->getStateInPin(0), "Deleted driver left a signal.");
     require(circuit.propagate() == SimulationResult::OK, "Deletion left invalid evaluation order.");
 
@@ -282,6 +289,7 @@ void connectionLifecycle()
         require(!circuit.getComponent(gate)->getStateInPin(pin), "Clear missed an input.");
 }
 
+
 Wire route(GridCoords from, GridCoords to)
 {
     Wire wire;
@@ -289,6 +297,8 @@ Wire route(GridCoords from, GridCoords to)
     return wire;
 }
 
+
+/** @brief Verify normalized overlapping route geometry produces the intended electrical nets. */
 void sceneWireOverlaps()
 {
     using Path = std::vector<GridCoords>;
@@ -300,8 +310,7 @@ void sceneWireOverlaps()
         {{{0, 0}, {0, 6}}, {{0, 2}, {0, 8}}},
         {{{0, 0}, {6, 0}, {6, 4}}, {{2, 0}, {8, 0}, {8, -4}}},
         {{{0, -4}, {0, 0}, {6, 0}}, {{8, 4}, {8, 0}, {2, 0}}},
-        {{{0, 0}, {2, 0}, {2, 4}, {8, 4}, {8, 0}, {10, 0}},
-         {{0, 0}, {2, 0}, {2, -4}, {8, -4}, {8, 0}, {10, 0}}}
+        {{{0, 0}, {2, 0}, {2, 4}, {8, 4}, {8, 0}, {10, 0}}, {{0, 0}, {2, 0}, {2, -4}, {8, -4}, {8, 0}, {10, 0}}}
     };
 
     auto collectSegments = [](const Path& path, std::map<Segment, int>& segments)
@@ -317,9 +326,7 @@ void sceneWireOverlaps()
             {
                 GridCoords next{point.x + dx, point.y + dy};
                 segments[{
-                    std::min(point.x, next.x),
-                    std::min(point.y, next.y),
-                    std::max(point.x, next.x),
+                    std::min(point.x, next.x), std::min(point.y, next.y), std::max(point.x, next.x),
                     std::max(point.y, next.y)
                 }]++;
                 point = next;
@@ -366,24 +373,18 @@ void sceneWireOverlaps()
     }
 }
 
+
+/** @brief Verify separate routed pins remain logically distinct despite nearby or crossing geometry. */
 void distinctRoutePins()
 {
     Scene scene;
     scene.addInputPin({-2, 0}, {0.1f, 0.1f}, "inputPin", true);
     const int upper = scene.addGate(
-        NOT,
-        {3, 6},
-        {0.1f, 0.1f},
-        "NOTgate",
-        {{PinType::INPUT, 0, PinState::DISCONNECTED, {0, -2}}},
+        NOT, {3, 6}, {0.1f, 0.1f}, "NOTgate", {{PinType::INPUT, 0, PinState::DISCONNECTED, {0, -2}}},
         {{PinType::OUTPUT, 0, PinState::DISCONNECTED, {0, 1}}}
     );
     const int lower = scene.addGate(
-        NOT,
-        {3, -6},
-        {0.1f, 0.1f},
-        "NOTgate",
-        {{PinType::INPUT, 0, PinState::DISCONNECTED, {0, 2}}},
+        NOT, {3, -6}, {0.1f, 0.1f}, "NOTgate", {{PinType::INPUT, 0, PinState::DISCONNECTED, {0, 2}}},
         {{PinType::OUTPUT, 0, PinState::DISCONNECTED, {0, -1}}}
     );
     Wire top, bottom;
@@ -392,15 +393,15 @@ void distinctRoutePins()
     scene.addWires(top, bottom);
     scene.commitWire(route({-1, 0}, {0, 0}));
     require(
-        scene.propagate() == SimulationResult::OK &&
-            scene.getLogicComponent(upper)->getStateInPin(0) &&
+        scene.propagate() == SimulationResult::OK && scene.getLogicComponent(upper)->getStateInPin(0) &&
             scene.getLogicComponent(lower)->getStateInPin(0) &&
-            scene.netOfPin({upper, 0}, PinType::INPUT) ==
-                scene.netOfPin({lower, 0}, PinType::INPUT),
+            scene.netOfPin({upper, 0}, PinType::INPUT) == scene.netOfPin({lower, 0}, PinType::INPUT),
         "Normalization disconnected a pin on one of the distinct bent routes."
     );
 }
 
+
+/** @brief Verify custom pin positions and component layouts agree with electrical connections. */
 void scenePinLayouts()
 {
     Scene scene;
@@ -418,9 +419,7 @@ void scenePinLayouts()
 
     const auto* originalLatch = scene.getComponentView(latch);
     ComponentLayout latchLayout{
-        originalLatch->getSize(),
-        originalLatch->getShaderName(),
-        originalLatch->getInputPins(),
+        originalLatch->getSize(), originalLatch->getShaderName(), originalLatch->getInputPins(),
         originalLatch->getOutputPins()
     };
     std::reverse(latchLayout.outputs.begin(), latchLayout.outputs.end());
@@ -435,18 +434,10 @@ void scenePinLayouts()
     require(latchOutputs[0].state == PinState::ON, "Reordered ~Q visual read Q.");
     require(latchOutputs[1].state == PinState::OFF, "Reordered Q visual read ~Q.");
     auto* latchView = static_cast<LatchView*>(scene.getComponentView(latch));
-    require(
-        latchView->getOutputLabel(latchOutputs[0].pin_index) == "~Q",
-        "Reordered output label lost pin identity."
-    );
-    require(
-        latchView->getOutputLabel(latchOutputs[1].pin_index) == "Q", "Q label lost pin identity."
-    );
+    require(latchView->getOutputLabel(latchOutputs[0].pin_index) == "~Q", "Reordered output label lost pin identity.");
+    require(latchView->getOutputLabel(latchOutputs[1].pin_index) == "Q", "Q label lost pin identity.");
     const auto& latchInputs = latchView->getInputPins();
-    require(
-        latchView->getInputLabel(latchInputs[0].pin_index) == "R",
-        "Reordered input label lost pin identity."
-    );
+    require(latchView->getInputLabel(latchInputs[0].pin_index) == "R", "Reordered input label lost pin identity.");
     for (const auto& [id, net] : scene.getNets())
     {
         const auto driver = net.getDriver();
@@ -455,9 +446,7 @@ void scenePinLayouts()
             bool expected = driver->pinIndex == 1;
             require((net.getState() == PinState::ON) == expected, "Net and simulation disagree.");
             for (WireId wireId : net.getGeometry())
-                require(
-                    scene.getWire(wireId)->getState() == net.getState(), "Wire and net disagree."
-                );
+                require(scene.getWire(wireId)->getState() == net.getState(), "Wire and net disagree.");
         }
     }
 
@@ -469,10 +458,7 @@ void scenePinLayouts()
     };
     std::vector<PinUI> outputs{{PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}};
     int gate = multi.addGate(AND, {0, 0}, {0.2f, 0.3f}, "ANDgate", inputs, outputs);
-    require(
-        multi.getLogicComponent(gate)->getInputPinCount() == 3,
-        "Visual input count was not used for logic."
-    );
+    require(multi.getLogicComponent(gate)->getInputPinCount() == 3, "Visual input count was not used for logic.");
     std::vector<int> sources;
     for (int pin = 0; pin < 3; ++pin)
     {
@@ -496,39 +482,29 @@ void scenePinLayouts()
     size_t before = multi.getComponentCount();
     auto badInputs = inputs;
     badInputs[0].pin_index = 0;
-    expectThrows<std::invalid_argument>(
-        [&] { multi.addGate(AND, {20, 0}, {0.2f, 0.3f}, "ANDgate", badInputs, outputs); }
-    );
+    expectThrows<std::invalid_argument>([&]
+                                        { multi.addGate(AND, {20, 0}, {0.2f, 0.3f}, "ANDgate", badInputs, outputs); });
     badInputs = inputs;
     badInputs[0].pin_index = 3;
-    expectThrows<std::invalid_argument>(
-        [&] { multi.addGate(AND, {20, 0}, {0.2f, 0.3f}, "ANDgate", badInputs, outputs); }
-    );
+    expectThrows<std::invalid_argument>([&]
+                                        { multi.addGate(AND, {20, 0}, {0.2f, 0.3f}, "ANDgate", badInputs, outputs); });
     badInputs = inputs;
     badInputs[0].type = PinType::OUTPUT;
-    expectThrows<std::invalid_argument>(
-        [&] { multi.addGate(AND, {20, 0}, {0.2f, 0.3f}, "ANDgate", badInputs, outputs); }
-    );
-    expectThrows<std::invalid_argument>(
-        [&] { multi.addGate(NOT, {20, 0}, {0.2f, 0.3f}, "NOTgate", inputs, outputs); }
-    );
-    expectThrows<std::invalid_argument>(
-        [&] { multi.addGate(AND, {20, 0}, {0.2f, 0.3f}, "ANDgate", inputs, {}); }
-    );
+    expectThrows<std::invalid_argument>([&]
+                                        { multi.addGate(AND, {20, 0}, {0.2f, 0.3f}, "ANDgate", badInputs, outputs); });
+    expectThrows<std::invalid_argument>([&] { multi.addGate(NOT, {20, 0}, {0.2f, 0.3f}, "NOTgate", inputs, outputs); });
+    expectThrows<std::invalid_argument>([&] { multi.addGate(AND, {20, 0}, {0.2f, 0.3f}, "ANDgate", inputs, {}); });
     require(multi.getComponentCount() == before, "Invalid layout created a component.");
 
     auto invalidLayout = GateLayout{{0.2f, 0.3f}, "ANDgate", inputs, outputs};
     invalidLayout.inputs.pop_back(); // Leaves noncontiguous indices: 2 and 0.
     const auto rejected = EditorActions(multi).apply({ConfigureComponent{gate, invalidLayout}});
-    require(
-        rejected.error == EditError::InvalidConfiguration, "Invalid configuration was accepted."
-    );
-    require(
-        multi.getLogicComponent(gate)->getInputPinCount() == 3,
-        "Rejected configuration changed logical arity."
-    );
+    require(rejected.error == EditError::InvalidConfiguration, "Invalid configuration was accepted.");
+    require(multi.getLogicComponent(gate)->getInputPinCount() == 3, "Rejected configuration changed logical arity.");
 }
 
+
+/** @brief Verify feedback remains a simulation concern and is not rejected solely by component ownership. */
 void sceneFeedback()
 {
     for (bool selfFeedback : {false, true})
@@ -541,9 +517,7 @@ void sceneFeedback()
         scene.commitWire(route({1, 0}, {8, 0}));
         require(scene.propagate() == SimulationResult::OK, "Initial circuit did not settle.");
         Wire feedback;
-        feedback.setPath(
-            {{selfFeedback ? 1 : 11, 0}, {selfFeedback ? 1 : 11, 4}, {-2, 4}, {-2, 0}}
-        );
+        feedback.setPath({{selfFeedback ? 1 : 11, 0}, {selfFeedback ? 1 : 11, 4}, {-2, 4}, {-2, 0}});
         const auto wireId = scene.commitWire(feedback);
         require(
             wireId && scene.getRejectedConnections().empty(),
@@ -567,21 +541,15 @@ void sceneFeedback()
                 "Unsettled simulation advanced clocks or requested endless retries."
             );
             require(
-                !scene.getLogicComponent(clock)->getStateOutPin() &&
-                    scene.getLogicComponent(latch)->getStateOutPin(1),
+                !scene.getLogicComponent(clock)->getStateOutPin() && scene.getLogicComponent(latch)->getStateOutPin(1),
                 "Unsettled simulation lost retained clock/latch state."
             );
             for (const auto& [id, view] : scene.getComponentViewMap())
                 for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
                     for (const auto& pin : *pins)
-                        require(
-                            pin.state == PinState::DISCONNECTED,
-                            "Unsettled pin displayed a valid signal."
-                        );
+                        require(pin.state == PinState::DISCONNECTED, "Unsettled pin displayed a valid signal.");
             for (const auto& [id, net] : scene.getNets())
-                require(
-                    net.getState() == PinState::DISCONNECTED, "Unsettled net displayed a signal."
-                );
+                require(net.getState() == PinState::DISCONNECTED, "Unsettled net displayed a signal.");
             require(
                 scene.pinState({first, 0}, PinType::OUTPUT) == PinState::DISCONNECTED,
                 "Unsettled preview displayed an active signal."
@@ -591,15 +559,11 @@ void sceneFeedback()
             require(scene.updateClocks(0.5f), "Stable feedback unnecessarily paused clocks.");
         require(scene.removeWire(*wireId), "Cannot remove feedback route.");
         require(
-            scene.propagate() == SimulationResult::OK &&
-                scene.getLastEvalResult() == SimulationResult::OK,
+            scene.propagate() == SimulationResult::OK && scene.getLastEvalResult() == SimulationResult::OK,
             "Removing feedback did not resume simulation."
         );
         scene.syncVisuals();
-        require(
-            !scene.getLogicComponent(second)->getStateOutPin(),
-            "Repair lost its original connection."
-        );
+        require(!scene.getLogicComponent(second)->getStateOutPin(), "Repair lost its original connection.");
         scene.commitWire(feedback);
         scene.propagate();
         scene.removeComponent(first);
@@ -607,13 +571,12 @@ void sceneFeedback()
     }
 }
 
+
+/** @brief Verify manual and timed sources expose the expected logical input/output contracts. */
 void sourceComponents()
 {
     InputPin input(0, true);
-    require(
-        input.getInputPinCount() == 0 && input.getOutputPinCount() == 1,
-        "Input source shape changed."
-    );
+    require(input.getInputPinCount() == 0 && input.getOutputPinCount() == 1, "Input source shape changed.");
     require(input.getState(), "Initial input state lost.");
     input.toggle();
     input.evaluate();
@@ -635,25 +598,22 @@ void sourceComponents()
     require(circuit.getComponent(sinkId)->getStateOutPin(), "Manual clock edge was lost.");
 }
 
+
+/** @brief Check hit queries, shared anchors and routing geometry independently of presentation resources. */
 void geometryServices()
 {
-    std::map<WireId, Wire> wires{
-        {4, route({0, 0}, {4, 0})}, {8, route({4, 0}, {8, 0})}, {12, route({20, 0}, {24, 0})}
-    };
+    std::map<WireId, Wire> wires{{4, route({0, 0}, {4, 0})}, {8, route({4, 0}, {8, 0})}, {12, route({20, 0}, {24, 0})}};
     Wire degenerate;
     degenerate.setPath({{30, 0}});
     wires.emplace(15, degenerate);
     WireId next = 16;
     const auto changes = normalizeWires(wires, {}, next);
     require(
-        changes.removed == std::vector<WireId>{4, 8, 15} &&
-            changes.added == std::vector<WireId>{16} && wires.contains(12) && next == 17,
+        changes.removed == std::vector<WireId>{4, 8, 15} && changes.added == std::vector<WireId>{16} &&
+            wires.contains(12) && next == 17,
         "Normalization did not report final identity changes."
     );
-    require(
-        wires.at(16).getPath() == std::vector<GridCoords>{{0, 0}, {8, 0}},
-        "Degree-two seam was not healed."
-    );
+    require(wires.at(16).getPath() == std::vector<GridCoords>{{0, 0}, {8, 0}}, "Degree-two seam was not healed.");
     const auto unchanged = normalizeWires(wires, {}, next);
     require(
         unchanged.removed.empty() && unchanged.added.empty() && next == 17,
@@ -672,8 +632,8 @@ void geometryServices()
     wires.rbegin()->second.setState(PinState::ON);
     auto junctions = wireJunctions(wires, {});
     require(
-        junctions.size() == 1 && junctions[0].position == GridCoords{4, 0} &&
-            junctions[0].state == PinState::ON && wireJunctions(wires, pins).empty(),
+        junctions.size() == 1 && junctions[0].position == GridCoords{4, 0} && junctions[0].state == PinState::ON &&
+            wireJunctions(wires, pins).empty(),
         "Junction geometry, state priority, or pin exclusion changed."
     );
     std::vector<ComponentGeometry> components{{2, {4, 0}, 0.2f, 0, 0.2f, 0.2f, pins}};
@@ -682,18 +642,11 @@ void geometryServices()
         "Pin hit did not take priority over a wire junction and body."
     );
     require(
-        hitGeometry({}, wires, 0.2f, 0, {4, 0}).type == HitType::WIRE_JUNCTION,
-        "Shared wire endpoint hit changed."
+        hitGeometry({}, wires, 0.2f, 0, {4, 0}).type == HitType::WIRE_JUNCTION, "Shared wire endpoint hit changed."
     );
-    require(
-        hitGeometry({}, wires, 0.1f, 0, {2, 0}).type == HitType::WIRE_BODY,
-        "Wire interior hit changed."
-    );
+    require(hitGeometry({}, wires, 0.1f, 0, {2, 0}).type == HitType::WIRE_BODY, "Wire interior hit changed.");
     const auto body = hitGeometry(components, {}, 0.2f, 0.05f, {4, 1});
-    require(
-        body.type == HitType::COMPONENT_BODY && body.componentId == 2,
-        "Component body hit lost its identity."
-    );
+    require(body.type == HitType::COMPONENT_BODY && body.componentId == 2, "Component body hit lost its identity.");
     require(
         hitGeometry(components, {}, 0.305f, 0, {6, 0}).type == HitType::NONE,
         "Component body hit extended past its bounds."
@@ -705,25 +658,23 @@ void geometryServices()
     );
 }
 
+
+/** @brief Verify normalized geometry reconstructs nets, drivers, sinks and contention diagnostics. */
 void connectivityBuilder()
 {
     Circuit circuit;
     const int latch = circuit.addLatch(LatchType::SR_LATCH);
     const int sink = circuit.addGate(NOT);
     std::map<WireId, Wire> wires{{7, route({0, 0}, {5, 0})}};
-    std::vector<PinAnchor> pins{
-        {{latch, 1}, PinType::OUTPUT, {0, 0}}, {{sink, 0}, PinType::INPUT, {5, 0}}
-    };
+    std::vector<PinAnchor> pins{{{latch, 1}, PinType::OUTPUT, {0, 0}}, {{sink, 0}, PinType::INPUT, {5, 0}}};
     auto topology = buildConnectivity(wires, pins, circuit, 40);
     require(
-        topology.status == SimulationResult::OK && topology.nextNetId == 41 &&
-            topology.wireNets.at(7) == 40 && topology.pinNets.at({latch, 1, true}) == 40 &&
-            topology.pinNets.at({sink, 0, false}) == 40,
+        topology.status == SimulationResult::OK && topology.nextNetId == 41 && topology.wireNets.at(7) == 40 &&
+            topology.pinNets.at({latch, 1, true}) == 40 && topology.pinNets.at({sink, 0, false}) == 40,
         "Builder lost pin direction, output index, or allocator state."
     );
     require(
-        wires.at(7).getNet() == INVALID_NET_ID &&
-            wires.at(7).getPath() == std::vector<GridCoords>{{0, 0}, {5, 0}},
+        wires.at(7).getNet() == INVALID_NET_ID && wires.at(7).getPath() == std::vector<GridCoords>{{0, 0}, {5, 0}},
         "Connectivity builder mutated its geometry input."
     );
     require(
@@ -734,8 +685,7 @@ void connectivityBuilder()
     pins.push_back({{latch, 2}, PinType::INPUT, {5, 0}});
     topology = buildConnectivity(wires, pins, circuit, topology.nextNetId);
     require(
-        topology.status == SimulationResult::CONNECTION_REJECTED &&
-            topology.rejectedConnections.size() == 1 &&
+        topology.status == SimulationResult::CONNECTION_REJECTED && topology.rejectedConnections.size() == 1 &&
             topology.rejectedConnections[0].connection.srcPinIndex == 1 &&
             circuit.getComponent(sink)->getInConnections().empty() &&
             topology.pinNets.at({latch, 2, false}) == topology.pinNets.at({latch, 1, true}),
@@ -762,6 +712,7 @@ void connectivityBuilder()
     require(topology.nets.size() == 2, "Builder connected crossing interiors.");
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {

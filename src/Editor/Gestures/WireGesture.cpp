@@ -5,6 +5,7 @@
 
 #include <cmath>
 
+
 void WireGesture::begin(GridCoords position, PinRef origin, PinType direction)
 {
     cancel();
@@ -15,12 +16,14 @@ void WireGesture::begin(GridCoords position, PinRef origin, PinType direction)
     m_active = true;
 }
 
+
 void WireGesture::beginBranch(WireId wireId, GridCoords position)
 {
     cancel();
     m_start = position;
     m_branch = wireId;
 }
+
 
 void WireGesture::update(Scene& scene, GridCoords position)
 {
@@ -64,12 +67,11 @@ void WireGesture::update(Scene& scene, GridCoords position)
                 allowedNet = wire.getNet();
                 break;
             }
-    const auto path = routeWire(
-        m_start, position, scene.committedGeometry(), scene.getWires(), allowedNet, m_xFirst
-    );
+    const auto path = routeWire(m_start, position, scene.committedGeometry(), scene.getWires(), allowedNet, m_xFirst);
     m_routeBlocked = !path;
     m_wire.setPath(path.value_or(std::vector<GridCoords>{m_start}));
 }
+
 
 std::optional<AddWire> WireGesture::finish()
 {
@@ -80,6 +82,7 @@ std::optional<AddWire> WireGesture::finish()
     cancel();
     return result;
 }
+
 
 void WireGesture::cancel()
 {

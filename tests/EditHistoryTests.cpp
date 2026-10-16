@@ -21,6 +21,7 @@ void require(bool value, const char* message)
         throw std::runtime_error(message);
 }
 
+
 EditResult edit(Scene& scene, EditHistory& history, EditBatch batch)
 {
     auto result = EditorActions(scene).apply(batch);
@@ -29,6 +30,8 @@ EditResult edit(Scene& scene, EditHistory& history, EditBatch batch)
     return result;
 }
 
+
+/** @brief Verify retained undo records remain bounded and discarded redo branches cannot be replayed. */
 void limits(GLFWwindow*)
 {
     Scene scene;
@@ -37,17 +40,12 @@ void limits(GLFWwindow*)
     std::weak_ptr<const EditRecord> oldest;
     for (int i = 1; i <= 105; ++i)
     {
-        auto result = edit(
-            scene,
-            history,
-            {ConfigureComponentProperties{.componentId = gate, .label = std::to_string(i)}}
-        );
+        auto result =
+            edit(scene, history, {ConfigureComponentProperties{.componentId = gate, .label = std::to_string(i)}});
         if (i == 1)
             oldest = result.change;
     }
-    require(
-        oldest.expired() && history.undoCount() == 100, "History failed to evict its oldest record."
-    );
+    require(oldest.expired() && history.undoCount() == 100, "History failed to evict its oldest record.");
     for (int i = 0; i < 100; ++i)
         require(static_cast<bool>(history.undo(scene)), "Undo failed.");
     require(
@@ -56,15 +54,12 @@ void limits(GLFWwindow*)
         "Undo exceeded its 100-step boundary or restored the wrong step."
     );
     const auto revision = scene.getRevision();
-    require(
-        static_cast<bool>(history.undo(scene)) && scene.getRevision() == revision,
-        "Empty undo changed the scene."
-    );
+    require(static_cast<bool>(history.undo(scene)) && scene.getRevision() == revision, "Empty undo changed the scene.");
     for (int i = 0; i < 100; ++i)
         require(static_cast<bool>(history.redo(scene)), "Redo failed.");
     require(
-        scene.getCommittedComponentView(gate)->getBodyLabel() == "105" &&
-            history.undoCount() == 100 && history.redoCount() == 0,
+        scene.getCommittedComponentView(gate)->getBodyLabel() == "105" && history.undoCount() == 100 &&
+            history.redoCount() == 0,
         "Redo lost bounded records or their ordering."
     );
     history.undo(scene);
@@ -75,6 +70,8 @@ void limits(GLFWwindow*)
     require(history.redoCount() == 0, "Editing after undo retained an invalid redo branch.");
 }
 
+
+/** @brief Verify a batch edit produces one history record and restores complete grouped geometry. */
 void groups(GLFWwindow*)
 {
     Scene scene;
@@ -91,11 +88,7 @@ void groups(GLFWwindow*)
     );
     scene.propagate();
     const auto before = circuitToJson(scene, "History");
-    edit(
-        scene,
-        history,
-        {MoveComponent{first, {-8, 6}}, MoveComponent{second, {0, 6}}, MoveWire{*wire, {0, 6}}}
-    );
+    edit(scene, history, {MoveComponent{first, {-8, 6}}, MoveComponent{second, {0, 6}}, MoveWire{*wire, {0, 6}}});
     const auto after = circuitToJson(scene, "History");
     require(history.undoCount() == 1, "Group movement created multiple history entries.");
     const auto builds = scene.getTopologyBuildCount();
@@ -111,13 +104,11 @@ void groups(GLFWwindow*)
     );
     edit(scene, history, {DeleteComponent{first}, DeleteComponent{second}, DeleteWire{*wire}});
     require(
-        static_cast<bool>(history.undo(scene)) && scene.getComponentCount() == 2 &&
-            scene.wireCount() == 1,
+        static_cast<bool>(history.undo(scene)) && scene.getComponentCount() == 2 && scene.wireCount() == 1,
         "Undo of group deletion did not restore all objects."
     );
     require(
-        static_cast<bool>(history.redo(scene)) && scene.getComponentCount() == 0 &&
-            scene.wireCount() == 0,
+        static_cast<bool>(history.redo(scene)) && scene.getComponentCount() == 0 && scene.wireCount() == 0,
         "Redo of group deletion left partial objects."
     );
     const auto previewGate = scene.addComponent(BuiltinComponentIds::And, {10, 0});
@@ -129,6 +120,8 @@ void groups(GLFWwindow*)
     EditorActions(scene).cancelMove(*preview);
 }
 
+
+/** @brief Exercise keyboard undo/redo with active gestures and editor permissions. */
 void shortcuts(GLFWwindow* window)
 {
     Scene scene;
@@ -142,23 +135,17 @@ void shortcuts(GLFWwindow* window)
     };
     auto cursor = [&](GridCoords grid)
     {
-        const auto point =
-            input.getCameraFrame(window).worldToWindow(GridSystem::gridToWorld(grid));
+        const auto point = input.getCameraFrame(window).worldToWindow(GridSystem::gridToWorld(grid));
         glfwSetCursorPos(window, point->x, point->y);
         input.handleCursorPos(window, point->x, point->y);
     };
     cursor({0, 0});
     key(GLFW_KEY_3);
-    require(
-        scene.getComponentCount() == 1 && input.getUndoCount() == 1,
-        "Keyboard creation was not recorded."
-    );
+    require(scene.getComponentCount() == 1 && input.getUndoCount() == 1, "Keyboard creation was not recorded.");
     key(GLFW_KEY_Z, GLFW_MOD_CONTROL);
     require(scene.getComponentCount() == 0 && input.getRedoCount() == 1, "Ctrl+Z did not undo.");
     key(GLFW_KEY_Z, GLFW_MOD_CONTROL | GLFW_MOD_SHIFT);
-    require(
-        scene.getComponentCount() == 1 && input.getUndoCount() == 1, "Ctrl+Shift+Z did not redo."
-    );
+    require(scene.getComponentCount() == 1 && input.getUndoCount() == 1, "Ctrl+Shift+Z did not redo.");
     key(GLFW_KEY_Z, GLFW_MOD_CONTROL);
     key(GLFW_KEY_Y, GLFW_MOD_CONTROL);
     require(scene.getComponentCount() == 1, "Ctrl+Y did not redo.");
@@ -166,8 +153,7 @@ void shortcuts(GLFWwindow* window)
     key(GLFW_KEY_Z, GLFW_MOD_CONTROL);
     require(scene.getComponentCount() == 1, "Interaction mode undid structural edits.");
     input.setMode(EditorMode::Selection);
-    input.setUiInputHandler([](const UiInputEvent& event)
-                            { return event.kind == UiInputKind::Key; });
+    input.setUiInputHandler([](const UiInputEvent& event) { return event.kind == UiInputKind::Key; });
     key(GLFW_KEY_Z, GLFW_MOD_CONTROL);
     require(scene.getComponentCount() == 1, "Captured text input triggered circuit undo.");
     input.setUiInputHandler({});
@@ -186,6 +172,8 @@ void shortcuts(GLFWwindow* window)
     require(scene.getComponentCount() == 0, "Second undo did not undo the committed edit.");
 }
 
+
+/** @brief Verify each workspace retains its own history across tab changes and read-only inspection. */
 void views(GLFWwindow* window)
 {
     CircuitViews views;
@@ -210,25 +198,17 @@ void views(GLFWwindow* window)
     require(!views.hasUnsavedChanges(0), "Undo to the saved design did not clear unsaved status.");
     views.create(input, CircuitViews::Role::Subcircuit);
     record(
-        {CreateComponent{BuiltinComponentIds::Input, {-10, 0}},
-         CreateComponent{BuiltinComponentIds::Output, {10, 0}}}
+        {CreateComponent{BuiltinComponentIds::Input, {-10, 0}}, CreateComponent{BuiltinComponentIds::Output, {10, 0}}}
     );
     require(input.getUndoCount() == 1, "A new editor inherited Main's history.");
     views.activeDefinition() = {"subcircuit.author-history", 1};
     const auto connected = EditorActions(views.activeScene()).apply({AddWire{{{-9, 0}, {9, 0}}}});
     input.recordEdit(connected);
-    views.publishSubcircuits(
-        {makeSubcircuit(views.activeScene(), views.activeDefinition(), "Author")}
-    );
+    views.publishSubcircuits({makeSubcircuit(views.activeScene(), views.activeDefinition(), "Author")});
     views.markSaved(1);
-    require(
-        input.getUndoCount() == 2, "Publishing/saving the authored design cleared its history."
-    );
+    require(input.getUndoCount() == 2, "Publishing/saving the authored design cleared its history.");
     views.select(0, input);
-    require(
-        input.getUndoCount() == 1 && input.getRedoCount() == 1,
-        "Switching tabs lost Main's history."
-    );
+    require(input.getUndoCount() == 1 && input.getRedoCount() == 1, "Switching tabs lost Main's history.");
     // Add/remove tabs after binding: the history address must remain valid.
     for (int i = 0; i < 8; ++i)
         views.create(input);
@@ -244,26 +224,21 @@ void views(GLFWwindow* window)
     views.select(0, input);
     const Scene saved(views.mainScene());
     views.replaceWorkspace(saved, "Opened", input);
-    require(
-        input.getUndoCount() == 0 && input.getRedoCount() == 0,
-        "Open retained history for the replaced file."
-    );
+    require(input.getUndoCount() == 0 && input.getRedoCount() == 0, "Open retained history for the replaced file.");
     input.handleKey(GLFW_KEY_Z, GLFW_PRESS, GLFW_MOD_CONTROL);
     input.handleKey(GLFW_KEY_Z, GLFW_REPEAT, GLFW_MOD_CONTROL);
     input.handleKey(GLFW_KEY_Z, GLFW_RELEASE, GLFW_MOD_CONTROL);
-    require(
-        views.mainScene().getComponentCount() == 1,
-        "Empty/repeated undo changed a freshly opened file."
-    );
+    require(views.mainScene().getComponentCount() == 1, "Empty/repeated undo changed a freshly opened file.");
 }
 
+
+/** @brief Verify history restores preserve session-library entries and definition ownership. */
 void library(GLFWwindow*)
 {
     CircuitViews views;
     Input input;
     views.select(0, input);
-    auto creation =
-        EditorActions(views.mainScene()).apply({CreateComponent{BuiltinComponentIds::And, {0, 0}}});
+    auto creation = EditorActions(views.mainScene()).apply({CreateComponent{BuiltinComponentIds::And, {0, 0}}});
     input.recordEdit(creation);
     Scene authored;
     authored.addComponent(BuiltinComponentIds::Input, {-10, 0});
@@ -281,8 +256,7 @@ void library(GLFWwindow*)
             views.mainScene().getComponentCatalog().find(definition.identity.id),
         "Undoing an edit removed a subsequently imported library entry."
     );
-    auto placed =
-        EditorActions(views.mainScene()).apply({CreateComponent{definition.identity.id, {0, 0}}});
+    auto placed = EditorActions(views.mainScene()).apply({CreateComponent{definition.identity.id, {0, 0}}});
     input.recordEdit(placed);
     definition = makeSubcircuit(authored, {"subcircuit.history", 2}, "Reusable");
     views.publishSubcircuits({definition});
@@ -292,6 +266,7 @@ void library(GLFWwindow*)
     );
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {

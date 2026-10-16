@@ -1,7 +1,7 @@
 #pragma once
 #include "Component.h"
 
-/** A passive circuit output: one input, no outgoing signal pins. */
+/** @brief A passive circuit output: one input, no outgoing signal pins. */
 class OutputPin : public Component
 {
   public:
@@ -10,6 +10,5 @@ class OutputPin : public Component
     std::unique_ptr<Component> clone() const override { return std::make_unique<OutputPin>(*this); }
 
     void evaluate() override {}
-
     bool getState() const { return getStateInPin(0); }
 };

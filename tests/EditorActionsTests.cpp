@@ -19,6 +19,7 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
 EditResult accepted(EditResult result)
 {
     if (!result)
@@ -26,20 +27,18 @@ EditResult accepted(EditResult result)
     return result;
 }
 
+
+/** @brief Build a customised gate layout used to test geometry and logical-pin validation together. */
 GateLayout layout(int count = 2)
 {
-    GateLayout result{
-        {0.2f, 0.3f}, "ANDgate", {}, {{PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}}
-    };
+    GateLayout result{{0.2f, 0.3f}, "ANDgate", {}, {{PinType::OUTPUT, 0, PinState::DISCONNECTED, {2, 0}}}};
     for (int index = 0; index < count; ++index)
         result.inputs.push_back(
-            {PinType::INPUT,
-             static_cast<unsigned int>(index),
-             PinState::DISCONNECTED,
-             {-2, 2 - 2 * index}}
+            {PinType::INPUT, static_cast<unsigned int>(index), PinState::DISCONNECTED, {-2, 2 - 2 * index}}
         );
     return result;
 }
+
 
 ComponentLayout currentLayout(Scene& scene, int id)
 {
@@ -47,6 +46,8 @@ ComponentLayout currentLayout(Scene& scene, int id)
     return {view->getSize(), view->getShaderName(), view->getInputPins(), view->getOutputPins()};
 }
 
+
+/** @brief Verify invalid operations roll back an entire batch, including IDs, geometry and topology revisions. */
 void atomicBatches()
 {
     Circuit isolated;
@@ -66,8 +67,7 @@ void atomicBatches()
     Scene scene;
     EditorActions actions(scene);
     auto created = accepted(actions.apply(
-        {CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin", true},
-         CreateClock{{10, 0}, {0.15f, 0.15f}, "clock"},
+        {CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin", true}, CreateClock{{10, 0}, {0.15f, 0.15f}, "clock"},
          AddWire{{{1, 0}, {5, 0}}}}
     ));
     require(scene.getTopologyBuildCount() == 1, "Batch rebuilt topology more than once.");
@@ -79,17 +79,11 @@ void atomicBatches()
 
     const auto revision = scene.getRevision();
     const auto ids = scene.getWireIds();
-    auto failed = actions.apply(
-        {ConfigureInput{0, false}, CreateGate{AND, {20, 0}, layout()}, DeleteComponent{12345}}
-    );
+    auto failed = actions.apply({ConfigureInput{0, false}, CreateGate{AND, {20, 0}, layout()}, DeleteComponent{12345}});
+    require(failed.error == EditError::InvalidComponent && !failed.change, "Failed batch did not report its error.");
     require(
-        failed.error == EditError::InvalidComponent && !failed.change,
-        "Failed batch did not report its error."
-    );
-    require(
-        scene.getComponentCount() == 2 && scene.getRevision() == revision &&
-            scene.getTopologyBuildCount() == 1 && scene.getWireIds() == ids &&
-            scene.getLogicComponent(0)->getStateOutPin(),
+        scene.getComponentCount() == 2 && scene.getRevision() == revision && scene.getTopologyBuildCount() == 1 &&
+            scene.getWireIds() == ids && scene.getLogicComponent(0)->getStateOutPin(),
         "Failed batch partially applied geometry, properties, or counters."
     );
     auto third = accepted(actions.apply({CreateInput{{20, 0}, {0.15f, 0.15f}, "inputPin"}}));
@@ -105,40 +99,34 @@ void atomicBatches()
     );
 
     const auto noOpRevision = scene.getRevision();
-    auto noOp = accepted(
-        actions.apply({MoveComponent{0, {10, 0}}, ConfigureComponent{0, currentLayout(scene, 0)}})
-    );
+    auto noOp = accepted(actions.apply({MoveComponent{0, {10, 0}}, ConfigureComponent{0, currentLayout(scene, 0)}}));
     require(
-        !noOp.change && scene.getRevision() == noOpRevision &&
-            scene.getTopologyBuildCount() == builds + 1,
+        !noOp.change && scene.getRevision() == noOpRevision && scene.getTopologyBuildCount() == builds + 1,
         "No-op created history or rebuilt topology."
     );
     require(!accepted(actions.apply({})).change, "Empty batch created a history record.");
 
     auto overlap = actions.apply({CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin"}});
     require(
-        overlap.error == EditError::Overlap && scene.getComponentCount() == 3,
-        "Invalid creation did not roll back."
+        overlap.error == EditError::Overlap && scene.getComponentCount() == 3, "Invalid creation did not roll back."
     );
-    auto free = accepted(actions.apply(
-        {CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin", false, PlacementPolicy::FindFree}}
-    ));
+    auto free =
+        accepted(actions.apply({CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin", false, PlacementPolicy::FindFree}}));
     require(
-        scene.getCommittedComponentView(free.createdComponentIds[0])->getGridPosition() ==
-            GridCoords{1, -1},
+        scene.getCommittedComponentView(free.createdComponentIds[0])->getGridPosition() == GridCoords{1, -1},
         "Creation did not resolve placement before publication."
     );
 }
 
+
+/** @brief Verify preview tokens isolate temporary geometry and reject stale cancellation or commit requests. */
 void movePreviews()
 {
     Scene scene;
     EditorActions actions(scene);
     auto setup = accepted(actions.apply(
-        {CreateInput{{-10, 2}, {0.15f, 0.15f}, "inputPin", true},
-         CreateGate{AND, {0, 0}, layout()},
-         CreateClock{{10, 0}, {0.15f, 0.15f}, "clock"},
-         AddWire{{{-9, 2}, {-2, 2}}}}
+        {CreateInput{{-10, 2}, {0.15f, 0.15f}, "inputPin", true}, CreateGate{AND, {0, 0}, layout()},
+         CreateClock{{10, 0}, {0.15f, 0.15f}, "clock"}, AddWire{{{-9, 2}, {-2, 2}}}}
     ));
     const int gate = setup.createdComponentIds[1];
     scene.propagate();
@@ -147,10 +135,7 @@ void movePreviews()
     const auto revision = scene.getRevision();
     const auto builds = scene.getTopologyBuildCount();
     auto preview = actions.beginMove(gate);
-    require(
-        preview.has_value() && actions.previewMove(*preview, {5, 5}),
-        "Move preview could not start."
-    );
+    require(preview.has_value() && actions.previewMove(*preview, {5, 5}), "Move preview could not start.");
     require(
         scene.getComponentView(gate)->getGridPosition() == GridCoords{5, 5} &&
             scene.getCommittedComponentView(gate)->getGridPosition() == GridCoords{0, 0},
@@ -160,9 +145,8 @@ void movePreviews()
     scene.propagate();
     scene.syncVisuals();
     require(
-        scene.getLogicComponent(gate)->getStateInPin(0) &&
-            scene.netOfPin({gate, 0}, PinType::INPUT) == net && scene.getRevision() == revision &&
-            scene.getTopologyBuildCount() == builds && scene.getWireIds() == wires,
+        scene.getLogicComponent(gate)->getStateInPin(0) && scene.netOfPin({gate, 0}, PinType::INPUT) == net &&
+            scene.getRevision() == revision && scene.getTopologyBuildCount() == builds && scene.getWireIds() == wires,
         "Preview changed simulation connectivity or identity."
     );
     require(
@@ -170,15 +154,12 @@ void movePreviews()
         "An edit invalidated an active preview."
     );
     require(
-        actions.cancelMove(*preview) && scene.getRevision() == revision &&
-            scene.getTopologyBuildCount() == builds,
+        actions.cancelMove(*preview) && scene.getRevision() == revision && scene.getTopologyBuildCount() == builds,
         "Cancel rebuilt or changed committed geometry."
     );
 
     auto next = actions.beginMove(gate);
-    require(
-        next.has_value() && !actions.cancelMove(*preview), "Old token cancelled a new preview."
-    );
+    require(next.has_value() && !actions.cancelMove(*preview), "Old token cancelled a new preview.");
     require(actions.previewMove(*next, {10, 0}), "Preview position was not accepted.");
     require(
         actions.commitMove(*next).error == EditError::Overlap &&
@@ -189,45 +170,32 @@ void movePreviews()
     next = actions.beginMove(gate);
     require(next.has_value() && actions.previewMove(*next, {5, 5}), "Second preview failed.");
     require(
-        accepted(actions.commitMove(*next)).change != nullptr &&
-            scene.getTopologyBuildCount() == builds + 1 &&
+        accepted(actions.commitMove(*next)).change != nullptr && scene.getTopologyBuildCount() == builds + 1 &&
             scene.netOfPin({gate, 0}, PinType::INPUT) != INVALID_NET_ID,
         "Committed preview did not rebuild once from final geometry."
     );
     next = actions.beginMove(gate);
     require(next.has_value(), "Preview could not restart.");
     scene.rebuildNets();
-    require(
-        actions.commitMove(*next).error == EditError::StaleRevision, "Stale preview was committed."
-    );
+    require(actions.commitMove(*next).error == EditError::StaleRevision, "Stale preview was committed.");
 }
 
+
+/** @brief Verify component layout and source configuration changes preserve valid connections and reject invalid
+ * requests. */
 void configuration()
 {
-    static_assert(
-        std::is_const_v<std::remove_pointer_t<decltype(std::declval<Scene&>().getWire(0))>>
-    );
-    static_assert(
-        std::is_const_v<
-            std::remove_reference_t<decltype(std::declval<ComponentView&>().getInputPins())>>
-    );
-    static_assert(
-        std::is_const_v<
-            std::remove_reference_t<decltype(std::declval<ComponentView&>().getOutputPins())>>
-    );
+    static_assert(std::is_const_v<std::remove_pointer_t<decltype(std::declval<Scene&>().getWire(0))>>);
+    static_assert(std::is_const_v<std::remove_reference_t<decltype(std::declval<ComponentView&>().getInputPins())>>);
+    static_assert(std::is_const_v<std::remove_reference_t<decltype(std::declval<ComponentView&>().getOutputPins())>>);
 
     Scene scene;
     EditorActions actions(scene);
     auto created = accepted(actions.apply(
-        {CreateGate{AND, {0, 0}, layout(3)},
-         CreateInput{{-10, 2}, {0.1f, 0.1f}, "inputPin", true},
-         CreateInput{{-10, 0}, {0.1f, 0.1f}, "inputPin", true},
-         CreateInput{{-10, -2}, {0.1f, 0.1f}, "inputPin", true},
-         CreateClock{{20, 0}, {0.15f, 0.15f}, "clock"},
-         CreateLatch{LatchType::SR_LATCH, {30, 0}},
-         AddWire{{{-9, 2}, {-2, 2}}},
-         AddWire{{{-9, 0}, {-2, 0}}},
-         AddWire{{{-9, -2}, {-2, -2}}}}
+        {CreateGate{AND, {0, 0}, layout(3)}, CreateInput{{-10, 2}, {0.1f, 0.1f}, "inputPin", true},
+         CreateInput{{-10, 0}, {0.1f, 0.1f}, "inputPin", true}, CreateInput{{-10, -2}, {0.1f, 0.1f}, "inputPin", true},
+         CreateClock{{20, 0}, {0.15f, 0.15f}, "clock"}, CreateLatch{LatchType::SR_LATCH, {30, 0}},
+         AddWire{{{-9, 2}, {-2, 2}}}, AddWire{{{-9, 0}, {-2, 0}}}, AddWire{{{-9, -2}, {-2, -2}}}}
     ));
     const int gate = created.createdComponentIds[0], clock = created.createdComponentIds[4];
     const int latch = created.createdComponentIds[5];
@@ -237,58 +205,47 @@ void configuration()
     auto builds = scene.getTopologyBuildCount();
     auto rejected = actions.apply({ConfigureComponent{gate, layout(2)}});
     require(
-        rejected.error == EditError::AttachedPin &&
-            scene.getLogicComponent(gate)->getInputPinCount() == 3 &&
+        rejected.error == EditError::AttachedPin && scene.getLogicComponent(gate)->getInputPinCount() == 3 &&
             scene.getTopologyBuildCount() == builds && scene.getWireIds() == wireIds,
         "Attached pin was silently removed."
     );
     accepted(actions.apply({ConfigureComponent{gate, layout(2), RemovedPinPolicy::LeaveWires}}));
     require(
-        scene.getTopologyBuildCount() == ++builds &&
-            scene.getLogicComponent(gate)->getInputPinCount() == 2 &&
-            scene.getCommittedComponentView(gate)->getInputPins().size() == 2 &&
-            scene.getWireIds() == wireIds,
+        scene.getTopologyBuildCount() == ++builds && scene.getLogicComponent(gate)->getInputPinCount() == 2 &&
+            scene.getCommittedComponentView(gate)->getInputPins().size() == 2 && scene.getWireIds() == wireIds,
         "Arity migration changed routes or left mismatched counts."
     );
     scene.propagate();
     require(
         scene.getLogicComponent(gate)->getStateOutPin() &&
             scene.getLogicComponent(gate)->getInConnections().size() == 2 &&
-            scene.getLogicComponent(gate)->getStateInPin(0) &&
-            scene.getLogicComponent(gate)->getStateInPin(1),
+            scene.getLogicComponent(gate)->getStateInPin(0) && scene.getLogicComponent(gate)->getStateInPin(1),
         "Arity migration lost surviving pins, state, or connections."
     );
     auto expanded = layout(4);
     std::reverse(expanded.inputs.begin(), expanded.inputs.end());
     accepted(actions.apply({ConfigureComponent{gate, expanded}}));
     require(
-        scene.getTopologyBuildCount() == ++builds &&
-            scene.getLogicComponent(gate)->getInputPinCount() == 4 &&
+        scene.getTopologyBuildCount() == ++builds && scene.getLogicComponent(gate)->getInputPinCount() == 4 &&
             scene.getCommittedComponentView(gate)->getInputPins().front().pin_index == 3 &&
             scene.getLogicComponent(gate)->getStateOutPin(),
         "Expansion lost existing state or treated pin order as identity."
     );
     scene.propagate();
     require(
-        !scene.getLogicComponent(gate)->getStateOutPin() &&
-            scene.getLogicComponent(gate)->getStateInPin(0) &&
+        !scene.getLogicComponent(gate)->getStateOutPin() && scene.getLogicComponent(gate)->getStateInPin(0) &&
             scene.getLogicComponent(gate)->getStateInPin(1),
         "Surviving indexed inputs or new disconnected input were ignored."
     );
-    accepted(
-        actions.apply({ConfigureComponent{gate, layout(2)}, DeleteWire{created.insertedWireIds[2]}})
-    );
+    accepted(actions.apply({ConfigureComponent{gate, layout(2)}, DeleteWire{created.insertedWireIds[2]}}));
     require(
-        scene.getTopologyBuildCount() == ++builds &&
-            scene.getLogicComponent(gate)->getInputPinCount() == 2,
+        scene.getTopologyBuildCount() == ++builds && scene.getLogicComponent(gate)->getInputPinCount() == 2,
         "Complete batch did not allow deletion of attached geometry."
     );
     // Final interface has pin 2 again, so an intermediate shrink must not reject its wire.
     accepted(actions.apply({ConfigureComponent{gate, layout(3)}}));
     accepted(actions.apply({AddWire{{{-9, -2}, {-2, -2}}}}));
-    accepted(
-        actions.apply({ConfigureComponent{gate, layout(2)}, ConfigureComponent{gate, layout(3)}})
-    );
+    accepted(actions.apply({ConfigureComponent{gate, layout(2)}, ConfigureComponent{gate, layout(3)}}));
 
     auto* latchLogic = static_cast<Latch*>(scene.getLogicComponent(latch));
     latchLogic->setStateInPin(0, true);
@@ -297,14 +254,12 @@ void configuration()
     std::reverse(latchLayout.outputs.begin(), latchLayout.outputs.end());
     accepted(actions.apply({ConfigureComponent{latch, latchLayout}}));
     require(
-        scene.getLogicComponent(latch)->getStateOutPin(0) &&
-            !scene.getLogicComponent(latch)->getStateOutPin(1),
+        scene.getLogicComponent(latch)->getStateOutPin(0) && !scene.getLogicComponent(latch)->getStateOutPin(1),
         "Layout configuration reset retained latch state."
     );
     latchLayout.outputs.pop_back();
     require(
-        actions.apply({ConfigureComponent{latch, latchLayout}}).error ==
-            EditError::InvalidConfiguration,
+        actions.apply({ConfigureComponent{latch, latchLayout}}).error == EditError::InvalidConfiguration,
         "Native latch pin count was changed."
     );
     auto invalid = layout();
@@ -320,14 +275,12 @@ void configuration()
         "Nonfinite layout size was accepted."
     );
     require(
-        actions.apply({CreateGate{NOT, {50, 0}, layout()}}).error ==
-            EditError::InvalidConfiguration,
+        actions.apply({CreateGate{NOT, {50, 0}, layout()}}).error == EditError::InvalidConfiguration,
         "NOT accepted multiple inputs."
     );
     require(
-        actions.apply(
-                   {ConfigureClock{clock, std::numeric_limits<float>::infinity(), false}}
-        ).error == EditError::InvalidConfiguration,
+        actions.apply({ConfigureClock{clock, std::numeric_limits<float>::infinity(), false}}).error ==
+            EditError::InvalidConfiguration,
         "Nonfinite clock frequency was accepted."
     );
     require(
@@ -337,25 +290,21 @@ void configuration()
 
     builds = scene.getTopologyBuildCount();
     require(!scene.updateClocks(0.2f), "Clock phase setup unexpectedly flipped.");
-    accepted(actions.apply(
-        {ConfigureInput{created.createdComponentIds[1], false}, ConfigureClock{clock, 2, false}}
-    ));
+    accepted(actions.apply({ConfigureInput{created.createdComponentIds[1], false}, ConfigureClock{clock, 2, false}}));
     require(
         scene.getTopologyBuildCount() == builds && scene.isSimulationDirty(),
         "State-only configuration unnecessarily rebuilt connectivity."
     );
     require(
-        !scene.updateClocks(0.06f) && scene.updateClocks(0.1f) &&
-            scene.getLogicComponent(clock)->getStateOutPin(),
+        !scene.updateClocks(0.06f) && scene.updateClocks(0.1f) && scene.getLogicComponent(clock)->getStateOutPin(),
         "Clock frequency edit did not preserve fractional cycle phase."
     );
     scene.propagate();
-    require(
-        !scene.getLogicComponent(gate)->getStateInPin(0),
-        "Input property change was not propagated."
-    );
+    require(!scene.getLogicComponent(gate)->getStateInPin(0), "Input property change was not propagated.");
 }
 
+
+/** @brief Verify wire creation, splitting and deletion produce correct committed geometry and identity changes. */
 void wireEdits()
 {
     Scene scene;
@@ -364,16 +313,13 @@ void wireEdits()
     auto builds = scene.getTopologyBuildCount();
     auto invalid = actions.apply({DeleteWireSegment{added.insertedWireIds[0], {1, 0}, {2, 0}}});
     require(
-        invalid.error == EditError::InvalidSegment && scene.wireCount() == 1 &&
-            scene.getTopologyBuildCount() == builds,
+        invalid.error == EditError::InvalidSegment && scene.wireCount() == 1 && scene.getTopologyBuildCount() == builds,
         "Stale segment deleted the entire wire."
     );
-    auto removed =
-        accepted(actions.apply({DeleteWireSegment{added.insertedWireIds[0], {4, 4}, {4, 0}}}));
+    auto removed = accepted(actions.apply({DeleteWireSegment{added.insertedWireIds[0], {4, 4}, {4, 0}}}));
     require(
-        scene.getTopologyBuildCount() == builds + 1 && scene.wireCount() == 2 &&
-            scene.netCount() == 2 && removed.change->removedWireIds == added.insertedWireIds &&
-            removed.change->addedWireIds.size() == 2,
+        scene.getTopologyBuildCount() == builds + 1 && scene.wireCount() == 2 && scene.netCount() == 2 &&
+            removed.change->removedWireIds == added.insertedWireIds && removed.change->addedWireIds.size() == 2,
         "Middle deletion did not commit two fragments once."
     );
     bool first = false, second = false;
@@ -392,18 +338,14 @@ void wireEdits()
 
     Scene overlapScene;
     EditorActions overlapActions(overlapScene);
-    auto normalized =
-        accepted(overlapActions.apply({AddWire{{{0, 0}, {6, 0}}}, AddWire{{{2, 0}, {8, 0}}}}));
+    auto normalized = accepted(overlapActions.apply({AddWire{{{0, 0}, {6, 0}}}, AddWire{{{2, 0}, {8, 0}}}}));
     require(
         overlapScene.wireCount() == 1 && overlapScene.getTopologyBuildCount() == 1 &&
-            normalized.change->addedWireIds == overlapScene.getWireIds() &&
-            normalized.change->removedWireIds.empty(),
+            normalized.change->addedWireIds == overlapScene.getWireIds() && normalized.change->removedWireIds.empty(),
         "Change record did not describe normalized IDs."
     );
     for (WireId id : normalized.insertedWireIds)
-        require(
-            overlapScene.getWire(id) == nullptr, "Overlap case did not replace provisional IDs."
-        );
+        require(overlapScene.getWire(id) == nullptr, "Overlap case did not replace provisional IDs.");
 
     Scene feedback;
     EditorActions feedbackActions(feedback);
@@ -416,23 +358,23 @@ void wireEdits()
     accepted(feedbackActions.apply({CreateGate{NOT, {0, 0}, inverter}}));
     auto loop = accepted(feedbackActions.apply({AddWire{{{1, 0}, {1, 3}, {-2, 3}, {-2, 0}}}}));
     require(
-        feedback.propagate() == SimulationResult::NON_CONVERGENT &&
-            feedback.getRejectedConnections().empty() && feedback.wireCount() == 1,
+        feedback.propagate() == SimulationResult::NON_CONVERGENT && feedback.getRejectedConnections().empty() &&
+            feedback.wireCount() == 1,
         "Action rejected feedback instead of retaining an editable, non-convergent circuit."
     );
     accepted(feedbackActions.apply({DeleteWire{loop.insertedWireIds[0]}}));
     require(feedback.propagate() == SimulationResult::OK, "Repair through actions did not resume.");
 }
 
+
+/** @brief Verify snapshot restoration preserves complete scene state without reusing allocated identities. */
 void restoreSnapshots()
 {
     Scene scene;
     EditorActions actions(scene);
     auto setup = accepted(actions.apply(
-        {CreateGate{AND, {0, 0}, layout(3)},
-         CreateClock{{20, 0}, {0.15f, 0.15f}, "clock"},
-         CreateLatch{LatchType::SR_LATCH, {30, 0}},
-         AddWire{{{-8, -2}, {-2, -2}}}}
+        {CreateGate{AND, {0, 0}, layout(3)}, CreateClock{{20, 0}, {0.15f, 0.15f}, "clock"},
+         CreateLatch{LatchType::SR_LATCH, {30, 0}}, AddWire{{{-8, -2}, {-2, -2}}}}
     ));
     const auto originalIds = scene.getWireIds();
     require(!scene.updateClocks(0.2f), "Clock phase setup flipped.");
@@ -440,16 +382,13 @@ void restoreSnapshots()
     latch->setStateInPin(0, true);
     latch->evaluate();
     const auto changed = accepted(actions.apply(
-        {ConfigureComponent{0, layout(2), RemovedPinPolicy::LeaveWires},
-         ConfigureClock{1, 2, true},
-         MoveComponent{2, {40, 0}},
-         AddWire{{{-4, -2}, {2, -2}}}}
+        {ConfigureComponent{0, layout(2), RemovedPinPolicy::LeaveWires}, ConfigureClock{1, 2, true},
+         MoveComponent{2, {40, 0}}, AddWire{{{-4, -2}, {2, -2}}}}
     ));
     const auto finalIds = scene.getWireIds();
     const auto builds = scene.getTopologyBuildCount();
     require(
-        actions.restore(*changed.change->before, scene.getRevision() - 1).error ==
-            EditError::StaleRevision,
+        actions.restore(*changed.change->before, scene.getRevision() - 1).error == EditError::StaleRevision,
         "Stale restore overwrote a newer edit."
     );
     accepted(actions.restore(*changed.change->before, scene.getRevision()));
@@ -457,14 +396,10 @@ void restoreSnapshots()
         scene.getTopologyBuildCount() == builds + 1 && scene.getWireIds() == originalIds &&
             scene.getLogicComponent(0)->getInputPinCount() == 3 &&
             scene.getCommittedComponentView(2)->getGridPosition() == GridCoords{30, 0} &&
-            scene.getLogicComponent(2)->getStateOutPin(0) &&
-            !scene.getLogicComponent(2)->getStateOutPin(1),
+            scene.getLogicComponent(2)->getStateOutPin(0) && !scene.getLogicComponent(2)->getStateOutPin(1),
         "Restore lost original geometry, IDs or state."
     );
-    require(
-        !scene.updateClocks(0.29f) && scene.updateClocks(0.02f),
-        "Restore lost the saved clock phase."
-    );
+    require(!scene.updateClocks(0.29f) && scene.updateClocks(0.02f), "Restore lost the saved clock phase.");
     accepted(actions.restore(*changed.change->after, scene.getRevision()));
     const auto* restoredClock = static_cast<Clock*>(scene.getLogicComponent(1));
     require(
@@ -474,13 +409,11 @@ void restoreSnapshots()
         "After image did not restore the whole normalized/configured edit."
     );
 
-    auto late = accepted(actions.apply(
-        {CreateInput{{60, 0}, {0.15f, 0.15f}, "inputPin"}, AddWire{{{60, 10}, {65, 10}}}}
-    ));
+    auto late =
+        accepted(actions.apply({CreateInput{{60, 0}, {0.15f, 0.15f}, "inputPin"}, AddWire{{{60, 10}, {65, 10}}}}));
     accepted(actions.restore(*setup.change->before, scene.getRevision()));
-    auto replacement = accepted(actions.apply(
-        {CreateInput{{70, 0}, {0.15f, 0.15f}, "inputPin"}, AddWire{{{70, 10}, {75, 10}}}}
-    ));
+    auto replacement =
+        accepted(actions.apply({CreateInput{{70, 0}, {0.15f, 0.15f}, "inputPin"}, AddWire{{{70, 10}, {75, 10}}}}));
     require(
         replacement.createdComponentIds[0] > late.createdComponentIds[0] &&
             replacement.insertedWireIds[0] > late.insertedWireIds[0],
@@ -488,6 +421,8 @@ void restoreSnapshots()
     );
 }
 
+
+/** @brief Verify names, source settings and gate properties participate correctly in validation and history. */
 void componentProperties()
 {
     Scene scene;
@@ -499,16 +434,15 @@ void componentProperties()
     accepted(actions.apply({AddWire{{{2, 0}, {10, 0}}}}));
     scene.propagate();
     require(
-        !scene.getLogicComponent(gateId)->getStateOutPin() &&
-            scene.getLogicComponent(sink)->getStateOutPin(),
+        !scene.getLogicComponent(gateId)->getStateOutPin() && scene.getLogicComponent(sink)->getStateOutPin(),
         "Inversion fixture is not connected."
     );
     const auto wireIds = scene.getWireIds();
     const auto builds = scene.getTopologyBuildCount();
     const auto beforeLayout = currentLayout(scene, gateId);
-    const auto edit = accepted(actions.apply(
-        {ConfigureComponentProperties{.componentId = gateId, .label = "My gate", .inverted = true}}
-    ));
+    const auto edit = accepted(
+        actions.apply({ConfigureComponentProperties{.componentId = gateId, .label = "My gate", .inverted = true}})
+    );
     scene.propagate();
     auto* gate = static_cast<Gate*>(scene.getLogicComponent(gateId));
     const auto* view = scene.getCommittedComponentView(gateId);
@@ -517,24 +451,18 @@ void componentProperties()
             view->getShaderName() == "NANDgate" && view->getBodyLabel() == "My gate" &&
             view->getSize() == glm::vec2(beforeLayout.size.x * 1.5f, beforeLayout.size.y) &&
             view->getOutputPins()[0].relative_pos ==
-                GridCoords{
-                    beforeLayout.outputs[0].relative_pos.x + 1,
-                    beforeLayout.outputs[0].relative_pos.y
-                } &&
-            scene.getWireIds() == wireIds && scene.getTopologyBuildCount() == builds + 1 &&
-            gate->getStateOutPin() && !scene.getLogicComponent(sink)->getStateOutPin(),
+                GridCoords{beforeLayout.outputs[0].relative_pos.x + 1, beforeLayout.outputs[0].relative_pos.y} &&
+            scene.getWireIds() == wireIds && scene.getTopologyBuildCount() == builds + 1 && gate->getStateOutPin() &&
+            !scene.getLogicComponent(sink)->getStateOutPin(),
         "Inversion failed to preserve body proportions or reroute its output connection."
     );
     require(
-        scene.getComponentCatalog()
-                .find(BuiltinComponentIds::And)
-                ->presentation.bodyLabel.empty() &&
+        scene.getComponentCatalog().find(BuiltinComponentIds::And)->presentation.bodyLabel.empty() &&
             !scene.getComponentCatalog().find(BuiltinComponentIds::And)->presentation.body.inverted,
         "Instance edit mutated reusable defaults."
     );
-    auto noOp = actions.apply(
-        {ConfigureComponentProperties{.componentId = gateId, .label = "My gate", .inverted = true}}
-    );
+    auto noOp =
+        actions.apply({ConfigureComponentProperties{.componentId = gateId, .label = "My gate", .inverted = true}});
     require(noOp && !noOp.change, "Unchanged fields produced a false edit.");
     accepted(actions.restore(*edit.change->before, scene.getRevision()));
     require(
@@ -551,9 +479,7 @@ void componentProperties()
     );
     // Layout edits must also work after switching to the paired native shader.
     accepted(actions.apply({ConfigureComponent{gateId, currentLayout(scene, gateId)}}));
-    accepted(
-        actions.apply({ConfigureComponentProperties{.componentId = gateId, .inputCount = 100}})
-    );
+    accepted(actions.apply({ConfigureComponentProperties{.componentId = gateId, .inputCount = 100}}));
     require(
         scene.getLogicComponent(gateId)->getInputPinCount() == 8 &&
             scene.getCommittedComponentView(gateId)->getInputPins().size() == 8 &&
@@ -568,9 +494,7 @@ void componentProperties()
     const auto revision = scene.getRevision();
     auto rejected = actions.apply(
         {ConfigureComponentProperties{.componentId = clockId, .clockFrequency = 2.0f},
-         ConfigureComponentProperties{
-             .componentId = gateId, .label = "Rejected", .inputCount = -20
-         }}
+         ConfigureComponentProperties{.componentId = gateId, .label = "Rejected", .inputCount = -20}}
     );
     require(
         rejected.error == EditError::AttachedPin && scene.getRevision() == revision &&
@@ -584,18 +508,13 @@ void componentProperties()
     for (auto id : attached)
         if (scene.getWire(id)->containsPoint(removedAnchor))
             shrink.push_back(DeleteWire{id});
-    shrink.push_back(
-        ConfigureComponentProperties{.componentId = gateId, .label = "", .inputCount = -20}
-    );
+    shrink.push_back(ConfigureComponentProperties{.componentId = gateId, .label = "", .inputCount = -20});
     accepted(actions.apply(shrink));
     require(
         scene.getLogicComponent(gateId)->getInputPinCount() == 2 &&
             scene.getCommittedComponentView(gateId)->getBodyLabel().empty() &&
             scene.getCommittedComponentView(gateId)->getOutputPins()[0].relative_pos ==
-                GridCoords{
-                    beforeLayout.outputs[0].relative_pos.x + 1,
-                    beforeLayout.outputs[0].relative_pos.y
-                },
+                GridCoords{beforeLayout.outputs[0].relative_pos.x + 1, beforeLayout.outputs[0].relative_pos.y},
         "Explicit wire removal did not allow shrink or clear the label."
     );
 
@@ -613,47 +532,37 @@ void componentProperties()
               .componentId = clockId, .clockFrequency = std::numeric_limits<float>::infinity()
           }})
         require(
-            actions.apply({bad}).error == EditError::InvalidConfiguration,
-            "Unsupported component setting was accepted."
+            actions.apply({bad}).error == EditError::InvalidConfiguration, "Unsupported component setting was accepted."
         );
     require(
         actions.apply({ConfigureComponentProperties{999}}).error == EditError::InvalidComponent,
         "Missing component was accepted."
     );
-    const auto fixed =
-        actions.apply({ConfigureComponentProperties{.componentId = sink, .inputCount = 1}});
+    const auto fixed = actions.apply({ConfigureComponentProperties{.componentId = sink, .inputCount = 1}});
     require(fixed && !fixed.change, "NOT one-input no-op changed the scene.");
 
-    accepted(actions.apply(
-        {ConfigureComponentProperties{.componentId = clockId, .clockFrequency = 2.0f}}
-    ));
+    accepted(actions.apply({ConfigureComponentProperties{.componentId = clockId, .clockFrequency = 2.0f}}));
     require(!scene.updateClocks(0.125f), "Clock phase fixture advanced too soon.");
     const auto clockBuilds = scene.getTopologyBuildCount();
-    accepted(actions.apply({ConfigureComponentProperties{
-        .componentId = clockId, .label = "Clock", .clockPaused = true
-    }}));
+    accepted(
+        actions.apply({ConfigureComponentProperties{.componentId = clockId, .label = "Clock", .clockPaused = true}})
+    );
     require(
-        static_cast<Clock*>(scene.getLogicComponent(clockId))->getFrequency() == 2 &&
-            !scene.updateClocks(0.125f),
+        static_cast<Clock*>(scene.getLogicComponent(clockId))->getFrequency() == 2 && !scene.updateClocks(0.125f),
         "Pause reset frequency or advanced time."
     );
-    accepted(
-        actions.apply({ConfigureComponentProperties{.componentId = clockId, .clockPaused = false}})
-    );
+    accepted(actions.apply({ConfigureComponentProperties{.componentId = clockId, .clockPaused = false}}));
     require(
         scene.updateClocks(0.125f) && scene.getTopologyBuildCount() == clockBuilds,
         "Partial clock edits lost phase or rebuilt topology."
     );
     scene.handleClick(input);
-    accepted(
-        actions.apply({ConfigureComponentProperties{.componentId = input, .label = "Source"}})
-    );
+    accepted(actions.apply({ConfigureComponentProperties{.componentId = input, .label = "Source"}}));
     require(scene.getLogicComponent(input)->getStateOutPin(), "Label edit rewound a live input.");
     auto preview = actions.beginMove(gateId);
     require(
-        preview &&
-            actions.apply({ConfigureComponentProperties{.componentId = gateId, .label = "Preview"}})
-                    .error == EditError::PreviewActive,
+        preview && actions.apply({ConfigureComponentProperties{.componentId = gateId, .label = "Preview"}}).error ==
+                       EditError::PreviewActive,
         "Property edit bypassed preview ownership."
     );
     actions.cancelMove(*preview);
@@ -666,9 +575,7 @@ void componentProperties()
     box.presentation.kind = PresentationKind::Box;
     box.presentation.shader = boxShaderResources();
     box.presentation.body = {};
-    accepted(boxActions.apply(
-        {RegisterComponentDefinition{box}, CreateComponent{box.identity.id, {0, 0}}}
-    ));
+    accepted(boxActions.apply({RegisterComponentDefinition{box}, CreateComponent{box.identity.id, {0, 0}}}));
     auto boxLayout = currentLayout(boxes, 0);
     boxLayout.size.x = 0.4f;
     boxLayout.inputs[0].lead = {{-3, 1}, {-2, 1}};
@@ -683,9 +590,8 @@ void componentProperties()
         "Custom arity edit lost current geometry/leads or mutated defaults."
     );
     require(
-        boxActions.apply(
-                      {ConfigureComponentProperties{.componentId = 0, .inverted = true}}
-        ).error == EditError::InvalidConfiguration,
+        boxActions.apply({ConfigureComponentProperties{.componentId = 0, .inverted = true}}).error ==
+            EditError::InvalidConfiguration,
         "Box accepted an unsupported inversion bubble."
     );
 
@@ -696,13 +602,11 @@ void componentProperties()
         const int id = paired.addComponent(builtinDefinitionId(type), {0, 0}, {.inputCount = 3});
         for (bool inverted : {false, true, false})
         {
-            accepted(EditorActions(paired).apply(
-                {ConfigureComponentProperties{.componentId = id, .inverted = inverted}}
-            ));
+            accepted(
+                EditorActions(paired).apply({ConfigureComponentProperties{.componentId = id, .inverted = inverted}})
+            );
             auto* edited = static_cast<Gate*>(paired.getLogicComponent(id));
-            const GateType base = type == AND || type == NAND ? AND
-                                  : type == OR || type == NOR ? OR
-                                                              : XOR;
+            const GateType base = type == AND || type == NAND ? AND : type == OR || type == NOR ? OR : XOR;
             for (int bits = 0; bits < 8; ++bits)
             {
                 Gate reference(-1, base, 3);
@@ -723,6 +627,8 @@ void componentProperties()
     }
 }
 
+
+/** @brief Verify input inversion preserves logical identity, wire anchors and expected truth-table behaviour. */
 void inputInversion()
 {
     // Compare every raw truth-table row with explicitly complemented reference inputs.
@@ -748,15 +654,13 @@ void inputInversion()
                         "Input inversion changed the wrong truth-table row."
                     );
                     require(
-                        gate.getStateInPin(0) == ((bits & 1) != 0),
-                        "Gate evaluation overwrote the raw incoming signal."
+                        gate.getStateInPin(0) == ((bits & 1) != 0), "Gate evaluation overwrote the raw incoming signal."
                     );
                 }
             }
 
     Scene scene;
-    const int source =
-        scene.addComponent(BuiltinComponentIds::Input, {-12, 1}, {.inputState = true});
+    const int source = scene.addComponent(BuiltinComponentIds::Input, {-12, 1}, {.inputState = true});
     const int id = scene.addComponent(BuiltinComponentIds::Or, {0, 0});
     EditorActions actions(scene);
     accepted(actions.apply({AddWire{{{-11, 1}, {-2, 1}}}}));
@@ -766,9 +670,9 @@ void inputInversion()
     const auto builds = scene.getTopologyBuildCount();
     auto set = [&](unsigned int pin, bool inverted)
     {
-        auto result = accepted(actions.apply({ConfigureComponentProperties{
-            .componentId = id, .inputInversion = ConfigureGateInput{pin, inverted}
-        }}));
+        auto result = accepted(actions.apply(
+            {ConfigureComponentProperties{.componentId = id, .inputInversion = ConfigureGateInput{pin, inverted}}}
+        ));
         scene.propagate();
         scene.syncVisuals();
         return result;
@@ -777,35 +681,28 @@ void inputInversion()
     auto gate = [&] { return static_cast<const Gate*>(scene.getLogicComponent(id)); };
     auto view = [&] { return scene.getCommittedComponentView(id); };
     require(
-        first.change && gate()->isInputInverted(0) && gate()->getStateInPin(0) &&
-            !gate()->getStateOutPin() && view()->getInputPins()[0].inverted &&
-            view()->getInputPins()[0].relative_pos == GridCoords{-3, 1} &&
-            view()->getInputPins()[1].relative_pos == GridCoords{-3, -1} &&
-            view()->getSize() == size && view()->getBodyBounds().left < bounds.left &&
-            scene.getTopologyBuildCount() == builds + 1,
+        first.change && gate()->isInputInverted(0) && gate()->getStateInPin(0) && !gate()->getStateOutPin() &&
+            view()->getInputPins()[0].inverted && view()->getInputPins()[0].relative_pos == GridCoords{-3, 1} &&
+            view()->getInputPins()[1].relative_pos == GridCoords{-3, -1} && view()->getSize() == size &&
+            view()->getBodyBounds().left < bounds.left && scene.getTopologyBuildCount() == builds + 1,
         "Input edit did not preserve the wire, expand one cell, or invert its signal."
     );
     require(
-        gate()->getInConnections().size() == 1 &&
-            gate()->getInConnections()[0].srcComponentId == source &&
+        gate()->getInConnections().size() == 1 && gate()->getInConnections()[0].srcComponentId == source &&
             scene.pinState({id, 0}, PinType::INPUT) == PinState::ON,
         "Input inversion altered physical wire/pin state or disconnected its driver."
     );
     accepted(actions.restore(*first.change->before, scene.getRevision()));
     scene.propagate();
     require(
-        !gate()->isInputInverted(0) && gate()->getStateOutPin() &&
-            view()->getInputPins()[0].relative_pos.x == -2,
+        !gate()->isInputInverted(0) && gate()->getStateOutPin() && view()->getInputPins()[0].relative_pos.x == -2,
         "Undo did not restore geometry, wiring and input inversion together."
     );
     accepted(actions.restore(*first.change->after, scene.getRevision()));
     scene.propagate();
     require(gate()->isInputInverted(0) && !gate()->getStateOutPin(), "Redo lost input inversion.");
     const auto revision = scene.getRevision();
-    require(
-        !set(0, true).change && scene.getRevision() == revision,
-        "Repeated input setting created a spurious edit."
-    );
+    require(!set(0, true).change && scene.getRevision() == revision, "Repeated input setting created a spurious edit.");
     set(1, true);
     require(
         view()->getInputPins()[0].relative_pos.x == -3 && gate()->getStateOutPin(),
@@ -826,8 +723,7 @@ void inputInversion()
     set(0, false);
     set(1, false);
     require(
-        view()->getInputPins()[0].relative_pos.x == -3,
-        "Clearing one input removed room needed by another bubble."
+        view()->getInputPins()[0].relative_pos.x == -3, "Clearing one input removed room needed by another bubble."
     );
     accepted(actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 2}}));
     require(
@@ -842,15 +738,10 @@ void inputInversion()
     );
     const auto stable = scene.getRevision();
     for (const auto operation :
-         {ConfigureComponentProperties{
-              .componentId = id, .inputInversion = ConfigureGateInput{9, true}
-          },
-          ConfigureComponentProperties{
-              .componentId = source, .inputInversion = ConfigureGateInput{0, true}
-          }})
+         {ConfigureComponentProperties{.componentId = id, .inputInversion = ConfigureGateInput{9, true}},
+          ConfigureComponentProperties{.componentId = source, .inputInversion = ConfigureGateInput{0, true}}})
         require(
-            actions.apply({operation}).error == EditError::InvalidConfiguration &&
-                scene.getRevision() == stable,
+            actions.apply({operation}).error == EditError::InvalidConfiguration && scene.getRevision() == stable,
             "Invalid input inversion partially committed."
         );
     // Creation/import reads inversion directly from the explicit pin layout.
@@ -862,6 +753,8 @@ void inputInversion()
     );
 }
 
+
+/** @brief Verify rotated and inverted gate layouts preserve pin mapping and transactional rollback. */
 void gateOrientation()
 {
     Scene scene;
@@ -871,69 +764,49 @@ void gateOrientation()
     const int sink = scene.addComponent(BuiltinComponentIds::Output, {12, 0});
     EditorActions actions(scene);
     accepted(actions.apply(
-        {AddWire{{{-11, 1}, {-2, 1}}},
-         AddWire{{{-11, -5}, {-6, -5}, {-6, -1}, {-2, -1}}},
-         AddWire{{{2, 0}, {11, 0}}}}
+        {AddWire{{{-11, 1}, {-2, 1}}}, AddWire{{{-11, -5}, {-6, -5}, {-6, -1}, {-2, -1}}}, AddWire{{{2, 0}, {11, 0}}}}
     ));
     const auto original = currentLayout(scene, gate);
-    for (const auto direction :
-         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+    for (const auto direction : {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
     {
         const auto previous = scene.getCommittedComponentView(gate)->getOrientation();
         const auto builds = scene.getTopologyBuildCount();
-        const auto result = accepted(actions.apply(
-            {ConfigureComponentProperties{.componentId = gate, .orientation = direction}}
-        ));
+        const auto result =
+            accepted(actions.apply({ConfigureComponentProperties{.componentId = gate, .orientation = direction}}));
         scene.propagate();
         const auto* view = scene.getCommittedComponentView(gate);
         require(
             view->getOrientation() == direction && view->getSize() == original.size &&
-                view->getAbsolutePinGridPos(view->getInputPins()[0]) ==
-                    rotateGridPoint(GridCoords{-2, 1}, direction) &&
-                view->getAbsolutePinGridPos(view->getOutputPins()[0]) ==
-                    rotateGridPoint(GridCoords{2, 0}, direction) &&
+                view->getAbsolutePinGridPos(view->getInputPins()[0]) == rotateGridPoint(GridCoords{-2, 1}, direction) &&
+                view->getAbsolutePinGridPos(view->getOutputPins()[0]) == rotateGridPoint(GridCoords{2, 0}, direction) &&
                 scene.getTopologyBuildCount() == builds + 1,
             "Gate orientation lost its local layout or rebuilt topology more than once."
         );
         require(
             scene.netOfPin({a, 0}, PinType::OUTPUT) == scene.netOfPin({gate, 0}, PinType::INPUT) &&
-                scene.netOfPin({b, 0}, PinType::OUTPUT) ==
-                    scene.netOfPin({gate, 1}, PinType::INPUT) &&
-                scene.netOfPin({gate, 0}, PinType::OUTPUT) ==
-                    scene.netOfPin({sink, 0}, PinType::INPUT) &&
-                scene.getLogicComponent(gate)->getStateInPin(0) &&
-                !scene.getLogicComponent(gate)->getStateInPin(1),
+                scene.netOfPin({b, 0}, PinType::OUTPUT) == scene.netOfPin({gate, 1}, PinType::INPUT) &&
+                scene.netOfPin({gate, 0}, PinType::OUTPUT) == scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                scene.getLogicComponent(gate)->getStateInPin(0) && !scene.getLogicComponent(gate)->getStateInPin(1),
             "Rotation swapped input identities or detached an attached wire."
         );
         accepted(actions.restore(*result.change->before, scene.getRevision()));
-        require(
-            scene.getCommittedComponentView(gate)->getOrientation() == previous,
-            "Undo lost gate orientation."
-        );
+        require(scene.getCommittedComponentView(gate)->getOrientation() == previous, "Undo lost gate orientation.");
         accepted(actions.restore(*result.change->after, scene.getRevision()));
-        require(
-            scene.getCommittedComponentView(gate)->getOrientation() == direction,
-            "Redo lost gate orientation."
-        );
+        require(scene.getCommittedComponentView(gate)->getOrientation() == direction, "Redo lost gate orientation.");
     }
     const auto revision = scene.getRevision();
     require(
         !accepted(
-             actions.apply({ConfigureComponentProperties{
-                 .componentId = gate, .orientation = Orientation::Right
-             }})
+             actions.apply({ConfigureComponentProperties{.componentId = gate, .orientation = Orientation::Right}})
         ).change &&
             scene.getRevision() == revision,
         "Selecting the current orientation added an edit."
     );
     require(
-        actions.apply(
-                   {ConfigureComponentProperties{.componentId = a, .orientation = Orientation::Up}}
-        ).error == EditError::InvalidConfiguration &&
+        actions.apply({ConfigureComponentProperties{.componentId = a, .orientation = Orientation::Up}}).error ==
+                EditError::InvalidConfiguration &&
             actions.apply(
-                       {ConfigureComponentProperties{
-                           .componentId = gate, .orientation = static_cast<Orientation>(99)
-                       }}
+                       {ConfigureComponentProperties{.componentId = gate, .orientation = static_cast<Orientation>(99)}}
             ).error == EditError::InvalidConfiguration &&
             scene.getRevision() == revision,
         "Invalid orientation partially committed."
@@ -975,97 +848,82 @@ void gateOrientation()
         .position = {0, std::numeric_limits<int>::max()},
         .orientation = Orientation::Up
     }});
-    require(
-        !refused && overflow.getComponentCount() == 0,
-        "Rotated pin coordinate overflow was accepted."
-    );
+    require(!refused && overflow.getComponentCount() == 0, "Rotated pin coordinate overflow was accepted.");
 }
 
+
+/** @brief Verify latch orientation preserves complementary outputs, input identity and connected geometry. */
 void latchOrientation()
 {
     for (const auto type : {LatchType::SR_LATCH, LatchType::D_LATCH})
     {
         Scene scene;
-        const int a =
-            scene.addComponent(BuiltinComponentIds::Input, {-16, 1}, {.inputState = true});
-        const int b = scene.addComponent(
-            BuiltinComponentIds::Input, {-16, -1}, {.inputState = type == LatchType::D_LATCH}
-        );
+        const int a = scene.addComponent(BuiltinComponentIds::Input, {-16, 1}, {.inputState = true});
+        const int b =
+            scene.addComponent(BuiltinComponentIds::Input, {-16, -1}, {.inputState = type == LatchType::D_LATCH});
         const int latch = scene.addComponent(builtinDefinitionId(type), {0, 0});
         const int q = scene.addComponent(BuiltinComponentIds::Output, {16, 1});
         const int nq = scene.addComponent(BuiltinComponentIds::Output, {16, -1});
         EditorActions actions(scene);
         accepted(actions.apply(
-            {AddWire{{{-15, 1}, {-3, 1}}},
-             AddWire{{{-15, -1}, {-3, -1}}},
-             AddWire{{{3, 1}, {15, 1}}},
+            {AddWire{{{-15, 1}, {-3, 1}}}, AddWire{{{-15, -1}, {-3, -1}}}, AddWire{{{3, 1}, {15, 1}}},
              AddWire{{{3, -1}, {15, -1}}}}
         ));
         scene.propagate();
-        for (const auto direction :
-             {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+        for (const auto direction : {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
         {
             const auto previous = scene.getCommittedComponentView(latch)->getOrientation();
-            const auto result = accepted(actions.apply(
-                {ConfigureComponentProperties{.componentId = latch, .orientation = direction}}
-            ));
+            const auto result =
+                accepted(actions.apply({ConfigureComponentProperties{.componentId = latch, .orientation = direction}}));
             scene.propagate();
             const auto* view = scene.getCommittedComponentView(latch);
             for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
                 for (const auto& pin : *pins)
                     require(
-                        view->getAbsolutePinGridPos(pin) ==
-                            rotateGridPoint(pin.relative_pos, direction),
+                        view->getAbsolutePinGridPos(pin) == rotateGridPoint(pin.relative_pos, direction),
                         "Latch rotation changed a pin identity or left its anchor unrotated."
                     );
             require(
-                scene.netOfPin({a, 0}, PinType::OUTPUT) ==
-                        scene.netOfPin({latch, 0}, PinType::INPUT) &&
-                    scene.netOfPin({b, 0}, PinType::OUTPUT) ==
-                        scene.netOfPin({latch, 1}, PinType::INPUT) &&
-                    scene.netOfPin({latch, 0}, PinType::OUTPUT) ==
-                        scene.netOfPin({q, 0}, PinType::INPUT) &&
-                    scene.netOfPin({latch, 1}, PinType::OUTPUT) ==
-                        scene.netOfPin({nq, 0}, PinType::INPUT) &&
-                    scene.getLogicComponent(q)->getStateInPin(0) &&
-                    !scene.getLogicComponent(nq)->getStateInPin(0),
+                scene.netOfPin({a, 0}, PinType::OUTPUT) == scene.netOfPin({latch, 0}, PinType::INPUT) &&
+                    scene.netOfPin({b, 0}, PinType::OUTPUT) == scene.netOfPin({latch, 1}, PinType::INPUT) &&
+                    scene.netOfPin({latch, 0}, PinType::OUTPUT) == scene.netOfPin({q, 0}, PinType::INPUT) &&
+                    scene.netOfPin({latch, 1}, PinType::OUTPUT) == scene.netOfPin({nq, 0}, PinType::INPUT) &&
+                    scene.getLogicComponent(q)->getStateInPin(0) && !scene.getLogicComponent(nq)->getStateInPin(0),
                 "Latch rotation detached wires, exchanged Q/~Q or reset retained state."
             );
             accepted(actions.restore(*result.change->before, scene.getRevision()));
             require(
-                scene.getCommittedComponentView(latch)->getOrientation() == previous,
-                "Undo lost latch orientation."
+                scene.getCommittedComponentView(latch)->getOrientation() == previous, "Undo lost latch orientation."
             );
             accepted(actions.restore(*result.change->after, scene.getRevision()));
             require(
-                scene.getCommittedComponentView(latch)->getOrientation() == direction,
-                "Redo lost latch orientation."
+                scene.getCommittedComponentView(latch)->getOrientation() == direction, "Redo lost latch orientation."
             );
         }
     }
 }
 
+
+/** @brief Verify placement policies distinguish body overlap from shared centres and pin-anchor conflicts. */
 void bodyPlacement()
 {
     Scene scene;
     EditorActions actions(scene);
     accepted(actions.apply({CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin"}}));
     const auto revision = scene.getRevision();
-    const auto strict = actions.apply(
-        {CreateInput{{1, 0}, {0.15f, 0.15f}, "inputPin", {}, PlacementPolicy::RejectOverlap}}
-    );
+    const auto strict =
+        actions.apply({CreateInput{{1, 0}, {0.15f, 0.15f}, "inputPin", {}, PlacementPolicy::RejectOverlap}});
     require(
         strict.error == EditError::Overlap && scene.getRevision() == revision,
         "Explicit strict placement stopped rejecting body overlap atomically."
     );
-    const int second = accepted(actions.apply({CreateInput{{1, 0}, {0.15f, 0.15f}, "inputPin"}}))
-                           .createdComponentIds.front();
+    const int second =
+        accepted(actions.apply({CreateInput{{1, 0}, {0.15f, 0.15f}, "inputPin"}})).createdComponentIds.front();
     require(scene.checkOverlap(second), "Default creation did not permit overlapping bodies.");
     accepted(actions.apply({MoveComponent{second, {0, 1}}}));
     const auto movedRevision = scene.getRevision();
     require(
-        scene.checkOverlap(second) &&
-            actions.apply({MoveComponent{second, {0, 0}}}).error == EditError::Overlap &&
+        scene.checkOverlap(second) && actions.apply({MoveComponent{second, {0, 0}}}).error == EditError::Overlap &&
             scene.getCommittedComponentView(second)->getGridPosition() == GridCoords{0, 1} &&
             scene.getRevision() == movedRevision,
         "Move rejected body overlap or allowed an occupied center."
@@ -1075,13 +933,12 @@ void bodyPlacement()
     const auto builds = scene.getTopologyBuildCount();
     accepted(actions.apply({ConfigureComponent{second, enlarged}}));
     require(
-        scene.getCommittedComponentView(second)->getSize().x == 0.25f &&
-            scene.getTopologyBuildCount() == builds + 1 && scene.checkOverlap(second),
+        scene.getCommittedComponentView(second)->getSize().x == 0.25f && scene.getTopologyBuildCount() == builds + 1 &&
+            scene.checkOverlap(second),
         "Layout editing rejected body overlap or failed to rebuild once."
     );
     const auto stable = scene.getRevision();
-    const auto batch =
-        actions.apply({ConfigureInput{0, true}, CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin"}});
+    const auto batch = actions.apply({ConfigureInput{0, true}, CreateInput{{0, 0}, {0.15f, 0.15f}, "inputPin"}});
     require(
         batch.error == EditError::Overlap && !scene.getLogicComponent(0)->getStateOutPin() &&
             scene.getRevision() == stable,
@@ -1094,8 +951,7 @@ void bodyPlacement()
         {CreateComponent{BuiltinComponentIds::Input, {0, 0}, {}, PlacementPolicy::FindFree}}
     ));
     require(
-        automatic.getCommittedComponentView(free.createdComponentIds.front())->getGridPosition() ==
-                GridCoords{1, -1} &&
+        automatic.getCommittedComponentView(free.createdComponentIds.front())->getGridPosition() == GridCoords{1, -1} &&
             automatic.checkOverlap(free.createdComponentIds.front()),
         "Automatic placement moved beyond the next free center to avoid body overlap."
     );
@@ -1103,8 +959,7 @@ void bodyPlacement()
         {CreateComponent{BuiltinComponentIds::And, {0, 1}, {}, PlacementPolicy::FindFree}}
     ));
     require(
-        automatic.getCommittedComponentView(chosen.createdComponentIds.front())
-                ->getGridPosition() == GridCoords{0, 1},
+        automatic.getCommittedComponentView(chosen.createdComponentIds.front())->getGridPosition() == GridCoords{0, 1},
         "Automatic placement moved an already free center."
     );
 
@@ -1117,9 +972,8 @@ void bodyPlacement()
         const auto nextRevision = adjacent.getRevision();
         require(
             adjacent.getCommittedComponentView(next)->getGridPosition() == GridCoords{0, 1} &&
-                EditorActions(adjacent).apply(
-                                           {CreateComponent{definition.identity.id, {0, 1}}}
-                ).error == EditError::Overlap &&
+                EditorActions(adjacent).apply({CreateComponent{definition.identity.id, {0, 1}}}).error ==
+                    EditError::Overlap &&
                 adjacent.getRevision() == nextRevision,
             "A native component rejected adjacency or permitted identical centers."
         );
@@ -1128,11 +982,9 @@ void bodyPlacement()
     pins.addComponent(BuiltinComponentIds::Input, {0, 0}, {.inputState = true});
     const int output = pins.addComponent(BuiltinComponentIds::Output, {6, 0});
     const auto pinRevision = pins.getRevision();
-    const auto rejected =
-        EditorActions(pins).apply({CreateComponent{BuiltinComponentIds::Output, {2, 0}}});
+    const auto rejected = EditorActions(pins).apply({CreateComponent{BuiltinComponentIds::Output, {2, 0}}});
     require(
-        rejected.error == EditError::Overlap && pins.getRevision() == pinRevision &&
-            pins.getComponentCount() == 2,
+        rejected.error == EditError::Overlap && pins.getRevision() == pinRevision && pins.getComponentCount() == 2,
         "Creation accepted coincident pins at different component centers."
     );
     require(
@@ -1141,12 +993,11 @@ void bodyPlacement()
             pins.getCommittedComponentView(output)->getGridPosition() == GridCoords{6, 0},
         "Movement accepted coincident pins or partially committed."
     );
-    const auto freePins = accepted(EditorActions(pins).apply(
-        {CreateComponent{BuiltinComponentIds::Output, {2, 0}, {}, PlacementPolicy::FindFree}}
-    ));
+    const auto freePins = accepted(
+        EditorActions(pins).apply({CreateComponent{BuiltinComponentIds::Output, {2, 0}, {}, PlacementPolicy::FindFree}})
+    );
     require(
-        pins.getCommittedComponentView(freePins.createdComponentIds.front())->getGridPosition() ==
-            GridCoords{3, -1},
+        pins.getCommittedComponentView(freePins.createdComponentIds.front())->getGridPosition() == GridCoords{3, -1},
         "Automatic placement ignored shared pin positions."
     );
 
@@ -1156,9 +1007,7 @@ void bodyPlacement()
     const auto rotationRevision = rotated.getRevision();
     require(
         EditorActions(rotated)
-                    .apply({ConfigureComponentProperties{
-                        .componentId = inverter, .orientation = Orientation::Up
-                    }})
+                    .apply({ConfigureComponentProperties{.componentId = inverter, .orientation = Orientation::Up}})
                     .error == EditError::Overlap &&
             rotated.getRevision() == rotationRevision &&
             rotated.getCommittedComponentView(inverter)->getOrientation() == Orientation::Right,
@@ -1170,11 +1019,9 @@ void bodyPlacement()
     resized.addComponent(BuiltinComponentIds::Input, {-3, 0});
     const auto resizeRevision = resized.getRevision();
     require(
-        EditorActions(resized)
-                    .apply({ConfigureComponentProperties{.componentId = gate, .inputCount = 3}})
-                    .error == EditError::Overlap &&
-            resized.getRevision() == resizeRevision &&
-            resized.getLogicComponent(gate)->getInputPinCount() == 2,
+        EditorActions(resized).apply({ConfigureComponentProperties{.componentId = gate, .inputCount = 3}}).error ==
+                EditError::Overlap &&
+            resized.getRevision() == resizeRevision && resized.getLogicComponent(gate)->getInputPinCount() == 2,
         "Growing an input bank placed a new pin over an existing pin."
     );
 
@@ -1187,6 +1034,7 @@ void bodyPlacement()
 }
 
 } // namespace
+
 
 int main(int argc, char** argv)
 {

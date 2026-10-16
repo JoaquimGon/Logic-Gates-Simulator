@@ -25,8 +25,9 @@ inline constexpr const char* JkFlipFlop = "native.jk-flip-flop";
 
 /** @brief The single declaration table for built-in editor defaults, interfaces and assets. */
 const std::vector<ComponentDefinition>& nativeDefinitions();
+
 const ShaderResources& boxShaderResources();
+
 const std::string& builtinDefinitionId(GateType type);
 const std::string& builtinDefinitionId(LatchType type);
-
 const std::string& builtinDefinitionId(FlipFlopType type);

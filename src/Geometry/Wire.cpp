@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <utility>
 
+
 Wire::Wire() : m_state(PinState::DISCONNECTED) {}
+
 
 void Wire::setState(PinState newState)
 {

@@ -1,7 +1,7 @@
 #pragma once
-#include "Simulation/Circuit.h"
-#include "Components/InputPin.h"
 #include "ComponentView.h"
+#include "Components/InputPin.h"
+#include "Simulation/Circuit.h"
 
 #include <utility>
 
@@ -11,25 +11,14 @@
 class InputPinView : public ComponentView
 {
   public:
-    std::unique_ptr<ComponentView> clone() const override
-    {
-        return std::make_unique<InputPinView>(*this);
-    }
+    std::unique_ptr<ComponentView> clone() const override { return std::make_unique<InputPinView>(*this); }
 
-    InputPinView(
-        GridCoords gridPos,
-        int logicId,
-        glm::vec2 size,
-        std::string shaderName,
-        std::vector<PinUI> outputs
-    )
-        : ComponentView(gridPos, logicId, size, std::move(shaderName)),
-          m_outputs(std::move(outputs))
+    InputPinView(GridCoords gridPos, int logicId, glm::vec2 size, std::string shaderName, std::vector<PinUI> outputs)
+        : ComponentView(gridPos, logicId, size, std::move(shaderName)), m_outputs(std::move(outputs))
     {
     }
 
     const std::vector<PinUI>& getInputPins() const override { return m_empty; }
-
     const std::vector<PinUI>& getOutputPins() const override { return m_outputs; }
 
     bool onClick(Circuit& circuit) override
@@ -44,10 +33,8 @@ class InputPinView : public ComponentView
 
   private:
     std::vector<PinUI>& editInputPins() override { return m_empty; }
-
     std::vector<PinUI>& editOutputPins() override { return m_outputs; }
 
-
     std::vector<PinUI> m_outputs;
-    std::vector<PinUI> m_empty; // always empty, satisfies the interface
+    std::vector<PinUI> m_empty;
 };

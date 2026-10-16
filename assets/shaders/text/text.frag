@@ -6,6 +6,7 @@ out vec4 FragColor;
 
 uniform sampler2D uFontTexture;
 
+
 void main()
 {
     // The atlas holds alpha values in the red channel

@@ -14,7 +14,6 @@
 #include <vector>
 
 class Circuit; // forward declare, defined in Simulation/Circuit.h
-
 class EditorActions;
 class ComponentFactory;
 
@@ -22,25 +21,19 @@ class ComponentView
 {
   public:
     ComponentView(GridCoords gridPos, int logicId, glm::vec2 size, std::string shaderName)
-        : m_grid_pos(gridPos), m_logicId(logicId), m_position(GridSystem::gridToWorld(gridPos)),
-          m_size(size), m_shaderName(std::move(shaderName))
+        : m_grid_pos(gridPos), m_logicId(logicId), m_position(GridSystem::gridToWorld(gridPos)), m_size(size),
+          m_shaderName(std::move(shaderName))
     {
     }
-
     virtual ~ComponentView() = default;
 
     virtual std::unique_ptr<ComponentView> clone() const = 0;
 
-    int getComponentId() const
-    {
-        return m_logicId;
-    } // kept name for drop-in compatibility with existing call sites
-
+    int getComponentId() const { return m_logicId; }
     glm::vec2 getPosition() const { return m_position; }
 
-    /** Shader scale in world units; need not be an even number of grid cells. */
+    /** @brief Shader scale in world units; need not be an even number of grid cells. */
     glm::vec2 getSize() const { return m_size; }
-
     Orientation getOrientation() const { return m_orientation; }
 
     BodyBounds getBodyBounds() const
@@ -48,7 +41,7 @@ class ComponentView
         return orientedBounds(getUnrotatedBodyBounds(), m_position.x, m_position.y, m_orientation);
     }
 
-    /** Body-frame bounds and rail, before the instance's orientation is applied. */
+    /** @brief Body-frame bounds and rail, before the instance's orientation is applied. */
     BodyBounds getUnrotatedBodyBounds() const
     {
         auto bounds = bodyBounds(m_bodyStyle, m_position.x, m_position.y, m_size.x, m_size.y);
@@ -59,15 +52,11 @@ class ComponentView
             bounds.bottom = std::min(bounds.bottom, rail->bottom);
             bounds.top = std::max(bounds.top, rail->top);
         }
-        const bool invertedInput = std::any_of(
-            getInputPins().begin(),
-            getInputPins().end(),
-            [](const auto& pin) { return pin.inverted; }
-        );
-        if (invertedInput ||
-            (getInputPins().size() > 2 &&
-             (m_bodyStyle.contour == BodyContour::And || m_bodyStyle.contour == BodyContour::Or ||
-              m_bodyStyle.contour == BodyContour::Xor)))
+        const bool invertedInput =
+            std::any_of(getInputPins().begin(), getInputPins().end(), [](const auto& pin) { return pin.inverted; });
+        if (invertedInput || (getInputPins().size() > 2 &&
+                              (m_bodyStyle.contour == BodyContour::And || m_bodyStyle.contour == BodyContour::Or ||
+                               m_bodyStyle.contour == BodyContour::Xor)))
             for (const auto& pin : getInputPins())
             {
                 const auto point = m_position + GridSystem::gridToWorld(pin.relative_pos);
@@ -80,22 +69,20 @@ class ComponentView
         return bounds;
     }
 
-    /** Visual extension for aligned inputs outside a native gate's body; never an electrical net.
+    /** @brief Visual extension for aligned inputs outside a native gate's body; never an electrical net.
      */
     std::optional<BodyBounds> getInputRail() const
     {
         const auto rail = getUnrotatedInputRail();
-        return rail
-                   ? std::optional{orientedBounds(*rail, m_position.x, m_position.y, m_orientation)}
-                   : std::nullopt;
+        return rail ? std::optional{orientedBounds(*rail, m_position.x, m_position.y, m_orientation)} : std::nullopt;
     }
 
+    /** @brief Build the gate's input extension only when authored input geometry can use a regular rail. */
     std::optional<BodyBounds> getUnrotatedInputRail() const
     {
         const auto& pins = getInputPins();
-        if (pins.size() <= 2 ||
-            (m_bodyStyle.contour != BodyContour::And && m_bodyStyle.contour != BodyContour::Or &&
-             m_bodyStyle.contour != BodyContour::Xor))
+        if (pins.size() <= 2 || (m_bodyStyle.contour != BodyContour::And && m_bodyStyle.contour != BodyContour::Or &&
+                                 m_bodyStyle.contour != BodyContour::Xor))
             return std::nullopt;
         const auto first = m_position + GridSystem::gridToWorld(pins.front().relative_pos);
         float bottom = first.y, top = first.y;
@@ -117,34 +104,23 @@ class ComponentView
             const float width = m_bodyStyle.inverted ? m_size.x / 1.5f : m_size.x;
             const float margin = 0.013f * width + halfWidth;
             return BodyBounds{
-                m_position.x + (-1.27f + std::sqrt(0.860f * 0.860f - 0.38f * 0.38f)) * width -
-                    margin,
-                bottom - halfWidth,
-                m_position.x - 0.41f * width + margin,
-                top + halfWidth
+                m_position.x + (-1.27f + std::sqrt(0.860f * 0.860f - 0.38f * 0.38f)) * width - margin,
+                bottom - halfWidth, m_position.x - 0.41f * width + margin, top + halfWidth
             };
         }
         // The outer edge meets the back/corner of the body; the strip extends inward.
-        return BodyBounds{
-            body.left, bottom - halfWidth, body.left + 2 * halfWidth, top + halfWidth
-        };
+        return BodyBounds{body.left, bottom - halfWidth, body.left + 2 * halfWidth, top + halfWidth};
     }
 
     const std::string& getShaderName() const { return m_shaderName; }
-
     const DefinitionIdentity& getDefinitionIdentity() const { return m_definition; }
-
     const std::string& getBodyLabel() const { return m_bodyLabel; }
 
-    /** Stable identity of an authored input/output, independent of its name or pin order. */
+    /** @brief Stable identity of an authored input/output, independent of its name or pin order. */
     const std::string& getPortId() const { return m_portId; }
-
     bool showsBodyLabel() const { return m_showBodyLabel; }
-
     bool showsPinLabels() const { return m_showPinLabels; }
-
     const BodyStyle& getBodyStyle() const { return m_bodyStyle; }
-
     GridCoords getGridPosition() const { return m_grid_pos; }
 
     GridCoords getAbsolutePinGridPos(const PinUI& pin) const
@@ -158,11 +134,10 @@ class ComponentView
         return GridSystem::gridToWorld(getAbsolutePinGridPos(pin));
     }
 
-    // ----- Data-driven pin access every component must provide -----
     virtual const std::vector<PinUI>& getInputPins() const = 0;
+
     virtual const std::vector<PinUI>& getOutputPins() const = 0;
 
-    // ----- Delegated interaction -----
     // Called when the component's BODY (not a pin) is clicked. Return true if
     // the component consumed the click (e.g. toggled itself) so Input should
     // not start a drag.
@@ -180,6 +155,7 @@ class ComponentView
     }
 
     virtual std::vector<PinUI>& editInputPins() = 0;
+
     virtual std::vector<PinUI>& editOutputPins() = 0;
 
     DefinitionIdentity m_definition;

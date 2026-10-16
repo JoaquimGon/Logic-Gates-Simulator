@@ -14,20 +14,22 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
 // A model-only edge receiver verifies the simulator contract without adding a new app component.
 class EdgeMemory : public Component
 {
   public:
     explicit EdgeMemory(bool rising = true) : Component(-1, 2, 1), rising(rising) {}
 
-    std::unique_ptr<Component> clone() const override
-    {
-        return std::make_unique<EdgeMemory>(*this);
-    }
+
+    std::unique_ptr<Component> clone() const override { return std::make_unique<EdgeMemory>(*this); }
+
 
     void evaluate() override {}
 
+
     int clockInputPin() const override { return 1; }
+
 
     void onClockEdge(bool state) override
     {
@@ -37,10 +39,13 @@ class EdgeMemory : public Component
             setStateOutPin(0, getStateInPin(0));
     }
 
+
     bool rising;
     std::vector<bool> edges, samples;
 };
 
+
+/** @brief Verify settling counters, bounded evaluation and timing accounting for flat and nested circuits. */
 void simulationWork()
 {
     Circuit circuit;
@@ -51,27 +56,23 @@ void simulationWork()
     circuit.updateClocks(1);
     const auto work = circuit.takeSimulationWork();
     require(
-        work.propagationCalls == 2 && work.edgeTimes == 2 && work.clockSlices == 2 &&
-            work.evaluations >= 4 && work.rounds >= 2 && work.propagationMs >= 0 &&
-            circuit.takeSimulationWork().propagationCalls == 0,
+        work.propagationCalls == 2 && work.edgeTimes == 2 && work.clockSlices == 2 && work.evaluations >= 4 &&
+            work.rounds >= 2 && work.propagationMs >= 0 && circuit.takeSimulationWork().propagationCalls == 0,
         "Clock frame work reported only its last propagation or failed to reset."
     );
     circuit.stepClocks(2);
     require(
-        circuit.takeSimulationWork().propagationCalls == 2,
-        "Manual clock steps did not contribute to diagnostic work."
+        circuit.takeSimulationWork().propagationCalls == 2, "Manual clock steps did not contribute to diagnostic work."
     );
 
     auto inner = std::make_shared<Circuit>();
-    const int input = inner->addInputPin(), inverse = inner->addGate(NOT),
-              output = inner->addOutputPin();
+    const int input = inner->addInputPin(), inverse = inner->addGate(NOT), output = inner->addOutputPin();
     inner->connectComponents(input, 0, inverse, 0);
     inner->connectComponents(inverse, 0, output, 0);
     Circuit outer;
     const int source = outer.addInputPin(true);
-    const int nested = outer.addComponent(
-        std::make_unique<Subcircuit>(SubcircuitBehavior{nullptr, inner, {input}, {output}})
-    );
+    const int nested =
+        outer.addComponent(std::make_unique<Subcircuit>(SubcircuitBehavior{nullptr, inner, {input}, {output}}));
     outer.connectComponents(source, 0, nested, 0);
     outer.propagate();
     Circuit copied = outer;
@@ -108,12 +109,13 @@ void simulationWork()
     backlog.setClocksPaused(true);
     backlog.updateClocks(0);
     require(
-        backlog.takeSimulationWork().clockLimit == ClockWorkLimit::None &&
-            backlog.pendingClockTime() == 0,
+        backlog.takeSimulationWork().clockLimit == ClockWorkLimit::None && backlog.pendingClockTime() == 0,
         "Pausing retained a stale backlog-limit diagnostic."
     );
 }
 
+
+/** @brief Verify stable feedback settles and oscillating feedback reports the unchanged production work limits. */
 void cyclicPropagation()
 {
     Circuit circuit;
@@ -127,8 +129,7 @@ void cyclicPropagation()
     auto check = [&](bool expected)
     {
         require(
-            circuit.propagate() == SimulationResult::OK &&
-                circuit.getComponent(q)->getStateOutPin() == expected &&
+            circuit.propagate() == SimulationResult::OK && circuit.getComponent(q)->getStateOutPin() == expected &&
                 circuit.getComponent(notQ)->getStateOutPin() != expected,
             "Gate-built SR memory did not settle or retain its state."
         );
@@ -150,20 +151,15 @@ void cyclicPropagation()
     const int clock = circuit.addClock();
     require(circuit.connectComponents(oscillator, 0, oscillator, 0), "Self-feedback was rejected.");
     require(
-        circuit.propagate() == SimulationResult::NON_CONVERGENT &&
-            circuit.unsettledComponent() == oscillator && !circuit.isStateDirty() &&
-            !circuit.updateClocks(0.5f) && !circuit.getComponent(clock)->getStateOutPin(),
+        circuit.propagate() == SimulationResult::NON_CONVERGENT && circuit.unsettledComponent() == oscillator &&
+            !circuit.isStateDirty() && !circuit.updateClocks(0.5f) && !circuit.getComponent(clock)->getStateOutPin(),
         "Oscillation did not stop automatic simulation within its bound."
     );
     const Circuit failedCopy = circuit;
-    require(
-        failedCopy.unsettledComponent() == oscillator,
-        "Circuit copy lost the pending-activity diagnostic."
-    );
+    require(failedCopy.unsettledComponent() == oscillator, "Circuit copy lost the pending-activity diagnostic.");
     circuit.disconnectComponents(oscillator, 0, oscillator, 0);
     require(
-        circuit.propagate() == SimulationResult::OK && circuit.unsettledComponent() == -1 &&
-            circuit.updateClocks(0.5f),
+        circuit.propagate() == SimulationResult::OK && circuit.unsettledComponent() == -1 && circuit.updateClocks(0.5f),
         "Feedback repair did not restore clocks and propagation."
     );
 
@@ -183,6 +179,8 @@ void cyclicPropagation()
     );
 }
 
+
+/** @brief Verify clock timestamps, pause state and pending catch-up preserve chronological edge delivery. */
 void clockEdgeTiming()
 {
     Circuit circuit;
@@ -231,8 +229,7 @@ void clockEdgeTiming()
     require(trace->edges.size() == 1001 && trace->edges.back(), "Manual step omitted its edge.");
     require(!backlog.updateClocks(0), "Manual step was replayed by clock catch-up.");
 
-    for (float delta :
-         {-1.0f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
+    for (float delta : {-1.0f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
     {
         bool rejected = false;
         try
@@ -247,6 +244,8 @@ void clockEdgeTiming()
     }
 }
 
+
+/** @brief Verify simultaneous and nested clock transitions reach edge-sensitive receivers without duplication. */
 void clockEdgeReceivers()
 {
     Circuit circuit;
@@ -260,8 +259,7 @@ void clockEdgeReceivers()
     }
     circuit.updateClocks(0.5f);
     require(
-        circuit.getComponent(rising)->getStateOutPin() &&
-            !circuit.getComponent(falling)->getStateOutPin(),
+        circuit.getComponent(rising)->getStateOutPin() && !circuit.getComponent(falling)->getStateOutPin(),
         "Rising/falling edges were confused."
     );
     circuit.updateClocks(0.5f);
@@ -269,14 +267,12 @@ void clockEdgeReceivers()
     static_cast<InputPin*>(circuit.getComponent(data))->toggle();
     circuit.propagate();
     require(
-        circuit.getComponent(rising)->getStateOutPin() &&
-            circuit.getComponent(falling)->getStateOutPin(),
+        circuit.getComponent(rising)->getStateOutPin() && circuit.getComponent(falling)->getStateOutPin(),
         "Edge receiver became a level-sensitive latch."
     );
     circuit.updateClocks(0.5f);
     require(
-        !circuit.getComponent(rising)->getStateOutPin() &&
-            circuit.getComponent(falling)->getStateOutPin(),
+        !circuit.getComponent(rising)->getStateOutPin() && circuit.getComponent(falling)->getStateOutPin(),
         "Next rising edge did not sample updated data."
     );
 
@@ -293,15 +289,11 @@ void clockEdgeReceivers()
         chain.connectComponents(pulse, 0, second, 1);
         chain.updateClocks(0.5f);
         require(
-            chain.getComponent(first)->getStateOutPin() &&
-                !chain.getComponent(second)->getStateOutPin(),
+            chain.getComponent(first)->getStateOutPin() && !chain.getComponent(second)->getStateOutPin(),
             "One edge advanced two register stages because of component order."
         );
         chain.updateClocks(1);
-        require(
-            chain.getComponent(second)->getStateOutPin(),
-            "Second rising edge failed to advance the chain."
-        );
+        require(chain.getComponent(second)->getStateOutPin(), "Second rising edge failed to advance the chain.");
     }
     Circuit generated;
     const int manual = generated.addInputPin(), invert = generated.addGate(NOT);
@@ -313,16 +305,14 @@ void clockEdgeReceivers()
     static_cast<InputPin*>(generated.getComponent(manual))->toggle();
     generated.propagate();
     require(
-        memory->edges == std::vector<bool>{true, false},
-        "Gate-generated clock transitions did not reach the receiver."
+        memory->edges == std::vector<bool>{true, false}, "Gate-generated clock transitions did not reach the receiver."
     );
 
     // Existing level-sensitive latches can form a falling-edge master/slave circuit.
     Circuit native;
     const int signal = native.addInputPin(true), pulse = native.addClock();
     const int inverse = native.addGate(NOT);
-    const int master = native.addLatch(LatchType::D_LATCH),
-              slave = native.addLatch(LatchType::D_LATCH);
+    const int master = native.addLatch(LatchType::D_LATCH), slave = native.addLatch(LatchType::D_LATCH);
     native.connectComponents(signal, 0, master, 0);
     native.connectComponents(pulse, 0, master, 1);
     native.connectComponents(pulse, 0, inverse, 0);
@@ -331,8 +321,7 @@ void clockEdgeReceivers()
     native.propagate();
     native.updateClocks(0.5f);
     require(
-        native.getComponent(master)->getStateOutPin() &&
-            !native.getComponent(slave)->getStateOutPin(),
+        native.getComponent(master)->getStateOutPin() && !native.getComponent(slave)->getStateOutPin(),
         "Native master/slave circuit transferred data on the wrong edge."
     );
     native.updateClocks(0.5f);
@@ -340,15 +329,12 @@ void clockEdgeReceivers()
     static_cast<InputPin*>(native.getComponent(signal))->toggle();
     native.propagate();
     native.updateClocks(0.5f);
-    require(
-        native.getComponent(slave)->getStateOutPin(), "Native slave changed during the high phase."
-    );
+    require(native.getComponent(slave)->getStateOutPin(), "Native slave changed during the high phase.");
     native.updateClocks(0.5f);
-    require(
-        !native.getComponent(slave)->getStateOutPin(), "Native slave missed the next falling edge."
-    );
+    require(!native.getComponent(slave)->getStateOutPin(), "Native slave missed the next falling edge.");
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {

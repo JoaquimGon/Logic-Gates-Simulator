@@ -28,6 +28,7 @@ void require(bool value, const char* message)
         throw std::runtime_error(message);
 }
 
+
 void edit(Scene& scene, const EditBatch& batch)
 {
     const auto result = EditorActions(scene).apply(batch);
@@ -35,6 +36,8 @@ void edit(Scene& scene, const EditBatch& batch)
         throw std::runtime_error(result.message);
 }
 
+
+/** @brief Require invalid subcircuit publication or loading to reject its input explicitly. */
 template <class F>
 void rejects(F action, const char* message)
 {
@@ -49,6 +52,8 @@ void rejects(F action, const char* message)
     throw std::runtime_error(message);
 }
 
+
+/** @brief Build a small connected authored design with a stable reusable interface. */
 Scene wireDesign(bool inverted = false)
 {
     Scene scene;
@@ -58,9 +63,8 @@ Scene wireDesign(bool inverted = false)
     const int input = scene.addComponent(BuiltinComponentIds::Input, {-20, 0});
     const int output = scene.addComponent(BuiltinComponentIds::Output, {20, 0});
     edit(
-        scene,
-        {ConfigureComponentProperties{.componentId = input, .label = "Data"},
-         ConfigureComponentProperties{.componentId = output, .label = "Result"}}
+        scene, {ConfigureComponentProperties{.componentId = input, .label = "Data"},
+                ConfigureComponentProperties{.componentId = output, .label = "Result"}}
     );
     if (inverted)
     {
@@ -74,12 +78,15 @@ Scene wireDesign(bool inverted = false)
     return scene;
 }
 
+
 ComponentDefinition definition(bool inverted = false, unsigned version = 1)
 {
     auto scene = wireDesign(inverted);
     return makeSubcircuit(scene, {"subcircuit.test", version}, "Example");
 }
 
+
+/** @brief Verify subcircuit instances own independent state, connections and nested evaluation results. */
 void runtime()
 {
     auto design = definition();
@@ -104,8 +111,7 @@ void runtime()
 
     copy.replaceComponent(a, std::make_unique<Subcircuit>(behavior));
     require(
-        copy.getComponent(source)->getOutConnections().empty() &&
-            copy.getComponent(a)->getInConnections().empty(),
+        copy.getComponent(source)->getOutConnections().empty() && copy.getComponent(a)->getInConnections().empty(),
         "Replacement retained asymmetric old edges."
     );
     Scene memory;
@@ -115,41 +121,31 @@ void runtime()
     const int q = memory.addComponent(BuiltinComponentIds::Output, {20, 5});
     const int nq = memory.addComponent(BuiltinComponentIds::Output, {20, -5});
     edit(
-        memory,
-        {ConfigureComponentProperties{.componentId = s, .label = "Set"},
-         ConfigureComponentProperties{.componentId = r, .label = "Reset"},
-         ConfigureComponentProperties{.componentId = q, .label = "Q"},
-         ConfigureComponentProperties{.componentId = nq, .label = "~Q"},
-         AddWire{{{-19, 5}, {-3, 5}, {-3, 1}}},
-         AddWire{{{-19, -5}, {-3, -5}, {-3, -1}}},
-         AddWire{{{3, 1}, {19, 1}, {19, 5}}},
-         AddWire{{{3, -1}, {19, -1}, {19, -5}}}}
+        memory, {ConfigureComponentProperties{.componentId = s, .label = "Set"},
+                 ConfigureComponentProperties{.componentId = r, .label = "Reset"},
+                 ConfigureComponentProperties{.componentId = q, .label = "Q"},
+                 ConfigureComponentProperties{.componentId = nq, .label = "~Q"}, AddWire{{{-19, 5}, {-3, 5}, {-3, 1}}},
+                 AddWire{{{-19, -5}, {-3, -5}, {-3, -1}}}, AddWire{{{3, 1}, {19, 1}, {19, 5}}},
+                 AddWire{{{3, -1}, {19, -1}, {19, -5}}}}
     );
     memory.handleClick(s);
     memory.propagate();
     memory.handleClick(s);
     memory.propagate();
-    require(
-        memory.getLogicComponent(2)->getStateOutPin(0), "Authored retained-state fixture failed."
-    );
+    require(memory.getLogicComponent(2)->getStateOutPin(0), "Authored retained-state fixture failed.");
     const auto latch = makeSubcircuit(memory, {"subcircuit.memory", 1}, "Memory");
     Circuit memories;
-    const int first = memories.addComponent(
-        std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(latch.behavior))
-    );
-    const int second = memories.addComponent(
-        std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(latch.behavior))
-    );
+    const int first = memories.addComponent(std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(latch.behavior)));
+    const int second =
+        memories.addComponent(std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(latch.behavior)));
     const int set = memories.addInputPin(true);
     memories.connectComponents(set, 0, first, 0);
     memories.propagate();
     static_cast<InputPin*>(memories.getComponent(set))->setState(false);
     memories.propagate();
     require(
-        memories.getComponent(first)->getStateOutPin(0) &&
-            !memories.getComponent(first)->getStateOutPin(1) &&
-            !memories.getComponent(second)->getStateOutPin(0) &&
-            memories.getComponent(second)->getStateOutPin(1),
+        memories.getComponent(first)->getStateOutPin(0) && !memories.getComponent(first)->getStateOutPin(1) &&
+            !memories.getComponent(second)->getStateOutPin(0) && memories.getComponent(second)->getStateOutPin(1),
         "Latch memory or indexed outputs are shared across instances."
     );
 
@@ -162,8 +158,7 @@ void runtime()
         edit(wide, {AddWire{{{-19, i * 10}, {19, i * 10}}}});
     }
     wide.setInterfaceNamingRequired(true);
-    const auto multiple =
-        makeSubcircuit(wide, {"subcircuit.multiple", 1}, "Four inputs, three outputs");
+    const auto multiple = makeSubcircuit(wide, {"subcircuit.multiple", 1}, "Four inputs, three outputs");
     Subcircuit many(std::get<SubcircuitBehavior>(multiple.behavior));
     many.setStateInPin(0, true);
     many.setStateInPin(2, true);
@@ -176,14 +171,10 @@ void runtime()
 
     const auto inverter = definition(true);
     Circuit feedback;
-    const int loop = feedback.addComponent(
-        std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(inverter.behavior))
-    );
+    const int loop =
+        feedback.addComponent(std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(inverter.behavior)));
     feedback.connectComponents(loop, 0, loop, 0);
-    require(
-        feedback.propagate() == SimulationResult::NON_CONVERGENT,
-        "Feedback bypassed convergence limit."
-    );
+    require(feedback.propagate() == SimulationResult::NON_CONVERGENT, "Feedback bypassed convergence limit.");
     std::size_t budget = 1;
     require(
         circuit.propagate(budget) == SimulationResult::NON_CONVERGENT && budget == 0,
@@ -191,6 +182,8 @@ void runtime()
     );
 }
 
+
+/** @brief Verify nested clocks preserve controls, chronological stepping and observation paths. */
 void clocks()
 {
     Scene scene;
@@ -215,28 +208,23 @@ void clocks()
         "Subcircuit overview omitted its nested clocks."
     );
     Circuit circuit;
-    const int first = circuit.addComponent(
-        std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(wrapper.behavior))
-    );
+    const int first =
+        circuit.addComponent(std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(wrapper.behavior)));
     circuit.propagate();
     require(!circuit.getComponent(first)->getStateOutPin(0), "Clock started high.");
     require(
-        circuit.updateClocks(.5f) && circuit.getComponent(first)->getStateOutPin(0),
-        "Nested rising clock edge lost."
+        circuit.updateClocks(.5f) && circuit.getComponent(first)->getStateOutPin(0), "Nested rising clock edge lost."
     );
-    const int second = circuit.addComponent(
-        std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(wrapper.behavior))
-    );
+    const int second =
+        circuit.addComponent(std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(wrapper.behavior)));
     circuit.propagate();
     require(
-        circuit.getComponent(first)->getStateOutPin(0) &&
-            !circuit.getComponent(second)->getStateOutPin(0),
+        circuit.getComponent(first)->getStateOutPin(0) && !circuit.getComponent(second)->getStateOutPin(0),
         "New placement reused another instance's clock phase."
     );
     circuit.updateClocks(.5f);
     require(
-        !circuit.getComponent(first)->getStateOutPin(0) &&
-            circuit.getComponent(second)->getStateOutPin(0),
+        !circuit.getComponent(first)->getStateOutPin(0) && circuit.getComponent(second)->getStateOutPin(0),
         "Nested clocks did not advance chronologically with independent phases."
     );
     std::vector<Clock*> collected;
@@ -244,21 +232,20 @@ void clocks()
     require(collected.size() == 2, "Nested clock enumeration failed.");
 }
 
+
+/** @brief Verify subcircuit persistence retains identity, interface mappings and compatible older saved layouts. */
 void files()
 {
     const auto scene = wireDesign();
     const auto text = subcircuitToJson(scene, {"subcircuit.test", 7}, "Example");
     auto saved = subcircuitFromJson(text);
     require(
-        saved.identity.version == 7 &&
-            subcircuitToJson(saved.design.scene, saved.identity, saved.design.name) == text,
+        saved.identity.version == 7 && subcircuitToJson(saved.design.scene, saved.identity, saved.design.name) == text,
         "Authored layout, bends, labels or port order changed on round trip."
     );
     auto document = nlohmann::json::parse(text);
     document["ports"][0]["component"] = 500;
-    rejects(
-        [&] { subcircuitFromJson(document.dump()); }, "Invalid external port mapping accepted."
-    );
+    rejects([&] { subcircuitFromJson(document.dump()); }, "Invalid external port mapping accepted.");
     auto legacy = nlohmann::json::parse(text);
     for (auto& component : legacy["design"]["components"])
         component.erase("port_id");
@@ -266,15 +253,13 @@ void files()
     const auto legacyDefinition =
         makeSubcircuit(legacyDesign.design.scene, legacyDesign.identity, legacyDesign.design.name);
     require(
-        legacyDefinition.layout.pins.front().id == "in.0" &&
-            legacyDefinition.layout.pins.back().id == "out.0",
+        legacyDefinition.layout.pins.front().id == "in.0" && legacyDefinition.layout.pins.back().id == "out.0",
         "Older subcircuit files lost their original port identities."
     );
     Scene legacyParent;
     edit(
         legacyParent,
-        {RegisterComponentDefinition{legacyDefinition},
-         CreateComponent{legacyDefinition.identity.id, {0, 0}}}
+        {RegisterComponentDefinition{legacyDefinition}, CreateComponent{legacyDefinition.identity.id, {0, 0}}}
     );
     auto legacyWorkspace = nlohmann::json::parse(circuitToJson(legacyParent, "Legacy"));
     for (auto& component : legacyWorkspace["definitions"][0]["subcircuit"]["design"]["components"])
@@ -284,11 +269,9 @@ void files()
         "An older workspace's embedded subcircuit failed to reopen."
     );
     Scene draft;
-    auto loadedDraft =
-        subcircuitFromJson(subcircuitToJson(draft, {"subcircuit.draft", 1}, "Draft"));
+    auto loadedDraft = subcircuitFromJson(subcircuitToJson(draft, {"subcircuit.draft", 1}, "Draft"));
     require(
-        loadedDraft.design.scene.requiresInterfaceNames() &&
-            loadedDraft.design.scene.getComponentCount() == 0,
+        loadedDraft.design.scene.requiresInterfaceNames() && loadedDraft.design.scene.getComponentCount() == 0,
         "Invalid drafts cannot be saved or edited."
     );
     rejects(
@@ -309,80 +292,60 @@ void files()
     const auto mainJson = circuitToJson(main, "Main");
     const auto path =
         std::filesystem::temp_directory_path() /
-        ("logic-subcircuit-" +
-         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".json");
+        ("logic-subcircuit-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".json");
     saveSubcircuit(path, scene, {"subcircuit.test", 7}, "Example");
-    require(
-        loadSubcircuit(path).identity.id == "subcircuit.test", "Standalone subcircuit I/O failed."
-    );
+    require(loadSubcircuit(path).identity.id == "subcircuit.test", "Standalone subcircuit I/O failed.");
     std::filesystem::remove(path);
     auto restored = circuitFromJson(mainJson);
     require(
-        restored.scene.getLogicComponent(0)->getStateOutPin(0) &&
-            circuitToJson(restored.scene, "Main") == mainJson,
+        restored.scene.getLogicComponent(0)->getStateOutPin(0) && circuitToJson(restored.scene, "Main") == mainJson,
         "Main did not embed a complete runnable definition after source file removal."
     );
-    const auto& behavior = std::get<SubcircuitBehavior>(
-        restored.scene.getComponentCatalog().find(custom.identity.id)->behavior
-    );
+    const auto& behavior =
+        std::get<SubcircuitBehavior>(restored.scene.getComponentCatalog().find(custom.identity.id)->behavior);
     require(
-        circuitToJson(*behavior.authored, "Example") ==
-            circuitToJson(saved.design.scene, "Example"),
+        circuitToJson(*behavior.authored, "Example") == circuitToJson(saved.design.scene, "Example"),
         "Embedded authored scene cannot be reopened for editing."
     );
     auto self = restored.scene;
     self.setInterfaceNamingRequired(true);
-    rejects(
-        [&] { makeSubcircuit(self, custom.identity, "Recursive"); },
-        "Definition could contain itself."
-    );
+    rejects([&] { makeSubcircuit(self, custom.identity, "Recursive"); }, "Definition could contain itself.");
 }
 
+
+/** @brief Verify reusable component orientation preserves external anchors and authored internal geometry. */
 void orientation()
 {
     auto authored = wireDesign(true);
-    edit(
-        authored, {ConfigureComponentProperties{.componentId = 3, .orientation = Orientation::Up}}
-    );
+    edit(authored, {ConfigureComponentProperties{.componentId = 3, .orientation = Orientation::Up}});
     const auto design = makeSubcircuit(authored, {"subcircuit.rotated", 1}, "Inverter");
-    const auto original =
-        circuitToJson(*std::get<SubcircuitBehavior>(design.behavior).authored, "Design");
+    const auto original = circuitToJson(*std::get<SubcircuitBehavior>(design.behavior).authored, "Design");
     Scene scene;
     edit(scene, {RegisterComponentDefinition{design}, CreateComponent{design.identity.id, {0, 0}}});
     const int instance = 0;
-    const int source =
-        scene.addComponent(BuiltinComponentIds::Input, {-20, 0}, {.inputState = true});
+    const int source = scene.addComponent(BuiltinComponentIds::Input, {-20, 0}, {.inputState = true});
     const int sink = scene.addComponent(BuiltinComponentIds::Output, {20, 0});
     edit(scene, {AddWire{{{-19, 0}, {-4, 0}}}, AddWire{{{4, 0}, {19, 0}}}});
     EditorActions actions(scene);
-    for (const auto direction :
-         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+    for (const auto direction : {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
     {
         const auto previous = scene.getCommittedComponentView(instance)->getOrientation();
-        const auto result = actions.apply(
-            {ConfigureComponentProperties{.componentId = instance, .orientation = direction}}
-        );
+        const auto result =
+            actions.apply({ConfigureComponentProperties{.componentId = instance, .orientation = direction}});
         require(static_cast<bool>(result), "Subcircuit rotation failed.");
         scene.propagate();
         const auto* view = scene.getCommittedComponentView(instance);
         require(
-            view->getAbsolutePinGridPos(view->getInputPins()[0]) ==
-                    rotateGridPoint(GridCoords{-4, 0}, direction) &&
-                view->getAbsolutePinGridPos(view->getOutputPins()[0]) ==
-                    rotateGridPoint(GridCoords{4, 0}, direction) &&
-                scene.netOfPin({source, 0}, PinType::OUTPUT) ==
-                    scene.netOfPin({instance, 0}, PinType::INPUT) &&
-                scene.netOfPin({instance, 0}, PinType::OUTPUT) ==
-                    scene.netOfPin({sink, 0}, PinType::INPUT) &&
+            view->getAbsolutePinGridPos(view->getInputPins()[0]) == rotateGridPoint(GridCoords{-4, 0}, direction) &&
+                view->getAbsolutePinGridPos(view->getOutputPins()[0]) == rotateGridPoint(GridCoords{4, 0}, direction) &&
+                scene.netOfPin({source, 0}, PinType::OUTPUT) == scene.netOfPin({instance, 0}, PinType::INPUT) &&
+                scene.netOfPin({instance, 0}, PinType::OUTPUT) == scene.netOfPin({sink, 0}, PinType::INPUT) &&
                 !scene.getLogicComponent(sink)->getStateInPin(0),
             "Subcircuit rotation lost anchors, connectivity or indexed behavior."
         );
         scene.handleClick(source);
         scene.propagate();
-        require(
-            scene.getLogicComponent(sink)->getStateInPin(0),
-            "Rotated subcircuit ignored input changes."
-        );
+        require(scene.getLogicComponent(sink)->getStateInPin(0), "Rotated subcircuit ignored input changes.");
         scene.handleClick(source);
         scene.propagate();
         require(
@@ -402,9 +365,8 @@ void orientation()
                 circuitToJson(loaded.scene, "Main") == json,
             "Saved subcircuit instance lost its orientation or wire routes."
         );
-        const auto& behavior = std::get<SubcircuitBehavior>(
-            loaded.scene.getComponentCatalog().find(design.identity.id)->behavior
-        );
+        const auto& behavior =
+            std::get<SubcircuitBehavior>(loaded.scene.getComponentCatalog().find(design.identity.id)->behavior);
         require(
             circuitToJson(*behavior.authored, "Design") == original,
             "Rotating an instance changed the authored internal layout."
@@ -422,6 +384,8 @@ void orientation()
     }
 }
 
+
+/** @brief Verify versioned interface changes remap surviving ports by identity and detach removed ports safely. */
 void interfaceUpdates()
 {
     Input input;
@@ -444,14 +408,12 @@ void interfaceUpdates()
     auto publish = [&](unsigned version)
     {
         // Save reloads the authored scene; identity must survive its component-ID compaction.
-        auto saved =
-            subcircuitFromJson(subcircuitToJson(authored, {original.identity.id, version}, "Wire"));
+        auto saved = subcircuitFromJson(subcircuitToJson(authored, {original.identity.id, version}, "Wire"));
         views.publishSubcircuits({makeSubcircuit(saved.design.scene, saved.identity, "Wire")});
         parent.propagate();
     };
     // Import the intentionally colliding fixture without routing its existing port wire.
-    const int blocker =
-        parent.addComponent(BuiltinComponentIds::Input, {-5, 1}, {}, PlacementPolicy::AllowOverlap);
+    const int blocker = parent.addComponent(BuiltinComponentIds::Input, {-5, 1}, {}, PlacementPolicy::AllowOverlap);
     const auto beforeRejected = circuitToJson(parent, "Main");
     rejects([&] { publish(2); }, "A colliding updated pin was published.");
     require(
@@ -464,18 +426,15 @@ void interfaceUpdates()
     const auto* view = parent.getCommittedComponentView(box);
     require(
         view->getInputPins().size() == 2 && view->getInputPins()[0].label == "Renamed" &&
-            parent.netOfPin({box, 0}, PinType::INPUT) ==
-                parent.netOfPin({source, 0}, PinType::OUTPUT) &&
+            parent.netOfPin({box, 0}, PinType::INPUT) == parent.netOfPin({source, 0}, PinType::OUTPUT) &&
             parent.netOfPin({box, 1}, PinType::INPUT) == INVALID_NET_ID &&
-            parent.netOfPin({box, 0}, PinType::OUTPUT) ==
-                parent.netOfPin({sink, 0}, PinType::INPUT) &&
+            parent.netOfPin({box, 0}, PinType::OUTPUT) == parent.netOfPin({sink, 0}, PinType::INPUT) &&
             parent.getLogicComponent(sink)->getStateInPin(0),
         "Rename/expansion lost surviving wires or connected a new port."
     );
     const auto roundTrip = circuitFromJson(circuitToJson(parent, "Main"));
-    const auto& stored = std::get<SubcircuitBehavior>(
-        roundTrip.scene.getComponentCatalog().find(original.identity.id)->behavior
-    );
+    const auto& stored =
+        std::get<SubcircuitBehavior>(roundTrip.scene.getComponentCatalog().find(original.identity.id)->behavior);
     require(
         stored.authored->getCommittedComponentView(0)->getPortId() == portId,
         "Saving/reopening discarded stable authored port identity."
@@ -495,14 +454,11 @@ void interfaceUpdates()
     publish(3);
     require(
         parent.getLogicComponent(box)->getInputPinCount() == 2 &&
-            parent.netOfPin({box, 0}, PinType::INPUT) ==
-                parent.netOfPin({secondSource, 0}, PinType::OUTPUT) &&
-            parent.netOfPin({box, 0}, PinType::INPUT) !=
-                parent.netOfPin({source, 0}, PinType::OUTPUT) &&
+            parent.netOfPin({box, 0}, PinType::INPUT) == parent.netOfPin({secondSource, 0}, PinType::OUTPUT) &&
+            parent.netOfPin({box, 0}, PinType::INPUT) != parent.netOfPin({source, 0}, PinType::OUTPUT) &&
             parent.getLogicComponent(box)->getStateInPin(0) &&
             parent.netOfPin({box, 1}, PinType::INPUT) == INVALID_NET_ID &&
-            parent.netOfPin({box, 0}, PinType::OUTPUT) ==
-                parent.netOfPin({sink, 0}, PinType::INPUT) &&
+            parent.netOfPin({box, 0}, PinType::OUTPUT) == parent.netOfPin({sink, 0}, PinType::INPUT) &&
             !parent.getLogicComponent(sink)->getStateInPin(0) && parent.wireCount() >= 2,
         "Deleting/replacing a port silently transferred its wire to another input."
     );
@@ -513,9 +469,7 @@ void interfaceUpdates()
     );
 
     // Rotated instances use the same identity mapping in their own coordinate frame.
-    edit(
-        parent, {ConfigureComponentProperties{.componentId = box, .orientation = Orientation::Up}}
-    );
+    edit(parent, {ConfigureComponentProperties{.componentId = box, .orientation = Orientation::Up}});
     authored.removeComponent(newOutput);
     require(views.inspectComponent(box, input), "Cannot open the instance before publication.");
     publish(4);
@@ -525,16 +479,12 @@ void interfaceUpdates()
     );
     require(
         parent.getCommittedComponentView(box)->getOrientation() == Orientation::Up &&
-            parent.netOfPin({box, 0}, PinType::OUTPUT) ==
-                parent.netOfPin({sink, 0}, PinType::INPUT),
+            parent.netOfPin({box, 0}, PinType::OUTPUT) == parent.netOfPin({sink, 0}, PinType::INPUT),
         "Shrinking a rotated interface lost surviving output wiring."
     );
     authored.removeComponent(2);
     const int replacementOutput = authored.addComponent(BuiltinComponentIds::Output, {20, 0});
-    edit(
-        authored,
-        {ConfigureComponentProperties{.componentId = replacementOutput, .label = "Result"}}
-    );
+    edit(authored, {ConfigureComponentProperties{.componentId = replacementOutput, .label = "Result"}});
     publish(5);
     require(
         parent.netOfPin({box, 0}, PinType::OUTPUT) == INVALID_NET_ID &&
@@ -545,6 +495,8 @@ void interfaceUpdates()
     input.setScene(nullptr);
 }
 
+
+/** @brief Verify reusable designs open in independent editors and publish valid updates to placed instances. */
 void editing()
 {
     Input input;
@@ -562,10 +514,7 @@ void editing()
     );
     views.rename(1, "Unsaved editor name");
     views.editSubcircuit(original, input);
-    require(
-        views.size() == 2 && views.name(1) == "Unsaved editor name",
-        "Edit discarded an existing unsaved editor."
-    );
+    require(views.size() == 2 && views.name(1) == "Unsaved editor name", "Edit discarded an existing unsaved editor.");
     const auto replacement = definition(true, 2);
     const auto before = circuitToJson(views.mainScene(), "Main");
     views.publishSubcircuits({replacement});
@@ -574,10 +523,7 @@ void editing()
         "Explicit publish did not update placed instances."
     );
     views.mainScene().propagate();
-    require(
-        views.mainScene().getLogicComponent(id)->getStateOutPin(0),
-        "Published behavior was not installed."
-    );
+    require(views.mainScene().getLogicComponent(id)->getStateOutPin(0), "Published behavior was not installed.");
     auto expanded = *std::get<SubcircuitBehavior>(replacement.behavior).authored;
     const int extra = expanded.addComponent(BuiltinComponentIds::Input, {-40, 10});
     edit(expanded, {ConfigureComponentProperties{.componentId = extra, .label = "Extra"}});
@@ -592,30 +538,27 @@ void editing()
     views.setActiveFile("example.json");
     views.create(input);
     require(
-        views.activeFile().empty() &&
-            views.activeScene().getComponentCatalog().find(original.identity.id),
+        views.activeFile().empty() && views.activeScene().getComponentCatalog().find(original.identity.id),
         "New workspace inherited an editor path or lost the Custom library."
     );
     views.select(1, input);
-    require(
-        views.activeFile() == "example.json", "Subcircuit file association was lost on tab switch."
-    );
+    require(views.activeFile() == "example.json", "Subcircuit file association was lost on tab switch.");
     views.replaceMain(circuitFromJson(before).scene, "Older Main", input);
     require(
         views.activeIndex() == 0 &&
-            views.mainScene().getComponentCatalog().find(original.identity.id)->identity.version ==
-                1,
+            views.mainScene().getComponentCatalog().find(original.identity.id)->identity.version == 1,
         "Main open did not adopt embedded definitions."
     );
     input.setScene(nullptr);
 }
 
+
+/** @brief Verify save, load and publication commands preserve workspace roles, paths and dirty-state semantics. */
 void fileCommands()
 {
     const auto directory =
         std::filesystem::temp_directory_path() /
-        ("logic-library-commands-" +
-         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        ("logic-library-commands-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     SubcircuitLibrary library(directory / "profile");
     Input input;
     CircuitViews views;
@@ -625,10 +568,8 @@ void fileCommands()
     views.activeScene() = wireDesign();
     views.rename(1, "Reusable");
     require(
-        !applyFileCommand(
-            UI::FileCommand::ExportSubcircuit, std::nullopt, ui, views, input, &library
-        ) && views.activeDefinition().id.empty() &&
-            views.hasUnsavedChanges(1),
+        !applyFileCommand(UI::FileCommand::ExportSubcircuit, std::nullopt, ui, views, input, &library) &&
+            views.activeDefinition().id.empty() && views.hasUnsavedChanges(1),
         "Cancelled export modified the editor."
     );
     require(
@@ -644,9 +585,7 @@ void fileCommands()
     );
     views.rename(1, "Renamed");
     performFileCommand(UI::FileCommand::Save, nullptr, ui, views, input, &library);
-    require(
-        loadSubcircuit(publishedPath).design.name == "Renamed", "Save changed the identity's path."
-    );
+    require(loadSubcircuit(publishedPath).design.name == "Renamed", "Save changed the identity's path.");
     views.rename(1, "Unpublished edit");
     const auto exported = directory / "portable.json";
     applyFileCommand(UI::FileCommand::ExportSubcircuit, exported, ui, views, input, &library);
@@ -676,14 +615,7 @@ void fileCommands()
     bool failedSave = false;
     try
     {
-        applyFileCommand(
-            UI::FileCommand::SaveAs,
-            directory / "missing" / "failure.json",
-            ui,
-            views,
-            input,
-            nullptr
-        );
+        applyFileCommand(UI::FileCommand::SaveAs, directory / "missing" / "failure.json", ui, views, input, nullptr);
     }
     catch (const std::exception&)
     {
@@ -697,8 +629,7 @@ void fileCommands()
     views.rename(2, "Workspace edit");
     performFileCommand(UI::FileCommand::Save, nullptr, ui, views, input, &library);
     require(
-        loadCircuit(workspacePath).name == "Workspace edit" &&
-            loadCircuit(mainPath).scene.getLogicComponent(custom),
+        loadCircuit(workspacePath).name == "Workspace edit" && loadCircuit(mainPath).scene.getLogicComponent(custom),
         "Save overwrote another workspace."
     );
     require(
@@ -715,9 +646,7 @@ void fileCommands()
     CircuitViews imported;
     Input importInput;
     imported.select(0, importInput);
-    applyFileCommand(
-        UI::FileCommand::LoadSubcircuit, exported, ui, imported, importInput, &importedLibrary
-    );
+    applyFileCommand(UI::FileCommand::LoadSubcircuit, exported, ui, imported, importInput, &importedLibrary);
     std::filesystem::remove(exported);
     SubcircuitLibrary restarted(directory / "imported");
     require(
@@ -726,12 +655,9 @@ void fileCommands()
     );
     const auto invalidFile = directory / "invalid.json";
     saveSubcircuit(invalidFile, Scene{}, {"subcircuit.empty", 1}, "Empty draft");
-    applyFileCommand(
-        UI::FileCommand::LoadSubcircuit, invalidFile, ui, imported, importInput, &importedLibrary
-    );
+    applyFileCommand(UI::FileCommand::LoadSubcircuit, invalidFile, ui, imported, importInput, &importedLibrary);
     require(
-        imported.size() == 2 &&
-            !imported.mainScene().getComponentCatalog().find("subcircuit.empty") &&
+        imported.size() == 2 && !imported.mainScene().getComponentCatalog().find("subcircuit.empty") &&
             !imported.hasUnsavedChanges(1),
         "Incomplete import was lost or became placeable."
     );
@@ -740,12 +666,13 @@ void fileCommands()
     std::filesystem::remove_all(directory);
 }
 
+
+/** @brief Verify library loading, drafts, damaged entries and location changes preserve recoverable user data. */
 void libraryStorage()
 {
     const auto directory =
         std::filesystem::temp_directory_path() /
-        ("logic-library-storage-" +
-         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        ("logic-library-storage-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     const auto profile = directory / "profile";
     SubcircuitLibrary library(profile);
     SavedSubcircuit published{{"subcircuit.storage", 1}, {"Original", wireDesign()}};
@@ -761,8 +688,7 @@ void libraryStorage()
     library.changeLocation(target);
     SubcircuitLibrary relocated(profile);
     require(
-        relocated.location() == target && relocated.entries().size() == 2 &&
-            std::filesystem::exists(original),
+        relocated.location() == target && relocated.entries().size() == 2 && std::filesystem::exists(original),
         "Relocation lost entries or deleted original designs."
     );
     const auto conflict = directory / "conflicting";
@@ -798,19 +724,12 @@ void libraryStorage()
     );
     auto embedded = makeSubcircuit(wireDesign(true), {published.identity.id, 7}, "Embedded");
     Scene workspace;
-    edit(
-        workspace,
-        {RegisterComponentDefinition{embedded}, CreateComponent{embedded.identity.id, {0, 0}}}
-    );
+    edit(workspace, {RegisterComponentDefinition{embedded}, CreateComponent{embedded.identity.id, {0, 0}}});
     views.create(input);
     views.replaceWorkspace(std::move(workspace), "Project", input);
     require(
-        views.mainScene().getComponentCatalog().find(published.identity.id)->identity.version ==
-                1 &&
-            views.activeScene()
-                    .getComponentCatalog()
-                    .find(published.identity.id)
-                    ->identity.version == 7 &&
+        views.mainScene().getComponentCatalog().find(published.identity.id)->identity.version == 1 &&
+            views.activeScene().getComponentCatalog().find(published.identity.id)->identity.version == 7 &&
             loadSubcircuit(target / "library" / original.filename()).identity.version == 1,
         "Opening a workspace published embedded versions into other scenes/the managed library."
     );
@@ -827,14 +746,13 @@ void libraryStorage()
     {
         failed = true;
     }
-    require(
-        failed && std::filesystem::is_directory(failedPath),
-        "Failed Save destroyed its destination."
-    );
+    require(failed && std::filesystem::is_directory(failedPath), "Failed Save destroyed its destination.");
     input.setScene(nullptr);
     std::filesystem::remove_all(directory);
 }
 
+
+/** @brief Verify save/discard/cancel decisions resolve the intended dirty workspaces before queued operations run. */
 void unsavedWork()
 {
     Input input;
@@ -855,9 +773,7 @@ void unsavedWork()
         event.action = GLFW_PRESS;
         ui.handleInput(event, views.activeScene(), input, {});
         event.action = GLFW_RELEASE;
-        require(
-            ui.handleInput(event, views.activeScene(), input, {}), "Prompt did not capture input."
-        );
+        require(ui.handleInput(event, views.activeScene(), input, {}), "Prompt did not capture input.");
     };
     int saves = 0;
     auto saved = [&]()
@@ -869,9 +785,7 @@ void unsavedWork()
     guard.request({UnsavedWork::Operation::Close, 1}, views, ui, input);
     require(ui.unsavedPromptOpen() && input.getUiCapture().pointer, "Dirty close did not ask.");
     UiInputEvent shortcut{UiInputKind::Key, GLFW_KEY_F2, GLFW_PRESS};
-    require(
-        ui.handleInput(shortcut, views.activeScene(), input, {}), "Modal allowed shortcuts through."
-    );
+    require(ui.handleInput(shortcut, views.activeScene(), input, {}), "Modal allowed shortcuts through.");
     choose(UI::UnsavedChoice::Cancel);
     require(
         !guard.resolve(views, ui, input, saved) && views.size() == 2 && saves == 0,
@@ -886,17 +800,14 @@ void unsavedWork()
     guard.request({UnsavedWork::Operation::Exit, 1}, views, ui, input);
     choose(UI::UnsavedChoice::Save);
     require(
-        !guard.resolve(
-            views, ui, input, []() -> bool { throw std::runtime_error("Write failed"); }
-        ) && views.size() == 2 &&
-            views.hasUnsavedChanges(1),
+        !guard.resolve(views, ui, input, []() -> bool { throw std::runtime_error("Write failed"); }) &&
+            views.size() == 2 && views.hasUnsavedChanges(1),
         "Failed Save approved exit."
     );
     guard.request({UnsavedWork::Operation::Exit, 1}, views, ui, input);
     choose(UI::UnsavedChoice::Save);
     require(
-        guard.resolve(views, ui, input, saved).has_value() && saves == 1 &&
-            !views.hasUnsavedChanges(1),
+        guard.resolve(views, ui, input, saved).has_value() && saves == 1 && !views.hasUnsavedChanges(1),
         "Successful Save All did not approve exit."
     );
     views.rename(1, "Changed child");
@@ -905,9 +816,7 @@ void unsavedWork()
     int cascadeSaves = 0;
     require(
         guard.resolve(
-                 views,
-                 ui,
-                 input,
+                 views, ui, input,
                  [&]
                  {
                      ++cascadeSaves;
@@ -928,9 +837,7 @@ void unsavedWork()
     int partial = 0;
     require(
         !guard.resolve(
-            views,
-            ui,
-            input,
+            views, ui, input,
             [&]
             {
                 if (++partial == 2)
@@ -953,6 +860,8 @@ void unsavedWork()
     input.setScene(nullptr);
 }
 
+
+/** @brief Verify reusable-design UI actions share the validated editing, publication and storage workflow. */
 void uiWorkflow()
 {
     Input input;
@@ -990,47 +899,34 @@ void uiWorkflow()
     };
     layout();
     require(
-        ui.fileOptions().size() == 6 && ui.fileOptions()[3] == "Import subcircuit...",
-        "Workspace menu lacks import."
+        ui.fileOptions().size() == 6 && ui.fileOptions()[3] == "Import subcircuit...", "Workspace menu lacks import."
     );
     click(ui.fileBounds());
     click(ui.fileOptionBounds(3));
-    require(
-        ui.takeFileCommand() == UI::FileCommand::LoadSubcircuit,
-        "Import menu did not queue its command."
-    );
+    require(ui.takeFileCommand() == UI::FileCommand::LoadSubcircuit, "Import menu did not queue its command.");
     click(ui.tabBounds(UI::Tab::Custom));
     require(
-        ui.buttons().size() == 1 && ui.buttons()[0].inputCount == 1 &&
-            ui.buttons()[0].outputCount == 1,
+        ui.buttons().size() == 1 && ui.buttons()[0].inputCount == 1 && ui.buttons()[0].outputCount == 1,
         "Published component did not populate Custom with pin counts."
     );
     const auto card = ui.buttons()[0].bounds;
     event(card.x + 10, card.y + 10, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     const auto center = *frame().worldToWindow({0, 0});
-    ui.handleInput(
-        {UiInputKind::Cursor, 0, 0, 0, 0, center.x, center.y}, views.activeScene(), input, frame()
-    );
+    ui.handleInput({UiInputKind::Cursor, 0, 0, 0, 0, center.x, center.y}, views.activeScene(), input, frame());
     event(center.x, center.y, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
         views.mainScene().getComponentCount() == 1 &&
-            views.mainScene().getCommittedComponentView(0)->getDefinitionIdentity().id ==
-                custom.identity.id,
+            views.mainScene().getCommittedComponentView(0)->getDefinitionIdentity().id == custom.identity.id,
         "Custom palette drag did not create a subcircuit."
     );
     click({center.x - 1, center.y - 1, 2, 2}, GLFW_MOUSE_BUTTON_RIGHT);
+    require(ui.editSubcircuitBounds(views.mainScene()).width > 0, "Placed subcircuit popup has no Edit button.");
     require(
-        ui.editSubcircuitBounds(views.mainScene()).width > 0,
-        "Placed subcircuit popup has no Edit button."
-    );
-    require(
-        ui.gateSettingsBounds(views.mainScene()).width == 0,
-        "Subcircuit gained gate-only arity/inversion controls."
+        ui.gateSettingsBounds(views.mainScene()).width == 0, "Subcircuit gained gate-only arity/inversion controls."
     );
     input.setMode(EditorMode::Selection);
     layout();
-    for (const auto direction :
-         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+    for (const auto direction : {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
     {
         click(ui.componentOrientationBounds(views.mainScene(), direction));
         require(
@@ -1061,10 +957,7 @@ void uiWorkflow()
     );
     click(ui.fileBounds());
     click(ui.fileOptionBounds(0));
-    require(
-        ui.takeFileCommand() == UI::FileCommand::Save,
-        "Contextual subcircuit Save did not queue its command."
-    );
+    require(ui.takeFileCommand() == UI::FileCommand::Save, "Contextual subcircuit Save did not queue its command.");
     ui.dismissPopups(input);
     views.select(0, input);
     ui.setLibraryDrafts({{"subcircuit.incomplete", "Incomplete", {}, 0, 0, "draft.json"}});
@@ -1074,16 +967,12 @@ void uiWorkflow()
     const auto draftButton = ui.buttons().back();
     click(draftButton.bounds);
     require(
-        !ui.dragging() && ui.takeOpenDraft() == std::filesystem::path("draft.json") &&
-            !ui.takeOpenDraft(),
+        !ui.dragging() && ui.takeOpenDraft() == std::filesystem::path("draft.json") && !ui.takeOpenDraft(),
         "Saved draft was placeable or did not queue one editor open."
     );
     input.setUiCapture({});
     click(ui.buttons().front().bounds, GLFW_MOUSE_BUTTON_RIGHT);
-    require(
-        ui.takeEditSubcircuit() == custom.identity.id,
-        "Custom row could not reopen authored design."
-    );
+    require(ui.takeEditSubcircuit() == custom.identity.id, "Custom row could not reopen authored design.");
     input.setUiCapture({});
     views.rename(1, "Unsaved design");
     click(ui.circuitTabs().closeBounds(1));
@@ -1097,6 +986,7 @@ void uiWorkflow()
 }
 
 } // namespace
+
 
 int main(int argc, char** argv)
 {

@@ -12,11 +12,13 @@ namespace
 {
 using Json = nlohmann::json;
 
+
 void require(bool condition, const char* message)
 {
     if (!condition)
         throw std::runtime_error(message);
 }
+
 
 void edit(Scene& scene, const EditBatch& batch)
 {
@@ -25,6 +27,8 @@ void edit(Scene& scene, const EditBatch& batch)
         throw std::runtime_error(result.message);
 }
 
+
+/** @brief Build a persistence fixture containing native components, customised presentation and connected routes. */
 Scene fixture()
 {
     Scene scene;
@@ -47,27 +51,20 @@ Scene fixture()
             output = id;
     }
     edit(
-        scene,
-        {ConfigureInput{input, true},
-         ConfigureComponentProperties{
-             .componentId = input, .label = "Data \"A\"", .labelVisible = false
-         },
-         ConfigureComponentProperties{
-             .componentId = output, .label = "Result", .labelVisible = false
-         },
-         ConfigureComponentProperties{
-             .componentId = gate,
-             .label = "Eight inputs",
-             .inputCount = 8,
-             .inverted = true,
-             .inputInversion = ConfigureGateInput{7, true},
-             .orientation = Orientation::Up
-         },
-         ConfigureComponentProperties{.componentId = latch, .orientation = Orientation::Down},
-         ConfigureClock{clock, 2.5f, true},
-         ConfigureComponentProperties{
-             .componentId = clock, .label = "Reference", .labelVisible = true
-         }}
+        scene, {ConfigureInput{input, true},
+                ConfigureComponentProperties{.componentId = input, .label = "Data \"A\"", .labelVisible = false},
+                ConfigureComponentProperties{.componentId = output, .label = "Result", .labelVisible = false},
+                ConfigureComponentProperties{
+                    .componentId = gate,
+                    .label = "Eight inputs",
+                    .inputCount = 8,
+                    .inverted = true,
+                    .inputInversion = ConfigureGateInput{7, true},
+                    .orientation = Orientation::Up
+                },
+                ConfigureComponentProperties{.componentId = latch, .orientation = Orientation::Down},
+                ConfigureClock{clock, 2.5f, true},
+                ConfigureComponentProperties{.componentId = clock, .label = "Reference", .labelVisible = true}}
     );
 
     auto custom = *scene.getComponentCatalog().find(BuiltinComponentIds::DLatch);
@@ -81,11 +78,7 @@ Scene fixture()
     edit(
         scene,
         {RegisterComponentDefinition{custom},
-         CreateComponent{
-             .definitionId = custom.identity.id,
-             .position = {600, 0},
-             .orientation = Orientation::Left
-         }}
+         CreateComponent{.definitionId = custom.identity.id, .position = {600, 0}, .orientation = Orientation::Left}}
     );
     auto pin = [&](int id, bool outgoing, unsigned int pinIndex)
     {
@@ -111,6 +104,8 @@ Scene fixture()
     return scene;
 }
 
+
+/** @brief Compare complete design and electrical behaviour across circuit serialization and recovery. */
 void roundtrip()
 {
     auto scene = fixture();
@@ -144,10 +139,7 @@ void roundtrip()
         if (const auto* gate = dynamic_cast<const Gate*>(old.scene.getLogicComponent(id)))
             for (int pin = 0; pin < gate->getInputPinCount(); ++pin)
             {
-                require(
-                    view->getOrientation() == Orientation::Right,
-                    "Old saves changed gate orientation."
-                );
+                require(view->getOrientation() == Orientation::Right, "Old saves changed gate orientation.");
                 require(!gate->isInputInverted(pin), "Old saves inverted inputs by default.");
                 require(
                     view->getInputPins()[pin].label == std::string(1, static_cast<char>('A' + pin)),
@@ -160,41 +152,29 @@ void roundtrip()
             "Old saves did not retain the existing clock/other label defaults."
         );
     require(
-        loaded.scene.getLastEvalResult() == SimulationResult::OK &&
-            loaded.scene.getShortedNetCount() == 0,
+        loaded.scene.getLastEvalResult() == SimulationResult::OK && loaded.scene.getShortedNetCount() == 0,
         "Round trip changed circuit connectivity."
     );
     int previewId = -1;
     for (const auto& [id, view] : loaded.scene.getComponentViewMap())
     {
         const auto* logic = loaded.scene.getLogicComponent(id);
-        if (const auto* gate = dynamic_cast<const Gate*>(logic);
-            gate && gate->getInputPinCount() == 8)
+        if (const auto* gate = dynamic_cast<const Gate*>(logic); gate && gate->getInputPinCount() == 8)
             require(
-                gate->getType() == NAND && view->getBodyStyle().inverted &&
-                    view->getOrientation() == Orientation::Up && gate->isInputInverted(7) &&
-                    !gate->isInputInverted(0) && view->getInputPins()[7].inverted &&
+                gate->getType() == NAND && view->getBodyStyle().inverted && view->getOrientation() == Orientation::Up &&
+                    gate->isInputInverted(7) && !gate->isInputInverted(0) && view->getInputPins()[7].inverted &&
                     view->getInputPins()[0].relative_pos.x == -3,
                 "Edited gate arity/inversion was not reconstructed."
             );
         if (view->getDefinitionIdentity().id == BuiltinComponentIds::SrLatch)
-            require(
-                view->getOrientation() == Orientation::Down, "Native latch orientation was lost."
-            );
+            require(view->getOrientation() == Orientation::Down, "Native latch orientation was lost.");
         if (view->getDefinitionIdentity().id == "example.memory")
-            require(
-                view->getOrientation() == Orientation::Left, "Custom latch orientation was lost."
-            );
+            require(view->getOrientation() == Orientation::Left, "Custom latch orientation was lost.");
         if (const auto* clock = dynamic_cast<const Clock*>(logic))
-            require(
-                clock->getFrequency() == 2.5f && clock->isPaused(), "Clock settings were lost."
-            );
+            require(clock->getFrequency() == 2.5f && clock->isPaused(), "Clock settings were lost.");
         if (const auto* input = dynamic_cast<const InputPin*>(logic))
         {
-            require(
-                input->getState() && view->getBodyLabel() == "Data \"A\"",
-                "Input state/name was lost."
-            );
+            require(input->getState() && view->getBodyLabel() == "Data \"A\"", "Input state/name was lost.");
             previewId = id;
         }
         if (view->getDefinitionIdentity().id == BuiltinComponentIds::Output)
@@ -202,19 +182,14 @@ void roundtrip()
             if (view->getGridPosition().x == 500)
                 require(!logic->getStateInPin(0), "Q output was not independently reconnected.");
             if (view->getGridPosition().x == 530)
-                require(
-                    logic->getStateInPin(0), "Inverted Q output was not independently reconnected."
-                );
+                require(logic->getStateInPin(0), "Inverted Q output was not independently reconnected.");
         }
     }
     const auto before = circuitToJson(loaded.scene, loaded.name);
     EditorActions actions(loaded.scene);
     auto preview = actions.beginMove(previewId);
     require(preview && actions.previewMove(*preview, {-200, 10}), "Preview fixture failed.");
-    require(
-        circuitToJson(loaded.scene, loaded.name) == before,
-        "Save included uncommitted preview geometry."
-    );
+    require(circuitToJson(loaded.scene, loaded.name) == before, "Save included uncommitted preview geometry.");
     actions.cancelMove(*preview);
     Scene loop;
     const int inverter = loop.addComponent(BuiltinComponentIds::Not, {0, 0});
@@ -224,8 +199,7 @@ void roundtrip()
     edit(loop, {AddWire{{out, {out.x + 2, out.y}, {out.x + 2, 5}, {in.x, 5}, in}}});
     auto feedback = circuitFromJson(circuitToJson(loop, "Feedback"));
     require(
-        feedback.scene.getLastEvalResult() == SimulationResult::NON_CONVERGENT &&
-            feedback.scene.wireCount() > 0,
+        feedback.scene.getLastEvalResult() == SimulationResult::NON_CONVERGENT && feedback.scene.wireCount() > 0,
         "Feedback wiring was rejected or lost on load."
     );
     require(
@@ -253,6 +227,8 @@ void roundtrip()
     require(resetClock->timeUntilEdge() == 0.5, "Clock phase was not reset on design load.");
 }
 
+
+/** @brief Reject malformed circuit documents without accepting unsupported or inconsistent geometry. */
 void validation()
 {
     const auto valid = Json::parse(circuitToJson(fixture(), "Validation"));
@@ -327,11 +303,13 @@ void validation()
     require(rejected, "Malformed JSON was accepted.");
 }
 
+
+/** @brief Exercise atomic file replacement, failed writes and recovery without losing the previous saved design. */
 void fileIo()
 {
-    auto directory = std::filesystem::temp_directory_path() /
-                     ("logic-circuit-test-" +
-                      std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    auto directory =
+        std::filesystem::temp_directory_path() /
+        ("logic-circuit-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directory(directory);
     const auto path = directory / std::filesystem::path{u8"circuit-\u00e7.json"};
     auto cleanup = [&]
@@ -346,8 +324,7 @@ void fileIo()
         saveCircuit(path, scene, "First");
         auto loaded = loadCircuit(path);
         require(
-            circuitToJson(loaded.scene, loaded.name) == circuitToJson(scene, "First"),
-            "File IO changed the circuit."
+            circuitToJson(loaded.scene, loaded.name) == circuitToJson(scene, "First"), "File IO changed the circuit."
         );
         saveCircuit(path, Scene{}, "Second");
         require(loadCircuit(path).name == "Second", "Save did not replace an existing file.");
@@ -360,10 +337,7 @@ void fileIo()
         {
             failed = true;
         }
-        require(
-            failed && loadCircuit(path).name == "Second",
-            "Failed serialization damaged the previous save."
-        );
+        require(failed && loadCircuit(path).name == "Second", "Failed serialization damaged the previous save.");
         failed = false;
         try
         {
@@ -374,10 +348,9 @@ void fileIo()
             failed = true;
         }
         require(
-            failed && std::distance(
-                          std::filesystem::directory_iterator(directory),
-                          std::filesystem::directory_iterator{}
-                      ) == 1,
+            failed &&
+                std::distance(std::filesystem::directory_iterator(directory), std::filesystem::directory_iterator{}) ==
+                    1,
             "Failed replacement retained its temporary file."
         );
         std::ofstream(path) << "{malformed";
@@ -400,6 +373,7 @@ void fileIo()
     }
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {

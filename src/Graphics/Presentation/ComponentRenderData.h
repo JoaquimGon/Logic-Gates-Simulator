@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-/** Read-only values for one instance; no logic pointers or concrete component classes. */
+/** @brief Read-only values for one instance; no logic pointers or concrete component classes. */
 struct ComponentBodyInstance
 {
     int id;
@@ -22,10 +22,7 @@ struct ComponentBodyInstance
     BodyBounds getBodyBounds() const
     {
         return orientedBounds(
-            bodyBounds(style, position.x, position.y, size.x, size.y),
-            position.x,
-            position.y,
-            orientation
+            bodyBounds(style, position.x, position.y, size.x, size.y), position.x, position.y, orientation
         );
     }
 };
@@ -67,6 +64,5 @@ std::vector<ComponentBatch> buildComponentBatches(std::span<const ComponentRende
 std::vector<float> packComponentInstances(std::span<const ComponentBodyInstance> instances);
 
 /** @brief Connects relative lead waypoints (or the anchor) to the declared silhouette. */
-std::vector<glm::vec2> buildPinLead(
-    const ComponentBodyInstance& body, glm::vec2 anchor, std::span<const glm::vec2> waypoints = {}
-);
+std::vector<glm::vec2>
+buildPinLead(const ComponentBodyInstance& body, glm::vec2 anchor, std::span<const glm::vec2> waypoints = {});

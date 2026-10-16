@@ -15,9 +15,7 @@ class Clock : public Component
 
     void evaluate() override { /* Driven by timer, not inputs */ }
 
-    // -------------------------------------------------------------
-    // Speed / Frequency Control
-    // -------------------------------------------------------------
+    /** @brief Change the clock rate while preserving its position within the current half-cycle. */
     void setFrequency(float hz)
     {
         if (!std::isfinite(hz) || hz <= 0)
@@ -30,42 +28,30 @@ class Clock : public Component
 
     float getFrequency() const { return m_frequencyHz; }
 
-    // -------------------------------------------------------------
-    // Play / Pause Control
-    // -------------------------------------------------------------
     void togglePause() { m_paused = !m_paused; }
-
     void setPaused(bool paused) { m_paused = paused; }
-
     bool isPaused() const { return m_paused; }
 
-    // -------------------------------------------------------------
-    // Manual Stepping (forces an edge even when paused)
-    // -------------------------------------------------------------
+    /** @brief Force one output transition and pause automatic advancement until explicitly resumed. */
     bool step()
     {
         setStateOutPin(0, !getStateOutPin(0));
 
-        // Pause the clock otherwise it will instantly overwrite
         setPaused(true);
         return true;
     }
 
-    /** Returns to the start of a LOW half-cycle without changing speed or pause settings. */
+    /** @brief Returns to the start of a LOW half-cycle without changing speed or pause settings. */
     void resetPhase()
     {
         m_timer = 0;
         setStateOutPin(0, false);
     }
 
-    // -------------------------------------------------------------
-    // Time Accumulator
-    // -------------------------------------------------------------
     /** @brief Remaining simulated seconds to the next transition; paused clocks are not due. */
     double timeUntilEdge() const
     {
-        return m_paused ? std::numeric_limits<double>::infinity()
-                        : std::max(0.0, m_halfPeriod - m_timer);
+        return m_paused ? std::numeric_limits<double>::infinity() : std::max(0.0, m_halfPeriod - m_timer);
     }
 
     /** @brief Advances one chronological slice; Circuit stops each slice at the next clock edge. */
@@ -77,16 +63,14 @@ class Clock : public Component
             return false;
 
         if (deltaTime > timeUntilEdge() + m_halfPeriod * 1e-12)
-            throw std::invalid_argument(
-                "Clock slices must stop at the next edge; use Circuit::updateClocks."
-            );
+            throw std::invalid_argument("Clock slices must stop at the next edge; use Circuit::updateClocks.");
 
         m_timer += deltaTime;
         if (m_timer >= m_halfPeriod * (1 - 1e-12))
         {
             m_timer = std::max(0.0, m_timer - m_halfPeriod);
             setStateOutPin(0, !getStateOutPin(0));
-            return true; // Edge transition
+            return true;
         }
         return false;
     }

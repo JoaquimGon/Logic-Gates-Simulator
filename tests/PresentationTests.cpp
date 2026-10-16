@@ -19,6 +19,7 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
 FontMetrics fontMetrics()
 {
     FontMetrics font;
@@ -27,8 +28,11 @@ FontMetrics fontMetrics()
     return font;
 }
 
+
 void bodyGeometry();
 
+
+/** @brief Verify packed instance values preserve transforms, tint and logical state across body batches. */
 void instances()
 {
     bodyGeometry();
@@ -36,20 +40,15 @@ void instances()
     const int first = scene.addComponent(BuiltinComponentIds::And, {-10, 0});
     ComponentOverrides larger;
     larger.inputCount = 6;
-    larger.layout =
-        scene.getComponentCatalog().resolve(BuiltinComponentIds::And, {.inputCount = 6}).layout;
+    larger.layout = scene.getComponentCatalog().resolve(BuiltinComponentIds::And, {.inputCount = 6}).layout;
     larger.layout->height = 0.6f; // Explicit sizing still supports mixed instance geometry.
     const int second = scene.addComponent(BuiltinComponentIds::And, {10, 0}, larger);
     auto data = buildComponentPresentation(scene.getComponentViewMap());
     const auto batches = buildComponentBatches(data);
-    require(
-        batches.size() == 1 && batches[0].instances.size() == 2,
-        "Equal adjacent shaders lost instancing."
-    );
+    require(batches.size() == 1 && batches[0].instances.size() == 2, "Equal adjacent shaders lost instancing.");
     const auto packed = packComponentInstances(batches[0].instances);
     require(
-        packed.size() == 18 && packed[3] == 0.2f && packed[12] == 0.6f && packed[8] == 0 &&
-            packed[17] == 0,
+        packed.size() == 18 && packed[3] == 0.2f && packed[12] == 0.6f && packed[8] == 0 && packed[17] == 0,
         "Mixed-size instances still share one body size."
     );
     require(data[0].body.id == first && data[1].body.id == second, "View adaptation is unordered.");
@@ -83,6 +82,8 @@ void instances()
     actions.cancelMove(*preview);
 }
 
+
+/** @brief Verify presentation bounds follow visible shader silhouettes rather than unused quad margins. */
 void bodyGeometry()
 {
     require(
@@ -97,9 +98,7 @@ void bodyGeometry()
     const int id = scene.addComponent(BuiltinComponentIds::Nand, {5, -3}, {.layout = layout});
     const auto* view = scene.getCommittedComponentView(id);
     const auto bounds = view->getBodyBounds();
-    require(
-        view->getSize() == glm::vec2(0.173f, 0.137f), "Fractional size was rounded to grid cells."
-    );
+    require(view->getSize() == glm::vec2(0.173f, 0.137f), "Fractional size was rounded to grid cells.");
     require(
         bounds.centerX() > view->getPosition().x && bounds.width() < view->getSize().x,
         "Inversion bubble bounds still assume a symmetric shader quad."
@@ -125,8 +124,7 @@ void bodyGeometry()
     );
     const int unary = scene.addComponent(BuiltinComponentIds::Not, {-10, 0});
     require(
-        scene.hitTest({-0.42f, 0}, {-8, 0}).type == HitType::NONE,
-        "Empty NOT shader margin remained a body target."
+        scene.hitTest({-0.42f, 0}, {-8, 0}).type == HitType::NONE, "Empty NOT shader margin remained a body target."
     );
     const auto unaryBounds = scene.getCommittedComponentView(unary)->getBodyBounds();
     require(
@@ -143,14 +141,16 @@ void bodyGeometry()
                 const float x = ix / 200.0f, y = iy / 200.0f;
                 if (bodyContourDistance(style, x, y) < -0.00001f)
                     require(
-                        x >= local.left - 0.00001f && x <= local.right + 0.00001f &&
-                            y >= local.bottom - 0.00001f && y <= local.top + 0.00001f,
+                        x >= local.left - 0.00001f && x <= local.right + 0.00001f && y >= local.bottom - 0.00001f &&
+                            y <= local.top + 0.00001f,
                         "Visible body extends outside its declared bounds."
                     );
             }
     }
 }
 
+
+/** @brief Verify extended gate inputs meet the rail without obscuring native body contours. */
 void inputRails()
 {
     for (const auto type : {AND, NAND, OR, NOR, XOR, NXOR})
@@ -171,8 +171,7 @@ void inputRails()
         auto data = buildComponentPresentation(scene.getComponentViewMap());
         require(
             data.front().inputRail && data.front().inputRail->top == rail->top &&
-                view->getBodyBounds().top >= rail->top &&
-                view->getBodyBounds().bottom <= rail->bottom,
+                view->getBodyBounds().top >= rail->top && view->getBodyBounds().bottom <= rail->bottom,
             "Presentation/placement omitted the input rail."
         );
         require(
@@ -188,8 +187,7 @@ void inputRails()
                 );
         const auto hit = scene.hitTest({-0.095f, 0.175f}, {-2, 3});
         require(
-            (hit.type == HitType::COMPONENT_BODY || hit.type == HitType::COMPONENT_PIN) &&
-                hit.componentId == id,
+            (hit.type == HitType::COMPONENT_BODY || hit.type == HitType::COMPONENT_PIN) && hit.componentId == id,
             "The visual input extension was not pickable."
         );
         EditorActions actions(scene);
@@ -203,8 +201,7 @@ void inputRails()
             "Rail movement did not follow presentation-only placement."
         );
         require(actions.cancelMove(*preview), "Cannot cancel rail preview.");
-        const auto edit =
-            actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 2}});
+        const auto edit = actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 2}});
         require(
             edit && !scene.getCommittedComponentView(id)->getInputRail() &&
                 scene.getCommittedComponentView(id)->getSize() ==
@@ -217,31 +214,30 @@ void inputRails()
     scene.addComponent(BuiltinComponentIds::Input, {-12, 7}, {.inputState = true});
     scene.addComponent(BuiltinComponentIds::Input, {-12, 5}, {.inputState = false});
     const auto connected = EditorActions(scene).apply(
-        {AddWire{{{-11, 7}, {-4, 7}, {-4, 4}, {-2, 4}}},
-         AddWire{{{-11, 5}, {-5, 5}, {-5, 3}, {-2, 3}}}}
+        {AddWire{{{-11, 7}, {-4, 7}, {-4, 4}, {-2, 4}}}, AddWire{{{-11, 5}, {-5, 5}, {-5, 3}, {-2, 3}}}}
     );
     require(static_cast<bool>(connected), "Cannot connect independent rail inputs.");
     scene.propagate();
     require(
         scene.getLogicComponent(gate)->getInConnections().size() == 2 &&
-            scene.getLogicComponent(gate)->getStateInPin(0) &&
-            !scene.getLogicComponent(gate)->getStateInPin(1),
+            scene.getLogicComponent(gate)->getStateInPin(0) && !scene.getLogicComponent(gate)->getStateInPin(1),
         "Visual rail merged independent electrical inputs."
     );
 }
 
+
+/** @brief Verify inversion bubbles retain correct proportions, paths and external pin anchors. */
 void inputBubbles()
 {
     for (const auto type : {NOT, AND, NAND, OR, NOR, XOR, NXOR})
         for (int count : (type == NOT ? std::vector<int>{1} : std::vector<int>{2, 8}))
         {
             Scene scene;
-            const int id =
-                scene.addComponent(builtinDefinitionId(type), {0, 0}, {.inputCount = count});
+            const int id = scene.addComponent(builtinDefinitionId(type), {0, 0}, {.inputCount = count});
             const auto initial = buildComponentPresentation(scene.getComponentViewMap()).front();
-            const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
-                .componentId = id, .inputInversion = ConfigureGateInput{0, true}
-            }});
+            const auto result = EditorActions(scene).apply(
+                {ConfigureComponentProperties{.componentId = id, .inputInversion = ConfigureGateInput{0, true}}}
+            );
             require(static_cast<bool>(result), "Cannot configure an input bubble.");
             const auto data = buildComponentPresentation(scene.getComponentViewMap()).front();
             require(
@@ -255,15 +251,13 @@ void inputBubbles()
                     require(pin.inversionBubble.has_value(), "Inverted input has no bubble.");
                     const auto center = *pin.inversionBubble;
                     require(
-                        std::abs(center.x - pin.position.x - 0.025f) < 0.000001f &&
-                            center.y == pin.position.y &&
+                        std::abs(center.x - pin.position.x - 0.025f) < 0.000001f && center.y == pin.position.y &&
                             std::abs(pin.lead.back().x - center.x - 0.025f) < 0.000001f,
                         "Input bubble/lead did not fit the added grid cell."
                     );
                     const auto bounds = scene.getCommittedComponentView(id)->getBodyBounds();
                     require(
-                        center.y + 0.025f <= bounds.top + 0.000001f &&
-                            center.y - 0.025f >= bounds.bottom - 0.000001f,
+                        center.y + 0.025f <= bounds.top + 0.000001f && center.y - 0.025f >= bounds.bottom - 0.000001f,
                         "Selection bounds clipped the input bubble."
                     );
                 }
@@ -274,29 +268,26 @@ void inputBubbles()
                     );
             }
             if (!initial.inputArc.empty())
-                require(
-                    data.inputArc == initial.inputArc, "Input inversion moved the XOR rear arc."
-                );
+                require(data.inputArc == initial.inputArc, "Input inversion moved the XOR rear arc.");
         }
 }
 
+
+/** @brief Verify oriented bodies, labels and pin leads use the same geometry transform. */
 void orientations()
 {
     for (auto type : {NOT, AND, NAND, OR, NOR, XOR, NXOR})
     {
         Scene scene;
-        const int id = scene.addComponent(
-            builtinDefinitionId(type), {0, 0}, {.inputCount = type == NOT ? 1 : 8}
-        );
+        const int id = scene.addComponent(builtinDefinitionId(type), {0, 0}, {.inputCount = type == NOT ? 1 : 8});
         require(
-            static_cast<bool>(EditorActions(scene).apply({ConfigureComponentProperties{
-                .componentId = id, .inputInversion = ConfigureGateInput{0, true}
-            }})),
+            static_cast<bool>(EditorActions(scene).apply(
+                {ConfigureComponentProperties{.componentId = id, .inputInversion = ConfigureGateInput{0, true}}}
+            )),
             "Cannot prepare oriented gate presentation."
         );
         const auto original = buildComponentPresentation(scene.getComponentViewMap()).front();
-        for (auto direction :
-             {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+        for (auto direction : {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
         {
             require(
                 static_cast<bool>(EditorActions(scene).apply(
@@ -331,8 +322,7 @@ void orientations()
                 if (before.inversionBubble)
                     require(
                         after.inversionBubble &&
-                            glm::length(*after.inversionBubble - rotate(*before.inversionBubble)) <
-                                0.000001f,
+                            glm::length(*after.inversionBubble - rotate(*before.inversionBubble)) < 0.000001f,
                         "Input bubble did not rotate with its pin."
                     );
             }
@@ -345,6 +335,8 @@ void orientations()
     }
 }
 
+
+/** @brief Verify component pin leads meet solid body contacts across native shapes and edited layouts. */
 void leads()
 {
     orientations();
@@ -359,12 +351,8 @@ void leads()
     }
     for (int count : {3, 4, 6, 50, 255})
         for (auto id :
-             {BuiltinComponentIds::And,
-              BuiltinComponentIds::Or,
-              BuiltinComponentIds::Xor,
-              BuiltinComponentIds::Nand,
-              BuiltinComponentIds::Nor,
-              BuiltinComponentIds::Nxor})
+             {BuiltinComponentIds::And, BuiltinComponentIds::Or, BuiltinComponentIds::Xor, BuiltinComponentIds::Nand,
+              BuiltinComponentIds::Nor, BuiltinComponentIds::Nxor})
         {
             scene.addComponent(id, {x, 0}, {.inputCount = count});
             x += 20;
@@ -373,19 +361,14 @@ void leads()
     for (const auto& component : data)
         for (const auto& pin : component.pins)
         {
-            require(
-                pin.lead.size() >= 2 && pin.lead.back() == pin.position,
-                "Lead lost its actual electrical anchor."
-            );
+            require(pin.lead.size() >= 2 && pin.lead.back() == pin.position, "Lead lost its actual electrical anchor.");
             const auto contact = (pin.lead.front() - component.body.position) / component.body.size;
             const auto point = pin.lead.front();
-            const bool extension =
-                component.inputRail && pin.direction == PinType::INPUT &&
-                point.x >= component.inputRail->left && point.x <= component.inputRail->right &&
-                point.y >= component.inputRail->bottom && point.y <= component.inputRail->top;
+            const bool extension = component.inputRail && pin.direction == PinType::INPUT &&
+                                   point.x >= component.inputRail->left && point.x <= component.inputRail->right &&
+                                   point.y >= component.inputRail->bottom && point.y <= component.inputRail->top;
             require(
-                extension ||
-                    bodyContourDistance(component.body.style, contact.x, contact.y) <= 0.00002f,
+                extension || bodyContourDistance(component.body.style, contact.x, contact.y) <= 0.00002f,
                 "Lead floats outside the solid body and input extension."
             );
             require(
@@ -405,9 +388,7 @@ void leads()
          {"out", "Result", PinType::OUTPUT, 0, {3, 0}, {}}}
     };
     EditorActions actions(scene);
-    auto result = actions.apply(
-        {RegisterComponentDefinition{box}, CreateComponent{box.identity.id, {1000, 0}}}
-    );
+    auto result = actions.apply({RegisterComponentDefinition{box}, CreateComponent{box.identity.id, {1000, 0}}});
     require(static_cast<bool>(result), "Valid orthogonal lead was rejected.");
     const int instance = result.createdComponentIds[0];
     const auto routed = buildComponentPresentation(scene.getComponentViewMap());
@@ -418,18 +399,13 @@ void leads()
         "Explicit lead route was discarded."
     );
     auto layout = ComponentLayout{
-        scene.getComponentView(instance)->getSize(),
-        "box",
-        scene.getComponentView(instance)->getInputPins(),
+        scene.getComponentView(instance)->getSize(), "box", scene.getComponentView(instance)->getInputPins(),
         scene.getComponentView(instance)->getOutputPins()
     };
     layout.inputs[0].lead = {{-3, 0}, {-5, 0}, {-5, 2}};
     auto edit = actions.apply({ConfigureComponent{instance, layout}});
     require(edit && edit.change, "Lead-only edit was treated as a no-op.");
-    require(
-        static_cast<bool>(actions.restore(*edit.change->before, scene.getRevision())),
-        "Lead restoration failed."
-    );
+    require(static_cast<bool>(actions.restore(*edit.change->before, scene.getRevision())), "Lead restoration failed.");
     require(
         scene.getComponentView(instance)->getInputPins()[0].lead == box.layout.pins[0].lead,
         "Snapshot lost lead geometry."
@@ -437,16 +413,15 @@ void leads()
     layout.inputs[0].lead[1] = {-4, 1};
     require(!actions.apply({ConfigureComponent{instance, layout}}), "Diagonal lead accepted.");
     layout.inputs[0].lead = {{10, 0}, {-5, 0}, {-5, 2}};
-    require(
-        static_cast<bool>(actions.apply({ConfigureComponent{instance, layout}})),
-        "Lead edit failed."
-    );
+    require(static_cast<bool>(actions.apply({ConfigureComponent{instance, layout}})), "Lead edit failed.");
     require(
         !actions.apply({MoveComponent{instance, {std::numeric_limits<int>::max() - 3, 0}}}),
         "Move overflowed a lead while its pins remained valid."
     );
 }
 
+
+/** @brief Verify glyph layout, label positioning and profiling-window state without a graphics context. */
 void text()
 {
     const auto font = fontMetrics();
@@ -473,8 +448,7 @@ void text()
     for (const auto& run : labels)
         require(
             run.scale > 0 && run.baseline.x >= 1.85f &&
-                run.baseline.x + getTextWidth(run.text, run.scale, font) <= 2.15001f &&
-                run.baseline.y >= 2.9f &&
+                run.baseline.x + getTextWidth(run.text, run.scale, font) <= 2.15001f && run.baseline.y >= 2.9f &&
                 run.baseline.y + getCapHeight(run.scale, font) <= 3.10001f,
             "Label overflowed its component bounds."
         );
@@ -486,22 +460,18 @@ void text()
         const auto named = layoutComponentLabels(std::vector<ComponentRenderData>{port}, font);
         require(
             named.size() == 1 &&
-                named[0].baseline.y + getCapHeight(named[0].scale, font) < bodyBounds(
-                                                                               port.body.style,
-                                                                               port.body.position.x,
-                                                                               port.body.position.y,
-                                                                               port.body.size.x,
-                                                                               port.body.size.y
-                                                                           )
-                                                                               .bottom,
+                named[0].baseline.y + getCapHeight(named[0].scale, font) <
+                    bodyBounds(
+                        port.body.style, port.body.position.x, port.body.position.y, port.body.size.x, port.body.size.y
+                    )
+                        .bottom,
             "Input/output name covered the symbol instead of appearing beneath it."
         );
     }
     Scene clockScene;
     const int clockId = clockScene.addComponent(BuiltinComponentIds::Clock, {0, 0});
     const auto clockName =
-        EditorActions(clockScene)
-            .apply({ConfigureComponentProperties{.componentId = clockId, .label = "Reference"}});
+        EditorActions(clockScene).apply({ConfigureComponentProperties{.componentId = clockId, .label = "Reference"}});
     require(static_cast<bool>(clockName), "Clock naming fixture failed.");
     const auto clockData = buildComponentPresentation(clockScene.getComponentViewMap());
     require(
@@ -516,25 +486,20 @@ void text()
     boxClock.presentation.body.contour = BodyContour::Box;
     boxClock.presentation.shader = boxShaderResources();
     boxClock.presentation.bodyLabel = "Box clock";
-    const auto boxClockCreated = EditorActions(clockScene)
-                                     .apply(
-                                         {RegisterComponentDefinition{boxClock},
-                                          CreateComponent{boxClock.identity.id, {20, 0}}}
-                                     );
+    const auto boxClockCreated =
+        EditorActions(clockScene)
+            .apply({RegisterComponentDefinition{boxClock}, CreateComponent{boxClock.identity.id, {20, 0}}});
     require(static_cast<bool>(boxClockCreated), "Custom clock fixture failed.");
     const auto clocks = buildComponentPresentation(clockScene.getComponentViewMap());
     require(
-        clocks.size() == 2 && clocks[1].bodyLabel.empty() &&
-            layoutComponentLabels(clocks, font).empty(),
+        clocks.size() == 2 && clocks[1].bodyLabel.empty() && layoutComponentLabels(clocks, font).empty(),
         "Custom clock names were hidden only for native SDF symbols."
     );
     const auto shown =
-        EditorActions(clockScene)
-            .apply({ConfigureComponentProperties{.componentId = clockId, .labelVisible = true}});
+        EditorActions(clockScene).apply({ConfigureComponentProperties{.componentId = clockId, .labelVisible = true}});
     const auto shownClocks = buildComponentPresentation(clockScene.getComponentViewMap());
     require(
-        shown && shownClocks.front().bodyLabel == "Reference" &&
-            layoutComponentLabels(shownClocks, font).size() == 1,
+        shown && shownClocks.front().bodyLabel == "Reference" && layoutComponentLabels(shownClocks, font).size() == 1,
         "Explicitly visible clock labels still failed to reach text rendering."
     );
     DebugMetrics metrics{};
@@ -551,8 +516,7 @@ void text()
     sample[CpuPhase::DynamicUI] = 2;
     window.add(sample, 0.5);
     require(
-        window.ready() && window.average()[CpuPhase::Simulation] == 3 &&
-            window.worst()[CpuPhase::Simulation] == 4 &&
+        window.ready() && window.average()[CpuPhase::Simulation] == 3 && window.worst()[CpuPhase::Simulation] == 4 &&
             window.average()[CpuPhase::DynamicUI] == 4 && window.worst()[CpuPhase::DynamicUI] == 6,
         "Timing summary averaged maxima or lost an expensive frame."
     );
@@ -575,9 +539,7 @@ void text()
     auto contains = [&](const std::string& value)
     {
         return std::any_of(
-            overlay.begin(),
-            overlay.end(),
-            [&](const auto& run) { return run.text.find(value) != std::string::npos; }
+            overlay.begin(), overlay.end(), [&](const auto& run) { return run.text.find(value) != std::string::npos; }
         );
     };
     require(
@@ -601,28 +563,22 @@ void text()
             "F3 suppressed the wiring warning."
         );
         require(
-            warning[0].baseline.x + getTextWidth(warning[0].text, warning[0].scale, font) <=
-                    784.01f &&
-                warning[0].baseline.x + getTextWidth(warning[0].text, warning[0].scale, font) >=
-                    783.99f,
+            warning[0].baseline.x + getTextWidth(warning[0].text, warning[0].scale, font) <= 784.01f &&
+                warning[0].baseline.x + getTextWidth(warning[0].text, warning[0].scale, font) >= 783.99f,
             "Overlay stopped right-aligning in screen pixels."
         );
     }
-    require(
-        layoutDebugOverlay(metrics, true, 0, 0, font).empty(),
-        "Minimized canvas emitted overlay text."
-    );
+    require(layoutDebugOverlay(metrics, true, 0, 0, font).empty(), "Minimized canvas emitted overlay text.");
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {
     try
     {
         const std::pair<const char*, void (*)()> groups[] = {
-            {"render_instance_contract", instances},
-            {"component_pin_leads", leads},
-            {"text_presentation", text}
+            {"render_instance_contract", instances}, {"component_pin_leads", leads}, {"text_presentation", text}
         };
         bool matched = false;
         for (const auto& [name, run] : groups)

@@ -37,17 +37,25 @@ class Input
     UiInputCapture m_uiCapture;
     CanvasCamera m_camera;
     std::optional<CanvasSurface> m_lastSurface;
+
     static CanvasSurface surfaceFor(GLFWwindow* window);
+
     void synchronizeSurface(GLFWwindow* window);
     bool m_canvasFocused = true;
     bool m_windowFocused = true;
     std::unordered_set<int> m_pressedMouseButtons;
     std::unordered_set<int> m_canvasMouseButtons;
+
     bool dispatchUi(const UiInputEvent& event);
+
     bool canvasKeyboardAvailable() const;
+
     bool containsCanvasPoint(GLFWwindow* window, double x, double y) const;
+
     void cancelGestures();
+
     void interruptCanvas();
+
     void clearHover();
 
     EditorMode m_mode = EditorMode::Selection;
@@ -65,14 +73,20 @@ class Input
     GridCoords mouseGridCoords = {0, 0};
 
     std::function<void(const std::string&)> m_editErrorHandler;
+
     void reportEditResult(const EditResult& result);
 
     EditError m_lastEditError = EditError::None;
     std::string m_lastEditMessage;
+
     bool applyEdit(EditOperation operation);
+
     bool deleteObjects(const HitResult& hit, std::optional<SelectedSegment> segment);
+
     void beginSelectionDrag(GridCoords pointer);
+
     void beginPaste(GridCoords position);
+
     void placePaste(GridCoords position);
 
     int hoveredComponentId = -1;
@@ -100,6 +114,7 @@ class Input
         Delete,
         SelectAll
     };
+
     enum class ViewCommand
     {
         FitCircuit,
@@ -108,17 +123,19 @@ class Input
     };
 
     bool canEditCommand(EditCommand command) const;
+
     /** @brief Uses the same history, clipboard and selection operations as keyboard input. */
-    bool executeEditCommand(
-        EditCommand command, GridCoords pastePosition = {}, bool waitForCanvas = false
-    );
+    bool executeEditCommand(EditCommand command, GridCoords pastePosition = {}, bool waitForCanvas = false);
+
     bool canViewCommand(ViewCommand command) const;
+
     /** @brief Changes only the camera; selection, circuit state and history are retained. */
     bool executeViewCommand(ViewCommand command, CanvasSurface surface);
 
     /** @brief Installs the UI-first event consumer; changing it discards unfinished canvas input.
      */
     void setUiInputHandler(UiInputHandler handler);
+
     /** @brief Updates persistent UI ownership; gaining capture cancels previews without
      * deselecting. */
     void setUiCapture(UiInputCapture capture);
@@ -136,17 +153,27 @@ class Input
     const std::optional<CanvasViewport>& getCanvasViewport() const { return m_camera.viewport(); }
 
     bool isCanvasPointerAvailable(GLFWwindow* window) const;
+
     void process(GLFWwindow* window);
+
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+
     static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos);
+
     static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     void handleMouseButton(GLFWwindow* window, int button, int action, int mods);
+
     void handleKey(int key, int action, int mods = 0, int scanCode = 0);
+
     static void charCallback(GLFWwindow* window, unsigned int codepoint);
+
     void handleText(std::uint32_t codepoint);
+
     void handleFocus(bool focused);
+
     static void focusCallback(GLFWwindow* window, int focused);
 
     EditorMode getMode() const { return m_mode; }
@@ -154,113 +181,88 @@ class Input
     /** @brief Changes mode immediately, discarding unfinished gestures and queued shortcuts. */
     void setMode(EditorMode mode);
 
-    /*
+    /**
      * @brief Drains the recorded press edge of a key.
      * @param key A GLFW key code.
      * @return true exactly once per physical press, so auto-repeat cannot fire
      * twice.
      */
     bool consumeKeyPress(int key);
+
     void handleCursorPos(GLFWwindow* window, double xpos, double ypos);
+
     void handleScroll(GLFWwindow* window, double xoffset, double yoffset);
 
     void updateHoverState(GLFWwindow* window);
+
     void cancelCurrentAction();
 
     bool isIdle() const
     {
-        return !m_drag.active() && !m_wire.ownsPointer() && !m_pan.active() &&
-               !m_selection.boxing() && !m_paste.active();
+        return !m_drag.active() && !m_wire.ownsPointer() && !m_pan.active() && !m_selection.boxing() &&
+               !m_paste.active();
     }
 
     glm::vec2 getMouseWorldCoord(GLFWwindow* window) const;
+
     CanvasCameraFrame getCameraFrame(GLFWwindow* window) const;
 
     glm::vec2 getPanOffset() const { return m_camera.center(); }
 
     void setPanOffset(glm::vec2 offset);
 
-    glm::vec2 getLastMouse() const
-    {
-        return glm::vec2(static_cast<float>(lastMouseX), static_cast<float>(lastMouseY));
-    }
-
+    glm::vec2 getLastMouse() const { return glm::vec2(static_cast<float>(lastMouseX), static_cast<float>(lastMouseY)); }
     GridCoords getCurrentGridCoords() const { return mouseGridCoords; }
-
     float getZoom() const { return m_camera.zoom(); }
 
     void setZoom(float zoom);
 
     const PasteGesture& getPastePreview() const { return m_paste; }
-
     bool isCurrentlyDrawingWire() const { return m_wire.active(); }
-
     std::optional<GridCoords> getWireStartPoint() const { return m_wire.startPoint(); }
 
-    /** Hide the cursor guide at a newly committed endpoint until the pointer leaves that cell. */
+    /** @brief Hide the cursor guide at a newly committed endpoint until the pointer leaves that cell. */
     bool shouldShowGridPointHighlight() const { return !m_committedWirePoint.has_value(); }
-
     const Wire& getActiveWire() const { return m_wire.preview(); }
-
     PinRef getWireOriginPin() const { return m_wire.origin(); }
-
     PinType getWireOriginType() const { return m_wire.direction(); }
 
     void setScene(Scene* scene, EditHistory* history = nullptr);
+
     bool isReadOnly() const;
 
     void setClockTimeline(ClockTimeline* timeline) { m_clockTimeline = timeline; }
 
-    /** Resets sources and timers without adding a design-history entry. */
+    /** @brief Resets sources and timers without adding a design-history entry. */
     void resetSimulation();
-    /** Records successful user edits, including palette/property actions made by the UI. */
+
+    /** @brief Records successful user edits, including palette/property actions made by the UI. */
     void recordEdit(const EditResult& result);
 
-    /** Reports failure text; empty text after success dismisses the previous action notice. */
+    /** @brief Reports failure text; empty text after success dismisses the previous action notice. */
     void setEditErrorHandler(std::function<void(const std::string&)> handler)
     {
         m_editErrorHandler = std::move(handler);
     }
 
     std::size_t getUndoCount() const { return m_history->undoCount(); }
-
     std::size_t getRedoCount() const { return m_history->redoCount(); }
-
     EditError getLastEditError() const { return m_lastEditError; }
-
     const std::string& getLastEditMessage() const { return m_lastEditMessage; }
-
     int getHoveredComponentId() const { return hoveredComponentId; }
-
     int getHoveredPinIndex() const { return hoveredPinIndex; }
-
     WireId getHoveredWireId() const { return hoveredWireId; }
-
     int getHoveredPinComponentId() const { return hoveredPinComponentId; }
-
     PinType getHoveredPinType() const { return hoveredPinType; }
-
     const std::set<int>& getSelectedComponents() const { return m_selection.components(); }
-
     const std::set<WireId>& getSelectedWires() const { return m_selection.wires(); }
-
     bool isBoxSelection() const { return m_selection.fromBox(); }
-
-    const std::set<int>& getHighlightedComponents() const
-    {
-        return m_selection.highlightedComponents();
-    }
-
+    const std::set<int>& getHighlightedComponents() const { return m_selection.highlightedComponents(); }
     const std::set<WireId>& getHighlightedWires() const { return m_selection.highlightedWires(); }
-
     float getSelectionHighlightOpacity() const { return m_selection.boxing() ? 0.35f : 1.0f; }
-
     std::optional<BodyBounds> getSelectionBox() const { return m_selection.boxBounds(); }
-
     int getSelectedComponentId() const { return m_selection.component(); }
-
     WireId getSelectedWireId() const { return m_selection.wire(); }
-
     bool hasSelectedSegment() const { return m_selection.segment().has_value(); }
 
     GridCoords getSelectedSegmentStart() const
@@ -274,8 +276,6 @@ class Input
     }
 
     bool hasHoveredSegment() const { return m_hoveredSegmentValid; }
-
     GridCoords getHoveredSegmentStart() const { return m_hoveredSegmentStart; }
-
     GridCoords getHoveredSegmentEnd() const { return m_hoveredSegmentEnd; }
 };

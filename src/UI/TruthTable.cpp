@@ -18,17 +18,15 @@ namespace
 std::string pinName(const std::vector<PinUI>& pins, int index, const char* fallback)
 {
     const auto found = std::find_if(
-        pins.begin(),
-        pins.end(),
-        [=](const PinUI& pin) { return pin.pin_index == static_cast<unsigned>(index); }
+        pins.begin(), pins.end(), [=](const PinUI& pin) { return pin.pin_index == static_cast<unsigned>(index); }
     );
-    return found != pins.end() && !found->label.empty()
-               ? found->label
-               : std::string(fallback) + std::to_string(index + 1);
+    return found != pins.end() && !found->label.empty() ? found->label
+                                                        : std::string(fallback) + std::to_string(index + 1);
 }
 
-std::vector<std::string>
-combinationalProblem(const Circuit& circuit, std::size_t& remaining, int depth = 0)
+
+/** @brief Reject time-dependent, stateful, cyclic or excessive nested circuits before truth-table evaluation. */
+std::vector<std::string> combinationalProblem(const Circuit& circuit, std::size_t& remaining, int depth = 0)
 {
     if (depth >= 8)
         return {"Truth table unavailable.", "Nested circuit depth exceeds the limit."};
@@ -46,14 +44,11 @@ combinationalProblem(const Circuit& circuit, std::size_t& remaining, int depth =
             return {"Truth table unavailable.", "Contains clocks; may depend on time."};
         if (dynamic_cast<const Latch*>(component) || dynamic_cast<const FlipFlop*>(component))
             return {
-                "Truth table unavailable.",
-                "Contains latches or flip-flops.",
-                "Outputs may depend on stored state."
+                "Truth table unavailable.", "Contains latches or flip-flops.", "Outputs may depend on stored state."
             };
         if (const auto* nested = dynamic_cast<const Subcircuit*>(component))
         {
-            const auto problem =
-                combinationalProblem(nested->runtimeCircuit(), remaining, depth + 1);
+            const auto problem = combinationalProblem(nested->runtimeCircuit(), remaining, depth + 1);
             if (!problem.empty())
                 return problem;
         }
@@ -72,14 +67,11 @@ combinationalProblem(const Circuit& circuit, std::size_t& remaining, int depth =
             if (--incoming.at(edge.destComponentId) == 0)
                 ready.push_back(edge.destComponentId);
     if (ready.size() != ids.size())
-        return {
-            "Truth table unavailable.",
-            "Contains feedback connections.",
-            "Outputs may depend on previous state."
-        };
+        return {"Truth table unavailable.", "Contains feedback connections.", "Outputs may depend on previous state."};
     return {};
 }
 } // namespace
+
 
 bool hasTruthTable(const Component* component)
 {
@@ -87,9 +79,9 @@ bool hasTruthTable(const Component* component)
            dynamic_cast<const FlipFlop*>(component) || dynamic_cast<const Subcircuit*>(component);
 }
 
-TruthTable buildTruthTable(
-    const Component& component, const std::vector<PinUI>& inputs, const std::vector<PinUI>& outputs
-)
+
+TruthTable
+buildTruthTable(const Component& component, const std::vector<PinUI>& inputs, const std::vector<PinUI>& outputs)
 {
     TruthTable table;
     if (!hasTruthTable(&component))
@@ -102,8 +94,7 @@ TruthTable buildTruthTable(
     if (table.inputCount > 8)
     {
         table.notes = {
-            "Truth table too big.",
-            "Maximum 8 inputs; this component has " + std::to_string(table.inputCount) + "."
+            "Truth table too big.", "Maximum 8 inputs; this component has " + std::to_string(table.inputCount) + "."
         };
         return table;
     }
@@ -147,19 +138,9 @@ TruthTable buildTruthTable(
     if (latch)
     {
         if (latch->getType() == LatchType::SR_LATCH)
-            table.rows = {
-                {"0", "0", "Q", "~Q"},
-                {"0", "1", "0", "1"},
-                {"1", "0", "1", "0"},
-                {"1", "1", "0", "0"}
-            };
+            table.rows = {{"0", "0", "Q", "~Q"}, {"0", "1", "0", "1"}, {"1", "0", "1", "0"}, {"1", "1", "0", "0"}};
         else
-            table.rows = {
-                {"0", "0", "Q", "~Q"},
-                {"0", "1", "0", "1"},
-                {"1", "0", "Q", "~Q"},
-                {"1", "1", "1", "0"}
-            };
+            table.rows = {{"0", "0", "Q", "~Q"}, {"0", "1", "0", "1"}, {"1", "0", "Q", "~Q"}, {"1", "1", "1", "0"}};
         return table;
     }
     if (flip)
@@ -173,12 +154,7 @@ TruthTable buildTruthTable(
             table.rows = {{"0", "Q", "~Q"}, {"1", "~Q", "Q"}};
             break;
         case FlipFlopType::JK:
-            table.rows = {
-                {"0", "0", "Q", "~Q"},
-                {"0", "1", "0", "1"},
-                {"1", "0", "1", "0"},
-                {"1", "1", "~Q", "Q"}
-            };
+            table.rows = {{"0", "0", "Q", "~Q"}, {"0", "1", "0", "1"}, {"1", "0", "1", "0"}, {"1", "1", "~Q", "Q"}};
             break;
         }
         return table;
@@ -202,8 +178,7 @@ TruthTable buildTruthTable(
             {
                 table.rows.clear();
                 table.notes = {
-                    remaining == 0 ? "Calculation limit reached."
-                                   : "Circuit did not settle for every input.",
+                    remaining == 0 ? "Calculation limit reached." : "Circuit did not settle for every input.",
                     "No reliable truth table could be calculated."
                 };
                 return table;

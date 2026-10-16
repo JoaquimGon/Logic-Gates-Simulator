@@ -50,55 +50,54 @@ class Circuit
     /** @brief Resizes a native gate, retaining surviving indexed states and pruning removed edges.
      */
     void resizeGateInputs(int componentId, int inputPinCount);
+
     /** @brief Prevents snapshot restoration from recycling previously allocated component IDs. */
     void preserveAllocatedIds(const Circuit& other);
 
     int addGate(GateType type);
     int addGate(GateType type, int inputPinCount);
+
     int addInputPin(bool initialState = false);
+
     int addOutputPin();
+
     int addClock(float frequencyHz = 1.0f);
+
     int addLatch(LatchType type);
+
     /** @brief Takes ownership of a logical component and assigns its circuit-local ID. */
     int addComponent(std::unique_ptr<Component> component);
+
     void replaceComponent(int id, std::unique_ptr<Component> component);
+
     void collectClocks(std::vector<Clock*>& clocks);
 
     Component* getComponent(int id);
     const Component* getComponent(int id) const;
-    /** Existing IDs in creation order, including before the first propagation. */
+
+    /** @brief Existing IDs in creation order, including before the first propagation. */
     std::vector<int> componentIds() const;
+
     void delComponent(int id);
 
     /**
      * @brief Connects an output to an input, preserving both endpoint indices.
-     * @param srcComponentId Source component.
-     * @param srcPinIndex Source output index.
-     * @param destComponentId Destination component.
-     * @param destPinIndex Destination input index.
      * @return True for a new or identical edge, including feedback; false for invalid endpoints
      * or an occupied input.
      */
-    bool
-    connectComponents(int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex);
+    bool connectComponents(int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex);
+
     /**
      * @brief Attempts a connection and reports why it cannot be added.
-     * @param srcComponentId Source component.
-     * @param srcPinIndex Source output index.
-     * @param destComponentId Destination component.
-     * @param destPinIndex Destination input index.
      * @return OK for a new or identical edge; otherwise the rejection reason.
      */
-    ConnectionResult tryConnectComponents(
-        int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex
-    );
-    void disconnectComponents(
-        int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex
-    );
+    ConnectionResult tryConnectComponents(int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex);
+
+    void disconnectComponents(int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex);
+
     void clearConnections();
 
     void markStateDirty() { m_stateDirty = true; }
-
     bool isStateDirty() const { return m_stateDirty || m_structureDirty; }
 
     /**
@@ -107,35 +106,35 @@ class Circuit
      * @return true if at least one clock edge was processed.
      */
     bool updateClocks(float deltaTime, ClockTimeline* timeline = nullptr);
-    /** Resets native/nested clock phases and manual sources; the caller settles the circuit. */
+
+    /** @brief Resets native/nested clock phases and manual sources; the caller settles the circuit. */
     void resetSources();
-    /** Pauses automatic time and processes one or two distinct scheduled edge times. */
+
+    /** @brief Pauses automatic time and processes one or two distinct scheduled edge times. */
     int stepClocks(int count = 1, ClockTimeline* timeline = nullptr);
+
     void setClocksPaused(bool paused);
 
     bool clocksPaused() const { return m_clocksPaused; }
-
     double clockTime() const { return m_clockTime; }
 
     std::vector<ClockReading> clockReadings(ClockPath prefix = {}) const;
 
     double pendingClockTime() const { return m_pendingClockTime; }
 
+    /** @brief Settle changed components in bounded rounds, sharing the evaluation budget with nested subcircuits. */
     SimulationResult propagate();
-    /** Shares the evaluation limit with contained circuits. */
+
+    /** @brief Shares the evaluation limit with contained circuits. */
     SimulationResult propagate(std::size_t& remainingEvaluations);
 
-    // Debugging:
     SimulationWork takeSimulationWork();
 
     float getLastPropagateTimeMs() const { return m_lastPropagateDurationMs; }
-
     SimulationResult getLastEvalResult() const { return m_lastEvalResult; }
 
-    /** A component with pending activity or a failed evaluation, not necessarily the cause. */
+    /** @brief A component with pending activity or a failed evaluation, not necessarily the cause. */
     int unsettledComponent() const { return m_unsettledComponent; }
-
     size_t getSimulationComponentCount() const { return m_componentOrder.size(); }
-
     size_t getComponentCount() const { return m_components.size(); }
 };

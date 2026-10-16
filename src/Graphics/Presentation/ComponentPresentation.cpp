@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
+
 std::vector<ComponentRenderData>
 buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<ComponentView>>& views)
 {
@@ -19,35 +20,29 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
             view->getUnrotatedInputRail()
         };
         const bool xorExtension = data.inputRail && data.body.style.contour == BodyContour::Xor;
-        const float shapeWidth =
-            data.body.style.inverted ? data.body.size.x / 1.5f : data.body.size.x;
+        const float shapeWidth = data.body.style.inverted ? data.body.size.x / 1.5f : data.body.size.x;
         auto arcX = [&](float y)
         {
-            const float span = std::max(
-                data.body.position.y - data.inputRail->bottom,
-                data.inputRail->top - data.body.position.y
-            );
+            const float span =
+                std::max(data.body.position.y - data.inputRail->bottom, data.inputRail->top - data.body.position.y);
             const float localY = std::clamp((y - data.body.position.y) / span, -1.0f, 1.0f) * 0.38f;
-            return data.body.position.x +
-                   (-1.27f + std::sqrt(0.860f * 0.860f - localY * localY)) * shapeWidth;
+            return data.body.position.x + (-1.27f + std::sqrt(0.860f * 0.860f - localY * localY)) * shapeWidth;
         };
         if (xorExtension)
         {
             data.body.drawRearArc = false;
             for (int step = 0; step <= 64; ++step)
             {
-                const float y = data.inputRail->bottom +
-                                (data.inputRail->top - data.inputRail->bottom) * step / 64;
+                const float y = data.inputRail->bottom + (data.inputRail->top - data.inputRail->bottom) * step / 64;
                 data.inputArc.push_back({arcX(y), y});
             }
         }
         if (data.body.style.contour == BodyContour::Output && !view->getInputPins().empty())
         {
             const auto state = view->getInputPins().front().state;
-            data.body.style.tint = state == PinState::ON ? std::array<float, 4>{0, 1, 0, 1}
-                                   : state == PinState::OFF
-                                       ? std::array<float, 4>{0.12f, 0.15f, 0.2f, 1}
-                                       : std::array<float, 4>{0.32f, 0.38f, 0.46f, 1};
+            data.body.style.tint = state == PinState::ON    ? std::array<float, 4>{0, 1, 0, 1}
+                                   : state == PinState::OFF ? std::array<float, 4>{0.12f, 0.15f, 0.2f, 1}
+                                                            : std::array<float, 4>{0.32f, 0.38f, 0.46f, 1};
         }
         for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
             for (const auto& pin : *pins)
@@ -57,15 +52,13 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
                     waypoints.push_back(
                         view->getOrientation() == Orientation::Right
                             ? GridSystem::gridToWorld(
-                                  {view->getGridPosition().x + point.x,
-                                   view->getGridPosition().y + point.y}
+                                  {view->getGridPosition().x + point.x, view->getGridPosition().y + point.y}
                               )
                             : view->getPosition() + GridSystem::gridToWorld(point)
                     );
-                const auto anchor =
-                    view->getOrientation() == Orientation::Right
-                        ? view->getAbsolutePinWorldPos(pin)
-                        : view->getPosition() + GridSystem::gridToWorld(pin.relative_pos);
+                const auto anchor = view->getOrientation() == Orientation::Right
+                                        ? view->getAbsolutePinWorldPos(pin)
+                                        : view->getPosition() + GridSystem::gridToWorld(pin.relative_pos);
                 auto lead = buildPinLead(data.body, anchor, waypoints);
                 // Inner rows go straight to the solid gate. Outer rows meet its extension.
                 if (data.inputRail && pin.type == PinType::INPUT && waypoints.empty() &&
@@ -83,12 +76,7 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
                     lead.back() = anchor + glm::vec2(GridMetrics::Spacing, 0);
                 }
                 data.pins.push_back(
-                    {pin.type,
-                     pin.pin_index,
-                     pin.state,
-                     view->getAbsolutePinWorldPos(pin),
-                     pin.label,
-                     std::move(lead),
+                    {pin.type, pin.pin_index, pin.state, view->getAbsolutePinWorldPos(pin), pin.label, std::move(lead),
                      bubble}
                 );
             }
@@ -97,11 +85,8 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
         {
             if (data.body.orientation == Orientation::Right)
                 return point;
-            const auto rotated = rotatePoint(
-                point.x - data.body.position.x,
-                point.y - data.body.position.y,
-                data.body.orientation
-            );
+            const auto rotated =
+                rotatePoint(point.x - data.body.position.x, point.y - data.body.position.y, data.body.orientation);
             return data.body.position + glm::vec2{rotated[0], rotated[1]};
         };
         for (auto& pin : data.pins)
@@ -121,8 +106,7 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
         for (auto& point : data.inputArc)
             point = orient(point);
         std::sort(
-            data.pins.begin(),
-            data.pins.end(),
+            data.pins.begin(), data.pins.end(),
             [](const auto& a, const auto& b)
             {
                 if (a.direction != b.direction)
@@ -132,10 +116,6 @@ buildComponentPresentation(const std::unordered_map<int, std::unique_ptr<Compone
         );
         result.push_back(std::move(data));
     }
-    std::sort(
-        result.begin(),
-        result.end(),
-        [](const auto& a, const auto& b) { return a.body.id < b.body.id; }
-    );
+    std::sort(result.begin(), result.end(), [](const auto& a, const auto& b) { return a.body.id < b.body.id; });
     return result;
 }

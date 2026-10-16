@@ -17,15 +17,14 @@
 #include <shobjidl.h>
 #endif
 
-std::optional<std::filesystem::path> chooseCircuitFile(
-    GLFWwindow* window, bool saving, const std::filesystem::path& current, bool subcircuit
-)
+
+std::optional<std::filesystem::path>
+chooseCircuitFile(GLFWwindow* window, bool saving, const std::filesystem::path& current, bool subcircuit)
 {
 #ifdef _WIN32
     wchar_t path[32768]{};
-    const auto suggested = current.empty()
-                               ? std::wstring{subcircuit ? L"subcircuit.json" : L"circuit.json"}
-                               : current.wstring();
+    const auto suggested =
+        current.empty() ? std::wstring{subcircuit ? L"subcircuit.json" : L"circuit.json"} : current.wstring();
     if (suggested.size() >= std::size(path))
         throw std::invalid_argument("Circuit file path is too long.");
     if (saving)
@@ -39,8 +38,7 @@ std::optional<std::filesystem::path> chooseCircuitFile(
     dialog.lpstrDefExt = L"json";
     dialog.lpstrTitle = subcircuit ? (saving ? L"Save subcircuit" : L"Load subcircuit")
                                    : (saving ? L"Save workspace" : L"Open workspace");
-    dialog.Flags =
-        OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST | (saving ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
+    dialog.Flags = OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST | (saving ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
     if (saving ? GetSaveFileNameW(&dialog) : GetOpenFileNameW(&dialog))
         return std::filesystem::path{path};
     const auto error = CommDlgExtendedError();
@@ -52,6 +50,7 @@ std::optional<std::filesystem::path> chooseCircuitFile(
 #endif
 }
 
+
 std::optional<std::filesystem::path> chooseStorageFolder(GLFWwindow* window)
 {
 #ifdef _WIN32
@@ -59,18 +58,14 @@ std::optional<std::filesystem::path> chooseStorageFolder(GLFWwindow* window)
     if (FAILED(initialized))
         throw std::runtime_error("Cannot initialize the storage folder picker.");
     IFileOpenDialog* dialog = nullptr;
-    auto result = CoCreateInstance(
-        CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)
-    );
+    auto result = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
     std::optional<std::filesystem::path> chosen;
     if (SUCCEEDED(result))
     {
         DWORD options = 0;
         result = dialog->GetOptions(&options);
         if (SUCCEEDED(result))
-            result = dialog->SetOptions(
-                options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR
-            );
+            result = dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR);
         dialog->SetTitle(L"Choose subcircuit storage folder (existing files are copied)");
         if (SUCCEEDED(result))
             result = dialog->Show(window ? glfwGetWin32Window(window) : nullptr);
@@ -101,11 +96,11 @@ std::optional<std::filesystem::path> chooseStorageFolder(GLFWwindow* window)
 #endif
 }
 
+
 void openStorageFolder(const std::filesystem::path& folder)
 {
 #ifdef _WIN32
-    const auto result =
-        ShellExecuteW(nullptr, L"open", folder.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    const auto result = ShellExecuteW(nullptr, L"open", folder.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     if (reinterpret_cast<std::intptr_t>(result) <= 32)
         throw std::runtime_error("Cannot open the storage folder in Explorer.");
 #else

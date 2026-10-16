@@ -11,16 +11,10 @@
 namespace
 {
 // Shared bounded geometry for clock and selected-pin waveforms.
+/** @brief Append bounded waveform geometry, suppressing histories too dense to represent at the current scale. */
 bool appendWaveform(
-    const std::deque<ClockSample>& trace,
-    double start,
-    double window,
-    double now,
-    double graphX,
-    double graphWidth,
-    double y,
-    std::vector<Renderer::ScreenRect>& lines,
-    bool terminal = false
+    const std::deque<ClockSample>& trace, double start, double window, double now, double graphX, double graphWidth,
+    double y, std::vector<Renderer::ScreenRect>& lines, bool terminal = false
 )
 {
     if (trace.empty() || graphWidth <= 0)
@@ -29,16 +23,10 @@ bool appendWaveform(
     auto xAt = [&](double time) { return graphX + (time - start) / window * graphWidth; };
     const double stop = std::min(start + window, now);
     const auto first = std::upper_bound(
-        trace.begin(),
-        trace.end(),
-        start,
-        [](double time, const ClockSample& sample) { return time < sample.time; }
+        trace.begin(), trace.end(), start, [](double time, const ClockSample& sample) { return time < sample.time; }
     );
     const auto last = std::upper_bound(
-        first,
-        trace.end(),
-        stop,
-        [](double time, const ClockSample& sample) { return time < sample.time; }
+        first, trace.end(), stop, [](double time, const ClockSample& sample) { return time < sample.time; }
     );
     const int edgeCount = static_cast<int>(std::distance(first, last));
     bool tooDense = edgeCount > std::min(128.0, graphWidth / 8.0);
@@ -92,13 +80,10 @@ bool appendWaveform(
     return true;
 }
 
+
+/** @brief Append predicted transitions separately from the immutable recorded clock history. */
 void appendClockPreview(
-    const std::deque<ClockSample>& preview,
-    double start,
-    double window,
-    double graphX,
-    double graphWidth,
-    double y,
+    const std::deque<ClockSample>& preview, double start, double window, double graphX, double graphWidth, double y,
     std::vector<Renderer::ScreenRect>& lines
 )
 {
@@ -128,6 +113,8 @@ void appendClockPreview(
 }
 } // namespace
 
+
+/** @brief Draw clock controls, recorded history and phase-based previews within a stable timeline window. */
 void UI::drawClocks(Renderer& renderer, const Scene& scene) const
 {
     renderer.setUiDrawCategory(DrawCategory::DynamicUI);
@@ -155,35 +142,19 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
         );
     };
     const char* names[] = {
-        scene.clocksPaused() ? "Run" : "Pause",
-        "Half cycle",
-        "Full cycle",
-        "-",
-        "+",
-        "Live",
-        "Fit",
-        "Clear"
+        scene.clocksPaused() ? "Run" : "Pause", "Half cycle", "Full cycle", "-", "+", "Live", "Fit", "Clear"
     };
     for (auto control :
-         {ClockControl::RunPause,
-          ClockControl::SingleStep,
-          ClockControl::DoubleStep,
-          ClockControl::ZoomOut,
-          ClockControl::ZoomIn,
-          ClockControl::Live,
-          ClockControl::Fit,
-          ClockControl::Clear})
+         {ClockControl::RunPause, ClockControl::SingleStep, ClockControl::DoubleStep, ClockControl::ZoomOut,
+          ClockControl::ZoomIn, ClockControl::Live, ClockControl::Fit, ClockControl::Clear})
     {
         const auto bounds = clockControlBounds(control);
         const bool hovered = bounds.contains(m_pointer.x, m_pointer.y);
-        renderer.drawScreenRect(
-            bounds, hovered ? glm::vec4{0.2f, 0.4f, 0.6f, 1} : glm::vec4{0.16f, 0.3f, 0.46f, 1}
-        );
+        renderer.drawScreenRect(bounds, hovered ? glm::vec4{0.2f, 0.4f, 0.6f, 1} : glm::vec4{0.16f, 0.3f, 0.46f, 1});
         const auto name = names[static_cast<int>(control)];
         const float scale = std::min(
-            0.34f,
-            static_cast<float>(std::max(0.0, bounds.width - 10)) /
-                std::max(1.0f, getTextWidth(name, 1, renderer.fontMetrics()))
+            0.34f, static_cast<float>(std::max(0.0, bounds.width - 10)) /
+                       std::max(1.0f, getTextWidth(name, 1, renderer.fontMetrics()))
         );
         label(name, bounds, ink, scale);
     }
@@ -204,27 +175,16 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
     const auto clear = clockControlBounds(ClockControl::Clear);
     const double statusX = fit.x + fit.width + 8;
     if ((!readings.empty() || !clockTimeline().signals().empty()) && clear.x - statusX > 140)
-        label(
-            "Elapsed: " + timeText(historyTime),
-            {statusX, m_bottom.y + 40, clear.x - statusX - 8, 24},
-            muted
-        );
+        label("Elapsed: " + timeText(historyTime), {statusX, m_bottom.y + 40, clear.x - statusX - 8, 24}, muted);
     const bool wide = graphWidth > 300;
-    const auto frameBox =
-        CanvasViewport{wide ? graphX : list.x, m_bottom.y + 67, wide ? graphWidth : list.width, 18};
+    const auto frameBox = CanvasViewport{wide ? graphX : list.x, m_bottom.y + 67, wide ? graphWidth : list.width, 18};
     const auto frameText = clockTimeFrameText();
     const float frameScale = std::min(
-        0.32f,
-        static_cast<float>(std::max(0.0, frameBox.width - 12)) /
-            std::max(1.0f, getTextWidth(frameText, 1, renderer.fontMetrics()))
+        0.32f, static_cast<float>(std::max(0.0, frameBox.width - 12)) /
+                   std::max(1.0f, getTextWidth(frameText, 1, renderer.fontMetrics()))
     );
     const double frameWidth = getTextWidth(frameText, frameScale, renderer.fontMetrics()) + 8;
-    label(
-        frameText,
-        {frameBox.x + (frameBox.width - frameWidth) / 2, frameBox.y, frameWidth, 18},
-        ink,
-        frameScale
-    );
+    label(frameText, {frameBox.x + (frameBox.width - frameWidth) / 2, frameBox.y, frameWidth, 18}, ink, frameScale);
     bool dense = false;
     if (m_bottomTab == BottomTab::Clocks)
         for (const auto& clock : readings)
@@ -234,13 +194,11 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
             m_clockError.empty()
                 ? (dense ? "Preview: Fit or zoom in"
                    : m_bottomTab == BottomTab::Clocks
-                       ? (scene.clocksPaused() ? "Preview on Run | Shift: history"
-                                               : "Dashed: preview | Shift: history")
+                       ? (scene.clocksPaused() ? "Preview on Run | Shift: history" : "Dashed: preview | Shift: history")
                        : "Shift + scroll: history")
                 : m_clockError,
             {list.x, m_bottom.y + 67, clockLabelWidth() - 8, 18},
-            m_clockError.empty() ? muted : glm::vec4{1, 0.55f, 0.4f, 1},
-            0.28f
+            m_clockError.empty() ? muted : glm::vec4{1, 0.55f, 0.4f, 1}, 0.28f
         );
     renderer.drawText(text, TextSpace::Screen);
     text.clear();
@@ -262,47 +220,35 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
     }
     const int offset = clockScroll(scene);
     const auto& history = clockTimeline();
-    for (int row = 0; row + offset < static_cast<int>(readings.size()) && row * 48 < list.height;
-         ++row)
+    for (int row = 0; row + offset < static_cast<int>(readings.size()) && row * 48 < list.height; ++row)
     {
         const auto& clock = readings[row + offset];
         const double y = list.y + row * 48;
         const bool native = !m_readOnly && clock.path.size() == 1;
         label(scene.clockName(clock.path), {list.x, y, clockLabelWidth() - 76, 20}, ink);
         label(
-            clock.high ? "HIGH (1)" : "LOW (0)",
-            {list.x + clockLabelWidth() - 76, y, 72, 20},
-            clock.high ? green : muted,
-            0.3f
+            clock.high ? "HIGH (1)" : "LOW (0)", {list.x + clockLabelWidth() - 76, y, 72, 20},
+            clock.high ? green : muted, 0.3f
         );
         const auto frequency = clockFrequencyBounds(row), pause = clockPauseBounds(row);
         if (native)
         {
             const bool editing = m_clockEditing == clock.path.front();
             renderer.drawScreenRect(
-                frequency,
-                editing ? glm::vec4{0.16f, 0.3f, 0.46f, 1} : glm::vec4{0.11f, 0.15f, 0.21f, 1}
+                frequency, editing ? glm::vec4{0.16f, 0.3f, 0.46f, 1} : glm::vec4{0.11f, 0.15f, 0.21f, 1}
             );
-            label(
-                (editing ? m_clockDraft + "_" : frequencyText(clock.frequency)) + " Hz",
-                frequency,
-                ink
-            );
+            label((editing ? m_clockDraft + "_" : frequencyText(clock.frequency)) + " Hz", frequency, ink);
             renderer.drawScreenRect(pause, {0.11f, 0.15f, 0.21f, 1});
             label(clock.paused ? "Enable" : "Disable", pause, clock.paused ? muted : ink);
         }
         else
             label(
-                frequencyText(clock.frequency) + " Hz | " +
-                    (clock.paused ? "disabled" : "enabled") +
+                frequencyText(clock.frequency) + " Hz | " + (clock.paused ? "disabled" : "enabled") +
                     (m_readOnly ? " | read only" : " | edit inside"),
-                {list.x, y + 23, clockLabelWidth() - 8, 22},
-                muted,
-                0.28f
+                {list.x, y + 23, clockLabelWidth() - 8, 22}, muted, 0.28f
             );
         lines.push_back({{list.x, y + 47, list.width, 1}, {0.18f, 0.23f, 0.3f, 1}});
-        const double cursorX =
-            graphX + std::clamp((history.time() - start) / window, 0.0, 1.0) * graphWidth;
+        const double cursorX = graphX + std::clamp((history.time() - start) / window, 0.0, 1.0) * graphWidth;
         auto unreadable = [&](bool future)
         {
             const double x = future ? cursorX : graphX;
@@ -315,9 +261,8 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
             {
                 const auto& value = line == 0 ? title : hint;
                 const float scale = std::min(
-                    0.32f,
-                    static_cast<float>(std::max(0.0, width - 12)) /
-                        std::max(1.0f, getTextWidth(value, 1, renderer.fontMetrics()))
+                    0.32f, static_cast<float>(std::max(0.0, width - 12)) /
+                               std::max(1.0f, getTextWidth(value, 1, renderer.fontMetrics()))
                 );
                 label(value, {x, y + 3 + line * 20, width, 20}, {0.9f, 0.72f, 0.38f, 1}, scale);
             }
@@ -339,9 +284,7 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
             if (clockWaveformTooDense(clock.frequency))
                 unreadable(true);
             else
-                appendClockPreview(
-                    clockPreview(clock), start, window, graphX, graphWidth, y, lines
-                );
+                appendClockPreview(clockPreview(clock), start, window, graphX, graphWidth, y, lines);
         }
     }
     renderer.drawScreenRects(lines);
@@ -350,6 +293,8 @@ void UI::drawClocks(Renderer& renderer, const Scene& scene) const
     renderer.setUiDrawCategory(DrawCategory::StaticUI);
 }
 
+
+/** @brief Draw the active timeline tooltip with panel clipping and readable text sizing. */
 void UI::drawClockTooltip(Renderer& renderer, const Scene& scene) const
 {
     const auto info = clockTooltip(scene);
@@ -366,15 +311,13 @@ void UI::drawClockTooltip(Renderer& renderer, const Scene& scene) const
     for (std::size_t row = 0; row < info.size(); ++row)
     {
         const float scale = std::min(
-            0.34f,
-            static_cast<float>(std::max(0.0, bounds.width - 18)) /
-                std::max(1.0f, getTextWidth(info[row], 1, renderer.fontMetrics()))
+            0.34f, static_cast<float>(std::max(0.0, bounds.width - 18)) /
+                       std::max(1.0f, getTextWidth(info[row], 1, renderer.fontMetrics()))
         );
         text.push_back(
             {info[row],
              {static_cast<float>(bounds.x + 8),
-              static_cast<float>(bounds.y + 8 + row * 20 + 10) +
-                  getCapHeight(scale, renderer.fontMetrics()) / 2},
+              static_cast<float>(bounds.y + 8 + row * 20 + 10) + getCapHeight(scale, renderer.fontMetrics()) / 2},
              scale,
              row == 0 ? glm::vec4{0.87f, 0.91f, 0.97f, 1} : glm::vec4{0.65f, 0.75f, 0.85f, 1}}
         );
@@ -384,6 +327,8 @@ void UI::drawClockTooltip(Renderer& renderer, const Scene& scene) const
     renderer.setUiDrawCategory(DrawCategory::StaticUI);
 }
 
+
+/** @brief Draw selected-pin histories and availability gaps using only recorded observations. */
 void UI::drawSignalRows(Renderer& renderer) const
 {
     const auto list = clockListBounds();
@@ -400,23 +345,17 @@ void UI::drawSignalRows(Renderer& renderer) const
             if (!value.empty())
                 value += "...";
         }
-        text.push_back(
-            {value, {static_cast<float>(box.x + 4), static_cast<float>(box.y + 14)}, 0.3f, color}
-        );
+        text.push_back({value, {static_cast<float>(box.x + 4), static_cast<float>(box.y + 14)}, 0.3f, color});
     };
     if (signals.empty())
         label("Right-click a component and Trace a pin (up to 8).", list, muted);
     const int offset = std::clamp(
-        m_clockScroll,
-        0,
-        std::max(
-            0, static_cast<int>(signals.size()) - std::max(1, static_cast<int>(list.height / 48))
-        )
+        m_clockScroll, 0,
+        std::max(0, static_cast<int>(signals.size()) - std::max(1, static_cast<int>(list.height / 48)))
     );
     const double graphX = list.x + clockLabelWidth();
     const double graphWidth = std::max(0.0, list.width - clockLabelWidth());
-    for (int row = 0; row + offset < static_cast<int>(signals.size()) && row * 48 < list.height;
-         ++row)
+    for (int row = 0; row + offset < static_cast<int>(signals.size()) && row * 48 < list.height; ++row)
     {
         const auto& signal = signals[row + offset];
         const double y = list.y + row * 48;
@@ -424,29 +363,17 @@ void UI::drawSignalRows(Renderer& renderer) const
         std::string status = "Unavailable";
         if (!signal.samples.empty() && signal.samples.back().available)
             status = signal.samples.back().high ? "HIGH (1)" : "LOW (0)";
-        if (signal.samples.size() > 1 &&
-            signal.samples.back().time == signal.samples[signal.samples.size() - 2].time)
+        if (signal.samples.size() > 1 && signal.samples.back().time == signal.samples[signal.samples.size() - 2].time)
             status += " | paused changes";
         label(status, {list.x, y + 23, clockLabelWidth() - 32, 20}, muted);
         const auto remove = signalRemoveBounds(row);
         renderer.drawScreenRect(remove, {0.12f, 0.2f, 0.29f, 1});
         label("X", remove, ink);
         if (!appendWaveform(
-                signal.samples,
-                clockStartTime(),
-                clockWindowSeconds(),
-                clockTimeline().time(),
-                graphX,
-                graphWidth,
-                y,
-                lines,
-                true
+                signal.samples, clockStartTime(), clockWindowSeconds(), clockTimeline().time(), graphX, graphWidth, y,
+                lines, true
             ))
-            label(
-                "Too dense: zoom in or Fit",
-                {graphX, y + 12, graphWidth, 20},
-                {0.9f, 0.72f, 0.38f, 1}
-            );
+            label("Too dense: zoom in or Fit", {graphX, y + 12, graphWidth, 20}, {0.9f, 0.72f, 0.38f, 1});
         lines.push_back({{list.x, y + 47, list.width, 1}, {0.18f, 0.23f, 0.3f, 1}});
     }
     renderer.drawScreenRects(lines);

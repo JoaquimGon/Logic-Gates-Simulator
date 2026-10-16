@@ -17,6 +17,8 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
+/** @brief Verify gate tables reflect external levels, configured arity, inversion, labels and the eight-input limit. */
 void gates()
 {
     for (GateType type : {NOT, AND, NAND, OR, NOR, XOR, NXOR})
@@ -33,10 +35,7 @@ void gates()
                 const auto originalInputs = gate.getStateInPins();
                 const bool originalOutput = gate.getStateOutPin();
                 const auto table = buildTruthTable(gate, {}, {});
-                require(
-                    table.rows.size() == (std::size_t{1} << count),
-                    "Gate table omitted combinations."
-                );
+                require(table.rows.size() == (std::size_t{1} << count), "Gate table omitted combinations.");
                 for (int row = 0; row < (1 << count); ++row)
                 {
                     int high = 0;
@@ -58,19 +57,16 @@ void gates()
                     );
                 }
                 require(
-                    gate.getStateInPins() == originalInputs &&
-                        gate.getStateOutPin() == originalOutput,
+                    gate.getStateInPins() == originalInputs && gate.getStateOutPin() == originalOutput,
                     "Building a table changed live component state."
                 );
             }
     Gate gate(0, AND, 2);
     gate.setInputInverted(0, true);
     const std::vector<PinUI> pins{
-        {PinType::INPUT, 1, PinState::OFF, {}, "", "Second"},
-        {PinType::INPUT, 0, PinState::ON, {}, "", "First"}
+        {PinType::INPUT, 1, PinState::OFF, {}, "", "Second"}, {PinType::INPUT, 0, PinState::ON, {}, "", "First"}
     };
-    const auto named =
-        buildTruthTable(gate, pins, {{PinType::OUTPUT, 0, PinState::OFF, {}, "", "Result"}});
+    const auto named = buildTruthTable(gate, pins, {{PinType::OUTPUT, 0, PinState::OFF, {}, "", "Result"}});
     require(
         named.headers == std::vector<std::string>{"First*", "Second", "Result"},
         "Table used view order instead of logical pin indices/names."
@@ -84,11 +80,15 @@ void gates()
     );
 }
 
+
 bool resolve(const std::string& value, bool q, bool notQ)
 {
     return value == "Q" ? q : value == "~Q" ? notQ : value == "1";
 }
 
+
+/** @brief Check explicit next-state rows against latch or flip-flop behaviour without substituting a combinational
+ * table. */
 void checkSequential(Component& component)
 {
     const auto inputs = component.getStateInPins();
@@ -114,12 +114,13 @@ void checkSequential(Component& component)
         );
     }
     require(
-        component.getStateInPins() == inputs && component.getStateOutPin(0) == q &&
-            component.getStateOutPin(1) == notQ,
+        component.getStateInPins() == inputs && component.getStateOutPin(0) == q && component.getStateOutPin(1) == notQ,
         "Table evaluation disturbed stored state."
     );
 }
 
+
+/** @brief Verify latch and flip-flop tables retain their hold, toggle and active-edge semantics. */
 void sequential()
 {
     for (auto type : {FlipFlopType::D, FlipFlopType::T, FlipFlopType::JK})
@@ -147,6 +148,8 @@ void sequential()
         }
 }
 
+
+/** @brief Build a reusable combinational fixture with a directly mapped input/output interface. */
 SubcircuitBehavior passThrough(int count = 1)
 {
     Circuit circuit;
@@ -165,15 +168,17 @@ SubcircuitBehavior passThrough(int count = 1)
     return design;
 }
 
+
 bool noteContains(const TruthTable& table, const char* message)
 {
     return std::any_of(
-        table.notes.begin(),
-        table.notes.end(),
+        table.notes.begin(), table.notes.end(),
         [&](const auto& note) { return note.find(message) != std::string::npos; }
     );
 }
 
+
+/** @brief Wrap an authored design in another reusable component to exercise nested truth-table evaluation. */
 SubcircuitBehavior wrap(const SubcircuitBehavior& inner)
 {
     Circuit circuit;
@@ -195,6 +200,8 @@ SubcircuitBehavior wrap(const SubcircuitBehavior& inner)
     return outer;
 }
 
+
+/** @brief Verify custom combinational tables preserve labels, nesting, all combinations and live runtime state. */
 void customCircuits()
 {
     Circuit circuit;
@@ -214,12 +221,10 @@ void customCircuits()
     design.outputs = {outCarry, outSum};
     design.circuit = std::make_shared<Circuit>(std::move(circuit));
     const std::vector<PinUI> inputs{
-        {PinType::INPUT, 1, PinState::OFF, {}, "", "A"},
-        {PinType::INPUT, 0, PinState::OFF, {}, "", "B"}
+        {PinType::INPUT, 1, PinState::OFF, {}, "", "A"}, {PinType::INPUT, 0, PinState::OFF, {}, "", "B"}
     };
     const std::vector<PinUI> outputs{
-        {PinType::OUTPUT, 1, PinState::OFF, {}, "", "Sum"},
-        {PinType::OUTPUT, 0, PinState::OFF, {}, "", "Masked"}
+        {PinType::OUTPUT, 1, PinState::OFF, {}, "", "Sum"}, {PinType::OUTPUT, 0, PinState::OFF, {}, "", "Masked"}
     };
     for (bool nested : {false, true})
     {
@@ -243,17 +248,13 @@ void customCircuits()
         }
         const auto table = buildTruthTable(sub, inputs, outputs);
         require(
-            hasTruthTable(&sub) &&
-                table.headers == std::vector<std::string>{"B", "A", "Masked", "Sum"},
+            hasTruthTable(&sub) && table.headers == std::vector<std::string>{"B", "A", "Masked", "Sum"},
             "Custom table lost named logical port order."
         );
         require(
             table.rows ==
                 std::vector<std::vector<std::string>>{
-                    {"0", "0", "0", "0"},
-                    {"0", "1", "0", "1"},
-                    {"1", "0", "1", "1"},
-                    {"1", "1", "0", "0"}
+                    {"0", "0", "0", "0"}, {"0", "1", "0", "1"}, {"1", "0", "1", "1"}, {"1", "1", "0", "0"}
                 },
             "Custom/nested table lost input inversion or independent outputs."
         );
@@ -265,35 +266,28 @@ void customCircuits()
         for (std::size_t i = 0; i < ids.size(); ++i)
         {
             const auto* component = runtime.getComponent(ids[i]);
-            require(
-                component->getStateInPins() == internalInputs[i], "Internal live inputs changed."
-            );
+            require(component->getStateInPins() == internalInputs[i], "Internal live inputs changed.");
             for (int pin = 0; pin < component->getOutputPinCount(); ++pin)
-                require(
-                    component->getStateOutPin(pin) == internalOutputs[i][pin],
-                    "Internal live outputs changed."
-                );
+                require(component->getStateOutPin(pin) == internalOutputs[i][pin], "Internal live outputs changed.");
         }
     }
     Subcircuit eight(passThrough(8));
     const auto wide = buildTruthTable(eight, {}, {});
-    require(
-        wide.rows.size() == 256 && wide.headers.size() == 16,
-        "Eight-input custom circuit was truncated."
-    );
+    require(wide.rows.size() == 256 && wide.headers.size() == 16, "Eight-input custom circuit was truncated.");
     for (const auto& row : wide.rows)
         require(
-            std::equal(row.begin(), row.begin() + 8, row.begin() + 8),
-            "Custom circuit omitted some output columns."
+            std::equal(row.begin(), row.begin() + 8, row.begin() + 8), "Custom circuit omitted some output columns."
         );
     Subcircuit nine(passThrough(9));
     const auto tooBig = buildTruthTable(nine, {}, {});
     require(
-        tooBig.rows.empty() && noteContains(tooBig, "Truth table too big"),
-        "Nine-input table not rejected clearly."
+        tooBig.rows.empty() && noteContains(tooBig, "Truth table too big"), "Nine-input table not rejected clearly."
     );
 }
 
+
+/** @brief Reject stateful, clocked, cyclic or excessive nested designs before presenting unreliable truth-table
+ * results. */
 void customRestrictions()
 {
     for (int kind = 0; kind < 5; ++kind)
@@ -309,9 +303,7 @@ void customRestrictions()
         else if (kind == 3)
         {
             const int loop = circuit->addGate(OR);
-            circuit->connectComponents(
-                loop, 0, loop, 0
-            ); // Can settle, but still contains feedback.
+            circuit->connectComponents(loop, 0, loop, 0); // Can settle, but still contains feedback.
         }
         else
         {
@@ -341,13 +333,13 @@ void customRestrictions()
     sub.evaluate();
     const auto table = buildTruthTable(sub, {}, {});
     require(
-        table.rows.empty() && noteContains(table, "Calculation limit reached") &&
-            sub.getStateOutPin(0),
+        table.rows.empty() && noteContains(table, "Calculation limit reached") && sub.getStateOutPin(0),
         "Total table work was not bounded, partial results leaked or live state changed."
     );
 }
 
 } // namespace
+
 
 int main()
 {

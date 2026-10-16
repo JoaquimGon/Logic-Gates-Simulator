@@ -4,6 +4,7 @@
 
 #include <utility>
 
+
 std::string CircuitViews::inspectionLabel() const
 {
     std::string label;
@@ -15,6 +16,7 @@ std::string CircuitViews::inspectionLabel() const
     }
     return label;
 }
+
 
 bool CircuitViews::inspectComponent(int componentId, Input& input)
 {
@@ -31,28 +33,23 @@ bool CircuitViews::inspectComponent(int componentId, Input& input)
     {
         int ordinal = 0;
         for (const auto& [id, candidate] : parent.getComponentViewMap())
-            if (id <= componentId &&
-                candidate->getDefinitionIdentity().id == view->getDefinitionIdentity().id)
+            if (id <= componentId && candidate->getDefinitionIdentity().id == view->getDefinitionIdentity().id)
                 ++ordinal;
         name = (definition ? definition->displayName : "Circuit") + " " + std::to_string(ordinal);
     }
     auto layout = std::make_unique<Scene>(*sub->authoredScene());
     layout->observeRuntime(
-        sub->runtimeCircuit(),
-        sub->componentIds(),
-        activeScene().getLastEvalResult(),
-        activeScene().isSimulationDirty()
+        sub->runtimeCircuit(), sub->componentIds(), activeScene().getLastEvalResult(), activeScene().isSimulationDirty()
     );
     const int runtimeId = parent.runtimeComponentId(componentId);
     m_inspectedRevision = activeScene().getRevision();
-    m_inspections.push_back(
-        {runtimeId, std::move(name), std::move(layout), input.getPanOffset(), input.getZoom()}
-    );
+    m_inspections.push_back({runtimeId, std::move(name), std::move(layout), input.getPanOffset(), input.getZoom()});
     input.setScene(&displayedScene());
     input.setClockTimeline(&activeClockTimeline());
     input.setCanvasFocused(true);
     return true;
 }
+
 
 bool CircuitViews::leaveInspection(Input& input)
 {
@@ -61,12 +58,9 @@ bool CircuitViews::leaveInspection(Input& input)
     const auto pan = m_inspections.back().parentPan;
     const auto zoom = m_inspections.back().parentZoom;
     // Switch Input before releasing the scene it currently borrows.
-    Scene* destination = m_inspections.size() > 1
-                             ? m_inspections[m_inspections.size() - 2].scene.get()
-                             : &activeScene();
-    input.setScene(
-        destination, m_inspections.size() == 1 ? m_views[m_active].history.get() : nullptr
-    );
+    Scene* destination =
+        m_inspections.size() > 1 ? m_inspections[m_inspections.size() - 2].scene.get() : &activeScene();
+    input.setScene(destination, m_inspections.size() == 1 ? m_views[m_active].history.get() : nullptr);
     m_inspections.pop_back();
     input.setClockTimeline(&activeClockTimeline());
     input.setPanOffset(pan);
@@ -75,12 +69,14 @@ bool CircuitViews::leaveInspection(Input& input)
     return true;
 }
 
+
 void CircuitViews::closeInspection(Input& input)
 {
     while (leaveInspection(input))
     {
     }
 }
+
 
 bool CircuitViews::refreshInspection(Input& input, bool sync)
 {
@@ -94,9 +90,8 @@ bool CircuitViews::refreshInspection(Input& input, bool sync)
     const Circuit* parent = nullptr;
     for (auto& inspection : m_inspections)
     {
-        const auto* component =
-            parent ? parent->getComponent(inspection.runtimeId)
-                   : std::as_const(*this).activeScene().getLogicComponent(inspection.runtimeId);
+        const auto* component = parent ? parent->getComponent(inspection.runtimeId)
+                                       : std::as_const(*this).activeScene().getLogicComponent(inspection.runtimeId);
         const auto* sub = dynamic_cast<const Subcircuit*>(component);
         if (!sub)
         {
@@ -105,15 +100,14 @@ bool CircuitViews::refreshInspection(Input& input, bool sync)
         }
         if (sync)
             inspection.scene->observeRuntime(
-                sub->runtimeCircuit(),
-                sub->componentIds(),
-                activeScene().getLastEvalResult(),
+                sub->runtimeCircuit(), sub->componentIds(), activeScene().getLastEvalResult(),
                 activeScene().isSimulationDirty()
             );
         parent = &sub->runtimeCircuit();
     }
     return true;
 }
+
 
 ClockPath CircuitViews::signalPath(int authoredId) const
 {

@@ -3,6 +3,8 @@ out vec4 FragColor;
 in vec4 instanceTint;
 in vec2 localPos;
 
+
+/** @brief Shade the output indicator with the electrical-state tint supplied by its presentation instance. */
 void main()
 {
     float d = length(localPos) - 0.32;

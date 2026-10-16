@@ -12,15 +12,17 @@ class WireGesture
 {
   public:
     void begin(GridCoords position, PinRef origin = {}, PinType direction = PinType::INPUT);
+
     void beginBranch(WireId wireId, GridCoords position);
+
     void update(Scene& scene, GridCoords position);
+
     std::optional<AddWire> finish();
+
     void cancel();
 
     bool active() const { return m_active; }
-
     bool routeBlocked() const { return m_routeBlocked; }
-
     bool ownsPointer() const { return m_active || m_branch != INVALID_WIRE_ID; }
 
     std::optional<GridCoords> startPoint() const
@@ -29,9 +31,7 @@ class WireGesture
     }
 
     const Wire& preview() const { return m_wire; }
-
     PinRef origin() const { return m_origin; }
-
     PinType direction() const { return m_direction; }
 
   private:

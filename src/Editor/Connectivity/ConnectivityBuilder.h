@@ -38,8 +38,5 @@ struct ConnectivityResult
  * Shorted nets remain undriven, preserving the existing separate short-circuit policy.
  */
 ConnectivityResult buildConnectivity(
-    const std::map<WireId, Wire>& wires,
-    std::span<const PinAnchor> pins,
-    Circuit& circuit,
-    NetId nextNetId
+    const std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins, Circuit& circuit, NetId nextNetId
 );

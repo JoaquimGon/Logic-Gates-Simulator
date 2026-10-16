@@ -5,11 +5,13 @@
 
 #include <limits>
 
+
 bool DragGesture::begin(Scene& scene, int componentId)
 {
     const auto* view = scene.getCommittedComponentView(componentId);
     return view && begin(scene, {&componentId, 1}, {}, view->getGridPosition());
 }
+
 
 bool DragGesture::begin(
     Scene& scene, std::span<const int> components, std::span<const WireId> wires, GridCoords pointer
@@ -21,6 +23,7 @@ bool DragGesture::begin(
     m_preview = EditorActions(scene).beginMove(components, wires);
     return active();
 }
+
 
 bool DragGesture::update(Scene& scene, GridCoords position)
 {
@@ -35,6 +38,7 @@ bool DragGesture::update(Scene& scene, GridCoords position)
     return false;
 }
 
+
 EditResult DragGesture::finish(Scene& scene, bool reroute)
 {
     if (!m_preview)
@@ -43,6 +47,7 @@ EditResult DragGesture::finish(Scene& scene, bool reroute)
     m_preview.reset();
     return EditorActions(scene).commitMove(handle, reroute);
 }
+
 
 void DragGesture::cancel(Scene& scene)
 {

@@ -8,12 +8,11 @@ enum class FlipFlopType
     JK
 };
 
-/** One stored bit, sampled on CLK's rising edge. Outputs start at Q=0, ~Q=1. */
+/** @brief One stored bit, sampled on CLK's rising edge. Outputs start at Q=0, ~Q=1. */
 class FlipFlop : public Component
 {
   public:
-    FlipFlop(int id, FlipFlopType type)
-        : Component(id, type == FlipFlopType::JK ? 3 : 2, 2), m_type(type)
+    FlipFlop(int id, FlipFlopType type) : Component(id, type == FlipFlopType::JK ? 3 : 2, 2), m_type(type)
     {
         if (type != FlipFlopType::D && type != FlipFlopType::T && type != FlipFlopType::JK)
             throw std::invalid_argument("Invalid flip-flop type.");
@@ -23,11 +22,10 @@ class FlipFlop : public Component
     std::unique_ptr<Component> clone() const override { return std::make_unique<FlipFlop>(*this); }
 
     void evaluate() override {}
-
     int clockInputPin() const override { return getInputPinCount() - 1; }
-
     FlipFlopType getType() const { return m_type; }
 
+    /** @brief Apply the flip-flop's state transition on a rising edge and retain state on other clock levels. */
     void onClockEdge(bool high) override
     {
         if (!high)

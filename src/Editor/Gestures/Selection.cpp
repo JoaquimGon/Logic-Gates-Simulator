@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <utility>
 
+
 void Selection::clear()
 {
     m_areaSelected = false;
@@ -16,6 +17,7 @@ void Selection::clear()
     m_segment.reset();
     cancelBox();
 }
+
 
 bool Selection::selectComponent(int id)
 {
@@ -28,6 +30,7 @@ bool Selection::selectComponent(int id)
     return !alreadySelected;
 }
 
+
 void Selection::selectGroup(std::span<const int> components)
 {
     clear();
@@ -35,11 +38,13 @@ void Selection::selectGroup(std::span<const int> components)
     m_pasted = true;
 }
 
+
 void Selection::selectPinOwner(int id)
 {
     clear();
     m_components.insert(id);
 }
+
 
 void Selection::selectWire(const Scene& scene, WireId id, GridCoords position)
 {
@@ -50,6 +55,7 @@ void Selection::selectWire(const Scene& scene, WireId id, GridCoords position)
     if (wire && wire->getSegmentAt(position, segment.start, segment.end))
         m_segment = segment;
 }
+
 
 void Selection::toggleWire(WireId id)
 {
@@ -63,6 +69,7 @@ void Selection::toggleWire(WireId id)
         m_areaSelected = false;
 }
 
+
 void Selection::prune(const Scene& scene)
 {
     std::erase_if(m_components, [&](int id) { return !scene.getCommittedComponentView(id); });
@@ -74,9 +81,8 @@ void Selection::prune(const Scene& scene)
     }
 }
 
-void Selection::retainMovedWires(
-    const Scene& scene, std::span<const WireId> added, std::span<const Wire> paths
-)
+
+void Selection::retainMovedWires(const Scene& scene, std::span<const WireId> added, std::span<const Wire> paths)
 {
     prune(scene);
     if (paths.empty())
@@ -127,6 +133,7 @@ void Selection::retainMovedWires(
     }
 }
 
+
 void Selection::beginBox(glm::vec2 point)
 {
     cancelBox();
@@ -134,12 +141,14 @@ void Selection::beginBox(glm::vec2 point)
     m_boxEnd = point;
 }
 
+
 void Selection::cancelBox()
 {
     m_boxStart.reset();
     m_boxComponents.clear();
     m_boxWires.clear();
 }
+
 
 void Selection::finishBox()
 {
@@ -153,17 +162,17 @@ void Selection::finishBox()
     cancelBox();
 }
 
+
 std::optional<BodyBounds> Selection::boxBounds() const
 {
     if (!m_boxStart)
         return std::nullopt;
     return BodyBounds{
-        std::min(m_boxStart->x, m_boxEnd.x),
-        std::min(m_boxStart->y, m_boxEnd.y),
-        std::max(m_boxStart->x, m_boxEnd.x),
+        std::min(m_boxStart->x, m_boxEnd.x), std::min(m_boxStart->y, m_boxEnd.y), std::max(m_boxStart->x, m_boxEnd.x),
         std::max(m_boxStart->y, m_boxEnd.y)
     };
 }
+
 
 void Selection::updateBox(const Scene& scene, glm::vec2 point)
 {
@@ -178,8 +187,8 @@ void Selection::updateBox(const Scene& scene, glm::vec2 point)
     constexpr float tolerance = 1e-6f;
     auto inside = [&](float x, float y)
     {
-        return x >= bounds->left - tolerance && x <= bounds->right + tolerance &&
-               y >= bounds->bottom - tolerance && y <= bounds->top + tolerance;
+        return x >= bounds->left - tolerance && x <= bounds->right + tolerance && y >= bounds->bottom - tolerance &&
+               y <= bounds->top + tolerance;
     };
     for (const auto& [id, view] : scene.getComponentViewMap())
     {
@@ -189,8 +198,7 @@ void Selection::updateBox(const Scene& scene, glm::vec2 point)
     }
     for (const auto& [id, wire] : scene.getWires())
         if (std::all_of(
-                wire.getPath().begin(),
-                wire.getPath().end(),
+                wire.getPath().begin(), wire.getPath().end(),
                 [&](GridCoords point)
                 {
                     const auto world = GridSystem::gridToWorld(point);
@@ -200,8 +208,8 @@ void Selection::updateBox(const Scene& scene, glm::vec2 point)
             m_boxWires.insert(id);
 }
 
-EditBatch
-Selection::deletions(const HitResult& hover, std::optional<SelectedSegment> hoveredSegment) const
+
+EditBatch Selection::deletions(const HitResult& hover, std::optional<SelectedSegment> hoveredSegment) const
 {
     EditBatch batch;
     for (int id : m_components)

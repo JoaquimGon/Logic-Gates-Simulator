@@ -25,10 +25,7 @@ class GridSystem
     // coordinates ({0.10f, -0.05f})
     static glm::vec2 gridToWorld(GridCoords gridPos)
     {
-        return {
-            static_cast<float>(gridPos.x) * GRID_SPACING,
-            static_cast<float>(gridPos.y) * GRID_SPACING
-        };
+        return {static_cast<float>(gridPos.x) * GRID_SPACING, static_cast<float>(gridPos.y) * GRID_SPACING};
     }
 
     // Snaps any arbitrary world-space position (e.g. mouse cursor position) to

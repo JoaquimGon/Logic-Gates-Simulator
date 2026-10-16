@@ -6,6 +6,7 @@ enum PinState
     OFF,
     ON
 };
+
 enum class PinType
 {
     INPUT,

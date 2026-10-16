@@ -1,12 +1,15 @@
 #version 330 core
 
-#include "../common/sdf.glsl"
 #include "../common/outline.glsl"
+#include "../common/sdf.glsl"
 out vec4 FragColor;
 in vec4 instanceTint;
 uniform bool uDrawRearArc = true;
+
+
 in vec2 localPos; // Range: -0.5 .. 0.5
 
+/** @brief Shade the XOR body and optional rear arc with stable derivative-based arc coverage. */
 void main()
 {
     vec2 p = localPos;
@@ -24,13 +27,11 @@ void main()
     // Use the circle gradient: abs() loses a stable derivative along the arc center.
     vec2 arcGradient = vec2(dFdx(arcCircle), dFdy(arcCircle));
     vec2 capGradient = vec2(dFdx(p.y), dFdy(p.y));
-    float arcPixelWidth = max(length(abs(arcCircle) - 0.013 > abs(p.y) - 0.38
-                                    ? arcGradient : capGradient), 0.000001);
+    float arcPixelWidth = max(length(abs(arcCircle) - 0.013 > abs(p.y) - 0.38 ? arcGradient : capGradient), 0.000001);
     // Keep the colored arc's width; add its rim outward and let the quad clip it.
     float borderedArc = trailingArc - 1.5 * uOutlineScale * arcPixelWidth;
     float d = min(body, borderedArc);
 
-    // Anti-aliasing
     float fillFactor = fillCoverage(d);
 
     float outline = outlineFactor(d);

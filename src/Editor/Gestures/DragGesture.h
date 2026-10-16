@@ -12,14 +12,12 @@ class DragGesture
 {
   public:
     bool begin(Scene& scene, int componentId);
-    bool begin(
-        Scene& scene,
-        std::span<const int> components,
-        std::span<const WireId> wires,
-        GridCoords pointer
-    );
+    bool begin(Scene& scene, std::span<const int> components, std::span<const WireId> wires, GridCoords pointer);
+
     bool update(Scene& scene, GridCoords position);
+
     EditResult finish(Scene& scene, bool reroute = true);
+
     void cancel(Scene& scene);
 
     bool active() const { return m_preview.has_value(); }

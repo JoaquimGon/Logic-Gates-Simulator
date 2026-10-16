@@ -29,6 +29,7 @@ std::string fileName(const std::string& id)
     return result + ".json";
 }
 
+
 std::string bytes(const std::filesystem::path& path)
 {
     const auto size = std::filesystem::file_size(path);
@@ -44,6 +45,7 @@ std::string bytes(const std::filesystem::path& path)
 }
 } // namespace
 
+
 std::filesystem::path SubcircuitLibrary::defaultProfile()
 {
 #ifdef _WIN32
@@ -58,6 +60,7 @@ std::filesystem::path SubcircuitLibrary::defaultProfile()
     throw std::runtime_error("Cannot locate the user's application data folder.");
 }
 
+
 SubcircuitLibrary::SubcircuitLibrary(std::filesystem::path profile)
     : m_profile(std::filesystem::absolute(profile)), m_location(m_profile / "storage")
 {
@@ -66,8 +69,7 @@ SubcircuitLibrary::SubcircuitLibrary(std::filesystem::path profile)
         const auto settings = m_profile / "settings.json";
         if (std::filesystem::exists(settings))
         {
-            const auto path =
-                nlohmann::json::parse(bytes(settings)).at("storage_location").get<std::string>();
+            const auto path = nlohmann::json::parse(bytes(settings)).at("storage_location").get<std::string>();
             m_location = std::filesystem::path(std::u8string(path.begin(), path.end()));
             if (!m_location.is_absolute())
                 throw std::runtime_error("Library location must be an absolute path.");
@@ -80,6 +82,7 @@ SubcircuitLibrary::SubcircuitLibrary(std::filesystem::path profile)
     }
     reload();
 }
+
 
 void SubcircuitLibrary::reload()
 {
@@ -112,12 +115,11 @@ void SubcircuitLibrary::reload()
         }
     }
     std::sort(
-        m_entries.begin(),
-        m_entries.end(),
-        [](const Entry& a, const Entry& b)
-        { return a.draft != b.draft ? !a.draft : a.name < b.name; }
+        m_entries.begin(), m_entries.end(),
+        [](const Entry& a, const Entry& b) { return a.draft != b.draft ? !a.draft : a.name < b.name; }
     );
 }
+
 
 std::uint32_t SubcircuitLibrary::version(const std::string& id) const
 {
@@ -127,6 +129,7 @@ std::uint32_t SubcircuitLibrary::version(const std::string& id) const
             result = std::max(result, entry.identity.version);
     return result;
 }
+
 
 std::filesystem::path SubcircuitLibrary::store(const SavedSubcircuit& design, bool draft)
 {
@@ -142,6 +145,7 @@ std::filesystem::path SubcircuitLibrary::store(const SavedSubcircuit& design, bo
     reload();
     return path;
 }
+
 
 void SubcircuitLibrary::changeLocation(const std::filesystem::path& destination)
 {
@@ -172,8 +176,7 @@ void SubcircuitLibrary::changeLocation(const std::filesystem::path& destination)
     std::filesystem::create_directories(m_profile);
     const auto utf8 = target.u8string();
     writeTextAtomically(
-        m_profile / "settings.json",
-        nlohmann::json{{"storage_location", std::string(utf8.begin(), utf8.end())}}.dump(2)
+        m_profile / "settings.json", nlohmann::json{{"storage_location", std::string(utf8.begin(), utf8.end())}}.dump(2)
     );
     m_location = target;
     reload();

@@ -14,10 +14,12 @@ namespace
 constexpr float titleScale = 0.42f;
 }
 
+
 std::optional<std::size_t> CircuitTabs::takeCloseRequest()
 {
     return std::exchange(m_closeRequest, std::nullopt);
 }
+
 
 void CircuitTabs::bind(CircuitViews* views, const FontMetrics* font)
 {
@@ -32,10 +34,12 @@ void CircuitTabs::bind(CircuitViews* views, const FontMetrics* font)
     m_createMenu = m_popupMousePressed = false;
 }
 
+
 double CircuitTabs::maxScroll() const
 {
     return std::max(0.0, (m_views->size() - 1) * m_tabWidth + addBounds().width - m_tabList.width);
 }
+
 
 void CircuitTabs::layout(CanvasViewport bar)
 {
@@ -53,8 +57,7 @@ void CircuitTabs::layout(CanvasViewport bar)
         {
             const double left = (m_views->activeIndex() - 1) * m_tabWidth;
             const double right =
-                left + m_tabWidth +
-                (m_views->activeIndex() == m_views->size() - 1 ? addBounds().width : 0);
+                left + m_tabWidth + (m_views->activeIndex() == m_views->size() - 1 ? addBounds().width : 0);
             if (left < m_scroll)
                 m_scroll = left;
             if (right > m_scroll + m_tabList.width)
@@ -65,12 +68,14 @@ void CircuitTabs::layout(CanvasViewport bar)
     }
 }
 
+
 CanvasViewport CircuitTabs::tabBounds(std::size_t index) const
 {
     if (index == 0)
         return {m_bar.x, m_bar.y, m_tabList.x - m_bar.x, m_bar.height};
     return {m_tabList.x + (index - 1) * m_tabWidth - m_scroll, m_bar.y, m_tabWidth, m_bar.height};
 }
+
 
 CanvasViewport CircuitTabs::addBounds() const
 {
@@ -80,23 +85,24 @@ CanvasViewport CircuitTabs::addBounds() const
     return {m_tabList.x + (m_views->size() - 1) * m_tabWidth - m_scroll, m_bar.y, side, side};
 }
 
+
 CanvasViewport CircuitTabs::popupBounds() const
 {
     if (!m_popup)
         return {};
     const double width = std::min(340.0, m_bar.width);
-    const double x =
-        std::clamp(tabBounds(*m_popup).x, m_bar.x, m_bar.x + std::max(0.0, m_bar.width - width));
+    const double x = std::clamp(tabBounds(*m_popup).x, m_bar.x, m_bar.x + std::max(0.0, m_bar.width - width));
     return {x, m_bar.y + m_bar.height, width, !m_confirmDelete && *m_popup != 0 ? 148.0 : 112.0};
 }
+
 
 CanvasViewport CircuitTabs::createMenuBounds() const
 {
     const double width = std::min(260.0, m_bar.width);
-    const double x =
-        std::clamp(addBounds().x, m_bar.x, m_bar.x + std::max(0.0, m_bar.width - width));
+    const double x = std::clamp(addBounds().x, m_bar.x, m_bar.x + std::max(0.0, m_bar.width - width));
     return {x, m_bar.y + m_bar.height, width, 72};
 }
+
 
 CanvasViewport CircuitTabs::createOptionBounds(int index) const
 {
@@ -106,6 +112,7 @@ CanvasViewport CircuitTabs::createOptionBounds(int index) const
     return {menu.x + 4, menu.y + 4 + index * 32, std::max(0.0, menu.width - 8), 32};
 }
 
+
 CanvasViewport CircuitTabs::roleBounds() const
 {
     if (!m_popup || *m_popup == 0 || m_confirmDelete)
@@ -113,6 +120,7 @@ CanvasViewport CircuitTabs::roleBounds() const
     const auto popup = popupBounds();
     return {popup.x + 10, popup.y + 112, std::max(0.0, popup.width - 20), 28};
 }
+
 
 std::string CircuitTabs::activeViewLabel() const
 {
@@ -122,20 +130,24 @@ std::string CircuitTabs::activeViewLabel() const
     return std::string(CircuitViews::roleName(m_views->role(index))) + ": " + m_views->name(index);
 }
 
+
 std::string CircuitTabs::activeViewName() const
 {
     return enabled() ? m_views->name(m_views->activeIndex()) : std::string{};
 }
+
 
 bool CircuitTabs::activeIsSubcircuit() const
 {
     return enabled() && m_views->role(m_views->activeIndex()) == CircuitViews::Role::Subcircuit;
 }
 
+
 std::size_t CircuitTabs::activeViewIndex() const
 {
     return enabled() ? m_views->activeIndex() : 0;
 }
+
 
 CanvasViewport CircuitTabs::closeBounds(std::size_t index) const
 {
@@ -146,11 +158,13 @@ CanvasViewport CircuitTabs::closeBounds(std::size_t index) const
     return {tab.x + tab.width - side - 2, tab.y + (tab.height - side) / 2, side, side};
 }
 
+
 CanvasViewport CircuitTabs::nameBounds() const
 {
     const auto popup = popupBounds();
     return {popup.x + 10, popup.y + 50, std::max(0.0, popup.width - 20), 30};
 }
+
 
 CanvasViewport CircuitTabs::deleteBounds() const
 {
@@ -158,17 +172,20 @@ CanvasViewport CircuitTabs::deleteBounds() const
     return {popup.x + popup.width / 2 + 4, popup.y + 72, std::max(0.0, popup.width / 2 - 14), 30};
 }
 
+
 CanvasViewport CircuitTabs::cancelDeleteBounds() const
 {
     const auto popup = popupBounds();
     return {popup.x + 10, popup.y + 72, std::max(0.0, popup.width / 2 - 14), 30};
 }
 
+
 bool CircuitTabs::contains(double x, double y) const
 {
     return enabled() && (m_bar.contains(x, y) || (m_popup && popupBounds().contains(x, y)) ||
                          (m_createMenu && createMenuBounds().contains(x, y)));
 }
+
 
 std::optional<std::size_t> CircuitTabs::tabAt(double x, double y) const
 {
@@ -182,6 +199,7 @@ std::optional<std::size_t> CircuitTabs::tabAt(double x, double y) const
     return index < m_views->size() ? std::optional{index} : std::nullopt;
 }
 
+
 std::string CircuitTabs::tabName(std::size_t index) const
 {
     std::string name = m_views->name(index);
@@ -193,6 +211,7 @@ std::string CircuitTabs::tabName(std::size_t index) const
     return name + "...";
 }
 
+
 void CircuitTabs::stopEditing(Input& input)
 {
     if (m_editing)
@@ -202,6 +221,7 @@ void CircuitTabs::stopEditing(Input& input)
         input.setCanvasFocused(true);
     }
 }
+
 
 void CircuitTabs::cancel(Input& input)
 {
@@ -218,6 +238,7 @@ void CircuitTabs::cancel(Input& input)
     m_escapePressed = false;
 }
 
+
 void CircuitTabs::open(std::size_t index)
 {
     m_confirmDelete = false;
@@ -225,17 +246,19 @@ void CircuitTabs::open(std::size_t index)
     m_draft = m_views->name(index);
 }
 
+
 void CircuitTabs::update(double now, Input& input)
 {
     m_now = now;
-    if (!enabled() || m_editing || m_confirmDelete || m_createMenu ||
-        input.getUiCapture().keyboard || input.getUiCapture().pointer)
+    if (!enabled() || m_editing || m_confirmDelete || m_createMenu || input.getUiCapture().keyboard ||
+        input.getUiCapture().pointer)
         return;
     if (m_hover && now - m_hoverSince >= 1.0 && m_popup != m_hover)
         open(*m_hover);
     if (m_popup && !m_hover && !popupBounds().contains(m_pointerX, m_pointerY))
         m_popup.reset();
 }
+
 
 bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
 {
@@ -263,16 +286,14 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
         }
         return contains(event.x, event.y);
     }
-    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
-        (m_popup || m_createMenu || m_escapePressed))
+    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE && (m_popup || m_createMenu || m_escapePressed))
     {
         cancel(input);
         m_escapePressed = event.action != GLFW_RELEASE;
         input.setCanvasFocused(true);
         return true;
     }
-    if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE &&
-        m_popupMousePressed)
+    if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE && m_popupMousePressed)
     {
         m_popupMousePressed = false;
         input.setCanvasFocused(true);
@@ -282,20 +303,17 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
     {
         if (event.kind == UiInputKind::MouseButton && event.action == GLFW_PRESS)
         {
-            const bool workspace = event.code == GLFW_MOUSE_BUTTON_LEFT &&
-                                   createOptionBounds(0).contains(event.x, event.y);
-            const bool subcircuit = event.code == GLFW_MOUSE_BUTTON_LEFT &&
-                                    createOptionBounds(1).contains(event.x, event.y);
+            const bool workspace =
+                event.code == GLFW_MOUSE_BUTTON_LEFT && createOptionBounds(0).contains(event.x, event.y);
+            const bool subcircuit =
+                event.code == GLFW_MOUSE_BUTTON_LEFT && createOptionBounds(1).contains(event.x, event.y);
             if (workspace || subcircuit || !createMenuBounds().contains(event.x, event.y))
             {
                 cancel(input);
                 m_popupMousePressed = true;
                 if (workspace || subcircuit)
                 {
-                    m_views->create(
-                        input,
-                        workspace ? CircuitViews::Role::Workspace : CircuitViews::Role::Subcircuit
-                    );
+                    m_views->create(input, workspace ? CircuitViews::Role::Workspace : CircuitViews::Role::Subcircuit);
                     layout(m_bar);
                 }
             }
@@ -313,10 +331,7 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
                 m_closeRequest = index;
                 input.setUiCapture({true, true});
             }
-            else if (
-                cancelDeleteBounds().contains(event.x, event.y) ||
-                !popupBounds().contains(event.x, event.y)
-            )
+            else if (cancelDeleteBounds().contains(event.x, event.y) || !popupBounds().contains(event.x, event.y))
                 cancel(input);
         }
         return true;
@@ -366,10 +381,8 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
                 stopEditing(input);
                 input.cancelCurrentAction();
                 m_views->setRole(
-                    *m_popup,
-                    m_views->role(*m_popup) == CircuitViews::Role::Workspace
-                        ? CircuitViews::Role::Subcircuit
-                        : CircuitViews::Role::Workspace
+                    *m_popup, m_views->role(*m_popup) == CircuitViews::Role::Workspace ? CircuitViews::Role::Subcircuit
+                                                                                       : CircuitViews::Role::Workspace
                 );
                 m_draft = m_views->name(*m_popup);
                 m_popupMousePressed = true;
@@ -441,6 +454,7 @@ bool CircuitTabs::handleInput(const UiInputEvent& event, Input& input)
     }
     return false;
 }
+
 
 bool CircuitTabs::activeHasUnsavedChanges() const
 {

@@ -19,6 +19,7 @@ SubcircuitLibrary& managedStorage(SubcircuitLibrary* library)
     return *library;
 }
 
+
 DefinitionIdentity nextIdentity(DefinitionIdentity identity, const SubcircuitLibrary& library)
 {
     if (identity.id.empty())
@@ -30,6 +31,8 @@ DefinitionIdentity nextIdentity(DefinitionIdentity identity, const SubcircuitLib
     return identity;
 }
 
+
+/** @brief Validate and publish a reusable design, retaining invalid interfaces as recoverable drafts. */
 std::pair<std::filesystem::path, std::string>
 storeDesign(SavedSubcircuit& design, SubcircuitLibrary& library, CircuitViews& views)
 {
@@ -53,15 +56,13 @@ storeDesign(SavedSubcircuit& design, SubcircuitLibrary& library, CircuitViews& v
 }
 } // namespace
 
-void openExampleCircuit(
-    CircuitExample example, UI& ui, CircuitViews& views, Input& input, CanvasSurface surface
-)
+
+void openExampleCircuit(CircuitExample example, UI& ui, CircuitViews& views, Input& input, CanvasSurface surface)
 {
     auto scene = buildExampleCircuit(example);
     const auto examples = circuitExamples();
-    const auto info = std::find_if(
-        examples.begin(), examples.end(), [&](const auto& value) { return value.id == example; }
-    );
+    const auto info =
+        std::find_if(examples.begin(), examples.end(), [&](const auto& value) { return value.id == example; });
     ui.dismissPopups(input);
     input.cancelCurrentAction();
     views.create(input);
@@ -71,13 +72,12 @@ void openExampleCircuit(
     if (example == CircuitExample::Counter)
     {
         ui.showClockPanel(input);
-        views.activeClockTimeline().record(
-            views.activeScene().clockTime(), views.activeScene().clockReadings()
-        );
+        views.activeClockTimeline().record(views.activeScene().clockTime(), views.activeScene().clockReadings());
     }
     input.executeViewCommand(Input::ViewCommand::FitCircuit, surface);
     ui.setFileStatus(std::string(info->description));
 }
+
 
 void refreshSubcircuitLibrary(SubcircuitLibrary& library, CircuitViews& views, UI& ui)
 {
@@ -90,9 +90,7 @@ void refreshSubcircuitLibrary(SubcircuitLibrary& library, CircuitViews& views, U
         else
         {
             const auto saved = loadSubcircuit(entry.path);
-            definitions.push_back(
-                makeSubcircuit(saved.design.scene, saved.identity, saved.design.name)
-            );
+            definitions.push_back(makeSubcircuit(saved.design.scene, saved.identity, saved.design.name));
             views.rememberSubcircuitFile(entry.identity.id, entry.path);
         }
     }
@@ -100,13 +98,9 @@ void refreshSubcircuitLibrary(SubcircuitLibrary& library, CircuitViews& views, U
     ui.setLibraryDrafts(std::move(drafts));
 }
 
+
 bool performFileCommand(
-    UI::FileCommand command,
-    GLFWwindow* window,
-    UI& ui,
-    CircuitViews& views,
-    Input& input,
-    SubcircuitLibrary* library
+    UI::FileCommand command, GLFWwindow* window, UI& ui, CircuitViews& views, Input& input, SubcircuitLibrary* library
 )
 {
     if (command == UI::FileCommand::OpenStorage)
@@ -118,30 +112,23 @@ bool performFileCommand(
         return applyFileCommand(command, chooseStorageFolder(window), ui, views, input, library);
     const bool subEditor = views.role(views.activeIndex()) == CircuitViews::Role::Subcircuit;
     if (subEditor && command == UI::FileCommand::Save)
-        return applyFileCommand(
-            command, managedStorage(library).location(), ui, views, input, library
-        );
+        return applyFileCommand(command, managedStorage(library).location(), ui, views, input, library);
     const bool importing = command == UI::FileCommand::LoadSubcircuit;
     const bool opening = importing || command == UI::FileCommand::Open;
     const auto current = views.activeFile();
-    const auto chosen = !opening && command == UI::FileCommand::Save && !current.empty()
-                            ? std::optional{current}
-                            : chooseCircuitFile(
-                                  window,
-                                  !opening,
-                                  subEditor ? std::filesystem::path{} : current,
-                                  subEditor || importing
-                              );
+    const auto chosen =
+        !opening && command == UI::FileCommand::Save && !current.empty()
+            ? std::optional{current}
+            : chooseCircuitFile(
+                  window, !opening, subEditor ? std::filesystem::path{} : current, subEditor || importing
+              );
     return applyFileCommand(command, chosen, ui, views, input, library);
 }
 
+
 bool applyFileCommand(
-    UI::FileCommand command,
-    const std::optional<std::filesystem::path>& chosen,
-    UI& ui,
-    CircuitViews& views,
-    Input& input,
-    SubcircuitLibrary* library
+    UI::FileCommand command, const std::optional<std::filesystem::path>& chosen, UI& ui, CircuitViews& views,
+    Input& input, SubcircuitLibrary* library
 )
 {
     if (!chosen)
@@ -166,12 +153,9 @@ bool applyFileCommand(
         const auto [path, problem] = storeDesign(loaded, storage, views);
         refreshSubcircuitLibrary(storage, views, ui);
         if (!problem.empty())
-            views.openSubcircuit(
-                std::move(loaded.design.scene), loaded.identity, loaded.design.name, path, input
-            );
+            views.openSubcircuit(std::move(loaded.design.scene), loaded.identity, loaded.design.name, path, input);
         ui.setFileStatus(
-            problem.empty() ? "Imported subcircuit into library" : "Imported draft: " + problem,
-            !problem.empty()
+            problem.empty() ? "Imported subcircuit into library" : "Imported draft: " + problem, !problem.empty()
         );
     }
     else if (command == UI::FileCommand::Open)

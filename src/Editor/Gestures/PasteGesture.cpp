@@ -9,11 +9,14 @@
 #include <limits>
 #include <stdexcept>
 
+
 PasteGesture::PasteGesture() = default;
+
+
 PasteGesture::~PasteGesture() = default;
 
-EditResult
-PasteGesture::begin(const Scene& destination, const EditorClipboard& clipboard, GridCoords position)
+
+EditResult PasteGesture::begin(const Scene& destination, const EditorClipboard& clipboard, GridCoords position)
 {
     cancel();
     try
@@ -32,10 +35,7 @@ PasteGesture::begin(const Scene& destination, const EditorClipboard& clipboard, 
         const auto wires = preview->getWireIds();
         const auto move = EditorActions(*preview).beginMove(created.createdComponentIds, wires);
         if (!move)
-            return {
-                .error = EditError::InvalidConfiguration,
-                .message = "Cannot preview this selection."
-            };
+            return {.error = EditError::InvalidConfiguration, .message = "Cannot preview this selection."};
         m_copy = clipboard;
         m_geometry = preview->committedGeometry();
         m_scene = std::move(preview);
@@ -51,6 +51,7 @@ PasteGesture::begin(const Scene& destination, const EditorClipboard& clipboard, 
     }
 }
 
+
 void PasteGesture::update(const Scene& destination, GridCoords position)
 {
     if (!active() || (position == m_position && m_destinationRevision == destination.getRevision()))
@@ -61,11 +62,9 @@ void PasteGesture::update(const Scene& destination, GridCoords position)
     m_destinationRevision = destination.getRevision();
     m_overlapping.clear();
     m_blocked.clear();
-    m_positionValid = x >= std::numeric_limits<int>::min() &&
-                      x <= std::numeric_limits<int>::max() &&
+    m_positionValid = x >= std::numeric_limits<int>::min() && x <= std::numeric_limits<int>::max() &&
                       y >= std::numeric_limits<int>::min() && y <= std::numeric_limits<int>::max();
-    const GridCoords offset =
-        m_positionValid ? GridCoords{static_cast<int>(x), static_cast<int>(y)} : GridCoords{};
+    const GridCoords offset = m_positionValid ? GridCoords{static_cast<int>(x), static_cast<int>(y)} : GridCoords{};
     m_positionValid = m_positionValid && EditorActions(*m_scene).previewMoveBy(*m_move, offset);
     if (!m_positionValid)
     {
@@ -99,21 +98,16 @@ void PasteGesture::update(const Scene& destination, GridCoords position)
     }
 }
 
+
 EditResult PasteGesture::finish(Scene& destination)
 {
     if (!active())
         return {};
     update(destination, m_position);
     if (!m_positionValid)
-        return {
-            .error = EditError::InvalidConfiguration,
-            .message = "Paste exceeds the grid coordinate range."
-        };
+        return {.error = EditError::InvalidConfiguration, .message = "Paste exceeds the grid coordinate range."};
     if (!m_blocked.empty())
-        return {
-            .error = EditError::Overlap,
-            .message = "A component center or pin overlaps; move the preview."
-        };
+        return {.error = EditError::Overlap, .message = "A component center or pin overlaps; move the preview."};
     try
     {
         auto result = EditorActions(destination).apply(m_copy.pasteBatch(destination, m_position));
@@ -126,6 +120,7 @@ EditResult PasteGesture::finish(Scene& destination)
         return {.error = EditError::InvalidConfiguration, .message = error.what()};
     }
 }
+
 
 void PasteGesture::cancel()
 {

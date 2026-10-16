@@ -17,6 +17,7 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
 struct DrawingProbe
 {
     static inline std::size_t allocations = 0, uploads = 0, bytes = 0, lookups = 0;
@@ -24,6 +25,8 @@ struct DrawingProbe
     static inline PFNGLBUFFERSUBDATAPROC bufferSubData = nullptr;
     static inline PFNGLGETUNIFORMLOCATIONPROC getUniform = nullptr;
 
+
+    /** @brief Create an offscreen framebuffer attachment and reject incomplete rendering setup. */
     static void APIENTRY allocate(GLenum target, GLsizeiptr size, const void* data, GLenum usage)
     {
         ++allocations;
@@ -35,6 +38,7 @@ struct DrawingProbe
         bufferData(target, size, data, usage);
     }
 
+
     static void APIENTRY upload(GLenum target, GLintptr offset, GLsizeiptr size, const void* data)
     {
         ++uploads;
@@ -42,12 +46,15 @@ struct DrawingProbe
         bufferSubData(target, offset, size, data);
     }
 
+
     static GLint APIENTRY lookup(GLuint program, const GLchar* name)
     {
         ++lookups;
         return getUniform(program, name);
     }
 
+
+    /** @brief Initialize a controlled drawing target and capture its GL resource state for reuse checks. */
     DrawingProbe()
     {
         allocations = uploads = bytes = lookups = 0;
@@ -59,6 +66,7 @@ struct DrawingProbe
         glad_glGetUniformLocation = lookup;
     }
 
+
     ~DrawingProbe()
     {
         glad_glBufferData = bufferData;
@@ -69,6 +77,8 @@ struct DrawingProbe
 
 } // namespace
 
+
+/** @brief Verify draw categories and CPU accounting match actual canvas and UI submissions. */
 void drawingProfile(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     std::vector<ComponentRenderData> components;
@@ -118,9 +128,7 @@ void drawingProfile(Renderer& renderer, const CanvasCameraFrame& camera)
             }
             draw();
         }
-        const auto ms =
-            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
-                .count();
+        const auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
         require(probe.allocations == 0, "Warm buffers reallocated storage without growth.");
         require(probe.lookups == 0, "Repeated drawing bypassed the uniform cache.");
         require(
@@ -133,8 +141,10 @@ void drawingProfile(Renderer& renderer, const CanvasCameraFrame& camera)
     }
 }
 
+
 namespace
 {
+/** @brief Verify dynamic geometry reuses buffer allocations and refreshes active instance attributes. */
 void bufferReuseChecks()
 {
     VertexLayout layout;
@@ -145,24 +155,15 @@ void bufferReuseChecks()
     {
         DrawingProbe probe;
         mesh.updateData(small, 3);
-        require(
-            probe.allocations == 0 && probe.uploads == 0,
-            "Identical vertex submission uploaded again."
-        );
+        require(probe.allocations == 0 && probe.uploads == 0, "Identical vertex submission uploaded again.");
         auto moved = small;
         moved[0] = 0.25f;
         mesh.updateData(moved, 3);
-        require(
-            probe.allocations == 0 && probe.uploads == 1,
-            "Movement did not update existing buffer storage."
-        );
+        require(probe.allocations == 0 && probe.uploads == 1, "Movement did not update existing buffer storage.");
         auto large = moved;
         large.insert(large.end(), small.begin(), small.end());
         mesh.updateData(large, 3);
-        require(
-            probe.allocations == 1 && probe.uploads == 2,
-            "Growing geometry did not allocate/upload new storage."
-        );
+        require(probe.allocations == 1 && probe.uploads == 2, "Growing geometry did not allocate/upload new storage.");
         mesh.updateData(small, 3);
         require(
             probe.allocations == 1 && probe.uploads == 3,
@@ -180,18 +181,16 @@ void bufferReuseChecks()
     {
         DrawingProbe probe;
         mesh.setInstanceData({0, 0, 1, 0, 0, 1}, {2, 4}, 1);
-        require(
-            probe.allocations == 0 && probe.uploads == 0, "Identical instances uploaded again."
-        );
+        require(probe.allocations == 0 && probe.uploads == 0, "Identical instances uploaded again.");
         mesh.setInstanceData({0, 0, 0, 1, 0, 1}, {2, 4}, 1);
-        require(
-            probe.allocations == 0 && probe.uploads == 1,
-            "Instance color change did not update existing storage."
-        );
+        require(probe.allocations == 0 && probe.uploads == 1, "Instance color change did not update existing storage.");
     }
 }
 } // namespace
 
+
+/** @brief Verify resource teardown, shader reload failure recovery, include diagnostics and uniform-cache invalidation.
+ */
 void renderResourceChecks()
 {
     bufferReuseChecks();
@@ -230,9 +229,8 @@ void renderResourceChecks()
     };
     write(vertex, "#version 330 core\nvoid main(){gl_Position=vec4(0,0,0,1);}\n");
     write(
-        fragment,
-        "#version 330 core\n#include \"helper.glsl\"\nout vec4 color;\nuniform float gain;\nvoid "
-        "main(){color=shade(gain);}\n"
+        fragment, "#version 330 core\n#include \"helper.glsl\"\nout vec4 color;\nuniform float gain;\nvoid "
+                  "main(){color=shade(gain);}\n"
     );
     write(helper, "#include \"inner.glsl\"\n");
     const std::string valid = "vec4 shade(float v){return vec4(v,0,0,1);}\n";
@@ -302,10 +300,7 @@ void renderResourceChecks()
     std::filesystem::remove(inner);
     reload(shader);
     const auto missing = capture.errors.str();
-    require(
-        missing.find("Cannot read shader:") != std::string::npos,
-        "Missing included file had no diagnostic."
-    );
+    require(missing.find("Cannot read shader:") != std::string::npos, "Missing included file had no diagnostic.");
     reload(shader);
     require(capture.errors.str() == missing, "Missing dependency retried without an edit.");
     write(inner, valid);
@@ -316,14 +311,12 @@ void renderResourceChecks()
     require(recovered != replacement, "Creating a missing dependency did not trigger recovery.");
     shader.setFloat("gain", 0.4f);
     write(
-        vertex,
-        "#version 330 core\nout vec3 mismatch;\nvoid "
-        "main(){mismatch=vec3(1);gl_Position=vec4(0,0,0,1);}\n"
+        vertex, "#version 330 core\nout vec3 mismatch;\nvoid "
+                "main(){mismatch=vec3(1);gl_Position=vec4(0,0,0,1);}\n"
     );
     write(
-        fragment,
-        "#version 330 core\n#include \"helper.glsl\"\nin vec2 mismatch;\nout vec4 color;\nuniform "
-        "float gain;\nvoid main(){color=shade(gain+mismatch.x);}\n"
+        fragment, "#version 330 core\n#include \"helper.glsl\"\nin vec2 mismatch;\nout vec4 color;\nuniform "
+                  "float gain;\nvoid main(){color=shade(gain+mismatch.x);}\n"
     );
     reload(shader);
     require(
@@ -350,6 +343,8 @@ void renderResourceChecks()
     require(glGetError() == GL_NO_ERROR, "Shader/buffer resource checks caused an OpenGL error.");
 }
 
+
+/** @brief Verify diagnostic text caching refreshes when data, timing context or electrical faults change. */
 void debugOverlayCacheChecks(Renderer& renderer)
 {
     using Clock = std::chrono::steady_clock;
@@ -365,9 +360,7 @@ void debugOverlayCacheChecks(Renderer& renderer)
         renderer.beginFrame(CanvasCamera{}.frame(surface));
         // Other screen draws overwrite the ordinary UI buffers before every cached HUD draw.
         renderer.drawScreenRect({12, surface.windowHeight - 28.0, 110, 20}, {0.2f, 0.4f, 0.6f, 1});
-        const std::vector<TextRun> text{
-            {"Other UI text", {20, surface.windowHeight - 12.0}, 0.32f, {1, 1, 1, 1}}
-        };
+        const std::vector<TextRun> text{{"Other UI text", {20, surface.windowHeight - 12.0}, 0.32f, {1, 1, 1, 1}}};
         renderer.drawText(text, TextSpace::Screen);
     };
     auto pixels = [&]()

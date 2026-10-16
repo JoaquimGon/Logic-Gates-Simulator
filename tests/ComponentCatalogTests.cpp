@@ -19,6 +19,7 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
 EditResult accepted(EditResult result)
 {
     if (!result)
@@ -26,6 +27,8 @@ EditResult accepted(EditResult result)
     return result;
 }
 
+
+/** @brief Require a definition or instance operation to reject its invalid configuration. */
 template <typename F>
 void invalid(F action)
 {
@@ -40,6 +43,8 @@ void invalid(F action)
     throw std::runtime_error("Invalid definition/options were accepted.");
 }
 
+
+/** @brief Build an authored multi-pin definition with stable interface identities for catalog tests. */
 ComponentDefinition boxDefinition(const char* id = "custom.buffer")
 {
     ComponentDefinition definition;
@@ -49,8 +54,7 @@ ComponentDefinition boxDefinition(const char* id = "custom.buffer")
     definition.layout = {
         0.3f,
         0.2f,
-        {{"data", "Data", PinType::INPUT, 0, {-3, 0}, {}},
-         {"result", "Result", PinType::OUTPUT, 0, {3, 0}, {}}}
+        {{"data", "Data", PinType::INPUT, 0, {-3, 0}, {}}, {"result", "Result", PinType::OUTPUT, 0, {3, 0}, {}}}
     };
     definition.presentation.shader = boxShaderResources();
     definition.presentation.bodyLabel = "CUSTOM";
@@ -58,11 +62,14 @@ ComponentDefinition boxDefinition(const char* id = "custom.buffer")
     return definition;
 }
 
+
 ComponentLayout layoutOf(const ComponentView& view)
 {
     return {view.getSize(), view.getShaderName(), view.getInputPins(), view.getOutputPins()};
 }
 
+
+/** @brief Verify native defaults and instance overrides remain isolated across catalog-based creation. */
 void catalogDefaults()
 {
     Scene scene;
@@ -86,10 +93,8 @@ void catalogDefaults()
             for (const auto& pin : *pins)
             {
                 auto declared = std::find_if(
-                    definition.layout.pins.begin(),
-                    definition.layout.pins.end(),
-                    [&](const auto& value)
-                    { return value.direction == pin.type && value.index == pin.pin_index; }
+                    definition.layout.pins.begin(), definition.layout.pins.end(),
+                    [&](const auto& value) { return value.direction == pin.type && value.index == pin.pin_index; }
                 );
                 require(
                     declared != definition.layout.pins.end() && pin.id == declared->id &&
@@ -98,10 +103,8 @@ void catalogDefaults()
                 );
             }
         require(
-            scene.getLogicComponent(instance)->getInputPinCount() ==
-                    static_cast<int>(view.getInputPins().size()) &&
-                scene.getLogicComponent(instance)->getOutputPinCount() ==
-                    static_cast<int>(view.getOutputPins().size()),
+            scene.getLogicComponent(instance)->getInputPinCount() == static_cast<int>(view.getInputPins().size()) &&
+                scene.getLogicComponent(instance)->getOutputPinCount() == static_cast<int>(view.getOutputPins().size()),
             "Factory created mismatched logic and visual interfaces."
         );
         require(
@@ -110,12 +113,8 @@ void catalogDefaults()
         );
         const auto& resources = definition.presentation.shader;
         require(
-            std::filesystem::exists(
-                std::filesystem::path(CATALOG_ASSETS_DIR) / resources.vertexPath
-            ) &&
-                std::filesystem::exists(
-                    std::filesystem::path(CATALOG_ASSETS_DIR) / resources.fragmentPath
-                ),
+            std::filesystem::exists(std::filesystem::path(CATALOG_ASSETS_DIR) / resources.vertexPath) &&
+                std::filesystem::exists(std::filesystem::path(CATALOG_ASSETS_DIR) / resources.fragmentPath),
             "Native descriptor refers to missing rendering assets."
         );
     }
@@ -148,6 +147,8 @@ void catalogDefaults()
     require(scene.getLogicComponent(source)->getStateOutPin(), "Input state override was ignored.");
 }
 
+
+/** @brief Reject inconsistent definitions, pin identities and geometry before catalog publication. */
 void definitionValidation()
 {
     ComponentCatalog catalog;
@@ -248,8 +249,7 @@ void definitionValidation()
     const auto expanded = catalog.resolve(expandable.identity.id, options);
     require(
         std::any_of(
-            expanded.layout.pins.begin(),
-            expanded.layout.pins.end(),
+            expanded.layout.pins.begin(), expanded.layout.pins.end(),
             [](const auto& pin)
             {
                 return pin.id == "in.0" && pin.label == "Enable" &&
@@ -260,6 +260,8 @@ void definitionValidation()
     );
 }
 
+
+/** @brief Verify catalog-driven edits preserve instance overrides and transactional scene behaviour. */
 void catalogEdits()
 {
     Scene scene;
@@ -270,8 +272,8 @@ void catalogEdits()
          CreateComponent{definition.identity.id, {0, 0}, {}, PlacementPolicy::RejectOverlap, 2}}
     );
     require(
-        !failure && !scene.getComponentCatalog().find(definition.identity.id) &&
-            scene.getRevision() == 0 && scene.getComponentCount() == 0,
+        !failure && !scene.getComponentCatalog().find(definition.identity.id) && scene.getRevision() == 0 &&
+            scene.getComponentCount() == 0,
         "Invalid version partially registered/created a component."
     );
     auto creation = accepted(actions.apply(
@@ -281,9 +283,8 @@ void catalogEdits()
     const int component = creation.createdComponentIds[0];
     const auto& view = *scene.getCommittedComponentView(component);
     require(
-        scene.getTopologyBuildCount() == 1 && view.getShaderName() == "box" &&
-            view.getBodyLabel() == "CUSTOM" && view.showsPinLabels() &&
-            view.getInputPins()[0].id == "data" && view.getOutputPins()[0].label == "Result",
+        scene.getTopologyBuildCount() == 1 && view.getShaderName() == "box" && view.getBodyLabel() == "CUSTOM" &&
+            view.showsPinLabels() && view.getInputPins()[0].id == "data" && view.getOutputPins()[0].label == "Result",
         "Registered definition did not produce coherent box metadata."
     );
     require(
@@ -293,30 +294,23 @@ void catalogEdits()
     );
     auto layout = layoutOf(view);
     layout.inputs[0].id = "renamed";
-    require(
-        !actions.apply({ConfigureComponent{component, layout}}),
-        "Instance edit reassigned a stable pin ID."
-    );
-    const int source =
-        scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
+    require(!actions.apply({ConfigureComponent{component, layout}}), "Instance edit reassigned a stable pin ID.");
+    const int source = scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
     accepted(actions.apply({AddWire{{{-9, 0}, {-3, 0}}}}));
     require(
-        scene.propagate() == SimulationResult::OK &&
-            scene.getLogicComponent(component)->getStateInPin(0) &&
+        scene.propagate() == SimulationResult::OK && scene.getLogicComponent(component)->getStateInPin(0) &&
             !scene.getLogicComponent(component)->getStateOutPin(),
         "Custom descriptor lost the registered native behavior."
     );
     const auto builds = scene.getTopologyBuildCount();
     accepted(actions.apply({RegisterComponentDefinition{boxDefinition("custom.other")}}));
     require(
-        scene.getTopologyBuildCount() == builds &&
-            scene.getLogicComponent(source)->getStateOutPin(),
+        scene.getTopologyBuildCount() == builds && scene.getLogicComponent(source)->getStateOutPin(),
         "Definition-only registration rebuilt simulation or changed runtime state."
     );
     const auto revision = scene.getRevision();
     failure = actions.apply(
-        {CreateComponent{BuiltinComponentIds::Input, {20, 0}, {}},
-         RegisterComponentDefinition{definition}}
+        {CreateComponent{BuiltinComponentIds::Input, {20, 0}, {}}, RegisterComponentDefinition{definition}}
     );
     require(
         !failure && scene.getRevision() == revision && scene.getComponentCount() == 2,
@@ -329,10 +323,7 @@ void catalogEdits()
     );
     actions.cancelMove(*preview);
     failure = actions.apply({MoveComponent{component, {std::numeric_limits<int>::max(), 0}}});
-    require(
-        !failure && scene.getRevision() == revision,
-        "Invalid move changed committed identity/placement."
-    );
+    require(!failure && scene.getRevision() == revision, "Invalid move changed committed identity/placement.");
     accepted(actions.restore(*creation.change->before, scene.getRevision()));
     require(
         !scene.getComponentCatalog().find(definition.identity.id) && scene.getComponentCount() == 0,
@@ -346,6 +337,8 @@ void catalogEdits()
     );
 }
 
+
+/** @brief Verify output labels and snapshots retain independent authored configuration. */
 void componentOutputs()
 {
     Scene scene;
@@ -354,8 +347,7 @@ void componentOutputs()
     require(
         scene.getLogicComponent(output)->getInputPinCount() == 1 &&
             scene.getLogicComponent(output)->getOutputPinCount() == 0 &&
-            scene.getCommittedComponentView(output)->getInputPins()[0].id == "in" &&
-            !scene.handleClick(output),
+            scene.getCommittedComponentView(output)->getInputPins()[0].id == "in" && !scene.handleClick(output),
         "Output is not a passive one-input sink."
     );
     EditorActions actions(scene);
@@ -371,19 +363,15 @@ void componentOutputs()
          ConfigureComponentProperties{.componentId = output, .label = "Sum"}}
     ));
     require(
-        scene.getTopologyBuildCount() == builds &&
-            scene.getLogicComponent(output)->getStateInPin(0) &&
+        scene.getTopologyBuildCount() == builds && scene.getLogicComponent(output)->getStateInPin(0) &&
             scene.getCommittedComponentView(output)->getBodyLabel() == "Sum" &&
             scene.getCommittedComponentView(output)->getInputPins()[0].id == "in" &&
-            scene.getComponentCatalog()
-                .find(BuiltinComponentIds::Output)
-                ->presentation.bodyLabel.empty(),
+            scene.getComponentCatalog().find(BuiltinComponentIds::Output)->presentation.bodyLabel.empty(),
         "Renaming changed wiring, runtime state, pin identity or catalog defaults."
     );
     accepted(actions.restore(*labels.change->before, scene.getRevision()));
     require(
-        scene.getCommittedComponentView(output)->getBodyLabel().empty(),
-        "Before snapshot retained a later output name."
+        scene.getCommittedComponentView(output)->getBodyLabel().empty(), "Before snapshot retained a later output name."
     );
     accepted(actions.restore(*labels.change->after, scene.getRevision()));
     require(
@@ -391,19 +379,15 @@ void componentOutputs()
             scene.getCommittedComponentView(output)->getBodyLabel() == "Sum",
         "Snapshot restore lost input/output names."
     );
-    const auto rejected = actions.apply(
-        {ConfigureComponentProperties{.componentId = output, .label = "Wrong", .inputCount = 2}}
-    );
+    const auto rejected =
+        actions.apply({ConfigureComponentProperties{.componentId = output, .label = "Wrong", .inputCount = 2}});
     require(
         !rejected && scene.getCommittedComponentView(output)->getBodyLabel() == "Sum",
         "Invalid output settings partially applied a name."
     );
     accepted(actions.apply({DeleteWire{scene.getWireIds().front()}}));
     scene.propagate();
-    require(
-        !scene.getLogicComponent(output)->getStateInPin(0),
-        "Disconnected output retained a stale high signal."
-    );
+    require(!scene.getLogicComponent(output)->getStateInPin(0), "Disconnected output retained a stale high signal.");
     auto malformed = *scene.getComponentCatalog().find(BuiltinComponentIds::Output);
     malformed.layout.pins.clear();
     invalid([&] { validateDefinition(malformed); });
@@ -412,6 +396,7 @@ void componentOutputs()
     invalid([&] { validateDefinition(malformed); });
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {

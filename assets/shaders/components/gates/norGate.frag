@@ -1,21 +1,23 @@
 #version 330 core
 
-#include "../common/sdf.glsl"
 #include "../common/outline.glsl"
+#include "../common/sdf.glsl"
 out vec4 FragColor;
 in vec4 instanceTint;
+
+
 in vec2 localPos; // Range: -0.5 .. 0.5
 
+/** @brief Combine the OR body and output inversion bubble with shared fill and rim coverage. */
 void main()
 {
     vec2 p = vec2(localPos.x * 1.5, localPos.y);
 
     float d = sdOrGate(p);
 
-    // Invertion circle
     float bubble = length(p - vec2(0.615, 0.0)) - 0.13;
     d = min(d, bubble);
-    // Anti-aliasing
+
     float fillFactor = fillCoverage(d);
 
     float outline = outlineFactor(d);

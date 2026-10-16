@@ -20,6 +20,8 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
+/** @brief Verify dirty-state tracking compares authored design and source settings across workspace operations. */
 void savedStatus(GLFWwindow* window)
 {
     Input input;
@@ -32,19 +34,12 @@ void savedStatus(GLFWwindow* window)
     views.markSaved(0);
     Scene saved(scene);
     require(!views.hasUnsavedChanges(0), "Saved design did not become clean.");
-    const auto hidden = EditorActions(scene).apply(
-        {ConfigureComponentProperties{.componentId = source, .labelVisible = false}}
-    );
-    require(
-        hidden && views.hasUnsavedChanges(0), "Visibility edits did not mark the design unsaved."
-    );
-    const auto shown = EditorActions(scene).apply(
-        {ConfigureComponentProperties{.componentId = source, .labelVisible = true}}
-    );
-    require(
-        shown && !views.hasUnsavedChanges(0),
-        "Restoring saved visibility left a false unsaved notice."
-    );
+    const auto hidden =
+        EditorActions(scene).apply({ConfigureComponentProperties{.componentId = source, .labelVisible = false}});
+    require(hidden && views.hasUnsavedChanges(0), "Visibility edits did not mark the design unsaved.");
+    const auto shown =
+        EditorActions(scene).apply({ConfigureComponentProperties{.componentId = source, .labelVisible = true}});
+    require(shown && !views.hasUnsavedChanges(0), "Restoring saved visibility left a false unsaved notice.");
     scene.updateClocks(0.75f);
     scene.propagate();
     scene.syncVisuals();
@@ -78,29 +73,19 @@ void savedStatus(GLFWwindow* window)
     const auto moved = actions.apply({MoveComponent{source, {0, 10}}});
     require(static_cast<bool>(moved) && views.hasUnsavedChanges(0), "Committed move was ignored.");
     const auto undone = EditorActions(scene).restore(saved, scene.getRevision());
+    require(static_cast<bool>(undone) && !views.hasUnsavedChanges(0), "Undo to saved design stayed unsaved.");
+    const auto configured = actions.apply({ConfigureComponentProperties{.componentId = source, .label = "Signal"}});
+    require(static_cast<bool>(configured) && views.hasUnsavedChanges(0), "Component label edit was ignored.");
     require(
-        static_cast<bool>(undone) && !views.hasUnsavedChanges(0),
-        "Undo to saved design stayed unsaved."
-    );
-    const auto configured =
-        actions.apply({ConfigureComponentProperties{.componentId = source, .label = "Signal"}});
-    require(
-        static_cast<bool>(configured) && views.hasUnsavedChanges(0),
-        "Component label edit was ignored."
-    );
-    require(
-        static_cast<bool>(actions.restore(saved, scene.getRevision())) &&
-            !views.hasUnsavedChanges(0),
+        static_cast<bool>(actions.restore(saved, scene.getRevision())) && !views.hasUnsavedChanges(0),
         "Restoring component properties stayed unsaved."
     );
     require(
-        static_cast<bool>(actions.apply({AddWire{{{0, 40}, {10, 40}}}})) &&
-            views.hasUnsavedChanges(0),
+        static_cast<bool>(actions.apply({AddWire{{{0, 40}, {10, 40}}}})) && views.hasUnsavedChanges(0),
         "Wire edit was ignored."
     );
     require(
-        static_cast<bool>(actions.restore(saved, scene.getRevision())) &&
-            !views.hasUnsavedChanges(0),
+        static_cast<bool>(actions.restore(saved, scene.getRevision())) && !views.hasUnsavedChanges(0),
         "Restoring saved wiring stayed unsaved."
     );
     const int extra = scene.addComponent(BuiltinComponentIds::And, {40, 0});
@@ -110,16 +95,11 @@ void savedStatus(GLFWwindow* window)
         "Deleting the new component did not restore saved content."
     );
     views.create(input);
-    require(
-        views.hasUnsavedChanges(1) && !views.hasUnsavedChanges(0),
-        "New workspace inherited another tab's status."
-    );
+    require(views.hasUnsavedChanges(1) && !views.hasUnsavedChanges(0), "New workspace inherited another tab's status.");
     views.setActiveFile("workspace.json");
     views.markSaved(1);
     views.setRole(1, CircuitViews::Role::Subcircuit);
-    require(
-        views.activeFile().empty(), "Role conversion reused a path with the wrong file format."
-    );
+    require(views.activeFile().empty(), "Role conversion reused a path with the wrong file format.");
     require(views.hasUnsavedChanges(1), "Changing authoring role was ignored.");
     views.setRole(1, CircuitViews::Role::Workspace);
     require(!views.hasUnsavedChanges(1), "Restoring saved role stayed unsaved.");
@@ -142,12 +122,12 @@ void savedStatus(GLFWwindow* window)
     authored.handleClick(portIn);
     definition = makeSubcircuit(authored, {"subcircuit.saved-status", 2}, "Reusable");
     views.publishSubcircuits({definition});
-    require(
-        views.hasUnsavedChanges(0), "Updating an embedded subcircuit did not dirty its workspace."
-    );
+    require(views.hasUnsavedChanges(0), "Updating an embedded subcircuit did not dirty its workspace.");
     input.setScene(nullptr);
 }
 
+
+/** @brief Exercise independent workspace state, switching, closing and subcircuit publication through shared input. */
 void run(GLFWwindow* window)
 {
     Input input;
@@ -159,18 +139,13 @@ void run(GLFWwindow* window)
         character.xadvance = 16;
     ui.setCircuitViews(&views, &font);
     auto layout = [&]
-    {
-        ui.layout(
-            views.activeScene().getComponentCatalog(), input.getCameraFrame(window).surface, input
-        );
-    };
+    { ui.layout(views.activeScene().getComponentCatalog(), input.getCameraFrame(window).surface, input); };
     layout();
     input.setUiInputHandler(
         [&](const UiInputEvent& event)
         {
             layout();
-            const bool consumed =
-                ui.handleInput(event, views.activeScene(), input, input.getCameraFrame(window));
+            const bool consumed = ui.handleInput(event, views.activeScene(), input, input.getCameraFrame(window));
             layout();
             return consumed;
         }
@@ -180,8 +155,7 @@ void run(GLFWwindow* window)
         glfwSetCursorPos(window, x, y);
         input.handleCursorPos(window, x, y);
     };
-    auto mouse = [&](int button, int action)
-    { input.handleMouseButton(window, button, action, 0); };
+    auto mouse = [&](int button, int action) { input.handleMouseButton(window, button, action, 0); };
     auto click = [&](CanvasViewport bounds, int button = GLFW_MOUSE_BUTTON_LEFT)
     {
         cursor(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
@@ -205,8 +179,7 @@ void run(GLFWwindow* window)
             input.handleText(c);
     };
     Scene& main = views.activeScene();
-    const auto edit =
-        EditorActions(main).apply({CreateComponent{BuiltinComponentIds::Input, {0, 0}}});
+    const auto edit = EditorActions(main).apply({CreateComponent{BuiltinComponentIds::Input, {0, 0}}});
     require(static_cast<bool>(edit), "Main fixture could not be created.");
     const int source = edit.createdComponentIds.front();
     main.handleClick(source);
@@ -219,14 +192,14 @@ void run(GLFWwindow* window)
     const auto bottom = ui.bottomBounds();
     const auto canvas = *input.getCanvasViewport();
     require(
-        bottom.x == canvas.x && bottom.width == canvas.width &&
-            bottom.y == canvas.y + canvas.height && bottom.y + bottom.height == 600,
+        bottom.x == canvas.x && bottom.width == canvas.width && bottom.y == canvas.y + canvas.height &&
+            bottom.y + bottom.height == 600,
         "Bottom panel overlaps the palette or canvas."
     );
     const auto modes = ui.modeBarBounds();
     require(
-        modes.x == canvas.x && modes.y >= canvas.y && modes.width <= 144 &&
-            modes.width < canvas.width && modes.y + modes.height == bottom.y,
+        modes.x == canvas.x && modes.y >= canvas.y && modes.width <= 144 && modes.width < canvas.width &&
+            modes.y + modes.height == bottom.y,
         "Compact mode controls did not leave the rest of the canvas available."
     );
     const auto interaction = ui.modeButtonBounds(EditorMode::Interaction);
@@ -239,28 +212,21 @@ void run(GLFWwindow* window)
     input.handleScroll(window, 0, 1);
     click(interaction);
     require(
-        input.getMode() == EditorMode::Interaction && input.isIdle() &&
-            main.getRevision() == beforeMenu && input.getZoom() == modeZoom,
+        input.getMode() == EditorMode::Interaction && input.isIdle() && main.getRevision() == beforeMenu &&
+            input.getZoom() == modeZoom,
         "Mode click edited/zoomed the circuit or failed to switch."
     );
     click(interaction);
     require(input.getMode() == EditorMode::Interaction, "Clicking the active mode toggled it off.");
     click(ui.modeButtonBounds(EditorMode::Selection));
     require(input.getMode() == EditorMode::Selection, "Selection button did not switch back.");
-    const auto sourcePoint =
-        *input.getCameraFrame(window).worldToWindow(main.getComponentView(source)->getPosition());
+    const auto sourcePoint = *input.getCameraFrame(window).worldToWindow(main.getComponentView(source)->getPosition());
     click({sourcePoint.x - 1, sourcePoint.y - 1, 2, 2});
-    require(
-        input.getSelectedComponentId() == source, "Mode no-op fixture could not select an input."
-    );
+    require(input.getSelectedComponentId() == source, "Mode no-op fixture could not select an input.");
     click(ui.modeButtonBounds(EditorMode::Selection));
-    require(
-        input.getSelectedComponentId() == source, "Clicking the active mode discarded selection."
-    );
+    require(input.getSelectedComponentId() == source, "Clicking the active mode discarded selection.");
     click({sourcePoint.x - 1, sourcePoint.y - 1, 2, 2}, GLFW_MOUSE_BUTTON_RIGHT);
-    require(
-        ui.infoComponentId() == source, "Mode popup fixture could not open component information."
-    );
+    require(ui.infoComponentId() == source, "Mode popup fixture could not open component information.");
     click(interaction);
     require(
         input.getMode() == EditorMode::Interaction && ui.infoComponentId() == -1,
@@ -277,8 +243,8 @@ void run(GLFWwindow* window)
     const auto bottomZoom = input.getZoom();
     input.handleScroll(window, 0, 1);
     require(
-        ui.activeBottomTab() == UI::BottomTab::Messages && main.getRevision() == beforeMenu &&
-            input.isIdle() && input.getZoom() == bottomZoom,
+        ui.activeBottomTab() == UI::BottomTab::Messages && main.getRevision() == beforeMenu && input.isIdle() &&
+            input.getZoom() == bottomZoom,
         "Bottom tab interaction edited or zoomed the circuit."
     );
     require(
@@ -300,8 +266,7 @@ void run(GLFWwindow* window)
             "File option did not queue exactly one command."
         );
         require(
-            !ui.fileMenuOpen() && input.getUiCapture() == UiInputCapture{} &&
-                main.getRevision() == beforeMenu,
+            !ui.fileMenuOpen() && input.getUiCapture() == UiInputCapture{} && main.getRevision() == beforeMenu,
             "Visual file option changed the circuit or retained input capture."
         );
     }
@@ -329,24 +294,20 @@ void run(GLFWwindow* window)
     const auto add = ui.circuitTabs().addBounds();
     const auto mainTab = ui.circuitTabs().tabBounds(0);
     require(
-        add.width == add.height && add.height == 30 &&
-            std::abs(add.x - (mainTab.x + mainTab.width)) < 0.01,
+        add.width == add.height && add.height == 30 && std::abs(add.x - (mainTab.x + mainTab.width)) < 0.01,
         "Plus is not an independent square after Main."
     );
     click(add);
     require(
-        views.size() == 1 && ui.circuitTabs().choosingRole() &&
-            input.getUiCapture() == UiInputCapture{true, true} &&
-            views.role(0) == CircuitViews::Role::Workspace &&
-            !views.setRole(0, CircuitViews::Role::Subcircuit),
+        views.size() == 1 && ui.circuitTabs().choosingRole() && input.getUiCapture() == UiInputCapture{true, true} &&
+            views.role(0) == CircuitViews::Role::Workspace && !views.setRole(0, CircuitViews::Role::Subcircuit),
         "Plus created a view without a role choice or Main allowed conversion."
     );
     key(GLFW_KEY_F2);
     require(input.getMode() == EditorMode::Selection, "Creation menu leaked a shortcut.");
     key(GLFW_KEY_ESCAPE);
     require(
-        !ui.circuitTabs().choosingRole() && views.size() == 1 &&
-            input.getUiCapture() == UiInputCapture{},
+        !ui.circuitTabs().choosingRole() && views.size() == 1 && input.getUiCapture() == UiInputCapture{},
         "Escape did not cancel view creation."
     );
     click(add);
@@ -358,18 +319,11 @@ void run(GLFWwindow* window)
     );
     require(
         views.size() == 2 && views.activeIndex() == 1 && views.name(1) == "unnamed" &&
-            views.activeScene().getComponentCount() == 0 &&
-            views.role(1) == CircuitViews::Role::Workspace,
+            views.activeScene().getComponentCount() == 0 && views.role(1) == CircuitViews::Role::Workspace,
         "Plus did not create and select an empty named scene."
     );
-    require(
-        input.getPanOffset() == glm::vec2{0} && input.getZoom() == 1,
-        "New scene inherited the outgoing camera."
-    );
-    require(
-        std::abs(ui.circuitTabs().tabBounds(1).width - width) < 0.01,
-        "Circuit tabs do not have uniform widths."
-    );
+    require(input.getPanOffset() == glm::vec2{0} && input.getZoom() == 1, "New scene inherited the outgoing camera.");
+    require(std::abs(ui.circuitTabs().tabBounds(1).width - width) < 0.01, "Circuit tabs do not have uniform widths.");
     const auto paletteButton = ui.buttons().front().bounds;
     cursor(paletteButton.x + 20, paletteButton.y + 20);
     mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
@@ -377,8 +331,7 @@ void run(GLFWwindow* window)
     cursor(500, 45);
     mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
-        !ui.dragging() && !input.getUiCapture().pointer &&
-            views.activeScene().getComponentCount() == 0,
+        !ui.dragging() && !input.getUiCapture().pointer && views.activeScene().getComponentCount() == 0,
         "Releasing a palette drag over the tab strip left capture or created a component."
     );
     const int gate = views.activeScene().addComponent(BuiltinComponentIds::And, {0, 0});
@@ -392,12 +345,10 @@ void run(GLFWwindow* window)
         "Returning to Main lost its scene or camera."
     );
     require(
-        main.pinState({source, 0}, PinType::OUTPUT) == PinState::ON,
-        "Switching views lost the source's signal state."
+        main.pinState({source, 0}, PinType::OUTPUT) == PinState::ON, "Switching views lost the source's signal state."
     );
     require(
-        !views.select(999, input) && views.activeIndex() == 0,
-        "Invalid scene selection changed the active circuit."
+        !views.select(999, input) && views.activeIndex() == 0, "Invalid scene selection changed the active circuit."
     );
 
     click(ui.circuitTabs().tabBounds(1));
@@ -415,14 +366,12 @@ void run(GLFWwindow* window)
     mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
         input.isIdle() && input.getSelectedComponentId() == -1 &&
-            second.getCommittedComponentView(gate)->getGridPosition() == GridCoords{0, 0} &&
-            main.wireCount() == 0,
+            second.getCommittedComponentView(gate)->getGridPosition() == GridCoords{0, 0} && main.wireCount() == 0,
         "Switching views leaked a drag, selection, or mouse release into another scene."
     );
     const auto restored = EditorActions(main).restore(*edit.change->before, main.getRevision());
     require(
-        static_cast<bool>(restored) && main.getComponentCount() == 0 &&
-            second.getComponentCount() == 1,
+        static_cast<bool>(restored) && main.getComponentCount() == 0 && second.getComponentCount() == 1,
         "Editor snapshot restoration crossed circuit boundaries."
     );
 
@@ -441,13 +390,11 @@ void run(GLFWwindow* window)
     type(name);
     click(ui.circuitTabs().nameBounds());
     key(GLFW_KEY_F2);
-    require(
-        input.getMode() == EditorMode::Selection, "Typing in a circuit name toggled editor mode."
-    );
+    require(input.getMode() == EditorMode::Selection, "Typing in a circuit name toggled editor mode.");
     key(GLFW_KEY_ENTER);
     require(
-        views.name(1) == name && ui.circuitTabs().tabName(1).ends_with("...") &&
-            !input.getUiCapture().keyboard && main.getRevision() == revision,
+        views.name(1) == name && ui.circuitTabs().tabName(1).ends_with("...") && !input.getUiCapture().keyboard &&
+            main.getRevision() == revision,
         "Circuit naming failed, leaked a shortcut, or did not shorten the tab title."
     );
     require(
@@ -461,8 +408,7 @@ void run(GLFWwindow* window)
     type("discarded");
     key(GLFW_KEY_ESCAPE);
     require(
-        views.name(1) == name && !input.getUiCapture().keyboard,
-        "Escape committed a draft or kept keyboard capture."
+        views.name(1) == name && !input.getUiCapture().keyboard, "Escape committed a draft or kept keyboard capture."
     );
     click(ui.circuitTabs().tabBounds(1), GLFW_MOUSE_BUTTON_RIGHT);
     click(ui.circuitTabs().nameBounds());
@@ -518,8 +464,8 @@ void run(GLFWwindow* window)
     key(GLFW_KEY_ESCAPE);
     const auto count = views.size();
     require(
-        ui.circuitTabs().closeBounds(0).width == 0 && !views.remove(0, input) &&
-            !views.remove(999, input) && views.size() == count,
+        ui.circuitTabs().closeBounds(0).width == 0 && !views.remove(0, input) && !views.remove(999, input) &&
+            views.size() == count,
         "Main or an invalid circuit could be removed."
     );
     views.select(3, input);
@@ -532,9 +478,8 @@ void run(GLFWwindow* window)
         views.markSaved(i);
     click(ui.circuitTabs().closeBounds(2));
     require(
-        ui.circuitTabs().confirmingDelete() && ui.circuitTabs().popupIndex() == 2 &&
-            views.size() == count && views.activeIndex() == 3 && input.getUiCapture().keyboard &&
-            input.getUiCapture().pointer,
+        ui.circuitTabs().confirmingDelete() && ui.circuitTabs().popupIndex() == 2 && views.size() == count &&
+            views.activeIndex() == 3 && input.getUiCapture().keyboard && input.getUiCapture().pointer,
         "Close did not request confirmation without switching or deleting the circuit."
     );
     ui.update(100, input);
@@ -551,10 +496,7 @@ void run(GLFWwindow* window)
     );
     click(ui.circuitTabs().closeBounds(2));
     key(GLFW_KEY_ESCAPE);
-    require(
-        views.size() == count && !ui.circuitTabs().confirmingDelete(),
-        "Escape did not cancel circuit deletion."
-    );
+    require(views.size() == count && !ui.circuitTabs().confirmingDelete(), "Escape did not cancel circuit deletion.");
     click(ui.circuitTabs().closeBounds(2));
     input.handleFocus(false);
     input.handleFocus(true);
@@ -577,16 +519,13 @@ void run(GLFWwindow* window)
     cursor(close.x + close.width / 2, close.y + close.height / 2);
     mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     click(close);
-    require(
-        input.isIdle() && views.size() == count - 1,
-        "Opening confirmation did not cancel a pending drag safely."
-    );
+    require(input.isIdle() && views.size() == count - 1, "Opening confirmation did not cancel a pending drag safely.");
     click(ui.circuitTabs().deleteBounds());
     input.process(window);
     require(
-        views.size() == count - 2 && views.activeIndex() == 1 && &views.activeScene() == &second &&
-            input.isIdle() && input.getSelectedComponentId() == -1 &&
-            input.getPanOffset() == glm::vec2{-0.1f, 0.3f} && input.getZoom() == 0.75f,
+        views.size() == count - 2 && views.activeIndex() == 1 && &views.activeScene() == &second && input.isIdle() &&
+            input.getSelectedComponentId() == -1 && input.getPanOffset() == glm::vec2{-0.1f, 0.3f} &&
+            input.getZoom() == 0.75f,
         "Deleting the active scene did not safely restore its left neighbor."
     );
     while (views.size() > 1)
@@ -595,8 +534,7 @@ void run(GLFWwindow* window)
     input.process(window);
     require(
         views.activeIndex() == 0 && &views.activeScene() == &main &&
-            ui.circuitTabs().addBounds().x ==
-                ui.circuitTabs().tabBounds(0).x + ui.circuitTabs().tabBounds(0).width,
+            ui.circuitTabs().addBounds().x == ui.circuitTabs().tabBounds(0).x + ui.circuitTabs().tabBounds(0).width,
         "Removing the final circuit did not leave Main and its trailing plus."
     );
     main.addComponent(BuiltinComponentIds::And, {0, 0});
@@ -623,9 +561,9 @@ void run(GLFWwindow* window)
     const int clock = separate.addComponent(BuiltinComponentIds::Clock, {60, 0});
     const int namedIn = separate.addComponent(BuiltinComponentIds::Input, {80, 0});
     require(
-        static_cast<bool>(EditorActions(separate).apply(
-            {ConfigureComponentProperties{.componentId = namedIn, .label = "input 1"}}
-        )),
+        static_cast<bool>(
+            EditorActions(separate).apply({ConfigureComponentProperties{.componentId = namedIn, .label = "input 1"}})
+        ),
         "Named input fixture failed."
     );
     Scene unnamedSnapshot(separate);
@@ -635,8 +573,7 @@ void run(GLFWwindow* window)
     );
     click(ui.circuitTabs().roleBounds());
     require(
-        views.role(1) == CircuitViews::Role::Subcircuit &&
-            views.role(0) == CircuitViews::Role::Workspace,
+        views.role(1) == CircuitViews::Role::Subcircuit && views.role(0) == CircuitViews::Role::Workspace,
         "Workspace could not be converted to a subcircuit editor."
     );
     key(GLFW_KEY_ESCAPE);
@@ -649,16 +586,14 @@ void run(GLFWwindow* window)
     );
     const auto oldRevision = separate.getRevision();
     const auto invalidName = EditorActions(separate).apply(
-        {MoveComponent{portIn, {20, 10}},
-         ConfigureComponentProperties{.componentId = portIn, .label = " \t "}}
+        {MoveComponent{portIn, {20, 10}}, ConfigureComponentProperties{.componentId = portIn, .label = " \t "}}
     );
     require(
         !invalidName && separate.getRevision() == oldRevision &&
             separate.getCommittedComponentView(portIn)->getGridPosition() == GridCoords{20, 0},
         "Empty interface name was accepted or partially committed."
     );
-    const auto restoredNames =
-        EditorActions(separate).restore(unnamedSnapshot, separate.getRevision());
+    const auto restoredNames = EditorActions(separate).restore(unnamedSnapshot, separate.getRevision());
     require(
         static_cast<bool>(restoredNames) && views.role(1) == CircuitViews::Role::Subcircuit &&
             separate.getCommittedComponentView(portIn)->getBodyLabel() == "input 2",
@@ -672,15 +607,13 @@ void run(GLFWwindow* window)
     const auto panelInfo = ui.subcircuitInfo(separate);
     require(
         panelInfo.size() == 8 && panelInfo[1].starts_with("Valid") &&
-            panelInfo[2] == "Inputs: 3 | Outputs: 1 | Clocks: 1" &&
-            panelInfo.back() == "Clock: clock 1",
+            panelInfo[2] == "Inputs: 3 | Outputs: 1 | Clocks: 1" && panelInfo.back() == "Clock: clock 1",
         "Subcircuit panel omitted validity, counts, or vital component names."
     );
     const auto separateCount = separate.getComponentCount();
     input.setPanOffset({3, 0});
-    const auto clockPoint = input.getCameraFrame(window).worldToWindow(
-        separate.getCommittedComponentView(clock)->getPosition()
-    );
+    const auto clockPoint =
+        input.getCameraFrame(window).worldToWindow(separate.getCommittedComponentView(clock)->getPosition());
     cursor(clockPoint->x, clockPoint->y);
     mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
     mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
@@ -702,22 +635,19 @@ void run(GLFWwindow* window)
     auto savedMain = circuitFromJson(circuitToJson(views.mainScene(), "Saved Main"));
     require(
         savedMain.scene.getComponentCount() == 1 &&
-            savedMain.scene.getCommittedComponentView(0)->getDefinitionIdentity().id ==
-                BuiltinComponentIds::And,
+            savedMain.scene.getCommittedComponentView(0)->getDefinitionIdentity().id == BuiltinComponentIds::And,
         "Main save included the active separate circuit."
     );
     savedMain.scene.addComponent(BuiltinComponentIds::Input, {20, 0});
     ui.dismissPopups(input);
     views.select(0, input);
-    const auto opened =
-        EditorActions(views.mainScene()).restore(savedMain.scene, main.getRevision());
+    const auto opened = EditorActions(views.mainScene()).restore(savedMain.scene, main.getRevision());
     require(static_cast<bool>(opened), "Saved Main could not be restored through editor actions.");
     layout();
     input.process(window);
     require(
         main.getComponentCount() == 2 && separate.getComponentCount() == separateCount &&
-            separate.getCommittedComponentView(0)->getDefinitionIdentity().id ==
-                BuiltinComponentIds::Or &&
+            separate.getCommittedComponentView(0)->getDefinitionIdentity().id == BuiltinComponentIds::Or &&
             input.isIdle() && input.getSelectedComponentId() == -1,
         "Main load replaced another view or retained stale editing state."
     );
@@ -726,6 +656,7 @@ void run(GLFWwindow* window)
     input.setScene(nullptr);
 }
 } // namespace
+
 
 int main()
 {

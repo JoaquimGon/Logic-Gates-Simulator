@@ -12,27 +12,20 @@
 namespace
 {
 constexpr std::array examples{
-    CircuitExampleInfo{
-        CircuitExample::LogicGates, "Logic gates", "Toggle A and B to compare AND, OR and XOR."
-    },
-    CircuitExampleInfo{
-        CircuitExample::HalfAdder, "Half adder", "Add A and B: Sum is XOR; Carry is AND."
-    },
-    CircuitExampleInfo{
-        CircuitExample::FullAdder,
-        "Full adder",
-        "Add A, B and Carry in to produce Sum and Carry out."
-    },
-    CircuitExampleInfo{
-        CircuitExample::Counter, "2-bit counter", "Press Run or Half cycle to count 00, 01, 10, 11."
-    }
+    CircuitExampleInfo{CircuitExample::LogicGates, "Logic gates", "Toggle A and B to compare AND, OR and XOR."},
+    CircuitExampleInfo{CircuitExample::HalfAdder, "Half adder", "Add A and B: Sum is XOR; Carry is AND."},
+    CircuitExampleInfo{CircuitExample::FullAdder, "Full adder", "Add A, B and Carry in to produce Sum and Carry out."},
+    CircuitExampleInfo{CircuitExample::Counter, "2-bit counter", "Press Run or Half cycle to count 00, 01, 10, 11."}
 };
+
 
 class Builder
 {
   public:
     Scene scene;
 
+
+    /** @brief Create and label an example component through the same validation path as ordinary edits. */
     int add(const char* definition, GridCoords position, const char* label, bool high = false)
     {
         ComponentOverrides overrides;
@@ -47,6 +40,8 @@ class Builder
         return id;
     }
 
+
+    /** @brief Route an example connection between absolute pin anchors and reject unrouteable geometry. */
     void connect(int source, unsigned output, int destination, unsigned input)
     {
         const auto& from = *scene.getCommittedComponentView(source);
@@ -54,10 +49,7 @@ class Builder
         const auto start = from.getAbsolutePinGridPos(from.getOutputPins().at(output));
         const auto end = to.getAbsolutePinGridPos(to.getInputPins().at(input));
         const auto path = routeWire(
-            start,
-            end,
-            scene.committedGeometry(),
-            scene.getWires(),
+            start, end, scene.committedGeometry(), scene.getWires(),
             scene.netOfPin({source, static_cast<int>(output)}, PinType::OUTPUT)
         );
         if (!path)
@@ -69,10 +61,12 @@ class Builder
 };
 } // namespace
 
+
 std::span<const CircuitExampleInfo> circuitExamples()
 {
     return examples;
 }
+
 
 Scene buildExampleCircuit(CircuitExample example)
 {
@@ -82,8 +76,7 @@ Scene buildExampleCircuit(CircuitExample example)
         const int a = b.add(BuiltinComponentIds::Input, {-22, 6}, "A", true);
         const int inputB = b.add(BuiltinComponentIds::Input, {-22, -6}, "B");
         const std::array gates{
-            b.add(BuiltinComponentIds::And, {-2, 12}, "AND"),
-            b.add(BuiltinComponentIds::Or, {-2, 0}, "OR"),
+            b.add(BuiltinComponentIds::And, {-2, 12}, "AND"), b.add(BuiltinComponentIds::Or, {-2, 0}, "OR"),
             b.add(BuiltinComponentIds::Xor, {-2, -12}, "XOR")
         };
         const std::array outputs{

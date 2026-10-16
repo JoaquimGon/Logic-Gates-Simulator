@@ -21,6 +21,7 @@ void require(bool value, const char* message)
         throw std::runtime_error(message);
 }
 
+
 void edit(Scene& scene, const EditBatch& batch)
 {
     const auto result = EditorActions(scene).apply(batch);
@@ -28,6 +29,9 @@ void edit(Scene& scene, const EditBatch& batch)
         throw std::runtime_error(result.message);
 }
 
+
+/** @brief Verify nested pin selections retain complete bounded level and availability histories across simulation
+ * changes. */
 void recording()
 {
     Circuit circuit;
@@ -39,13 +43,8 @@ void recording()
     );
     ClockTimeline timeline;
     for (auto [id, pin] : {std::pair{clock, 0u}, std::pair{ff, 0u}, std::pair{ff, 1u}})
-        require(
-            timeline.toggleSignal({{id}, PinType::OUTPUT, pin, "", "signal", {}}),
-            "Cannot add probe."
-        );
-    require(
-        timeline.toggleSignal({{ff}, PinType::INPUT, 0, "", "D", {}}), "Cannot add input probe."
-    );
+        require(timeline.toggleSignal({{id}, PinType::OUTPUT, pin, "", "signal", {}}), "Cannot add probe.");
+    require(timeline.toggleSignal({{ff}, PinType::INPUT, 0, "", "D", {}}), "Cannot add input probe.");
     circuit.updateClocks(0.5f, &timeline);
     while (circuit.pendingClockTime() > 0)
         circuit.updateClocks(0, &timeline);
@@ -75,14 +74,11 @@ void recording()
     );
     timeline.clear();
     require(
-        timeline.signals().size() == 4 && timeline.signals()[0].samples.empty() &&
-            circuit.clockTime() == 0.75,
+        timeline.signals().size() == 4 && timeline.signals()[0].samples.empty() && circuit.clockTime() == 0.75,
         "Clear removed selected probes or changed simulation time."
     );
     ClockTimeline bounded;
-    require(
-        bounded.toggleSignal({{data}, PinType::OUTPUT, 0, "", "D", {}}), "Cannot add bounded probe."
-    );
+    require(bounded.toggleSignal({{data}, PinType::OUTPUT, 0, "", "D", {}}), "Cannot add bounded probe.");
     for (int i = 0; i < 2100; ++i)
     {
         static_cast<InputPin*>(circuit.getComponent(data))->setState(i % 2);
@@ -90,10 +86,7 @@ void recording()
         circuit.propagate();
         bounded.recordSignals(circuit);
     }
-    require(
-        bounded.signals()[0].samples.size() == ClockTimeline::sampleLimit,
-        "Signal history is unbounded."
-    );
+    require(bounded.signals()[0].samples.size() == ClockTimeline::sampleLimit, "Signal history is unbounded.");
     for (int i = 0; i < 7; ++i)
         require(
             bounded.toggleSignal({{circuit.addInputPin()}, PinType::OUTPUT, 0, "", "probe", {}}),
@@ -113,12 +106,11 @@ void recording()
     ClockTimeline invalid;
     invalid.toggleSignal({{gate}, PinType::OUTPUT, 0, "", "oscillator", {}});
     invalid.recordSignals(oscillator);
-    require(
-        !invalid.signals()[0].samples.back().available,
-        "Failed simulation displayed a valid LOW/HIGH trace."
-    );
+    require(!invalid.signals()[0].samples.back().available, "Failed simulation displayed a valid LOW/HIGH trace.");
 }
 
+
+/** @brief Verify signal-panel selection, explicit fitting, scrolling and clear operations preserve intended state. */
 void controls(GLFWwindow* window)
 {
     CircuitViews views;
@@ -136,8 +128,7 @@ void controls(GLFWwindow* window)
     scene.propagate();
     scene.syncVisuals();
     views.markSaved(0);
-    auto layout = [&]
-    { ui.layout(views.displayedScene().getComponentCatalog(), {800, 800, 800, 800}, input); };
+    auto layout = [&] { ui.layout(views.displayedScene().getComponentCatalog(), {800, 800, 800, 800}, input); };
     layout();
     auto click = [&](CanvasViewport bounds, int button = GLFW_MOUSE_BUTTON_LEFT)
     {
@@ -166,9 +157,8 @@ void controls(GLFWwindow* window)
     click(ui.signalTraceBounds(scene, PinType::INPUT, 0));
     click(ui.signalTraceBounds(scene, PinType::OUTPUT, 0));
     require(
-        views.activeClockTimeline().signals().size() == 2 &&
-            circuitToJson(scene, "Main") == saved && scene.getRevision() == revision &&
-            input.getUndoCount() == 0 && !views.hasUnsavedChanges(0),
+        views.activeClockTimeline().signals().size() == 2 && circuitToJson(scene, "Main") == saved &&
+            scene.getRevision() == revision && input.getUndoCount() == 0 && !views.hasUnsavedChanges(0),
         "Monitoring edited the circuit, entered history or changed saving state."
     );
     ui.dismissPopups(input);
@@ -177,24 +167,14 @@ void controls(GLFWwindow* window)
     require(ui.clockWindowSeconds() == 2, "Signals did not start with a fixed two-second frame.");
     click(ui.clockControlBounds(UI::ClockControl::SingleStep));
     require(
-        scene.getLogicComponent(ff)->getStateOutPin(0) &&
-            views.activeClockTimeline().signals()[1].samples.back().high,
+        scene.getLogicComponent(ff)->getStateOutPin(0) && views.activeClockTimeline().signals()[1].samples.back().high,
         "Signals controls did not step the owning circuit."
     );
-    require(
-        ui.clockWindowSeconds() == 2, "Recording a signal change automatically rescaled Signals."
-    );
+    require(ui.clockWindowSeconds() == 2, "Recording a signal change automatically rescaled Signals.");
     click(ui.clockControlBounds(UI::ClockControl::Fit));
-    require(
-        ui.clockWindowSeconds() == 4, "Explicit Fit did not fit the recorded signal intervals."
-    );
+    require(ui.clockWindowSeconds() == 4, "Explicit Fit did not fit the recorded signal intervals.");
     views.activeClockTimeline().toggleSignal(
-        {{clock},
-         PinType::OUTPUT,
-         0,
-         scene.getCommittedComponentView(clock)->getOutputPins().front().id,
-         "Clock",
-         {}}
+        {{clock}, PinType::OUTPUT, 0, scene.getCommittedComponentView(clock)->getOutputPins().front().id, "Clock", {}}
     );
     edit(scene, {ConfigureComponentProperties{.componentId = clock, .clockFrequency = 4.0f}});
     scene.recordSignalTraces(views.activeClockTimeline());
@@ -240,10 +220,7 @@ void controls(GLFWwindow* window)
     views.closeInspection(input);
     edit(scene, {ConfigureComponentProperties{.componentId = clock, .label = "Edited"}});
     scene.recordSignalTraces(views.activeClockTimeline());
-    require(
-        views.activeClockTimeline().signals().empty(),
-        "Parent edit retained a potentially stale nested probe."
-    );
+    require(views.activeClockTimeline().signals().empty(), "Parent edit retained a potentially stale nested probe.");
     views.create(input);
     layout();
     require(views.activeClockTimeline().signals().empty(), "Workspace inherited probes.");
@@ -251,6 +228,7 @@ void controls(GLFWwindow* window)
     input.setScene(nullptr);
 }
 } // namespace
+
 
 int main()
 {

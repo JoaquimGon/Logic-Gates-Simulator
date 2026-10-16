@@ -20,12 +20,14 @@ glm::vec4 wireColor(PinState state)
 }
 } // namespace
 
+
 std::vector<float> buildWireVertices(const Wire& wire)
 {
     std::vector<float> data;
     appendWireVertices(wire, data);
     return data;
 }
+
 
 void appendWireVertices(const Wire& wire, std::vector<float>& data)
 {
@@ -35,8 +37,6 @@ void appendWireVertices(const Wire& wire, std::vector<float>& data)
 
     glm::vec4 color = wireColor(wire.getState());
 
-    // Visual thickness in world space (half-width from the centerline)
-    // 0.006f gives a crisp ~4-6 pixel wide wire at standard zoom
     const float halfThick = WireHalfWidth;
 
     auto pushVertex = [&](glm::vec2 pos)
@@ -59,8 +59,7 @@ void appendWireVertices(const Wire& wire, std::vector<float>& data)
 
         if (path[i].y == path[i + 1].y)
         {
-            // Horizontal segment: expand Y up/down, slightly extend X to cover
-            // corners
+            // Overlap adjacent segment quads so bends cannot expose a gap.
             float minX = std::min(a.x, b.x) - halfThick;
             float maxX = std::max(a.x, b.x) + halfThick;
             float minY = a.y - halfThick;
@@ -73,8 +72,6 @@ void appendWireVertices(const Wire& wire, std::vector<float>& data)
         }
         else
         {
-            // Vertical segment: expand X left/right, slightly extend Y to cover
-            // corners
             float minX = a.x - halfThick;
             float maxX = a.x + halfThick;
             float minY = std::min(a.y, b.y) - halfThick;
@@ -86,17 +83,16 @@ void appendWireVertices(const Wire& wire, std::vector<float>& data)
             v4 = {minX, maxY};
         }
 
-        // Triangle 1 (v1 -> v2 -> v3)
         pushVertex(v1);
         pushVertex(v2);
         pushVertex(v3);
 
-        // Triangle 2 (v1 -> v3 -> v4)
         pushVertex(v1);
         pushVertex(v3);
         pushVertex(v4);
     }
 }
+
 
 std::vector<float> buildBoundsVertices(BodyBounds bounds, float padding, float alpha)
 {
@@ -106,8 +102,7 @@ std::vector<float> buildBoundsVertices(BodyBounds bounds, float padding, float a
     bounds.top += padding;
     if (bounds.width() <= 0 || bounds.height() <= 0)
         return {};
-    const float halfStroke =
-        std::min({WireHalfWidth * 0.5f, bounds.width() * 0.25f, bounds.height() * 0.25f});
+    const float halfStroke = std::min({WireHalfWidth * 0.5f, bounds.width() * 0.25f, bounds.height() * 0.25f});
     const float radius = std::min({0.015f, bounds.width() * 0.5f, bounds.height() * 0.5f});
     std::vector<std::pair<glm::vec2, glm::vec2>> ring;
     const glm::vec2 centers[] = {
@@ -122,8 +117,7 @@ std::vector<float> buildBoundsVertices(BodyBounds bounds, float padding, float a
             const float angle = (corner + step / 8.0f) * std::numbers::pi_v<float> * 0.5f;
             const glm::vec2 direction{std::cos(angle), std::sin(angle)};
             ring.emplace_back(
-                centers[corner] + direction * (radius - halfStroke),
-                centers[corner] + direction * (radius + halfStroke)
+                centers[corner] + direction * (radius - halfStroke), centers[corner] + direction * (radius + halfStroke)
             );
         }
     std::vector<float> vertices;

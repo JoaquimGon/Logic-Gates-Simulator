@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <vector>
 
+
 void CircuitTabs::draw(Renderer& renderer) const
 {
     if (!enabled() || m_bar.width <= 0 || m_bar.height <= 0)
@@ -42,16 +43,10 @@ void CircuitTabs::draw(Renderer& renderer) const
     {
         auto bounds = tabBounds(index);
         const bool active = index == m_views->activeIndex();
-        renderer.drawScreenRect(
-            bounds, active ? glm::vec4{0.16f, 0.3f, 0.46f, 1} : glm::vec4{0.11f, 0.15f, 0.21f, 1}
-        );
-        renderer.drawScreenRect(
-            {bounds.x + bounds.width - 1, bounds.y, 1, bounds.height}, {0.18f, 0.23f, 0.3f, 1}
-        );
+        renderer.drawScreenRect(bounds, active ? glm::vec4{0.16f, 0.3f, 0.46f, 1} : glm::vec4{0.11f, 0.15f, 0.21f, 1});
+        renderer.drawScreenRect({bounds.x + bounds.width - 1, bounds.y, 1, bounds.height}, {0.18f, 0.23f, 0.3f, 1});
         if (active)
-            renderer.drawScreenRect(
-                {bounds.x, bounds.y + bounds.height - 2, bounds.width, 2}, {0.3f, 0.65f, 0.95f, 1}
-            );
+            renderer.drawScreenRect({bounds.x, bounds.y + bounds.height - 2, bounds.width, 2}, {0.3f, 0.65f, 0.95f, 1});
         if (index > 0)
         {
             const auto close = closeBounds(index);
@@ -83,8 +78,7 @@ void CircuitTabs::draw(Renderer& renderer) const
     renderer.drawScreenRect(add, {0.18f, 0.23f, 0.3f, 1});
     renderer.drawScreenRect(
         {add.x + 1, add.y + 1, std::max(0.0, add.width - 2), std::max(0.0, add.height - 2)},
-        add.contains(m_pointerX, m_pointerY) ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
-                                             : glm::vec4{0.11f, 0.15f, 0.21f, 1}
+        add.contains(m_pointerX, m_pointerY) ? glm::vec4{0.16f, 0.3f, 0.46f, 1} : glm::vec4{0.11f, 0.15f, 0.21f, 1}
     );
     icon("+", add, 0.55f);
     renderer.drawText(text, TextSpace::Screen);
@@ -98,9 +92,7 @@ void CircuitTabs::draw(Renderer& renderer) const
     {
         const auto menu = createMenuBounds();
         renderer.drawScreenRect(menu, {0.3f, 0.45f, 0.6f, 1});
-        renderer.drawScreenRect(
-            {menu.x + 1, menu.y + 1, menu.width - 2, menu.height - 2}, {0.08f, 0.12f, 0.17f, 1}
-        );
+        renderer.drawScreenRect({menu.x + 1, menu.y + 1, menu.width - 2, menu.height - 2}, {0.08f, 0.12f, 0.17f, 1});
         int index = 0;
         for (const auto* name : {"New workspace", "New subcircuit"})
         {
@@ -133,37 +125,28 @@ void CircuitTabs::draw(Renderer& renderer) const
         else
         {
             label(m_views->name(*m_popup), {popup.x, popup.y, popup.width, 28}, 0.5f);
-            label(
-                CircuitViews::roleName(m_views->role(*m_popup)),
-                {popup.x, popup.y + 28, popup.width, 18},
-                0.33f
-            );
+            label(CircuitViews::roleName(m_views->role(*m_popup)), {popup.x, popup.y + 28, popup.width, 18}, 0.33f);
             const auto field = nameBounds();
             renderer.drawScreenRect(
-                field,
-                m_editing ? glm::vec4{0.3f, 0.65f, 0.95f, 1} : glm::vec4{0.25f, 0.35f, 0.46f, 1}
+                field, m_editing ? glm::vec4{0.3f, 0.65f, 0.95f, 1} : glm::vec4{0.25f, 0.35f, 0.46f, 1}
             );
             renderer.drawScreenRect(
                 {field.x + 1, field.y + 1, field.width - 2, field.height - 2},
-                m_editing && m_selectAll ? glm::vec4{0.16f, 0.3f, 0.46f, 1}
-                                         : glm::vec4{0.06f, 0.09f, 0.13f, 1}
+                m_editing && m_selectAll ? glm::vec4{0.16f, 0.3f, 0.46f, 1} : glm::vec4{0.06f, 0.09f, 0.13f, 1}
             );
             label(m_editing ? m_draft + "|" : m_views->name(*m_popup), field, 0.43f);
             label(
                 m_editing ? "Enter: save; Esc: cancel" : "Click name to edit; Esc: close",
-                {popup.x, popup.y + 82, popup.width, 24},
-                0.33f
+                {popup.x, popup.y + 82, popup.width, 24}, 0.33f
             );
             if (*m_popup != 0)
             {
                 const auto role = roleBounds();
                 renderer.drawScreenRect(role, {0.16f, 0.3f, 0.46f, 1});
                 label(
-                    m_views->role(*m_popup) == CircuitViews::Role::Workspace
-                        ? "Convert to subcircuit"
-                        : "Use as workspace",
-                    role,
-                    0.38f
+                    m_views->role(*m_popup) == CircuitViews::Role::Workspace ? "Convert to subcircuit"
+                                                                             : "Use as workspace",
+                    role, 0.38f
                 );
             }
         }

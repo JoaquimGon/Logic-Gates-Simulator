@@ -4,6 +4,8 @@ uniform float uOutlineScale = 1.0;
 in vec4 vertexColor;
 out vec4 FragColor;
 
+
+/** @brief Shade circular electrical markers with a bounded dark rim that retains a core at small pixel sizes. */
 void main()
 {
     // Local coordinates: center is (0.0, 0.0), circular border sits at radius 0.5
@@ -29,7 +31,8 @@ void main()
     float alpha = 1.0 - smoothstep(outerR - delta, outerR + delta * 0.5, dist);
 
     // Discard pixels strictly beyond the anti-aliased edge to save blend ops
-    if (alpha <= 0.001) {
+    if (alpha <= 0.001)
+    {
         discard;
     }
 

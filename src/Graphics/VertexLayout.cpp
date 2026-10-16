@@ -1,7 +1,8 @@
 ﻿#include "VertexLayout.h"
 
-#include <glad/glad.h>
 #include <cstdint>
+#include <glad/glad.h>
+
 
 void VertexLayout::addAttribute(int floatCount)
 {
@@ -16,14 +17,7 @@ void VertexLayout::applyToVAO() const
     {
         const auto& attr = attributes[i];
 
-        glVertexAttribPointer(
-            i,            // Attribute Slot
-            attr.m_count, // Size
-            GL_FLOAT,     // Type
-            GL_FALSE,     // Normalized
-            strideBytes,  // STRIDE
-            (void*)(intptr_t)attr.m_offsetBytes
-        );
+        glVertexAttribPointer(i, attr.m_count, GL_FLOAT, GL_FALSE, strideBytes, (void*)(intptr_t)attr.m_offsetBytes);
         glEnableVertexAttribArray(i);
     }
 }

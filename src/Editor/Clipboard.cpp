@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <utility>
 
+
 bool EditorClipboard::copy(const Scene& scene, const Selection& selection)
 {
     EditorClipboard copied;
@@ -30,8 +31,7 @@ bool EditorClipboard::copy(const Scene& scene, const Selection& selection)
         );
         if (const auto* gate = dynamic_cast<const Gate*>(logic))
         {
-            if (gate->getType() != NOT &&
-                definition->presentation.kind == PresentationKind::NativeSdf)
+            if (gate->getType() != NOT && definition->presentation.kind == PresentationKind::NativeSdf)
                 options.inverted = gate->isInverted();
         }
         else if (const auto* clock = dynamic_cast<const Clock*>(logic))
@@ -42,14 +42,8 @@ bool EditorClipboard::copy(const Scene& scene, const Selection& selection)
         else if (const auto* input = dynamic_cast<const InputPin*>(logic))
             options.inputState = input->getState();
         copied.m_components.push_back(
-            {identity.id,
-             view->getGridPosition(),
-             std::move(options),
-             PlacementPolicy::RejectSharedAnchors,
-             identity.version,
-             view->getBodyLabel(),
-             view->showsBodyLabel(),
-             view->getOrientation()}
+            {identity.id, view->getGridPosition(), std::move(options), PlacementPolicy::RejectSharedAnchors,
+             identity.version, view->getBodyLabel(), view->showsBodyLabel(), view->getOrientation()}
         );
         if (!identity.id.starts_with("native.") && definitions.insert(identity.id).second)
             copied.m_definitions.push_back(*definition);
@@ -84,6 +78,7 @@ bool EditorClipboard::copy(const Scene& scene, const Selection& selection)
     *this = std::move(copied);
     return true;
 }
+
 
 EditBatch EditorClipboard::pasteBatch(const Scene& destination, GridCoords center) const
 {

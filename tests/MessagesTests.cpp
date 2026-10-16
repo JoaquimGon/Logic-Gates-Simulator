@@ -18,6 +18,8 @@ void require(bool value, const char* message)
         throw std::runtime_error(message);
 }
 
+
+/** @brief Verify panel resizing preserves a usable canvas and routes captured pointer gestures correctly. */
 void bottomPanelResize(GLFWwindow* window)
 {
     CircuitViews views;
@@ -51,8 +53,7 @@ void bottomPanelResize(GLFWwindow* window)
     {
         input.handleMouseButton(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
         require(
-            !input.getUiCapture().pointer && input.isCanvasFocused(),
-            "Ending panel resize left canvas input captured."
+            !input.getUiCapture().pointer && input.isCanvasFocused(), "Ending panel resize left canvas input captured."
         );
     };
     const auto palette = ui.buttons().front().bounds;
@@ -64,8 +65,7 @@ void bottomPanelResize(GLFWwindow* window)
     move(600, initial.y + 3 - 180);
     require(
         ui.bottomBounds().height == initial.height + 180 &&
-            input.getCanvasViewport()->y + input.getCanvasViewport()->height ==
-                ui.bottomBounds().y &&
+            input.getCanvasViewport()->y + input.getCanvasViewport()->height == ui.bottomBounds().y &&
             ui.clockListBounds().height > 200 && ui.buttons().front().bounds == palette,
         "Vertical resize failed to expose content or changed the palette/canvas boundary."
     );
@@ -104,10 +104,7 @@ void bottomPanelResize(GLFWwindow* window)
     input.handleFocus(false);
     input.handleFocus(true);
     move(600, 100);
-    require(
-        !input.getUiCapture().pointer && ui.bottomBounds() == escaped,
-        "Focus loss left a panel drag active."
-    );
+    require(!input.getUiCapture().pointer && ui.bottomBounds() == escaped, "Focus loss left a panel drag active.");
     release();
     begin();
     surface = {800, 300, 1600, 600};
@@ -115,8 +112,8 @@ void bottomPanelResize(GLFWwindow* window)
     const auto shortened = ui.bottomBounds();
     move(600, 50);
     require(
-        ui.bottomBounds() == shortened && input.getCanvasViewport()->height > 0 &&
-            shortened.y >= 60 && shortened.y + shortened.height == 300,
+        ui.bottomBounds() == shortened && input.getCanvasViewport()->height > 0 && shortened.y >= 60 &&
+            shortened.y + shortened.height == 300,
         "Window/DPI resize failed to clamp the panel or end its drag."
     );
     release();
@@ -127,20 +124,21 @@ void bottomPanelResize(GLFWwindow* window)
     const double gripY = ui.bottomResizeBounds().y + 3;
     move(600, gripY - 40);
     require(
-        ui.bottomBounds().height == beforeDpi + 40,
-        "Panel sizing used framebuffer pixels instead of logical pixels."
+        ui.bottomBounds().height == beforeDpi + 40, "Panel sizing used framebuffer pixels instead of logical pixels."
     );
     release();
     views.select(0, input);
     layout();
     require(
-        views.activeScene().getRevision() == revision && input.getUndoCount() == undo &&
-            input.getZoom() == zoom && views.activeScene().getComponentViewMap().empty(),
+        views.activeScene().getRevision() == revision && input.getUndoCount() == undo && input.getZoom() == zoom &&
+            views.activeScene().getComponentViewMap().empty(),
         "Panel resizing edited the circuit, zoom, or undo history."
     );
     input.setUiInputHandler({});
 }
 
+
+/** @brief Verify unread indicators, live faults, recovery, navigation and message clearing stay consistent. */
 void messagesPanel(GLFWwindow* window)
 {
     CircuitViews views;
@@ -152,8 +150,7 @@ void messagesPanel(GLFWwindow* window)
     views.select(0, input);
     glfwSetWindowUserPointer(window, &input);
     ui.setCircuitViews(&views, &font);
-    auto layout = [&]()
-    { ui.layout(views.activeScene().getComponentCatalog(), {800, 800, 800, 800}, input); };
+    auto layout = [&]() { ui.layout(views.activeScene().getComponentCatalog(), {800, 800, 800, 800}, input); };
     layout();
     input.setEditErrorHandler([&](const std::string& message) { ui.addMessage(message); });
     input.setUiInputHandler(
@@ -169,14 +166,12 @@ void messagesPanel(GLFWwindow* window)
         input.handleMouseButton(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
     };
     require(
-        ui.activeBottomTab() == UI::BottomTab::Messages &&
-            ui.bottomTabBounds(UI::BottomTab::Subcircuit).width == 0,
+        ui.activeBottomTab() == UI::BottomTab::Messages && ui.bottomTabBounds(UI::BottomTab::Subcircuit).width == 0,
         "Workspace did not expose only the Messages tab."
     );
     ui.reportSimulation(views.activeScene(), 0);
     require(ui.messages().empty(), "An empty workspace acquired subcircuit validity errors.");
-    const auto created = EditorActions(views.activeScene())
-                             .apply({CreateComponent{BuiltinComponentIds::And, {0, 0}}});
+    const auto created = EditorActions(views.activeScene()).apply({CreateComponent{BuiltinComponentIds::And, {0, 0}}});
     input.recordEdit(created);
     require(ui.messages().empty(), "Successful editor actions produced error messages.");
     const auto position = input.getCameraFrame(window).worldToWindow({0, 0});
@@ -190,8 +185,7 @@ void messagesPanel(GLFWwindow* window)
     );
     const auto before = views.activeScene().getRevision();
     const auto undo = input.getUndoCount();
-    const auto overlap = EditorActions(views.activeScene())
-                             .apply({CreateComponent{BuiltinComponentIds::And, {0, 0}}});
+    const auto overlap = EditorActions(views.activeScene()).apply({CreateComponent{BuiltinComponentIds::And, {0, 0}}});
     require(overlap.error == EditError::Overlap, "Failed-edit fixture did not overlap.");
     input.recordEdit(overlap);
     require(
@@ -206,8 +200,8 @@ void messagesPanel(GLFWwindow* window)
     );
     const auto& timed = ui.messages().back();
     require(
-        timed.size() > 11 && timed[0] == '[' && timed[3] == ':' && timed[6] == ':' &&
-            timed[9] == ']' && timed[10] == ' ',
+        timed.size() > 11 && timed[0] == '[' && timed[3] == ':' && timed[6] == ':' && timed[9] == ']' &&
+            timed[10] == ' ',
         "Action timestamp is not [HH:MM:SS]."
     );
     ui.setFileStatus("Saved workspace");
@@ -232,17 +226,14 @@ void messagesPanel(GLFWwindow* window)
         "Subcircuit log inherited workspace errors or lost its separate overview/menu."
     );
     ui.reportSimulation(views.activeScene(), 1);
-    require(
-        ui.messages().empty(), "Subcircuit readiness was incorrectly logged as a simulation error."
-    );
+    require(ui.messages().empty(), "Subcircuit readiness was incorrectly logged as a simulation error.");
     ui.addMessage("Subcircuit save failed");
     require(
         ui.hasUnreadMessages() && ui.activeBottomTab() == UI::BottomTab::Subcircuit,
         "New error stole focus or failed to mark the Messages tab."
     );
     require(
-        ui.messagesTabLabel() == "Messages (1)" && ui.hasMessageErrors() &&
-            ui.messageNoticeBounds().width > 0,
+        ui.messagesTabLabel() == "Messages (1)" && ui.hasMessageErrors() && ui.messageNoticeBounds().width > 0,
         "Hidden action error lacked persistent indicators."
     );
     click(ui.fileBounds());
@@ -251,8 +242,8 @@ void messagesPanel(GLFWwindow* window)
     const auto historyBeforeNotice = input.getUndoCount();
     click(ui.messageNoticeBounds());
     require(
-        !ui.fileMenuOpen() && views.activeIndex() == viewBeforeNotice &&
-            input.getUndoCount() == historyBeforeNotice && ui.messagesTabLabel() == "Messages (1)",
+        !ui.fileMenuOpen() && views.activeIndex() == viewBeforeNotice && input.getUndoCount() == historyBeforeNotice &&
+            ui.messagesTabLabel() == "Messages (1)",
         "Notice failed to open Messages, lost the badge or changed the circuit view/history."
     );
     require(
@@ -275,36 +266,33 @@ void messagesPanel(GLFWwindow* window)
 
     auto& scene = views.activeScene();
     const int oscillator = scene.addComponent(BuiltinComponentIds::Not, {30, 20});
-    const auto loop =
-        EditorActions(scene).apply({AddWire{{{31, 20}, {31, 24}, {28, 24}, {28, 20}}}});
+    const auto loop = EditorActions(scene).apply({AddWire{{{31, 20}, {31, 24}, {28, 24}, {28, 20}}}});
     require(static_cast<bool>(loop), "Feedback fixture failed.");
     require(
-        scene.propagate() == SimulationResult::NON_CONVERGENT &&
-            scene.unsettledComponent() == oscillator,
+        scene.propagate() == SimulationResult::NON_CONVERGENT && scene.unsettledComponent() == oscillator,
         "Unsettled component was not identified."
     );
     click(ui.bottomTabBounds(UI::BottomTab::Subcircuit));
     ui.reportSimulation(scene, 2);
     require(
-        ui.activeBottomTab() == UI::BottomTab::Subcircuit &&
-            ui.messagesTabLabel() == "Messages (1)" && ui.hasMessageErrors(),
+        ui.activeBottomTab() == UI::BottomTab::Subcircuit && ui.messagesTabLabel() == "Messages (1)" &&
+            ui.hasMessageErrors(),
         "Simulation error stole focus or failed to mark the inactive Messages tab."
     );
     const auto cameraBeforeNotice = input.getPanOffset();
     const auto revisionBeforeNotice = scene.getRevision();
     click(ui.messageNoticeBounds());
     require(
-        ui.activeBottomTab() == UI::BottomTab::Messages &&
-            ui.messagesTabLabel() == "Messages (1)" && !ui.hasUnreadMessages() &&
-            input.getPanOffset() == cameraBeforeNotice &&
+        ui.activeBottomTab() == UI::BottomTab::Messages && ui.messagesTabLabel() == "Messages (1)" &&
+            !ui.hasUnreadMessages() && input.getPanOffset() == cameraBeforeNotice &&
             scene.getRevision() == revisionBeforeNotice,
         "Reading the error removed its badge or changed camera/design state."
     );
     const auto fault = ui.simulationIssues();
     ui.reportSimulation(scene, 3);
     require(
-        ui.simulationIssues() == fault && fault.size() == 1 &&
-            fault[0].location == GridCoords{30, 20} && ui.messages().empty(),
+        ui.simulationIssues() == fault && fault.size() == 1 && fault[0].location == GridCoords{30, 20} &&
+            ui.messages().empty(),
         "Unsettled activity was not a stable, located current error."
     );
     ui.addMessage("Another action failed");
@@ -331,10 +319,7 @@ void messagesPanel(GLFWwindow* window)
     views.select(0, input);
     layout();
     ui.reportSimulation(views.activeScene(), 5);
-    require(
-        ui.simulationIssues().empty() && ui.messages() == mainLog,
-        "Subcircuit faults appeared in Main."
-    );
+    require(ui.simulationIssues().empty() && ui.messages() == mainLog, "Subcircuit faults appeared in Main.");
     views.select(1, input);
     layout();
     require(ui.simulationIssues() == fault, "Switching views lost an existing fault.");
@@ -343,16 +328,14 @@ void messagesPanel(GLFWwindow* window)
     scene.propagate();
     ui.reportSimulation(scene, 6);
     require(
-        ui.simulationIssues().empty() && ui.messages().empty() &&
-            ui.findMessageBounds(0).width == 0 && scene.unsettledComponent() == -1 &&
-            ui.messagesTabLabel() == "Messages" && ui.messageNoticeBounds().width == 0,
+        ui.simulationIssues().empty() && ui.messages().empty() && ui.findMessageBounds(0).width == 0 &&
+            scene.unsettledComponent() == -1 && ui.messagesTabLabel() == "Messages" &&
+            ui.messageNoticeBounds().width == 0,
         "Repaired fault left an old error, recovery history or stale FIND link."
     );
     scene.addComponent(BuiltinComponentIds::Or, {10, 0});
     require(
-        static_cast<bool>(
-            EditorActions(scene).apply({AddWire{{{12, 0}, {12, 4}, {8, 4}, {8, 1}}}})
-        ),
+        static_cast<bool>(EditorActions(scene).apply({AddWire{{{12, 0}, {12, 4}, {8, 4}, {8, 1}}}})),
         "Stable feedback fixture failed."
     );
     scene.propagate();
@@ -379,13 +362,12 @@ void messagesPanel(GLFWwindow* window)
     ui.reportSimulation(clocks, 101.1);
     ui.reportSimulation(clocks, 102);
     require(
-        ui.simulationIssues().size() == 1 && ui.simulationIssues()[0].warning &&
-            !ui.simulationIssues()[0].location && ui.findMessageBounds(0).width == 0,
+        ui.simulationIssues().size() == 1 && ui.simulationIssues()[0].warning && !ui.simulationIssues()[0].location &&
+            ui.findMessageBounds(0).width == 0,
         "Backlog was missing or assigned a misleading gate location."
     );
     require(
-        ui.messagesTabLabel() == "Messages (1)" && !ui.hasMessageErrors() &&
-            ui.messageNoticeBounds().width > 0,
+        ui.messagesTabLabel() == "Messages (1)" && !ui.hasMessageErrors() && ui.messageNoticeBounds().width > 0,
         "Warnings lacked an amber-only active indicator."
     );
     ui.addMessage("An action failed during catch-up");
@@ -403,16 +385,14 @@ void messagesPanel(GLFWwindow* window)
         clocks.updateClocks(0);
     ui.reportSimulation(clocks, 103);
     require(
-        ui.simulationIssues().empty() && ui.messages().empty() &&
-            ui.messagesTabLabel() == "Messages" && ui.messageNoticeBounds().width == 0,
+        ui.simulationIssues().empty() && ui.messages().empty() && ui.messagesTabLabel() == "Messages" &&
+            ui.messageNoticeBounds().width == 0,
         "Catch-up retained old warnings or recovery indicators."
     );
     clocks.addComponent(BuiltinComponentIds::Input, {10, 0});
     const int driver = clocks.addComponent(BuiltinComponentIds::Input, {20, 0});
     require(
-        static_cast<bool>(
-            EditorActions(clocks).apply({AddWire{{{11, 0}, {11, 4}, {21, 4}, {21, 0}}}})
-        ),
+        static_cast<bool>(EditorActions(clocks).apply({AddWire{{{11, 0}, {11, 4}, {21, 4}, {21, 0}}}})),
         "Short-circuit fixture failed."
     );
     clocks.propagate();
@@ -459,15 +439,14 @@ void messagesPanel(GLFWwindow* window)
     input.handleCursorPos(window, box.x + 10, box.y + 10);
     input.handleScroll(window, 0, -1000);
     require(
-        input.getZoom() == zoom && clocks.getRevision() == sceneRevision &&
-            ui.findMessageBounds(0).width == 0 && ui.findMessageBounds(7).width > 0,
+        input.getZoom() == zoom && clocks.getRevision() == sceneRevision && ui.findMessageBounds(0).width == 0 &&
+            ui.findMessageBounds(7).width > 0,
         "Scrolling zoomed the canvas or mismatched visible FIND links."
     );
     const auto lastTarget = *ui.simulationIssues()[7].location;
     click(ui.findMessageBounds(7));
     require(
-        input.getPanOffset() == GridSystem::gridToWorld(lastTarget),
-        "Scrolled FIND navigated to a different error."
+        input.getPanOffset() == GridSystem::gridToWorld(lastTarget), "Scrolled FIND navigated to a different error."
     );
     ui.addMessage("Routing failure");
     views.activeMessages().entries.back().replace(0, 11, "[00:00:00] ");
@@ -490,6 +469,7 @@ void messagesPanel(GLFWwindow* window)
     glfwSetWindowUserPointer(window, nullptr);
 }
 } // namespace
+
 
 int main()
 {

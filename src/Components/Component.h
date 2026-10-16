@@ -34,7 +34,6 @@ class Component
         m_stateInPins.assign(inputPinCount, false);
         m_stateOutPins.assign(outputPinCount, false);
     }
-
     virtual ~Component() = default;
 
     int getId() const { return m_id; }
@@ -43,23 +42,14 @@ class Component
     virtual std::unique_ptr<Component> clone() const = 0;
 
     virtual void evaluate() = 0;
-
     virtual void evaluate(std::size_t& remainingEvaluations) { evaluate(); }
-
     virtual void collectClocks(std::vector<Clock*>& clocks) {}
-
     virtual SimulationResult simulationResult() const { return SimulationResult::OK; }
-
     bool getStateOutPin(int outIndex = 0) const { return m_stateOutPins.at(outIndex); }
-
     bool getStateInPin(int pinIndex) const { return m_stateInPins.at(pinIndex); }
-
     void setStateInPin(int pinIndex, bool state) { m_stateInPins.at(pinIndex) = state; }
-
     const std::vector<bool>& getStateInPins() const { return m_stateInPins; }
-
     int getInputPinCount() const { return static_cast<int>(m_stateInPins.size()); }
-
     int getOutputPinCount() const { return static_cast<int>(m_stateOutPins.size()); }
 
     /** @brief Clock input index for edge-sensitive components; -1 for gates, latches and sources.
@@ -70,11 +60,8 @@ class Component
      * Inputs at this propagation step are delivered before any edge callbacks run.
      */
     virtual void onClockEdge(bool clockState) {}
-
     const std::vector<Connection>& getOutConnections() const { return m_outConnections; }
-
     const std::vector<Connection>& getInConnections() const { return m_inConnections; }
-
     bool hasConnection() const { return !m_outConnections.empty(); }
 
   protected:
@@ -87,14 +74,8 @@ class Component
 
     // Only Circuit mutates edges so both endpoint lists stay consistent.
     void addOutConnection(const Connection& connection) { m_outConnections.push_back(connection); }
-
     void addInConnection(const Connection& connection) { m_inConnections.push_back(connection); }
-
-    void delOutConnection(const Connection& connection)
-    {
-        std::erase(m_outConnections, connection);
-    }
-
+    void delOutConnection(const Connection& connection) { std::erase(m_outConnections, connection); }
     void delInConnection(const Connection& connection) { std::erase(m_inConnections, connection); }
 
     void clearConnections()

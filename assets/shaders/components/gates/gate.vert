@@ -1,24 +1,25 @@
 #version 330 core
 
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec2 aInstancePos;
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec2 aInstancePos;
 
-layout (location = 2) in vec2 aInstanceSize;
-layout (location = 3) in vec4 aInstanceTint;
-layout (location = 4) in float aInstanceOrientation;
+layout(location = 2) in vec2 aInstanceSize;
+layout(location = 3) in vec4 aInstanceTint;
+layout(location = 4) in float aInstanceOrientation;
 out vec4 instanceTint;
 out vec2 localPos;
 
 
 uniform mat4 uViewProjection;
 
+
+/** @brief Apply the instance size and quarter-turn orientation while retaining local coordinates for silhouette
+ * evaluation. */
 void main()
 {
-    // Pass the local geometry coordinates (-0.5 to 0.5) to your SDF fragment shader
     localPos = aPos.xy;
     instanceTint = aInstanceTint;
 
-    // Instance math (same as before)
     vec2 offset = aPos.xy * aInstanceSize;
     if (aInstanceOrientation > 2.5)
         offset = vec2(offset.y, -offset.x);

@@ -17,10 +17,12 @@
 #include <optional>
 #include <vector>
 
+
 void Engine::errorCallback(int error, const char* description)
 {
     std::cerr << "[GLFW] Error " << error << ": " << description << std::endl;
 }
+
 
 Engine::Engine(std::string windowName, int windowWidth, int windowHeight)
 {
@@ -29,19 +31,16 @@ Engine::Engine(std::string windowName, int windowWidth, int windowHeight)
     m_windowHeight = windowHeight;
 }
 
+
 Engine::~Engine()
 {
-    // Safety net for the paths that never reach the end of run(): a failed
-    // init(), or run() returning early. shutdown() is idempotent, so this is a
-    // no-op when run() already tore everything down.
+    // Also release resources after failed initialization or an early return from run().
     shutdown();
 }
 
+
 int Engine::init()
 {
-    // ==========================================
-    // glfw Configuration
-    // ==========================================
     // Registered before glfwInit() so failures raised during initialization
     // itself (an unsupported context version, for instance) are reported too.
     glfwSetErrorCallback(Engine::errorCallback);
@@ -61,23 +60,18 @@ int Engine::init()
     if (window == NULL)
     {
         std::cerr << "Failed to create GLFW window" << std::endl;
-        shutdown(); // nothing to delete yet, but the window and GLFW must not
-                    // leak
+        shutdown();
         return -1;
     }
 
     glfwMakeContextCurrent(window);
 
-    // Cap the frame rate at the display's refresh rate. Without this the loop
-    // runs unthrottled, which pegs the GPU (and a CPU core) even on a static
-    // scene, and it would make any future time-based simulation frame-rate
-    // dependent.
+    // VSync bounds idle rendering work; simulation timing uses elapsed time independently.
     glfwSwapInterval(1);
 
     glfwSetWindowUserPointer(window, &input);
 
-    // Mouse and keyboard callbacks. Keys are handled as events rather than
-    // polled for consistent and responsive behaviour
+    // Route pointer, keyboard and focus events through the shared UI-first input layer.
     glfwSetMouseButtonCallback(window, Input::mouseButtonCallback);
     glfwSetCursorPosCallback(window, Input::cursorPositionCallback);
     glfwSetScrollCallback(window, Input::scrollCallback);
@@ -85,19 +79,15 @@ int Engine::init()
     glfwSetCharCallback(window, Input::charCallback);
     glfwSetWindowFocusCallback(window, Input::focusCallback);
 
-    // ==========================================
-    // glad Configuration
-    // ==========================================
+
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cerr << "Failed to initialize GLAD" << std::endl;
-        shutdown(); // no GL objects exist yet; releases the window and GLFW
+        shutdown();
         return -1;
     }
 
-    // ==========================================
-    // Initialize Graphics/Renderer
-    // ==========================================
+
     if (!m_renderer.init())
     {
         shutdown();
@@ -107,16 +97,18 @@ int Engine::init()
     return 0;
 }
 
+
+/** @brief Coordinate UI commands, editor workspaces, simulation and rendering for each application frame. */
 void Engine::run()
 {
-    // The loop below needs the window and GL context created by init(). Without
-    // them every GLFW call in here would be running on a null window.
+    // A failed init() leaves no context on which the frame loop can operate.
     if (!window)
     {
         std::cerr << "[Engine] run() called without a successful init(); aborting.\n";
         return;
     }
 
+    // Each workspace owns its scene, history and timeline; inspection observes a running instance.
     CircuitViews circuits;
 
     const auto initialScene = EditorActions(circuits.activeScene())
@@ -130,8 +122,7 @@ void Engine::run()
                                   );
     if (!initialScene)
     {
-        std::cerr << "[Editor] Initial scene could not be created: " << initialScene.message
-                  << '\n';
+        std::cerr << "[Editor] Initial scene could not be created: " << initialScene.message << '\n';
         return;
     }
 
@@ -154,11 +145,7 @@ void Engine::run()
         const bool wasInspecting = circuits.inspecting();
         if (wasInspecting && !circuits.refreshInspection(input, false))
             m_ui.dismissPopups(input);
-        m_ui.layout(
-            circuits.displayedScene().getComponentCatalog(),
-            input.getCameraFrame(window).surface,
-            input
-        );
+        m_ui.layout(circuits.displayedScene().getComponentCatalog(), input.getCameraFrame(window).surface, input);
     };
     updateUiLayout();
     input.setUiInputHandler(
@@ -166,9 +153,8 @@ void Engine::run()
         {
             updateUiLayout();
             m_ui.update(glfwGetTime(), input);
-            const bool consumed = m_ui.handleInput(
-                event, circuits.displayedScene(), input, input.getCameraFrame(window)
-            );
+            const bool consumed =
+                m_ui.handleInput(event, circuits.displayedScene(), input, input.getCameraFrame(window));
             updateUiLayout();
             return consumed;
         }
@@ -179,8 +165,7 @@ void Engine::run()
     auto titleForMode = [&]()
     {
         return input.isReadOnly() ? m_windowName + " - Live subcircuit view (read only)"
-                                  : m_windowName + " - " + editorModeName(input.getMode()) +
-                                        " mode (F2 to switch)";
+                                  : m_windowName + " - " + editorModeName(input.getMode()) + " mode (F2 to switch)";
     };
     glfwSetWindowTitle(window, titleForMode().c_str());
     auto displayedMode = input.getMode();
@@ -193,12 +178,11 @@ void Engine::run()
     { return performFileCommand(command, window, m_ui, circuits, input, library.get()); };
     while (true)
     {
+        // Resolve queued workspace actions and unsaved-work decisions before advancing this frame.
         if (glfwWindowShouldClose(window))
         {
             glfwSetWindowShouldClose(window, GLFW_FALSE);
-            unsaved.request(
-                {UnsavedWork::Operation::Exit, circuits.activeIndex()}, circuits, m_ui, input
-            );
+            unsaved.request({UnsavedWork::Operation::Exit, circuits.activeIndex()}, circuits, m_ui, input);
         }
         if (const auto index = m_ui.takeCloseCircuit())
             unsaved.request({UnsavedWork::Operation::Close, *index}, circuits, m_ui, input);
@@ -206,9 +190,7 @@ void Engine::run()
         {
             try
             {
-                openExampleCircuit(
-                    *example, m_ui, circuits, input, input.getCameraFrame(window).surface
-                );
+                openExampleCircuit(*example, m_ui, circuits, input, input.getCameraFrame(window).surface);
             }
             catch (const std::exception& error)
             {
@@ -219,9 +201,7 @@ void Engine::run()
         if (const auto command = m_ui.takeFileCommand())
         {
             if (*command == UI::FileCommand::Open)
-                unsaved.request(
-                    {UnsavedWork::Operation::Open, circuits.activeIndex()}, circuits, m_ui, input
-                );
+                unsaved.request({UnsavedWork::Operation::Open, circuits.activeIndex()}, circuits, m_ui, input);
             else
             {
                 try
@@ -240,9 +220,8 @@ void Engine::run()
             lastFrameTime = glfwGetTime();
         }
         const bool wasPending = unsaved.pending();
-        if (const auto approved = unsaved.resolve(
-                circuits, m_ui, input, [&]() { return runFileCommand(UI::FileCommand::Save); }
-            ))
+        if (const auto approved =
+                unsaved.resolve(circuits, m_ui, input, [&]() { return runFileCommand(UI::FileCommand::Save); }))
         {
             if (approved->operation == UnsavedWork::Operation::Exit)
                 break;
@@ -270,9 +249,7 @@ void Engine::run()
                 auto saved = loadSubcircuit(*path);
                 m_ui.dismissPopups(input);
                 input.cancelCurrentAction();
-                circuits.openSubcircuit(
-                    std::move(saved.design.scene), saved.identity, saved.design.name, *path, input
-                );
+                circuits.openSubcircuit(std::move(saved.design.scene), saved.identity, saved.design.name, *path, input);
             }
             catch (const std::exception& error)
             {
@@ -299,11 +276,12 @@ void Engine::run()
             input.setUiCapture({});
             input.setCanvasFocused(true);
         }
+
+        // Frame pacing and profiling use wall time, independently of simulation catch-up work.
         double currentFrameTime = glfwGetTime();
         float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);
         lastFrameTime = currentFrameTime;
 
-        // Calculate rolling FPS
         m_frameCount++;
         m_frameTimeAccumulator += deltaTime;
         if (m_frameTimeAccumulator >= 0.25f)
@@ -328,8 +306,8 @@ void Engine::run()
             m_renderer.invalidateDebugOverlay();
         }
         CpuTimings cpu;
-        auto phaseStart = m_showDebugOverlay ? std::chrono::steady_clock::now()
-                                             : std::chrono::steady_clock::time_point{};
+        auto phaseStart =
+            m_showDebugOverlay ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         auto finishPhase = [&]()
         {
             if (!m_showDebugOverlay)
@@ -355,14 +333,14 @@ void Engine::run()
         cpu[CpuPhase::Input] = finishPhase();
 
         // Clocks settle the circuit at every transition; remember edits for visual synchronization.
+
+        // Settle electrical edits and chronological clock work before recording or presenting signals.
         const bool pendingSimulation = parentScene.isSimulationDirty();
         const bool simulationReset = m_ui.takeSimulationReset();
-        bool clockEdgeFlipped =
-            !simulationReset && !unsaved.pending() &&
-            parentScene.updateClocks(deltaTime, &circuits.activeClockTimeline());
+        bool clockEdgeFlipped = !simulationReset && !unsaved.pending() &&
+                                parentScene.updateClocks(deltaTime, &circuits.activeClockTimeline());
 
-        const bool syncNeeded =
-            clockEdgeFlipped || pendingSimulation || parentScene.isSimulationDirty();
+        const bool syncNeeded = clockEdgeFlipped || pendingSimulation || parentScene.isSimulationDirty();
         if (parentScene.isSimulationDirty())
             parentScene.propagate();
         parentScene.recordSignalTraces(circuits.activeClockTimeline());
@@ -377,6 +355,8 @@ void Engine::run()
         // Prepare the state used by both the canvas and the UI.
         m_ui.reportSimulation(parentScene, currentFrameTime);
 
+
+        // Compose immutable presentation values, then layer previews and selection over committed geometry.
         const auto components = buildComponentPresentation(scene.getComponentViewMap());
         const auto junctions = scene.getWireIntersections();
         CanvasFrame frame{components, scene.getVisibleWires(), junctions};
@@ -393,9 +373,7 @@ void Engine::run()
                     if (!paste.blockedComponents().contains(id))
                         overlappingPasteBodies.push_back(view->getBodyBounds());
             for (int id : paste.blockedComponents())
-                blockedPasteBodies.push_back(
-                    preview->getComponentViewMap().at(id)->getBodyBounds()
-                );
+                blockedPasteBodies.push_back(preview->getComponentViewMap().at(id)->getBodyBounds());
             frame.overlappingPasteBodies = overlappingPasteBodies;
             frame.blockedPasteBodies = blockedPasteBodies;
         }
@@ -424,16 +402,11 @@ void Engine::run()
         if (!input.isCurrentlyDrawingWire())
         {
             if (!frame.selectionBox && input.hasSelectedSegment())
-                frame.segmentHighlight = SegmentHighlight{
-                    input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 1
-                };
-            else if (
-                input.hasHoveredSegment() &&
-                !input.getHighlightedWires().contains(input.getHoveredWireId())
-            )
-                frame.segmentHighlight = SegmentHighlight{
-                    input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.4f
-                };
+                frame.segmentHighlight =
+                    SegmentHighlight{input.getSelectedSegmentStart(), input.getSelectedSegmentEnd(), 1};
+            else if (input.hasHoveredSegment() && !input.getHighlightedWires().contains(input.getHoveredWireId()))
+                frame.segmentHighlight =
+                    SegmentHighlight{input.getHoveredSegmentStart(), input.getHoveredSegmentEnd(), 0.4f};
         }
         std::optional<Wire> active;
         if (const auto start = input.getWireStartPoint())
@@ -442,16 +415,13 @@ void Engine::run()
         {
             active = input.getActiveWire();
             if (input.getWireOriginPin().isConnected())
-                active->setState(
-                    scene.pinState(input.getWireOriginPin(), input.getWireOriginType())
-                );
+                active->setState(scene.pinState(input.getWireOriginPin(), input.getWireOriginType()));
             frame.activeWire = &*active;
             frame.gridHighlight = GridHighlight{input.getCurrentGridCoords(), 1};
         }
         else if (
-            input.isCanvasPointerAvailable(window) && input.isIdle() &&
-            input.shouldShowGridPointHighlight() && input.getHoveredComponentId() == -1 &&
-            input.getHoveredPinComponentId() == -1
+            input.isCanvasPointerAvailable(window) && input.isIdle() && input.shouldShowGridPointHighlight() &&
+            input.getHoveredComponentId() == -1 && input.getHoveredPinComponentId() == -1
         )
             frame.gridHighlight = GridHighlight{input.getCurrentGridCoords(), 0.55f};
         if (input.shouldShowGridPointHighlight())
@@ -461,6 +431,8 @@ void Engine::run()
             frame.hoveredDirection = input.getHoveredPinType();
         }
         cpu[CpuPhase::VisualPreparation] = finishPhase();
+
+        // Submit canvas layers before screen-space panels, menus and diagnostics.
         m_renderer.beginFrame(input.getCameraFrame(window));
         m_renderer.drawCanvas(frame);
         cpu[CpuPhase::Canvas] = finishPhase();
@@ -512,8 +484,7 @@ void Engine::run()
         glfwPollEvents();
         cpu[CpuPhase::Input] += finishPhase();
         // Do not mix costs from different scenes or bottom-panel tabs in one window.
-        if (m_showDebugOverlay &&
-            context == std::pair{circuits.activeIndex(), m_ui.activeBottomTab()})
+        if (m_showDebugOverlay && context == std::pair{circuits.activeIndex(), m_ui.activeBottomTab()})
             m_cpuTimingWindow.add(cpu, deltaTime);
     }
 
@@ -524,6 +495,7 @@ void Engine::run()
     input.setScene(nullptr);
     shutdown();
 }
+
 
 void Engine::shutdown()
 {

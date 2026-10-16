@@ -4,7 +4,7 @@
 
 #include <vector>
 
-/** App-owned editable JSON designs. Published versions and unfinished drafts stay separate. */
+/** @brief App-owned editable JSON designs. Published versions and unfinished drafts stay separate. */
 class SubcircuitLibrary
 {
   public:
@@ -16,20 +16,23 @@ class SubcircuitLibrary
         bool draft = false;
     };
 
-    /** Tests supply a temporary profile; the application uses the user's local app-data folder. */
+    /** @brief Tests supply a temporary profile; the application uses the user's local app-data folder. */
     explicit SubcircuitLibrary(std::filesystem::path profile = defaultProfile());
+
     static std::filesystem::path defaultProfile();
 
     const std::filesystem::path& location() const { return m_location; }
-
     const std::vector<Entry>& entries() const { return m_entries; }
-
     const std::vector<std::string>& errors() const { return m_errors; }
 
     void reload();
+
     std::uint32_t version(const std::string& id) const;
+
+    /** @brief Write a versioned design and remove a superseded draft only after its replacement is stored. */
     std::filesystem::path store(const SavedSubcircuit& design, bool draft);
-    /** Copies managed files before changing the remembered location; never deletes the source. */
+
+    /** @brief Copies managed files before changing the remembered location; never deletes the source. */
     void changeLocation(const std::filesystem::path& destination);
 
   private:

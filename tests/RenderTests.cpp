@@ -25,13 +25,19 @@ static_assert(!std::is_copy_constructible_v<Shader>);
 static_assert(!std::is_copy_constructible_v<FontAtlas>);
 static_assert(!std::is_copy_constructible_v<Renderer>);
 
+
 void drawingProfile(Renderer&, const CanvasCameraFrame&);
+
+
 void renderResourceChecks();
+
+
 void debugOverlayCacheChecks(Renderer&);
 
 namespace
 {
 constexpr int extent = 1024;
+
 
 void require(bool condition, const char* message)
 {
@@ -39,21 +45,20 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
+/** @brief Read a framebuffer pixel using the logical-window to framebuffer coordinate convention. */
 std::array<unsigned char, 4> pixel(glm::vec2 world)
 {
     std::array<unsigned char, 4> value;
     glReadPixels(
-        static_cast<int>((world.x + 1) * extent * 0.5f),
-        static_cast<int>((world.y + 1) * extent * 0.5f),
-        1,
-        1,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        value.data()
+        static_cast<int>((world.x + 1) * extent * 0.5f), static_cast<int>((world.y + 1) * extent * 0.5f), 1, 1, GL_RGBA,
+        GL_UNSIGNED_BYTE, value.data()
     );
     return value;
 }
 
+
+/** @brief Export a framebuffer image for inspection without changing the rendered scene. */
 void saveImage(const char* name)
 {
     const auto directory = std::filesystem::path(RENDER_ARTIFACTS_DIR);
@@ -66,6 +71,8 @@ void saveImage(const char* name)
         file.write(reinterpret_cast<const char*>(image.data() + row * extent * 3), extent * 3);
 }
 
+
+/** @brief Verify interleaved component batches retain their own state colours and shader attributes. */
 void mixedInstances(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     ComponentRenderData a{{1, {-0.4f, 0}, {0.2f, 0.2f}, "box", {}}, "", false, {}};
@@ -82,8 +89,7 @@ void mixedInstances(Renderer& renderer, const CanvasCameraFrame& camera)
         "Same-shader instances rendered with a shared height."
     );
     require(
-        pixel({-0.55f, 0})[2] < 20 && pixel({0.55f, 0})[2] > 40,
-        "Same-shader instances rendered with a shared width."
+        pixel({-0.55f, 0})[2] < 20 && pixel({0.55f, 0})[2] > 40, "Same-shader instances rendered with a shared width."
     );
     saveImage("mixed-sizes.ppm");
     a.body.style.tint = {1, 0, 0, 1};
@@ -133,6 +139,8 @@ void mixedInstances(Renderer& renderer, const CanvasCameraFrame& camera)
     require(renderer.getDrawCallCount() == 0, "Empty bodies counted a draw.");
 }
 
+
+/** @brief Verify diagnostic overlay visibility, categories and rendered metrics across view modes. */
 void performanceOverlay(Renderer& renderer)
 {
     CircuitViews views;
@@ -181,10 +189,8 @@ void performanceOverlay(Renderer& renderer)
         renderer.drawCanvas({components, wires, {}});
         const auto canvasCounts = renderer.getDrawCallCounts();
         require(
-            canvasCounts[DrawCategory::StaticUI] == 1 &&
-                canvasCounts[DrawCategory::Components] >= 3 &&
-                canvasCounts[DrawCategory::Wires] == 1 &&
-                canvasCounts[DrawCategory::DynamicUI] == 0,
+            canvasCounts[DrawCategory::StaticUI] == 1 && canvasCounts[DrawCategory::Components] >= 3 &&
+                canvasCounts[DrawCategory::Wires] == 1 && canvasCounts[DrawCategory::DynamicUI] == 0,
             "Canvas batches, grid or wires were counted in the wrong category."
         );
         renderer.beginUiTiming(true);
@@ -218,23 +224,17 @@ void performanceOverlay(Renderer& renderer)
                 glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE,
             "Debug overlay counted itself or left invalid OpenGL/clipping state."
         );
-        const auto runs = layoutDebugOverlay(
-            metrics, true, surface.windowWidth, surface.windowHeight, renderer.fontMetrics()
-        );
-        auto row = std::find_if(
-            runs.begin(),
-            runs.end(),
-            [](const auto& run) { return run.text.starts_with("Dynamic UI"); }
-        );
+        const auto runs =
+            layoutDebugOverlay(metrics, true, surface.windowWidth, surface.windowHeight, renderer.fontMetrics());
+        auto row =
+            std::find_if(runs.begin(), runs.end(), [](const auto& run) { return run.text.starts_with("Dynamic UI"); });
         require(row != runs.end(), "Dynamic UI timing row was not displayed.");
         int ink = 0;
         for (int y = static_cast<int>(row->baseline.y - 14); y < row->baseline.y; ++y)
             for (int x = static_cast<int>(row->baseline.x); x < surface.windowWidth - 16; ++x)
             {
                 std::array<unsigned char, 4> color;
-                glReadPixels(
-                    x * dpi, extent - 1 - y * dpi, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, color.data()
-                );
+                glReadPixels(x * dpi, extent - 1 - y * dpi, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, color.data());
                 if (color[0] > 150 && color[1] > 110)
                     ++ink;
             }
@@ -259,9 +259,7 @@ void performanceOverlay(Renderer& renderer)
         metrics.drawCalls = renderer.getDrawCallCounts();
         metrics.averageCpu = metrics.worstCpu = messagesCpu;
         renderer.drawDebugOverlay(metrics);
-        saveImage(
-            dpi == 1 ? "debug-performance-messages.ppm" : "debug-performance-messages-2x.ppm"
-        );
+        saveImage(dpi == 1 ? "debug-performance-messages.ppm" : "debug-performance-messages-2x.ppm");
         const auto point = *frame.worldToWindow({0, 0});
         UiInputEvent popup{UiInputKind::MouseButton};
         popup.code = GLFW_MOUSE_BUTTON_RIGHT;
@@ -275,44 +273,36 @@ void performanceOverlay(Renderer& renderer)
         renderer.beginUiTiming(true);
         ui.draw(renderer, views.activeScene(), frame);
         const auto infoCpu = renderer.endUiTiming();
-        require(
-            infoCpu[CpuPhase::DynamicUI] > 0,
-            "Live component information was charged to static UI CPU time."
-        );
+        require(infoCpu[CpuPhase::DynamicUI] > 0, "Live component information was charged to static UI CPU time.");
         ui.dismissPopups(input);
         renderer.beginUiTiming(false);
         ui.draw(renderer, views.activeScene(), frame);
         const auto disabledCpu = renderer.endUiTiming();
         require(
-            std::all_of(
-                disabledCpu.ms.begin(), disabledCpu.ms.end(), [](double ms) { return ms == 0; }
-            ),
+            std::all_of(disabledCpu.ms.begin(), disabledCpu.ms.end(), [](double ms) { return ms == 0; }),
             "Hidden F3 still collected UI CPU timings."
         );
     }
 }
 
+
+/** @brief Verify native pin leads touch visible component silhouettes at their intended contacts. */
 void nativeContacts(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
     for (const auto& definition : nativeDefinitions())
     {
-        const std::vector<int> counts =
-            definition.pinLayoutRule == PinLayoutRule::SymmetricGateInputs
-                ? std::vector<int>{2, 4, 6, 50}
-                : std::vector<int>{0};
+        const std::vector<int> counts = definition.pinLayoutRule == PinLayoutRule::SymmetricGateInputs
+                                            ? std::vector<int>{2, 4, 6, 50}
+                                            : std::vector<int>{0};
         for (int count : counts)
         {
             ComponentOverrides options;
             if (count)
                 options.inputCount = count;
-            const int id = scene.addComponent(
-                definition.identity.id, {0, 0}, options, PlacementPolicy::AllowOverlap
-            );
+            const int id = scene.addComponent(definition.identity.id, {0, 0}, options, PlacementPolicy::AllowOverlap);
             auto data = buildComponentPresentation(scene.getComponentViewMap());
-            auto it = std::find_if(
-                data.begin(), data.end(), [=](const auto& item) { return item.body.id == id; }
-            );
+            auto it = std::find_if(data.begin(), data.end(), [=](const auto& item) { return item.body.id == id; });
             // Rescale the complete presentation to make every silhouette readable in the
             // framebuffer.
             auto body = *it;
@@ -340,17 +330,12 @@ void nativeContacts(Renderer& renderer, const CanvasCameraFrame& camera)
                 const auto value = pixel(probe);
                 if (!(value[0] > 20 || value[1] > 20 || value[2] > 25))
                 {
-                    std::cerr << "Contact: " << definition.identity.id << " inputs=" << count
-                              << " pin=" << pin.index
-                              << " direction=" << static_cast<int>(pin.direction)
-                              << " position=" << contact.x << ',' << contact.y
-                              << " pixel=" << static_cast<int>(value[0]) << ','
-                              << static_cast<int>(value[1]) << ',' << static_cast<int>(value[2])
-                              << '\n';
+                    std::cerr << "Contact: " << definition.identity.id << " inputs=" << count << " pin=" << pin.index
+                              << " direction=" << static_cast<int>(pin.direction) << " position=" << contact.x << ','
+                              << contact.y << " pixel=" << static_cast<int>(value[0]) << ','
+                              << static_cast<int>(value[1]) << ',' << static_cast<int>(value[2]) << '\n';
                     saveImage("contact-failure.ppm");
-                    throw std::runtime_error(
-                        "Declared silhouette contact does not reach the rendered body."
-                    );
+                    throw std::runtime_error("Declared silhouette contact does not reach the rendered body.");
                 }
             }
             require(glGetError() == GL_NO_ERROR, "OpenGL rejected the instance-data contract.");
@@ -358,6 +343,8 @@ void nativeContacts(Renderer& renderer, const CanvasCameraFrame& camera)
     }
 }
 
+
+/** @brief Verify a resized gate retains its native body and renders added input geometry correctly. */
 void editedGate(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
@@ -380,9 +367,9 @@ void editedGate(Renderer& renderer, const CanvasCameraFrame& camera)
     };
     draw();
     const auto plain = pixel({0.4f * 0.7f, 0.2f * 0.7f});
-    const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
-        .componentId = id, .label = "Learning", .inputCount = 4, .inverted = true
-    }});
+    const auto result = EditorActions(scene).apply(
+        {ConfigureComponentProperties{.componentId = id, .label = "Learning", .inputCount = 4, .inverted = true}}
+    );
     require(static_cast<bool>(result), "Native gate edit failed.");
     const auto inverted = draw();
     const auto gap = pixel({0.4f * 0.7f, 0.2f * 0.7f});
@@ -402,14 +389,14 @@ void editedGate(Renderer& renderer, const CanvasCameraFrame& camera)
     saveImage("edited-gate-inverted.ppm");
 }
 
+
+/** @brief Verify input rails remain visible and connected across gate sizes and zoom levels. */
 void inputRailPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     auto bodyPixels = [&]
     {
         std::vector<unsigned char> image(256 * 256 * 4);
-        glReadPixels(
-            extent / 2 - 128, extent / 2 - 128, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, image.data()
-        );
+        glReadPixels(extent / 2 - 128, extent / 2 - 128, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, image.data());
         return image;
     };
     for (const auto type : {AND, NAND, OR, NOR, XOR, NXOR})
@@ -423,9 +410,7 @@ void inputRailPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
         renderer.drawComponents(original);
         const auto before = bodyPixels();
         require(
-            static_cast<bool>(
-                actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 8}})
-            ),
+            static_cast<bool>(actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 8}})),
             "Cannot create input rail rendering fixture."
         );
         const auto expanded = buildComponentPresentation(scene.getComponentViewMap());
@@ -436,10 +421,9 @@ void inputRailPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
         renderer.drawPinLeads(expanded);
         renderer.drawComponents(expanded);
         renderer.drawPins(expanded);
-        const auto point =
-            expanded.front().inputArc.empty()
-                ? glm::vec2{expanded.front().inputRail->centerX(), 0.175f}
-                : (expanded.front().inputArc[59] + expanded.front().inputArc[60]) * 0.5f;
+        const auto point = expanded.front().inputArc.empty()
+                               ? glm::vec2{expanded.front().inputRail->centerX(), 0.175f}
+                               : (expanded.front().inputArc[59] + expanded.front().inputArc[60]) * 0.5f;
         if (!expanded.front().inputArc.empty())
         {
             const auto center = expanded.front().inputArc[32];
@@ -450,9 +434,7 @@ void inputRailPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
                 const auto edge = pixel(center + glm::vec2{offset * pixelWidth, 0});
                 smoothPixels += edge[0] > 40 && edge[0] < 160 && edge[2] > 65 && edge[2] < 210;
             }
-            require(
-                smoothPixels > 0, "Extended XOR arc has hard pixel edges without antialiasing."
-            );
+            require(smoothPixels > 0, "Extended XOR arc has hard pixel edges without antialiasing.");
         }
         const auto rail = pixel(point);
         const auto tint = expanded.front().body.style.tint;
@@ -470,9 +452,7 @@ void inputRailPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
                           ".ppm";
         saveImage(name.c_str());
         require(
-            static_cast<bool>(
-                actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 2}})
-            ),
+            static_cast<bool>(actions.apply({ConfigureComponentProperties{.componentId = id, .inputCount = 2}})),
             "Cannot shrink rail fixture."
         );
         const auto shrunk = buildComponentPresentation(scene.getComponentViewMap());
@@ -484,14 +464,14 @@ void inputRailPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
     }
 }
 
+
+/** @brief Verify inversion bubbles and body footprints remain proportionate under rendering scale changes. */
 void inversionProportions(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     auto image = [&]
     {
         std::vector<unsigned char> pixels(256 * 256 * 4);
-        glReadPixels(
-            extent / 2 - 128, extent / 2 - 128, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data()
-        );
+        glReadPixels(extent / 2 - 128, extent / 2 - 128, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
         return pixels;
     };
     for (auto type : {AND, NAND, OR, NOR, XOR, NXOR})
@@ -504,9 +484,9 @@ void inversionProportions(Renderer& renderer, const CanvasCameraFrame& camera)
             const bool inverted = !gate->isInverted();
             const auto target = Gate::typeWithInversion(gate->getType(), inverted);
             require(
-                static_cast<bool>(EditorActions(scene).apply(
-                    {ConfigureComponentProperties{.componentId = id, .inverted = inverted}}
-                )),
+                static_cast<bool>(
+                    EditorActions(scene).apply({ConfigureComponentProperties{.componentId = id, .inverted = inverted}})
+                ),
                 "Cannot switch native gate inversion."
             );
             const auto data = buildComponentPresentation(scene.getComponentViewMap());
@@ -517,28 +497,26 @@ void inversionProportions(Renderer& renderer, const CanvasCameraFrame& camera)
             const int reference = canonical.addComponent(builtinDefinitionId(target), {0, 0});
             renderer.beginFrame(camera);
             renderer.drawComponents(buildComponentPresentation(canonical.getComponentViewMap()));
-            require(
-                changed == image(),
-                "Inversion warped the body/bubble compared with spawning the target gate."
-            );
+            require(changed == image(), "Inversion warped the body/bubble compared with spawning the target gate.");
             const auto* actual = scene.getCommittedComponentView(id);
             const auto* expected = canonical.getCommittedComponentView(reference);
             require(
-                actual->getOutputPins()[0].relative_pos ==
-                    expected->getOutputPins()[0].relative_pos,
+                actual->getOutputPins()[0].relative_pos == expected->getOutputPins()[0].relative_pos,
                 "Inversion left the output pin at the wrong side of the bubble."
             );
             renderer.beginFrame(camera);
             renderer.drawPinLeads(data);
             renderer.drawComponents(data);
             renderer.drawPins(data);
-            const auto name = std::string("gate-switch-") + builtinDefinitionId(type) +
-                              (pass ? "-back.ppm" : "-paired.ppm");
+            const auto name =
+                std::string("gate-switch-") + builtinDefinitionId(type) + (pass ? "-back.ppm" : "-paired.ppm");
             saveImage(name.c_str());
         }
     }
 }
 
+
+/** @brief Verify inverted-input rendering matches the logical external anchor and lead path. */
 void inputInversionPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
@@ -546,13 +524,11 @@ void inputInversionPresentation(Renderer& renderer, const CanvasCameraFrame& cam
     for (const auto type : {NOT, AND, NAND, OR, NOR, XOR, NXOR})
     {
         const int id = scene.addComponent(
-            builtinDefinitionId(type),
-            {-12 + (row % 4) * 8, 9 - (row / 4) * 16},
-            {.inputCount = type == NOT ? 1 : 8}
+            builtinDefinitionId(type), {-12 + (row % 4) * 8, 9 - (row / 4) * 16}, {.inputCount = type == NOT ? 1 : 8}
         );
-        const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
-            .componentId = id, .inputInversion = ConfigureGateInput{0, true}
-        }});
+        const auto result = EditorActions(scene).apply(
+            {ConfigureComponentProperties{.componentId = id, .inputInversion = ConfigureGateInput{0, true}}}
+        );
         require(static_cast<bool>(result), "Cannot prepare input-bubble render fixture.");
         ++row;
     }
@@ -569,13 +545,9 @@ void inputInversionPresentation(Renderer& renderer, const CanvasCameraFrame& cam
                 const auto rim = pixel(*pin.inversionBubble + glm::vec2{0, 0.023f});
                 const auto background = pixel(*pin.inversionBubble + glm::vec2{0, 0.035f});
                 require(
-                    center[1] > 60 && (center[0] > 60 || center[2] > 60),
-                    "Input bubble did not retain its gate fill."
+                    center[1] > 60 && (center[0] > 60 || center[2] > 60), "Input bubble did not retain its gate fill."
                 );
-                require(
-                    rim[0] < center[0] || rim[2] < center[2],
-                    "Input bubble lost its visible outline."
-                );
+                require(rim[0] < center[0] || rim[2] < center[2], "Input bubble lost its visible outline.");
                 require(
                     background[0] < 20 && background[1] < 20 && background[2] < 20,
                     "Input bubble was stretched beyond its one-cell diameter."
@@ -585,25 +557,22 @@ void inputInversionPresentation(Renderer& renderer, const CanvasCameraFrame& cam
     saveImage("gate-input-inversion.ppm");
 }
 
+
+/** @brief Verify rotated gate bodies, leads and labels remain aligned in the framebuffer. */
 void orientationPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
 {
-    for (const auto direction :
-         {Orientation::Right, Orientation::Up, Orientation::Left, Orientation::Down})
+    for (const auto direction : {Orientation::Right, Orientation::Up, Orientation::Left, Orientation::Down})
     {
         Scene scene;
         int column = 0;
         for (const auto type : {NOT, NAND, XOR})
         {
             const int id = scene.addComponent(
-                builtinDefinitionId(type),
-                {-10 + column++ * 10, 0},
-                {.inputCount = type == NOT ? 1 : 8}
+                builtinDefinitionId(type), {-10 + column++ * 10, 0}, {.inputCount = type == NOT ? 1 : 8}
             );
             require(
                 static_cast<bool>(EditorActions(scene).apply({ConfigureComponentProperties{
-                    .componentId = id,
-                    .inputInversion = ConfigureGateInput{0, true},
-                    .orientation = direction
+                    .componentId = id, .inputInversion = ConfigureGateInput{0, true}, .orientation = direction
                 }})),
                 "Cannot prepare rotated render fixture."
             );
@@ -616,47 +585,32 @@ void orientationPresentation(Renderer& renderer, const CanvasCameraFrame& camera
         for (const auto& component : data)
         {
             const auto offset = rotatePoint(
-                component.body.style.contour == BodyContour::Not ? -0.3f * component.body.size.x
-                                                                 : 0,
-                0,
-                direction
+                component.body.style.contour == BodyContour::Not ? -0.3f * component.body.size.x : 0, 0, direction
             );
             const auto fill = pixel(component.body.position + glm::vec2{offset[0], offset[1]});
-            require(
-                fill[1] > 50 && fill[2] > 120,
-                "Rotated shader body did not match its expected position."
-            );
+            require(fill[1] > 50 && fill[2] > 120, "Rotated shader body did not match its expected position.");
             for (const auto& pin : component.pins)
             {
                 const auto dot = pixel(pin.position);
                 require(
-                    dot[0] > 200 || dot[1] > 200 || dot[2] > 200,
-                    "Rotated pin was not drawn at its electrical anchor."
+                    dot[0] > 200 || dot[1] > 200 || dot[2] > 200, "Rotated pin was not drawn at its electrical anchor."
                 );
                 if (pin.inversionBubble)
                 {
                     const auto bubble = pixel(*pin.inversionBubble);
-                    require(
-                        bubble[1] > 50 && bubble[2] > 120,
-                        "Input bubble did not follow the rotated gate."
-                    );
+                    require(bubble[1] > 50 && bubble[2] > 120, "Input bubble did not follow the rotated gate.");
                 }
             }
             if (!component.inputArc.empty())
             {
                 const auto arc = pixel(component.inputArc[8]);
-                require(
-                    arc[0] > 50 || arc[2] > 80,
-                    "Extended XOR arc stayed in its previous orientation."
-                );
+                require(arc[0] > 50 || arc[2] > 80, "Extended XOR arc stayed in its previous orientation.");
             }
             else if (component.inputRail)
             {
                 const auto rail = *component.inputRail;
-                const auto rotated =
-                    rotatePoint(rail.centerX() - component.body.position.x, 0.175f, direction);
-                const auto extension =
-                    pixel(component.body.position + glm::vec2{rotated[0], rotated[1]});
+                const auto rotated = rotatePoint(rail.centerX() - component.body.position.x, 0.175f, direction);
+                const auto extension = pixel(component.body.position + glm::vec2{rotated[0], rotated[1]});
                 require(extension[2] > 70, "Expanded input rail did not rotate with the body.");
             }
         }
@@ -666,6 +620,8 @@ void orientationPresentation(Renderer& renderer, const CanvasCameraFrame& camera
     require(glGetError() == GL_NO_ERROR, "Gate orientation caused an OpenGL error.");
 }
 
+
+/** @brief Verify orientation across native component families and authored layouts. */
 void generalizedOrientationPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene authored;
@@ -677,23 +633,16 @@ void generalizedOrientationPresentation(Renderer& renderer, const CanvasCameraFr
         "Cannot prepare subcircuit rendering fixture."
     );
     const auto custom = makeSubcircuit(authored, {"subcircuit.render", 1}, "Pass through");
-    for (const auto direction :
-         {Orientation::Right, Orientation::Up, Orientation::Left, Orientation::Down})
+    for (const auto direction : {Orientation::Right, Orientation::Up, Orientation::Left, Orientation::Down})
     {
         Scene scene;
         require(
             static_cast<bool>(EditorActions(scene).apply(
                 {RegisterComponentDefinition{custom},
                  CreateComponent{
-                     .definitionId = BuiltinComponentIds::SrLatch,
-                     .position = {-8, 0},
-                     .orientation = direction
+                     .definitionId = BuiltinComponentIds::SrLatch, .position = {-8, 0}, .orientation = direction
                  },
-                 CreateComponent{
-                     .definitionId = custom.identity.id,
-                     .position = {8, 0},
-                     .orientation = direction
-                 }}
+                 CreateComponent{.definitionId = custom.identity.id, .position = {8, 0}, .orientation = direction}}
             )),
             "Cannot create rotated latch/subcircuit rendering fixture."
         );
@@ -719,8 +668,7 @@ void generalizedOrientationPresentation(Renderer& renderer, const CanvasCameraFr
         const auto labels = layoutComponentLabels(data, renderer.fontMetrics());
         require(labels.size() == 8, "Rotation omitted a latch/subcircuit body or pin label.");
         renderer.drawLabels(data);
-        const auto name =
-            std::string("latch-subcircuit-orientation-") + orientationName(direction) + ".ppm";
+        const auto name = std::string("latch-subcircuit-orientation-") + orientationName(direction) + ".ppm";
         saveImage(name.c_str());
         if (direction == Orientation::Up)
         {
@@ -735,33 +683,21 @@ void generalizedOrientationPresentation(Renderer& renderer, const CanvasCameraFr
             for (int id : {0, 1})
             {
                 ui.dismissPopups(input);
-                const auto point =
-                    *frame.worldToWindow(scene.getCommittedComponentView(id)->getPosition());
+                const auto point = *frame.worldToWindow(scene.getCommittedComponentView(id)->getPosition());
                 for (const auto action : {GLFW_PRESS, GLFW_RELEASE})
                     ui.handleInput(
-                        {UiInputKind::MouseButton,
-                         GLFW_MOUSE_BUTTON_RIGHT,
-                         action,
-                         0,
-                         0,
-                         point.x,
-                         point.y},
-                        scene,
-                        input,
-                        frame
+                        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, action, 0, 0, point.x, point.y}, scene,
+                        input, frame
                     );
                 require(
-                    ui.infoComponentId() == id &&
-                        ui.componentOrientationBounds(scene, Orientation::Up).width > 0 &&
+                    ui.infoComponentId() == id && ui.componentOrientationBounds(scene, Orientation::Up).width > 0 &&
                         ui.gateSettingsBounds(scene).width == 0,
                     "Latch/subcircuit popup lost orientation or exposed gate-only settings."
                 );
                 renderer.beginFrame(frame);
                 renderer.drawCanvas({data, scene.getWires(), {}});
                 ui.draw(renderer, scene, frame);
-                saveImage(
-                    id == 0 ? "latch-orientation-popup.ppm" : "subcircuit-orientation-popup.ppm"
-                );
+                saveImage(id == 0 ? "latch-orientation-popup.ppm" : "subcircuit-orientation-popup.ppm");
             }
             input.setScene(nullptr);
         }
@@ -769,6 +705,8 @@ void generalizedOrientationPresentation(Renderer& renderer, const CanvasCameraFr
     require(glGetError() == GL_NO_ERROR, "Latch/subcircuit orientation caused an OpenGL error.");
 }
 
+
+/** @brief Verify paste ghosts remain visually distinct and disappear cleanly on commit or cancellation. */
 void pastePreview(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
@@ -778,9 +716,7 @@ void pastePreview(Renderer& renderer, const CanvasCameraFrame& camera)
     EditorClipboard clipboard;
     clipboard.copy(scene, selection);
     PasteGesture paste;
-    require(
-        static_cast<bool>(paste.begin(scene, clipboard, {8, 0})), "Paste preview creation failed."
-    );
+    require(static_cast<bool>(paste.begin(scene, clipboard, {8, 0})), "Paste preview creation failed.");
     const auto components = buildComponentPresentation(scene.getComponentViewMap());
     auto ghosts = buildComponentPresentation(paste.scene()->getComponentViewMap());
     CanvasFrame frame{components, scene.getWires(), {}};
@@ -830,12 +766,12 @@ void pastePreview(Renderer& renderer, const CanvasCameraFrame& camera)
     frame.blockedPasteBodies = blocked;
     renderer.beginFrame(camera);
     renderer.drawCanvas(frame);
-    require(
-        pixel({0, 0})[0] > beforeRed[0] + 35, "Exact-center collision has no visible red highlight."
-    );
+    require(pixel({0, 0})[0] > beforeRed[0] + 35, "Exact-center collision has no visible red highlight.");
     saveImage("paste-preview-same-center.ppm");
 }
 
+
+/** @brief Verify move previews render temporary geometry without altering the committed scene image. */
 void preview(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
@@ -880,27 +816,26 @@ void preview(Renderer& renderer, const CanvasCameraFrame& camera)
     saveImage("component-presentations.ppm");
 }
 
+
+/** @brief Read a world-space sample through the active camera and framebuffer mapping. */
 std::array<unsigned char, 4> cameraPixel(const CanvasCameraFrame& frame, glm::vec2 world)
 {
     const auto point = frame.worldToWindow(world);
     require(point.has_value(), "Cannot sample an inactive camera.");
-    const int x =
-        static_cast<int>(point->x * frame.surface.framebufferWidth / frame.surface.windowWidth);
-    const int y =
-        frame.surface.framebufferHeight - 1 -
-        static_cast<int>(point->y * frame.surface.framebufferHeight / frame.surface.windowHeight);
+    const int x = static_cast<int>(point->x * frame.surface.framebufferWidth / frame.surface.windowWidth);
+    const int y = frame.surface.framebufferHeight - 1 -
+                  static_cast<int>(point->y * frame.surface.framebufferHeight / frame.surface.windowHeight);
     std::array<unsigned char, 4> result;
     glReadPixels(x, y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, result.data());
     return result;
 }
 
+
+/** @brief Verify component outlines follow visible bounds at different scales and orientations. */
 void componentOutlines(Renderer& renderer)
 {
     auto slateRim = [](const auto& color)
-    {
-        return std::abs(color[0] - 31) < 15 && std::abs(color[1] - 38) < 15 &&
-               std::abs(color[2] - 51) < 15;
-    };
+    { return std::abs(color[0] - 31) < 15 && std::abs(color[1] - 38) < 15 && std::abs(color[2] - 51) < 15; };
     Scene scene;
     scene.addComponent(BuiltinComponentIds::And, {0, 0});
     const auto base = buildComponentPresentation(scene.getComponentViewMap()).front();
@@ -923,11 +858,9 @@ void componentOutlines(Renderer& renderer)
             "Component outline expanded with zoom or covered its fill."
         );
         require(
-            cameraPixel(frame, {0.048f, 0})[2] > 180,
-            "AND outline exposed an internal seam between its box and cap."
+            cameraPixel(frame, {0.048f, 0})[2] > 180, "AND outline exposed an internal seam between its box and cap."
         );
-        for (auto id :
-             {BuiltinComponentIds::Nand, BuiltinComponentIds::Nor, BuiltinComponentIds::Nxor})
+        for (auto id : {BuiltinComponentIds::Nand, BuiltinComponentIds::Nor, BuiltinComponentIds::Nxor})
         {
             const auto* definition = scene.getComponentCatalog().find(id);
             body.body.style = definition->presentation.body;
@@ -943,10 +876,7 @@ void componentOutlines(Renderer& renderer)
                 "Bubble outline disappeared where it meets the gate body."
             );
             const auto center = cameraPixel(frame, {0.246f, 0});
-            require(
-                std::max({center[0], center[1], center[2]}) > 180,
-                "Inversion bubble lost its colored interior."
-            );
+            require(std::max({center[0], center[1], center[2]}) > 180, "Inversion bubble lost its colored interior.");
             if (id == BuiltinComponentIds::Nand && zoom == 1)
                 saveImage("component-outline-nand.ppm");
         }
@@ -972,14 +902,10 @@ void componentOutlines(Renderer& renderer)
                 "XOR rear arc is missing its outer outline."
             );
             require(
-                cameraPixel(frame, {-0.3f - onePixel, 0.18f})[2] < 25,
-                "XOR rear arc outline escaped its shader quad."
+                cameraPixel(frame, {-0.3f - onePixel, 0.18f})[2] < 25, "XOR rear arc outline escaped its shader quad."
             );
             if (zoom == 1)
-                saveImage(
-                    id == BuiltinComponentIds::Xor ? "component-outline-xor.ppm"
-                                                   : "component-outline-nxor.ppm"
-                );
+                saveImage(id == BuiltinComponentIds::Xor ? "component-outline-xor.ppm" : "component-outline-nxor.ppm");
         }
     }
     int normalZoomInsetBlue = 0;
@@ -1006,6 +932,8 @@ void componentOutlines(Renderer& renderer)
     }
 }
 
+
+/** @brief Verify palette cards, labels, previews and scrolling remain legible at supported window sizes. */
 void palettePresentation(Renderer& renderer)
 {
     Scene scene;
@@ -1032,23 +960,17 @@ void palettePresentation(Renderer& renderer)
     glReadPixels(5, extent - 501, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, left.data());
     const auto first = ui.buttons().front().bounds;
     glReadPixels(
-        static_cast<int>(first.x + 3),
-        extent - static_cast<int>(first.y + 3) - 1,
-        1,
-        1,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
+        static_cast<int>(first.x + 3), extent - static_cast<int>(first.y + 3) - 1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE,
         buttonPixel.data()
     );
     require(
-        left[2] > left[0] && buttonPixel[2] > left[2],
-        "Palette background/buttons were not drawn in screen space."
+        left[2] > left[0] && buttonPixel[2] > left[2], "Palette background/buttons were not drawn in screen space."
     );
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
     require(
-        glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE && viewport[2] == extent &&
-            viewport[3] == extent && glGetError() == GL_NO_ERROR,
+        glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE && viewport[2] == extent && viewport[3] == extent &&
+            glGetError() == GL_NO_ERROR,
         "UI drawing left canvas clipping or invalid GPU state."
     );
     saveImage("component-palette.ppm");
@@ -1057,19 +979,13 @@ void palettePresentation(Renderer& renderer)
     {
         std::array<unsigned char, 4> value{};
         glReadPixels(
-            static_cast<int>(point.x * scale),
-            extent - static_cast<int>(point.y * scale) - 1,
-            1,
-            1,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            value.data()
+            static_cast<int>(point.x * scale), extent - static_cast<int>(point.y * scale) - 1, 1, 1, GL_RGBA,
+            GL_UNSIGNED_BYTE, value.data()
         );
         return value;
     };
     const auto andButton = std::find_if(
-        ui.buttons().begin(),
-        ui.buttons().end(),
+        ui.buttons().begin(), ui.buttons().end(),
         [](const auto& item) { return item.definitionId == BuiltinComponentIds::And; }
     );
     require(andButton != ui.buttons().end(), "AND card is missing.");
@@ -1092,11 +1008,9 @@ void palettePresentation(Renderer& renderer)
             {
                 const auto value = screenPixel({x, y});
                 const auto tint = definition->presentation.body.tint;
-                const bool fill = std::abs(value[0] - tint[0] * 255) < 8 &&
-                                  std::abs(value[1] - tint[1] * 255) < 8 &&
+                const bool fill = std::abs(value[0] - tint[0] * 255) < 8 && std::abs(value[1] - tint[1] * 255) < 8 &&
                                   std::abs(value[2] - tint[2] * 255) < 8;
-                const bool outline = std::abs(value[0] - 0.12f * 255) < 4 &&
-                                     std::abs(value[1] - 0.15f * 255) < 4 &&
+                const bool outline = std::abs(value[0] - 0.12f * 255) < 4 && std::abs(value[1] - 0.15f * 255) < 4 &&
                                      std::abs(value[2] - 0.20f * 255) < 4;
                 if (fill || outline)
                 {
@@ -1126,17 +1040,13 @@ void palettePresentation(Renderer& renderer)
     renderer.beginFrame(dpi);
     renderer.drawCanvas({components, scene.getWires(), junctions});
     ui.draw(renderer, scene, dpi);
-    require(
-        screenPixel(andCenter, 2) == blueGate, "Native shader preview ignored framebuffer scaling."
-    );
+    require(screenPixel(andCenter, 2) == blueGate, "Native shader preview ignored framebuffer scaling.");
     saveImage("component-palette-dpi.ppm");
     ui.handleInput({UiInputKind::Cursor, 0, 0, 0, 0, 30, 150}, scene, input, dpi);
     ui.handleInput({UiInputKind::Scroll, 0, 0, 0, 0, 0, -20}, scene, input, dpi);
     const auto partial = std::find_if(
-        ui.buttons().begin(),
-        ui.buttons().end(),
-        [](const auto& item)
-        { return item.bounds.y < 142 && item.bounds.y + item.bounds.height > 142; }
+        ui.buttons().begin(), ui.buttons().end(),
+        [](const auto& item) { return item.bounds.y < 142 && item.bounds.y + item.bounds.height > 142; }
     );
     require(partial != ui.buttons().end(), "Framebuffer scroll fixture has no partial card.");
     renderer.beginFrame(dpi);
@@ -1156,10 +1066,7 @@ void palettePresentation(Renderer& renderer)
 
     const auto b = ui.buttons().front().bounds;
     ui.handleInput(
-        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0, 0, b.x + 20, b.y + 15},
-        scene,
-        input,
-        frame
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0, 0, b.x + 20, b.y + 15}, scene, input, frame
     );
     ui.handleInput({UiInputKind::Cursor, 0, 0, 0, 0, 800, 740}, scene, input, frame);
     renderer.beginFrame(frame);
@@ -1171,16 +1078,8 @@ void palettePresentation(Renderer& renderer)
 
     const auto customTab = ui.tabBounds(UI::Tab::Custom);
     ui.handleInput(
-        {UiInputKind::MouseButton,
-         GLFW_MOUSE_BUTTON_LEFT,
-         GLFW_PRESS,
-         0,
-         0,
-         customTab.x + 10,
-         customTab.y + 10},
-        scene,
-        input,
-        frame
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0, 0, customTab.x + 10, customTab.y + 10}, scene,
+        input, frame
     );
     require(ui.buttons().empty(), "Custom palette rendered placeholder/native entries.");
     renderer.beginFrame(frame);
@@ -1202,13 +1101,15 @@ void palettePresentation(Renderer& renderer)
     renderer.drawCanvas({components, scene.getWires(), junctions});
     ui.draw(renderer, scene, frame);
     require(
-        ui.buttons().size() == 1 && ui.buttons()[0].inputCount == 2 &&
-            ui.buttons()[0].outputCount == 2 && glGetError() == GL_NO_ERROR,
+        ui.buttons().size() == 1 && ui.buttons()[0].inputCount == 2 && ui.buttons()[0].outputCount == 2 &&
+            glGetError() == GL_NO_ERROR,
         "Custom palette lost its name/count row or corrupted GPU state."
     );
     saveImage("component-palette-custom-list.ppm");
 }
 
+
+/** @brief Verify output indicators distinguish driven HIGH, LOW and disconnected states. */
 void outputPresentation(Renderer& renderer)
 {
     Scene scene;
@@ -1224,8 +1125,7 @@ void outputPresentation(Renderer& renderer)
     const int output = scene.addComponent(BuiltinComponentIds::Output, {8, 0});
     require(
         static_cast<bool>(EditorActions(scene).apply(
-            {AddWire{{{-7, 0}, {7, 0}}},
-             ConfigureComponentProperties{.componentId = source, .label = "Data"},
+            {AddWire{{{-7, 0}, {7, 0}}}, ConfigureComponentProperties{.componentId = source, .label = "Data"},
              ConfigureComponentProperties{.componentId = output, .label = "Sum"}}
         )),
         "Output presentation fixture failed."
@@ -1252,28 +1152,14 @@ void outputPresentation(Renderer& renderer)
     saveImage("output-bulb-on.ppm");
     const auto point = *frame.worldToWindow({0.4f, 0});
     ui.handleInput(
-        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0, 0, point.x, point.y},
-        scene,
-        input,
-        frame
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0, 0, point.x, point.y}, scene, input, frame
     );
     ui.handleInput(
-        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0, 0, point.x, point.y},
-        scene,
-        input,
-        frame
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0, 0, point.x, point.y}, scene, input, frame
     );
     const auto field = ui.nameBounds(scene);
     ui.handleInput(
-        {UiInputKind::MouseButton,
-         GLFW_MOUSE_BUTTON_LEFT,
-         GLFW_PRESS,
-         0,
-         0,
-         field.x + 12,
-         field.y + 12},
-        scene,
-        input,
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0, 0, field.x + 12, field.y + 12}, scene, input,
         frame
     );
     draw();
@@ -1285,30 +1171,27 @@ void outputPresentation(Renderer& renderer)
     ui.handleInput({UiInputKind::Key, GLFW_KEY_ESCAPE, GLFW_PRESS}, scene, input, frame);
     scene.addComponent(BuiltinComponentIds::Not, {0, 8});
     require(
-        static_cast<bool>(
-            EditorActions(scene).apply({AddWire{{{1, 8}, {1, 12}, {-2, 12}, {-2, 8}}}})
-        ),
+        static_cast<bool>(EditorActions(scene).apply({AddWire{{{1, 8}, {1, 12}, {-2, 12}, {-2, 8}}}})),
         "Oscillation fixture failed."
     );
     const auto unavailable = draw();
     require(
-        scene.getLastEvalResult() == SimulationResult::NON_CONVERGENT &&
-            unavailable[2] > unavailable[0] && unavailable[1] < high[1],
+        scene.getLastEvalResult() == SimulationResult::NON_CONVERGENT && unavailable[2] > unavailable[0] &&
+            unavailable[1] < high[1],
         "Unavailable output retained the lit high-state appearance."
     );
     saveImage("output-bulb-unavailable.ppm");
 }
 
+
+/** @brief Verify electrical junctions, selection guides and wire colours remain distinguishable. */
 void wireMarkers(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Wire active;
     active.setPath({{-8, 0}, {8, 0}});
     active.setState(PinState::ON);
     ComponentRenderData source{
-        {1, {-0.5f, 0}, {0.1f, 0.1f}, "box", {}},
-        "",
-        false,
-        {{PinType::OUTPUT, 0, PinState::ON, {-0.4f, 0}, "", {}}}
+        {1, {-0.5f, 0}, {0.1f, 0.1f}, "box", {}}, "", false, {{PinType::OUTPUT, 0, PinState::ON, {-0.4f, 0}, "", {}}}
     };
     const std::vector<ComponentRenderData> components{source};
     const std::map<WireId, Wire> wires;
@@ -1319,10 +1202,7 @@ void wireMarkers(Renderer& renderer, const CanvasCameraFrame& camera)
     renderer.beginFrame(camera);
     renderer.drawCanvas(frame);
     require(pixel({-0.4f, 0})[0] > 200, "Wire origin marker was obscured by the originating pin.");
-    require(
-        pixel({0.4f, 0.008f})[0] > 150,
-        "Wire endpoint marker did not extend visibly past the wire thickness."
-    );
+    require(pixel({0.4f, 0.008f})[0] > 150, "Wire endpoint marker did not extend visibly past the wire thickness.");
     saveImage("wire-drag-markers.ppm");
     frame.wireStartHighlight.reset();
     frame.gridHighlight = GridHighlight{{0, 0}, 0.55f};
@@ -1335,26 +1215,21 @@ void wireMarkers(Renderer& renderer, const CanvasCameraFrame& camera)
     renderer.beginFrame(camera);
     renderer.drawCanvas(frame);
     require(
-        pixel({0, 0})[0] < 20 && pixel({-0.4f, 0})[0] < 20,
-        "Cleared creation markers left orange points on the wire."
+        pixel({0, 0})[0] < 20 && pixel({-0.4f, 0})[0] < 20, "Cleared creation markers left orange points on the wire."
     );
     saveImage("wire-markers-cleared.ppm");
 }
 
+
+/** @brief Verify rounded shader bounds do not leave misleading square body highlights. */
 void roundedBounds(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     renderer.beginFrame(camera);
     const BodyBounds bounds{-0.32f, -0.24f, 0.27f, 0.24f};
     renderer.drawComponentBoundingBox(bounds, 0, 1);
     require(pixel({0, bounds.top})[0] > 200, "Outline top stroke is missing.");
-    require(
-        pixel({0, bounds.top - 0.01f})[0] < 50,
-        "Outline is as thick as a wire or fills its interior."
-    );
-    require(
-        pixel({bounds.left, bounds.top})[0] < 50,
-        "Outline corner stayed square instead of rounding."
-    );
+    require(pixel({0, bounds.top - 0.01f})[0] < 50, "Outline is as thick as a wire or fills its interior.");
+    require(pixel({bounds.left, bounds.top})[0] < 50, "Outline corner stayed square instead of rounding.");
     require(pixel({0, 0})[0] < 50, "Rounded outline filled the component body.");
     const auto corner = pixel({bounds.left + 0.0044f, bounds.top - 0.0044f});
     require(corner[0] > 200, "Rounded corner triangles left a gap.");
@@ -1363,6 +1238,8 @@ void roundedBounds(Renderer& renderer, const CanvasCameraFrame& camera)
     saveImage("rounded-component-bounds.ppm");
 }
 
+
+/** @brief Verify flip-flop symbols, clock markers and pin state rendering match their configured behaviour. */
 void flipFlopPresentation(Renderer& renderer)
 {
     for (int scale : {1, 2})
@@ -1377,9 +1254,7 @@ void flipFlopPresentation(Renderer& renderer)
         camera.setViewport(input.getCanvasViewport());
         const auto frame = camera.frame(surface);
         for (auto [type, x] :
-             {std::pair{FlipFlopType::D, -9},
-              std::pair{FlipFlopType::T, 0},
-              std::pair{FlipFlopType::JK, 9}})
+             {std::pair{FlipFlopType::D, -9}, std::pair{FlipFlopType::T, 0}, std::pair{FlipFlopType::JK, 9}})
             scene.addComponent(builtinDefinitionId(type), {x, 0});
         scene.propagate();
         scene.syncVisuals();
@@ -1396,15 +1271,11 @@ void flipFlopPresentation(Renderer& renderer)
         const auto point = *frame.worldToWindow(GridSystem::gridToWorld({9, 0}));
         for (const int action : {GLFW_PRESS, GLFW_RELEASE})
             ui.handleInput(
-                {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, action, 0, 0, point.x, point.y},
-                scene,
-                input,
-                frame
+                {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, action, 0, 0, point.x, point.y}, scene, input, frame
             );
         const auto info = ui.componentInfo(scene);
         require(
-            ui.infoComponentId() == 2 &&
-                std::find(info.begin(), info.end(), "JK: 10 set, 11 toggle") != info.end(),
+            ui.infoComponentId() == 2 && std::find(info.begin(), info.end(), "JK: 10 set, 11 toggle") != info.end(),
             "Flip-flop popup omitted its edge/next-state explanation."
         );
         draw();
@@ -1413,15 +1284,14 @@ void flipFlopPresentation(Renderer& renderer)
     }
 }
 
+
+/** @brief Verify native truth tables render headings, rows, live state and bounded scrolling correctly. */
 void truthTablePresentation(Renderer& renderer)
 {
     for (int scale : {1, 2})
         for (const auto definition :
-             {BuiltinComponentIds::Not,
-              BuiltinComponentIds::And,
-              BuiltinComponentIds::SrLatch,
-              BuiltinComponentIds::DLatch,
-              BuiltinComponentIds::JkFlipFlop})
+             {BuiltinComponentIds::Not, BuiltinComponentIds::And, BuiltinComponentIds::SrLatch,
+              BuiltinComponentIds::DLatch, BuiltinComponentIds::JkFlipFlop})
         {
             Scene scene;
             const int id = scene.addComponent(definition, {0, 0});
@@ -1453,16 +1323,9 @@ void truthTablePresentation(Renderer& renderer)
             {
                 for (int action : {GLFW_PRESS, GLFW_RELEASE})
                     ui.handleInput(
-                        {UiInputKind::MouseButton,
-                         button,
-                         action,
-                         0,
-                         0,
-                         bounds.x + bounds.width / 2,
+                        {UiInputKind::MouseButton, button, action, 0, 0, bounds.x + bounds.width / 2,
                          bounds.y + bounds.height / 2},
-                        scene,
-                        input,
-                        frame
+                        scene, input, frame
                     );
             };
             const auto point = *frame.worldToWindow({0, 0});
@@ -1483,37 +1346,31 @@ void truthTablePresentation(Renderer& renderer)
             const double y = area.y + (*current - ui.truthTableScroll(scene)) * 22 + 10;
             std::array<unsigned char, 4> color{};
             glReadPixels(
-                static_cast<int>((area.x + 2) * scale),
-                extent - 1 - static_cast<int>(y * scale),
-                1,
-                1,
-                GL_RGBA,
-                GL_UNSIGNED_BYTE,
-                color.data()
+                static_cast<int>((area.x + 2) * scale), extent - 1 - static_cast<int>(y * scale), 1, 1, GL_RGBA,
+                GL_UNSIGNED_BYTE, color.data()
             );
             require(
                 color[1] > color[0] + 30 && glGetError() == GL_NO_ERROR,
                 "Table did not highlight the live row at this DPI."
             );
-            std::string name = "truth-table-" + std::string(definition).substr(7) +
-                               (scale == 2 ? "-2x.ppm" : ".ppm");
+            std::string name = "truth-table-" + std::string(definition).substr(7) + (scale == 2 ? "-2x.ppm" : ".ppm");
             saveImage(name.c_str());
             if (definition == BuiltinComponentIds::And)
             {
-                ui.handleInput(
-                    {UiInputKind::Cursor, 0, 0, 0, 0, area.x + 10, area.y + 10}, scene, input, frame
-                );
+                ui.handleInput({UiInputKind::Cursor, 0, 0, 0, 0, area.x + 10, area.y + 10}, scene, input, frame);
                 ui.handleInput({UiInputKind::Scroll, 0, 0, 0, 0, 0, 500}, scene, input, frame);
                 draw();
                 require(ui.truthTableScroll(scene) == 0, "Large table preview did not scroll.");
-                name = scale == 2 ? "truth-table-eight-inputs-scrolled-2x.ppm"
-                                  : "truth-table-eight-inputs-scrolled.ppm";
+                name =
+                    scale == 2 ? "truth-table-eight-inputs-scrolled-2x.ppm" : "truth-table-eight-inputs-scrolled.ppm";
                 saveImage(name.c_str());
             }
             input.setScene(nullptr);
         }
 }
 
+
+/** @brief Verify reusable combinational tables and stateful restrictions are presented correctly. */
 void customTruthTablePresentation(Renderer& renderer)
 {
     for (int scale : {1, 2})
@@ -1529,21 +1386,17 @@ void customTruthTablePresentation(Renderer& renderer)
                     {ConfigureComponentProperties{.componentId = data, .label = "Data"},
                      ConfigureComponentProperties{.componentId = raw, .label = "Raw"},
                      ConfigureComponentProperties{.componentId = inverted, .label = "Inverted"},
-                     AddWire{{{-11, 0}, {-2, 0}}},
-                     AddWire{{{-11, 0}, {-11, 2}, {11, 2}}},
+                     AddWire{{{-11, 0}, {-2, 0}}}, AddWire{{{-11, 0}, {-11, 2}, {11, 2}}},
                      AddWire{{{1, 0}, {11, 0}, {11, -2}}}}
                 )),
                 "Custom truth-table rendering fixture failed."
             );
             if (clocked)
                 authored.addComponent(BuiltinComponentIds::Clock, {-20, 8});
-            const auto definition =
-                makeSubcircuit(authored, {"subcircuit.render-table", 1}, "Custom inverter");
+            const auto definition = makeSubcircuit(authored, {"subcircuit.render-table", 1}, "Custom inverter");
             Scene scene;
             require(
-                static_cast<bool>(
-                    EditorActions(scene).apply({RegisterComponentDefinition{definition}})
-                ),
+                static_cast<bool>(EditorActions(scene).apply({RegisterComponentDefinition{definition}})),
                 "Cannot register custom truth table for rendering."
             );
             const int id = scene.addComponent(definition.identity.id, {0, 0});
@@ -1564,16 +1417,9 @@ void customTruthTablePresentation(Renderer& renderer)
             {
                 for (int action : {GLFW_PRESS, GLFW_RELEASE})
                     ui.handleInput(
-                        {UiInputKind::MouseButton,
-                         button,
-                         action,
-                         0,
-                         0,
-                         bounds.x + bounds.width / 2,
+                        {UiInputKind::MouseButton, button, action, 0, 0, bounds.x + bounds.width / 2,
                          bounds.y + bounds.height / 2},
-                        scene,
-                        input,
-                        frame
+                        scene, input, frame
                     );
             };
             click({point.x, point.y, 0, 0}, GLFW_MOUSE_BUTTON_RIGHT);
@@ -1583,40 +1429,32 @@ void customTruthTablePresentation(Renderer& renderer)
             renderer.drawCanvas({components, scene.getWires(), {}});
             ui.draw(renderer, scene, frame);
             require(
-                ui.truthTableOpen() && (ui.truthTable(scene).rows.empty() == clocked) &&
-                    glGetError() == GL_NO_ERROR,
+                ui.truthTableOpen() && (ui.truthTable(scene).rows.empty() == clocked) && glGetError() == GL_NO_ERROR,
                 "Custom table or unsupported explanation did not render."
             );
             if (!clocked)
             {
                 require(
-                    ui.truthTable(scene).headers ==
-                        std::vector<std::string>{"Data", "Raw", "Inverted"},
+                    ui.truthTable(scene).headers == std::vector<std::string>{"Data", "Raw", "Inverted"},
                     "Custom table lost its named outputs."
                 );
                 const auto area = ui.truthTableRowsBounds(scene);
                 std::array<unsigned char, 4> color{};
                 glReadPixels(
-                    static_cast<int>((area.x + 2) * scale),
-                    extent - 1 - static_cast<int>((area.y + 22 + 10) * scale),
-                    1,
-                    1,
-                    GL_RGBA,
-                    GL_UNSIGNED_BYTE,
-                    color.data()
+                    static_cast<int>((area.x + 2) * scale), extent - 1 - static_cast<int>((area.y + 22 + 10) * scale),
+                    1, 1, GL_RGBA, GL_UNSIGNED_BYTE, color.data()
                 );
-                require(
-                    color[1] > color[0] + 30, "Custom table did not highlight the current row."
-                );
+                require(color[1] > color[0] + 30, "Custom table did not highlight the current row.");
             }
-            const std::string name =
-                std::string(clocked ? "truth-table-custom-clock" : "truth-table-custom") +
-                (scale == 2 ? "-2x.ppm" : ".ppm");
+            const std::string name = std::string(clocked ? "truth-table-custom-clock" : "truth-table-custom") +
+                                     (scale == 2 ? "-2x.ppm" : ".ppm");
             saveImage(name.c_str());
             input.setScene(nullptr);
         }
 }
 
+
+/** @brief Verify read-only inspection renders the selected running instance rather than a default simulation. */
 void liveSubcircuitPresentation(Renderer& renderer)
 {
     for (int scale : {1, 2})
@@ -1634,10 +1472,8 @@ void liveSubcircuitPresentation(Renderer& renderer)
                  ConfigureComponentProperties{.componentId = clockPort, .label = "CLK"},
                  ConfigureComponentProperties{.componentId = q, .label = "Q"},
                  ConfigureComponentProperties{.componentId = notQ, .label = "~Q"},
-                 AddWire{{{-11, 2}, {-3, 2}, {-3, 1}}},
-                 AddWire{{{-11, -2}, {-3, -2}, {-3, -1}}},
-                 AddWire{{{3, 1}, {11, 1}, {11, 2}}},
-                 AddWire{{{3, -1}, {11, -1}, {11, -2}}}}
+                 AddWire{{{-11, 2}, {-3, 2}, {-3, 1}}}, AddWire{{{-11, -2}, {-3, -2}, {-3, -1}}},
+                 AddWire{{{3, 1}, {11, 1}, {11, 2}}}, AddWire{{{3, -1}, {11, -1}, {11, -2}}}}
             )),
             "Live viewer render design failed."
         );
@@ -1658,8 +1494,7 @@ void liveSubcircuitPresentation(Renderer& renderer)
         UI ui;
         ui.setCircuitViews(&views, &renderer.fontMetrics());
         const CanvasSurface surface{extent / scale, extent / scale, extent, extent};
-        auto layout = [&]
-        { ui.layout(views.displayedScene().getComponentCatalog(), surface, input); };
+        auto layout = [&] { ui.layout(views.displayedScene().getComponentCatalog(), surface, input); };
         auto frame = [&]
         {
             CanvasCamera camera;
@@ -1685,16 +1520,9 @@ void liveSubcircuitPresentation(Renderer& renderer)
             for (int action : {GLFW_PRESS, GLFW_RELEASE})
             {
                 ui.handleInput(
-                    {UiInputKind::MouseButton,
-                     button,
-                     action,
-                     0,
-                     0,
-                     bounds.x + bounds.width / 2,
+                    {UiInputKind::MouseButton, button, action, 0, 0, bounds.x + bounds.width / 2,
                      bounds.y + bounds.height / 2},
-                    views.displayedScene(),
-                    input,
-                    frame()
+                    views.displayedScene(), input, frame()
                 );
                 layout();
             }
@@ -1709,42 +1537,29 @@ void liveSubcircuitPresentation(Renderer& renderer)
         draw();
         require(
             views.inspecting() && input.isReadOnly() && views.size() == 1 &&
-                views.displayedScene().getCommittedComponentView(flip)->getOutputPins()[0].state ==
-                    PinState::ON,
+                views.displayedScene().getCommittedComponentView(flip)->getOutputPins()[0].state == PinState::ON,
             "Viewer rendered a new default simulation instead of the running instance."
         );
         const auto back = ui.inspectionBackBounds();
         std::array<unsigned char, 4> color{};
         glReadPixels(
-            static_cast<int>((back.x + 2) * scale),
-            extent - 1 - static_cast<int>((back.y + 2) * scale),
-            1,
-            1,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            color.data()
+            static_cast<int>((back.x + 2) * scale), extent - 1 - static_cast<int>((back.y + 2) * scale), 1, 1, GL_RGBA,
+            GL_UNSIGNED_BYTE, color.data()
         );
-        require(
-            color[2] > 70 && glGetError() == GL_NO_ERROR,
-            "Live Back bar did not render at this DPI."
-        );
+        require(color[2] > 70 && glGetError() == GL_NO_ERROR, "Live Back bar did not render at this DPI.");
         saveImage(scale == 1 ? "live-subcircuit.ppm" : "live-subcircuit-2x.ppm");
         const auto inside = *frame().worldToWindow({0, 0});
         click({inside.x, inside.y, 0, 0}, GLFW_MOUSE_BUTTON_RIGHT);
         draw();
         require(
-            ui.infoBounds(views.displayedScene()).y >=
-                ui.inspectionBackBounds().y + ui.inspectionBackBounds().height,
+            ui.infoBounds(views.displayedScene()).y >= ui.inspectionBackBounds().y + ui.inspectionBackBounds().height,
             "Live component popup covered the Back strip."
         );
         const auto info = ui.componentInfo(views.displayedScene());
         require(
-            std::find(info.begin(), info.end(), "Q: 1 (ON)") != info.end(),
-            "Live popup rendered stale flip-flop state."
+            std::find(info.begin(), info.end(), "Q: 1 (ON)") != info.end(), "Live popup rendered stale flip-flop state."
         );
-        saveImage(
-            scale == 1 ? "live-subcircuit-information.ppm" : "live-subcircuit-information-2x.ppm"
-        );
+        saveImage(scale == 1 ? "live-subcircuit-information.ppm" : "live-subcircuit-information-2x.ppm");
         click(ui.inspectionBackBounds(), GLFW_MOUSE_BUTTON_LEFT);
         draw();
         require(
@@ -1755,6 +1570,8 @@ void liveSubcircuitPresentation(Renderer& renderer)
     }
 }
 
+
+/** @brief Verify the information panel renders component identity, pins and contextual editing controls. */
 void componentInformationPresentation(Renderer& renderer)
 {
     Scene scene;
@@ -1777,16 +1594,10 @@ void componentInformationPresentation(Renderer& renderer)
     scene.syncVisuals();
     const auto point = *frame.worldToWindow({0, 0});
     ui.handleInput(
-        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0, 0, point.x, point.y},
-        scene,
-        input,
-        frame
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0, 0, point.x, point.y}, scene, input, frame
     );
     ui.handleInput(
-        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0, 0, point.x, point.y},
-        scene,
-        input,
-        frame
+        {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0, 0, point.x, point.y}, scene, input, frame
     );
     require(ui.infoComponentId() == latch, "Cannot open information rendering fixture.");
     const auto components = buildComponentPresentation(scene.getComponentViewMap());
@@ -1798,13 +1609,8 @@ void componentInformationPresentation(Renderer& renderer)
     const int width = static_cast<int>(bounds.width), height = static_cast<int>(bounds.height);
     std::vector<unsigned char> pixels(width * height * 4);
     glReadPixels(
-        static_cast<int>(bounds.x),
-        extent - static_cast<int>(bounds.y + bounds.height),
-        width,
-        height,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        pixels.data()
+        static_cast<int>(bounds.x), extent - static_cast<int>(bounds.y + bounds.height), width, height, GL_RGBA,
+        GL_UNSIGNED_BYTE, pixels.data()
     );
     const int sample = ((height - 6) * width + 4) * 4;
     require(
@@ -1814,20 +1620,19 @@ void componentInformationPresentation(Renderer& renderer)
     int glyphPixels = 0;
     for (std::size_t i = 0; i < pixels.size(); i += 4)
         glyphPixels += pixels[i] > 150 && pixels[i + 1] > 150 && pixels[i + 2] > 150;
-    require(
-        glyphPixels > 200 && glGetError() == GL_NO_ERROR,
-        "Popup omitted its text or produced an OpenGL error."
-    );
+    require(glyphPixels > 200 && glGetError() == GL_NO_ERROR, "Popup omitted its text or produced an OpenGL error.");
     saveImage("component-information.ppm");
 }
 
+
+/** @brief Verify visibility settings affect only the intended body or pin labels. */
 void labelVisibilityPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
     const int id = scene.addComponent(BuiltinComponentIds::Clock, {0, 0});
-    const auto named = EditorActions(scene).apply({ConfigureComponentProperties{
-        .componentId = id, .label = "REFERENCE", .labelVisible = true
-    }});
+    const auto named = EditorActions(scene).apply(
+        {ConfigureComponentProperties{.componentId = id, .label = "REFERENCE", .labelVisible = true}}
+    );
     require(static_cast<bool>(named), "Cannot name the rendered clock.");
     auto draw = [&]()
     {
@@ -1852,9 +1657,8 @@ void labelVisibilityPresentation(Renderer& renderer, const CanvasCameraFrame& ca
     draw();
     require(glyphs() > 15, "Enabled clock label did not render on the canvas.");
     saveImage("clock-label-visible.ppm");
-    const auto hidden = EditorActions(scene).apply(
-        {ConfigureComponentProperties{.componentId = id, .labelVisible = false}}
-    );
+    const auto hidden =
+        EditorActions(scene).apply({ConfigureComponentProperties{.componentId = id, .labelVisible = false}});
     require(static_cast<bool>(hidden), "Cannot hide the rendered clock label.");
     draw();
     require(
@@ -1864,6 +1668,8 @@ void labelVisibilityPresentation(Renderer& renderer, const CanvasCameraFrame& ca
     saveImage("clock-label-hidden.ppm");
 }
 
+
+/** @brief Verify the examples submenu and each teaching circuit render through normal workspace presentation. */
 void examplesPresentation(Renderer& renderer)
 {
     for (const int dpi : {1, 2})
@@ -1877,9 +1683,7 @@ void examplesPresentation(Renderer& renderer)
         for (const auto& example : circuitExamples())
         {
             views.create(input);
-            views.replaceWorkspace(
-                buildExampleCircuit(example.id), std::string(example.name), input
-            );
+            views.replaceWorkspace(buildExampleCircuit(example.id), std::string(example.name), input);
             input.setMode(EditorMode::Interaction);
             ui.layout(views.activeScene().getComponentCatalog(), surface, input);
             if (example.id == CircuitExample::Counter)
@@ -1897,66 +1701,42 @@ void examplesPresentation(Renderer& renderer)
             auto draw = [&]
             {
                 renderer.beginFrame(frame);
-                const auto data =
-                    buildComponentPresentation(views.activeScene().getComponentViewMap());
-                renderer.drawCanvas(
-                    {data,
-                     views.activeScene().getWires(),
-                     views.activeScene().getWireIntersections()}
-                );
+                const auto data = buildComponentPresentation(views.activeScene().getComponentViewMap());
+                renderer.drawCanvas({data, views.activeScene().getWires(), views.activeScene().getWireIntersections()});
                 ui.draw(renderer, views.activeScene(), frame);
             };
             draw();
             for (const auto& [id, view] : views.activeScene().getComponentViewMap())
             {
                 const auto point = *frame.worldToWindow(view->getPosition());
-                require(
-                    frame.viewport.contains(point.x, point.y),
-                    "Example did not fit into the canvas."
-                );
+                require(frame.viewport.contains(point.x, point.y), "Example did not fit into the canvas.");
             }
-            const std::string name = "example-" + std::to_string(static_cast<int>(example.id)) +
-                                     (dpi == 1 ? ".ppm" : "-2x.ppm");
+            const std::string name =
+                "example-" + std::to_string(static_cast<int>(example.id)) + (dpi == 1 ? ".ppm" : "-2x.ppm");
             saveImage(name.c_str());
             if (example.id != CircuitExample::HalfAdder)
                 continue;
             const auto file = ui.fileBounds();
             for (const auto action : {GLFW_PRESS, GLFW_RELEASE})
                 ui.handleInput(
-                    {UiInputKind::MouseButton,
-                     GLFW_MOUSE_BUTTON_LEFT,
-                     action,
-                     0,
-                     0,
-                     file.x + file.width / 2,
+                    {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_LEFT, action, 0, 0, file.x + file.width / 2,
                      file.y + file.height / 2},
-                    views.activeScene(),
-                    input,
-                    frame
+                    views.activeScene(), input, frame
                 );
             const auto parent = ui.fileOptionBounds(static_cast<int>(ui.fileCommands().size()));
             UiInputEvent hover{UiInputKind::Cursor};
             hover.x = parent.x + parent.width / 2;
             hover.y = parent.y + parent.height / 2;
             ui.handleInput(hover, views.activeScene(), input, frame);
-            require(
-                ui.examplesMenuOpen(), "Examples submenu did not expand in the rendering fixture."
-            );
+            require(ui.examplesMenuOpen(), "Examples submenu did not expand in the rendering fixture.");
             draw();
             const auto menu = ui.examplesMenuBounds();
             std::array<unsigned char, 4> value{};
             glReadPixels(
-                static_cast<int>((menu.x + 3) * dpi),
-                extent - 1 - static_cast<int>((menu.y + 3) * dpi),
-                1,
-                1,
-                GL_RGBA,
-                GL_UNSIGNED_BYTE,
-                value.data()
+                static_cast<int>((menu.x + 3) * dpi), extent - 1 - static_cast<int>((menu.y + 3) * dpi), 1, 1, GL_RGBA,
+                GL_UNSIGNED_BYTE, value.data()
             );
-            require(
-                value[2] > 30 && value[2] > value[0], "Examples submenu was clipped or missing."
-            );
+            require(value[2] > 30 && value[2] > value[0], "Examples submenu was clipped or missing.");
             saveImage(dpi == 1 ? "examples-menu.ppm" : "examples-menu-2x.ppm");
             ui.dismissPopups(input);
         }
@@ -1965,6 +1745,8 @@ void examplesPresentation(Renderer& renderer)
     }
 }
 
+
+/** @brief Verify menu labels, enabled actions and hover surfaces match the current workspace. */
 void navigationMenuPresentation(Renderer& renderer)
 {
     for (int scale : {1, 2})
@@ -1985,16 +1767,9 @@ void navigationMenuPresentation(Renderer& renderer)
             const auto bounds = ui.menuBounds(menu);
             for (const auto action : {GLFW_PRESS, GLFW_RELEASE})
                 ui.handleInput(
-                    {UiInputKind::MouseButton,
-                     GLFW_MOUSE_BUTTON_LEFT,
-                     action,
-                     0,
-                     0,
-                     bounds.x + bounds.width / 2,
+                    {UiInputKind::MouseButton, GLFW_MOUSE_BUTTON_LEFT, action, 0, 0, bounds.x + bounds.width / 2,
                      bounds.y + bounds.height / 2},
-                    scene,
-                    input,
-                    frame
+                    scene, input, frame
                 );
             require(ui.menuOpen(menu), "Navigation dropdown rendering fixture did not open.");
             renderer.beginFrame(frame);
@@ -2004,23 +1779,20 @@ void navigationMenuPresentation(Renderer& renderer)
             const auto option = ui.menuOptionBounds(menu, 0);
             std::array<unsigned char, 4> value{};
             glReadPixels(
-                static_cast<int>((option.x + 3) * scale),
-                extent - 1 - static_cast<int>((option.y + 3) * scale),
-                1,
-                1,
-                GL_RGBA,
-                GL_UNSIGNED_BYTE,
-                value.data()
+                static_cast<int>((option.x + 3) * scale), extent - 1 - static_cast<int>((option.y + 3) * scale), 1, 1,
+                GL_RGBA, GL_UNSIGNED_BYTE, value.data()
             );
             require(value[2] > 30, "Navigation menu background did not render above the canvas.");
-            const auto name = std::string(menu == UI::Menu::Edit ? "edit-menu" : "view-menu") +
-                              (scale == 2 ? "-2x.ppm" : ".ppm");
+            const auto name =
+                std::string(menu == UI::Menu::Edit ? "edit-menu" : "view-menu") + (scale == 2 ? "-2x.ppm" : ".ppm");
             saveImage(name.c_str());
         }
         input.setScene(nullptr);
     }
 }
 
+
+/** @brief Verify arity, inversion and orientation controls remain legible and match committed settings. */
 void gateSettingsPresentation(Renderer& renderer)
 {
     Scene scene;
@@ -2037,28 +1809,14 @@ void gateSettingsPresentation(Renderer& renderer)
         const auto frame = camera.frame(surface);
         const auto point = *frame.worldToWindow(GridSystem::gridToWorld({-5, 0}));
         auto event = [&](int button, int action, double x, double y)
-        {
-            return ui.handleInput(
-                {UiInputKind::MouseButton, button, action, 0, 0, x, y}, scene, input, frame
-            );
-        };
+        { return ui.handleInput({UiInputKind::MouseButton, button, action, 0, 0, x, y}, scene, input, frame); };
         event(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, point.x, point.y);
         event(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, point.x, point.y);
         require(ui.infoComponentId() == id, "Gate settings rendering fixture did not open.");
         auto click = [&](CanvasViewport bounds)
         {
-            event(
-                GLFW_MOUSE_BUTTON_LEFT,
-                GLFW_PRESS,
-                bounds.x + bounds.width / 2,
-                bounds.y + bounds.height / 2
-            );
-            event(
-                GLFW_MOUSE_BUTTON_LEFT,
-                GLFW_RELEASE,
-                bounds.x + bounds.width / 2,
-                bounds.y + bounds.height / 2
-            );
+            event(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+            event(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
         };
         auto draw = [&](bool popup = true)
         {
@@ -2075,13 +1833,8 @@ void gateSettingsPresentation(Renderer& renderer)
         {
             std::array<unsigned char, 4> value{};
             glReadPixels(
-                static_cast<int>((bounds.x + 3) * scale),
-                extent - 1 - static_cast<int>((bounds.y + 3) * scale),
-                1,
-                1,
-                GL_RGBA,
-                GL_UNSIGNED_BYTE,
-                value.data()
+                static_cast<int>((bounds.x + 3) * scale), extent - 1 - static_cast<int>((bounds.y + 3) * scale), 1, 1,
+                GL_RGBA, GL_UNSIGNED_BYTE, value.data()
             );
             return value;
         };
@@ -2095,19 +1848,13 @@ void gateSettingsPresentation(Renderer& renderer)
         draw(false);
         const auto* gate = static_cast<const Gate*>(scene.getLogicComponent(id));
         require(
-            gate->getInputPinCount() == 3 && gate->isInverted() &&
-                ui.componentInfo(scene).front() == "NAND",
+            gate->getInputPinCount() == 3 && gate->isInverted() && ui.componentInfo(scene).front() == "NAND",
             "Rendered gate controls did not update the logic/type."
         );
         for (const auto& pin : scene.getCommittedComponentView(id)->getInputPins())
         {
-            const auto value = cameraPixel(
-                frame, scene.getCommittedComponentView(id)->getAbsolutePinWorldPos(pin)
-            );
-            require(
-                value[0] > 200 || value[2] > 200,
-                "Resized gate input pin did not render at its new anchor."
-            );
+            const auto value = cameraPixel(frame, scene.getCommittedComponentView(id)->getAbsolutePinWorldPos(pin));
+            require(value[0] > 200 || value[2] > 200, "Resized gate input pin did not render at its new anchor.");
         }
         draw();
         saveImage(scale == 1 ? "gate-settings.ppm" : "gate-settings-2x.ppm");
@@ -2128,51 +1875,42 @@ void gateSettingsPresentation(Renderer& renderer)
         input.setMode(EditorMode::Selection);
         ui.layout(scene.getComponentCatalog(), surface, input);
         require(
-            static_cast<bool>(EditorActions(scene).apply(
-                {ConfigureComponentProperties{.componentId = id, .inputCount = 8}}
-            )),
+            static_cast<bool>(
+                EditorActions(scene).apply({ConfigureComponentProperties{.componentId = id, .inputCount = 8}})
+            ),
             "Cannot expand popup inputs."
         );
         draw();
         const auto inputList = ui.gateInputListBounds(scene);
         const auto listColor = screenPixel(inputList);
-        require(
-            listColor[0] < 18 && listColor[2] < 38,
-            "Input list did not render its subtle background."
-        );
+        require(listColor[0] < 18 && listColor[2] < 38, "Input list did not render its subtle background.");
         saveImage(scale == 1 ? "gate-input-list.ppm" : "gate-input-list-2x.ppm");
-        ui.handleInput(
-            {UiInputKind::Cursor, 0, 0, 0, 0, inputList.x + 10, inputList.y + 10},
-            scene,
-            input,
-            frame
-        );
+        ui.handleInput({UiInputKind::Cursor, 0, 0, 0, 0, inputList.x + 10, inputList.y + 10}, scene, input, frame);
         ui.handleInput({UiInputKind::Scroll, 0, 0, 0, 0, 0, -20}, scene, input, frame);
         draw();
         require(
-            ui.gateInputInversionBounds(scene, 7).width > 0 &&
-                ui.gateInputInversionBounds(scene, 0).width == 0,
+            ui.gateInputInversionBounds(scene, 7).width > 0 && ui.gateInputInversionBounds(scene, 0).width == 0,
             "Rendered list did not scroll to the last input."
         );
         saveImage(scale == 1 ? "gate-input-list-scrolled.ppm" : "gate-input-list-scrolled-2x.ppm");
         require(
-            static_cast<bool>(EditorActions(scene).apply(
-                {ConfigureComponentProperties{.componentId = id, .inputCount = 3}}
-            )),
+            static_cast<bool>(
+                EditorActions(scene).apply({ConfigureComponentProperties{.componentId = id, .inputCount = 3}})
+            ),
             "Cannot restore popup input count."
         );
         click(ui.gateInputInversionBounds(scene, 0));
         click(ui.gateInversionBounds(scene));
         click(ui.gateInputButtonBounds(scene, false));
-        require(
-            scene.getLogicComponent(id)->getInputPinCount() == 2, "Rendered shrink control failed."
-        );
+        require(scene.getLogicComponent(id)->getInputPinCount() == 2, "Rendered shrink control failed.");
         ui.dismissPopups(input);
     }
     require(glGetError() == GL_NO_ERROR, "Gate settings drawing caused an OpenGL error.");
     input.setScene(nullptr);
 }
 
+
+/** @brief Verify drawing and clipping respect logical canvas bounds and high-DPI framebuffer scaling. */
 void canvasViewport(Renderer& renderer)
 {
     CanvasCamera camera;
@@ -2207,29 +1945,18 @@ void canvasViewport(Renderer& renderer)
     GLint restored[4];
     glGetIntegerv(GL_VIEWPORT, restored);
     require(
-        glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE && restored[0] == 0 && restored[1] == 0 &&
-            restored[2] == extent && restored[3] == extent,
+        glIsEnabled(GL_SCISSOR_TEST) == GL_FALSE && restored[0] == 0 && restored[1] == 0 && restored[2] == extent &&
+            restored[3] == extent,
         "Canvas pass did not restore UI viewport/scissor state."
     );
-    require(
-        cameraPixel(frame, {0, 0.1f})[2] > 200, "Junction point did not follow the shared camera."
-    );
-    require(
-        cameraPixel(frame, {0.25f, -0.18f})[2] > 30,
-        "Component did not use the shared camera matrix."
-    );
-    require(
-        cameraPixel(frame, {0.5f, 0.1f})[1] > 200, "Wire did not align with the shared camera."
-    );
-    require(
-        cameraPixel(frame, {0.6f, -0.15f})[1] > 200,
-        "Pin did not align with the wire/component camera."
-    );
+    require(cameraPixel(frame, {0, 0.1f})[2] > 200, "Junction point did not follow the shared camera.");
+    require(cameraPixel(frame, {0.25f, -0.18f})[2] > 30, "Component did not use the shared camera matrix.");
+    require(cameraPixel(frame, {0.5f, 0.1f})[1] > 200, "Wire did not align with the shared camera.");
+    require(cameraPixel(frame, {0.6f, -0.15f})[1] > 200, "Pin did not align with the wire/component camera.");
     require(cameraPixel(frame, {0.5f, -0.15f})[2] > 150, "Pin lead used a different transform.");
     require(cameraPixel(frame, {0, -0.4f})[0] > 150, "Grid highlight used a different transform.");
     const std::vector<TextRun> labels{
-        {"CAMERA", {0, -0.5f}, 0.002f, {1, 1, 0, 1}},
-        {"CLIPPED", {-0.5f, 0.2f}, 0.003f, {1, 1, 0, 1}}
+        {"CAMERA", {0, -0.5f}, 0.002f, {1, 1, 0, 1}}, {"CLIPPED", {-0.5f, 0.2f}, 0.003f, {1, 1, 0, 1}}
     };
     renderer.drawText(labels, TextSpace::World);
     std::vector<unsigned char> image(extent * extent * 4);
@@ -2240,8 +1967,8 @@ void canvasViewport(Renderer& renderer)
         for (int x = 0; x < extent; ++x)
         {
             const auto* p = image.data() + (y * extent + x) * 4;
-            const bool inside = x >= viewport.x && x < viewport.x + viewport.width &&
-                                y >= viewport.y && y < viewport.y + viewport.height;
+            const bool inside = x >= viewport.x && x < viewport.x + viewport.width && y >= viewport.y &&
+                                y < viewport.y + viewport.height;
             if (!inside)
                 require(
                     p[0] < 20 && p[1] < 20 && p[2] < 20,
@@ -2259,10 +1986,7 @@ void canvasViewport(Renderer& renderer)
     bool screenText = false;
     for (std::size_t i = 0; i < before.size(); i += 4)
         screenText |= before[i + 1] > 100 && before[i + 2] > 100;
-    require(
-        screenText,
-        "Screen text stayed clipped to the canvas or used framebuffer pixels as logical units."
-    );
+    require(screenText, "Screen text stayed clipped to the canvas or used framebuffer pixels as logical units.");
     saveImage("canvas-with-overlay.ppm");
     camera.setCenter({-0.1f, 0.3f});
     camera.setZoom(0.7f);
@@ -2286,14 +2010,15 @@ void canvasViewport(Renderer& renderer)
     );
 }
 
+
+/** @brief Verify committed selections and tentative box candidates use distinct overlays. */
 void groupSelectionPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
     const int a = scene.addComponent(BuiltinComponentIds::Not, {-6, 0});
     const int b = scene.addComponent(BuiltinComponentIds::Not, {6, 0});
     require(
-        static_cast<bool>(EditorActions(scene).apply({AddWire{{{-5, 0}, {4, 0}}}})),
-        "Group rendering fixture failed."
+        static_cast<bool>(EditorActions(scene).apply({AddWire{{{-5, 0}, {4, 0}}}})), "Group rendering fixture failed."
     );
     scene.propagate();
     scene.syncVisuals();
@@ -2366,6 +2091,8 @@ void groupSelectionPresentation(Renderer& renderer, const CanvasCameraFrame& cam
     saveImage("box-selection-2x.ppm");
 }
 
+
+/** @brief Verify component moves and landed wires render the committed rerouted geometry without stale attachments. */
 void routedWiresPresentation(Renderer& renderer, const CanvasCameraFrame& camera)
 {
     Scene scene;
@@ -2385,21 +2112,16 @@ void routedWiresPresentation(Renderer& renderer, const CanvasCameraFrame& camera
         renderer.drawCanvas({components, scene.getWires(), junctions});
     };
     require(
-        static_cast<bool>(EditorActions(scene).apply({MoveComponent{output, {12, 0}}})),
-        "Connected visual move failed."
+        static_cast<bool>(EditorActions(scene).apply({MoveComponent{output, {12, 0}}})), "Connected visual move failed."
     );
     draw();
     const auto above = pixel({0, 0.15f}), below = pixel({0, -0.15f});
     require(
-        (above[1] > 140 && above[1] > above[0] + 50) ||
-            (below[1] > 140 && below[1] > below[0] + 50),
+        (above[1] > 140 && above[1] > above[0] + 50) || (below[1] > 140 && below[1] > below[0] + 50),
         "Routed powered wire did not render one grid cell above/below the obstacle."
     );
     saveImage("wire-rerouting.ppm");
-    require(
-        static_cast<bool>(EditorActions(scene).restore(before, scene.getRevision())),
-        "Visual restore failed."
-    );
+    require(static_cast<bool>(EditorActions(scene).restore(before, scene.getRevision())), "Visual restore failed.");
     require(
         static_cast<bool>(EditorActions(scene).apply({MoveComponent{output, {12, 0}, false}})),
         "Fixed-wire visual move failed."
@@ -2412,6 +2134,8 @@ void routedWiresPresentation(Renderer& renderer, const CanvasCameraFrame& camera
     saveImage("wire-alt-disconnect.ppm");
 }
 
+
+/** @brief Verify tab layout, dirty states, inspection, renaming and workspace popups render consistently. */
 void circuitViewsPresentation(Renderer& renderer)
 {
     CircuitViews views;
@@ -2435,8 +2159,7 @@ void circuitViewsPresentation(Renderer& renderer)
         layout();
         const auto camera = frame();
         renderer.beginFrame(camera);
-        const auto components =
-            buildComponentPresentation(views.activeScene().getComponentViewMap());
+        const auto components = buildComponentPresentation(views.activeScene().getComponentViewMap());
         const auto junctions = views.activeScene().getWireIntersections();
         renderer.drawCanvas({components, views.activeScene().getWires(), junctions});
         ui.draw(renderer, views.activeScene(), camera);
@@ -2447,11 +2170,7 @@ void circuitViewsPresentation(Renderer& renderer)
         std::array<unsigned char, 4> value;
         glReadPixels(
             static_cast<int>(x * extent / surface.windowWidth),
-            extent - 1 - static_cast<int>(y * extent / surface.windowHeight),
-            1,
-            1,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
+            extent - 1 - static_cast<int>(y * extent / surface.windowHeight), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE,
             value.data()
         );
         return value;
@@ -2463,13 +2182,12 @@ void circuitViewsPresentation(Renderer& renderer)
         event.action = GLFW_PRESS;
         event.x = bounds.x + bounds.width / 2;
         event.y = bounds.y + bounds.height / 2;
-        if (bounds.y == ui.circuitTabs().tabBounds(0).y &&
-            bounds != ui.circuitTabs().tabBounds(0) && bounds != ui.circuitTabs().addBounds())
+        if (bounds.y == ui.circuitTabs().tabBounds(0).y && bounds != ui.circuitTabs().tabBounds(0) &&
+            bounds != ui.circuitTabs().addBounds())
         {
             const auto main = ui.circuitTabs().tabBounds(0);
             const double left = std::max(bounds.x, main.x + main.width);
-            const double right =
-                std::min(bounds.x + bounds.width, static_cast<double>(surface.windowWidth));
+            const double right = std::min(bounds.x + bounds.width, static_cast<double>(surface.windowWidth));
             require(right > left, "Circuit tab click has no visible target.");
             event.x = (left + right) / 2;
         }
@@ -2491,9 +2209,7 @@ void circuitViewsPresentation(Renderer& renderer)
         return count;
     };
     draw();
-    require(
-        unsavedPixels() > 30, "Unsaved message did not render at the right of the navigation bar."
-    );
+    require(unsavedPixels() > 30, "Unsaved message did not render at the right of the navigation bar.");
     saveImage("unsaved-workspace.ppm");
     views.markSaved(0);
     draw();
@@ -2509,14 +2225,11 @@ void circuitViewsPresentation(Renderer& renderer)
     );
     const auto mainBounds = ui.circuitTabs().tabBounds(0);
     const auto mainColor = screenPixel(mainBounds.x + 4, mainBounds.y + 5);
-    require(
-        mainColor[2] > mainColor[0] + 50, "Active Main circuit tab did not draw above the canvas."
-    );
+    require(mainColor[2] > mainColor[0] + 50, "Active Main circuit tab did not draw above the canvas.");
     const auto bottom = ui.bottomBounds();
     const auto firstBottomTab = ui.bottomTabBounds(UI::BottomTab::Messages);
     require(
-        bottom.x == mainFrame.viewport.x &&
-            bottom.y == mainFrame.viewport.y + mainFrame.viewport.height &&
+        bottom.x == mainFrame.viewport.x && bottom.y == mainFrame.viewport.y + mainFrame.viewport.height &&
             screenPixel(firstBottomTab.x + 3, firstBottomTab.y + 3)[2] > 100,
         "Bottom panel was not reserved beneath the canvas or its active tab was not drawn."
     );
@@ -2561,9 +2274,7 @@ void circuitViewsPresentation(Renderer& renderer)
     require(
         selectionMode.width <= 60 && interactionMode.width <= 60 &&
             screenPixel(selectionMode.x + 3, selectionMode.y + selectionMode.height - 1)[2] >
-                screenPixel(
-                    interactionMode.x + 3, interactionMode.y + interactionMode.height - 1
-                )[2],
+                screenPixel(interactionMode.x + 3, interactionMode.y + interactionMode.height - 1)[2],
         "Compact mode controls lost their active underline."
     );
     click(interactionMode, GLFW_MOUSE_BUTTON_LEFT);
@@ -2584,12 +2295,7 @@ void circuitViewsPresentation(Renderer& renderer)
     click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
     const auto menu = ui.fileMenuBounds();
     const auto saveAs = ui.fileOptionBounds(1);
-    ui.handleInput(
-        {UiInputKind::Cursor, 0, 0, 0, 0, saveAs.x + 8, saveAs.y + 8},
-        views.activeScene(),
-        input,
-        frame()
-    );
+    ui.handleInput({UiInputKind::Cursor, 0, 0, 0, 0, saveAs.x + 8, saveAs.y + 8}, views.activeScene(), input, frame());
     draw();
     require(
         ui.fileMenuOpen() && screenPixel(menu.x + 3, menu.y + 3)[2] > 30 &&
@@ -2600,21 +2306,16 @@ void circuitViewsPresentation(Renderer& renderer)
     click(ui.fileOptionBounds(0), GLFW_MOUSE_BUTTON_LEFT);
     ui.takeFileCommand();
     require(
-        !ui.fileMenuOpen() && views.activeScene().getComponentCount() == 1,
-        "Visual Save option changed the scene."
+        !ui.fileMenuOpen() && views.activeScene().getComponentCount() == 1, "Visual Save option changed the scene."
     );
     click(ui.circuitTabs().addBounds(), GLFW_MOUSE_BUTTON_LEFT);
-    require(
-        ui.circuitTabs().choosingRole() && views.size() == 1,
-        "Plus did not open the viewpoint role menu."
-    );
+    require(ui.circuitTabs().choosingRole() && views.size() == 1, "Plus did not open the viewpoint role menu.");
     draw();
     saveImage("circuit-view-create.ppm");
     click(ui.circuitTabs().createOptionBounds(1), GLFW_MOUSE_BUTTON_LEFT);
     const auto emptyFrame = draw();
     require(
-        ui.subcircuitInfo(views.activeScene())[1].starts_with("Invalid"),
-        "Empty subcircuit reported a valid interface."
+        ui.subcircuitInfo(views.activeScene())[1].starts_with("Invalid"), "Empty subcircuit reported a valid interface."
     );
     saveImage("subcircuit-panel-invalid.ppm");
     require(
@@ -2624,14 +2325,11 @@ void circuitViewsPresentation(Renderer& renderer)
     views.activeScene().addComponent(BuiltinComponentIds::Or, {0, 0});
     auto secondFrame = draw();
     const auto gate = cameraPixel(secondFrame, {0, 0});
-    require(
-        gate[0] > 150 && gate[2] < 100, "New circuit component was not rendered on its own canvas."
-    );
+    require(gate[0] > 150 && gate[2] < 100, "New circuit component was not rendered on its own canvas.");
     const auto subTab = ui.circuitTabs().tabBounds(1);
     const auto badgeColor = screenPixel(subTab.x + 11, subTab.y + 20);
     require(
-        views.role(1) == CircuitViews::Role::Subcircuit && badgeColor[0] > 65 &&
-            badgeColor[2] > 100,
+        views.role(1) == CircuitViews::Role::Subcircuit && badgeColor[0] > 65 && badgeColor[2] > 100,
         "Subcircuit authoring tab did not show its badge."
     );
     click(ui.bottomTabBounds(UI::BottomTab::Subcircuit), GLFW_MOUSE_BUTTON_LEFT);
@@ -2649,10 +2347,7 @@ void circuitViewsPresentation(Renderer& renderer)
     views.activeScene().addComponent(BuiltinComponentIds::Input, {-30, 0});
     const auto listBounds = ui.subcircuitListBounds();
     ui.handleInput(
-        {UiInputKind::Cursor, 0, 0, 0, 0, listBounds.x + 10, listBounds.y + 10},
-        views.activeScene(),
-        input,
-        frame()
+        {UiInputKind::Cursor, 0, 0, 0, 0, listBounds.x + 10, listBounds.y + 10}, views.activeScene(), input, frame()
     );
     const auto scrollRevision = views.activeScene().getRevision();
     ui.handleInput({UiInputKind::Scroll, 0, 0, 0, 0, 0, -20}, views.activeScene(), input, frame());
@@ -2669,8 +2364,7 @@ void circuitViewsPresentation(Renderer& renderer)
     );
     draw();
     const auto hiddenMessages = ui.bottomTabBounds(UI::BottomTab::Messages);
-    const auto alertColor =
-        screenPixel(hiddenMessages.x + 4, hiddenMessages.y + hiddenMessages.height - 1);
+    const auto alertColor = screenPixel(hiddenMessages.x + 4, hiddenMessages.y + hiddenMessages.height - 1);
     require(
         ui.messagesTabLabel() == "Messages (1)" && alertColor[0] > alertColor[1] + 60,
         "Inactive Messages tab did not show a persistent red error accent/count."
@@ -2692,15 +2386,13 @@ void circuitViewsPresentation(Renderer& renderer)
     ui.clearMessages();
     click(ui.bottomTabBounds(UI::BottomTab::Subcircuit), GLFW_MOUSE_BUTTON_LEFT);
     const int unsettled = views.activeScene().addComponent(BuiltinComponentIds::Not, {-20, 10});
-    const auto loop = EditorActions(views.activeScene())
-                          .apply({AddWire{{{-19, 10}, {-19, 14}, {-22, 14}, {-22, 10}}}});
+    const auto loop = EditorActions(views.activeScene()).apply({AddWire{{{-19, 10}, {-19, 14}, {-22, 14}, {-22, 10}}}});
     require(static_cast<bool>(loop), "FIND presentation fixture failed.");
     views.activeScene().propagate();
     ui.reportSimulation(views.activeScene(), 0);
     draw();
     require(
-        ui.activeBottomTab() == UI::BottomTab::Subcircuit &&
-            ui.messagesTabLabel() == "Messages (1)",
+        ui.activeBottomTab() == UI::BottomTab::Subcircuit && ui.messagesTabLabel() == "Messages (1)",
         "A new error automatically switched tabs."
     );
     saveImage("messages-error-alert.ppm");
@@ -2712,8 +2404,7 @@ void circuitViewsPresentation(Renderer& renderer)
         "Active simulation problem did not present its location and FIND link."
     );
     const double errorEnd =
-        ui.messageBoxBounds().x + 10 +
-        getTextWidth(ui.simulationIssues()[0].message, 0.4f, renderer.fontMetrics());
+        ui.messageBoxBounds().x + 10 + getTextWidth(ui.simulationIssues()[0].message, 0.4f, renderer.fontMetrics());
     const double spacing = getTextWidth(" ", 0.4f, renderer.fontMetrics());
     const auto underline = screenPixel(find.x + find.width / 2, find.y + find.height - 2);
     require(
@@ -2723,8 +2414,7 @@ void circuitViewsPresentation(Renderer& renderer)
     saveImage("messages-find.ppm");
     click(find, GLFW_MOUSE_BUTTON_LEFT);
     require(
-        input.getPanOffset() == GridSystem::gridToWorld({-20, 10}),
-        "Rendered FIND did not center its error location."
+        input.getPanOffset() == GridSystem::gridToWorld({-20, 10}), "Rendered FIND did not center its error location."
     );
     draw();
     saveImage("messages-found.ppm");
@@ -2754,17 +2444,14 @@ void circuitViewsPresentation(Renderer& renderer)
         "Repaired circuit kept an old error instead of the healthy status."
     );
     saveImage("messages-healthy.ppm");
-    views.activeMessages().issues.push_back(
-        {"Simulation falling behind real time.", std::nullopt, true}
-    );
+    views.activeMessages().issues.push_back({"Simulation falling behind real time.", std::nullopt, true});
     views.activeMessages().behind = true;
     click(ui.bottomTabBounds(UI::BottomTab::Subcircuit), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     const auto warningTab = ui.bottomTabBounds(UI::BottomTab::Messages);
     const auto warningColor = screenPixel(warningTab.x + 4, warningTab.y + warningTab.height - 1);
     require(
-        !ui.hasMessageErrors() && warningColor[0] > 180 && warningColor[1] > 140 &&
-            warningColor[2] < 130,
+        !ui.hasMessageErrors() && warningColor[0] > 180 && warningColor[1] > 140 && warningColor[2] < 130,
         "Warning-only Messages did not use an amber accent."
     );
     saveImage("messages-warning-alert.ppm");
@@ -2782,8 +2469,7 @@ void circuitViewsPresentation(Renderer& renderer)
     const auto popup = ui.circuitTabs().popupBounds();
     const auto field = ui.circuitTabs().nameBounds();
     require(
-        screenPixel(popup.x + 2, popup.y + 2)[2] > 25 &&
-            screenPixel(field.x + 2, field.y + 2)[2] < 50,
+        screenPixel(popup.x + 2, popup.y + 2)[2] > 25 && screenPixel(field.x + 2, field.y + 2)[2] < 50,
         "Circuit name popup and text field did not render."
     );
     saveImage("circuit-tab-name.ppm");
@@ -2819,42 +2505,30 @@ void circuitViewsPresentation(Renderer& renderer)
     click(ui.fileBounds(), GLFW_MOUSE_BUTTON_LEFT);
     draw();
     const auto dpiMenu = ui.fileMenuBounds();
-    require(
-        screenPixel(dpiMenu.x + 3, dpiMenu.y + 3)[2] > 30,
-        "File dropdown ignored 2x framebuffer scaling."
-    );
+    require(screenPixel(dpiMenu.x + 3, dpiMenu.y + 3)[2] > 30, "File dropdown ignored 2x framebuffer scaling.");
     saveImage("file-menu-2x.ppm");
     click(ui.fileOptionBounds(0), GLFW_MOUSE_BUTTON_LEFT);
     ui.takeFileCommand();
     click(ui.circuitTabs().tabBounds(1), GLFW_MOUSE_BUTTON_RIGHT);
-    require(
-        ui.circuitTabs().popupIndex() == 1, "Partially clipped tab could not open its name popup."
-    );
+    require(ui.circuitTabs().popupIndex() == 1, "Partially clipped tab could not open its name popup.");
     draw();
     const auto dpiPopup = ui.circuitTabs().popupBounds();
-    require(
-        screenPixel(dpiPopup.x + 2, dpiPopup.y + 2)[2] > 25,
-        "Circuit name popup did not scale to 2x DPI."
-    );
+    require(screenPixel(dpiPopup.x + 2, dpiPopup.y + 2)[2] > 25, "Circuit name popup did not scale to 2x DPI.");
     saveImage("circuit-tabs-2x.ppm");
     views.markSaved(1);
     click(ui.circuitTabs().closeBounds(1), GLFW_MOUSE_BUTTON_LEFT);
     require(
-        ui.circuitTabs().confirmingDelete() && views.size() == 2,
-        "Circuit close button bypassed deletion confirmation."
+        ui.circuitTabs().confirmingDelete() && views.size() == 2, "Circuit close button bypassed deletion confirmation."
     );
     draw();
     const auto deletion = ui.circuitTabs().deleteBounds();
     const auto deleteColor = screenPixel(deletion.x + 3, deletion.y + 3);
     require(
-        deleteColor[0] > 100 && deleteColor[1] < 60,
-        "Circuit deletion confirmation did not render its Delete button."
+        deleteColor[0] > 100 && deleteColor[1] < 60, "Circuit deletion confirmation did not render its Delete button."
     );
     saveImage("circuit-tab-delete.ppm");
     click(ui.circuitTabs().cancelDeleteBounds(), GLFW_MOUSE_BUTTON_LEFT);
-    require(
-        views.size() == 2 && !ui.circuitTabs().popupIndex(), "Cancel did not retain the circuit."
-    );
+    require(views.size() == 2 && !ui.circuitTabs().popupIndex(), "Cancel did not retain the circuit.");
     click(ui.circuitTabs().closeBounds(1), GLFW_MOUSE_BUTTON_LEFT);
     click(ui.circuitTabs().deleteBounds(), GLFW_MOUSE_BUTTON_LEFT);
     const auto closeRequest = ui.takeCloseCircuit();
@@ -2906,9 +2580,7 @@ void circuitViewsPresentation(Renderer& renderer)
     );
     saveImage("subcircuit-edit.ppm");
     click(edit, GLFW_MOUSE_BUTTON_LEFT);
-    require(
-        ui.takeEditSubcircuit() == custom.identity.id, "Rendered Edit button did not dispatch."
-    );
+    require(ui.takeEditSubcircuit() == custom.identity.id, "Rendered Edit button did not dispatch.");
     views.editSubcircuit(custom, input);
     views.activeScene().propagate();
     views.activeScene().syncVisuals();
@@ -2939,8 +2611,7 @@ void circuitViewsPresentation(Renderer& renderer)
         draw();
         renderer.drawDebugOverlay(DebugMetrics{}, false);
         require(
-            screenPixel(surface.windowWidth - 10, 24) == behind,
-            "Hidden F3 diagnostics left a background visible."
+            screenPixel(surface.windowWidth - 10, 24) == behind, "Hidden F3 diagnostics left a background visible."
         );
     }
     ui.dismissPopups(input);
@@ -2952,8 +2623,7 @@ void circuitViewsPresentation(Renderer& renderer)
         draw();
         const auto simulationMenu = ui.dropdownBounds(UI::Menu::Simulation);
         require(
-            ui.menuOpen(UI::Menu::Simulation) &&
-                screenPixel(simulationMenu.x + 3, simulationMenu.y + 3)[2] > 30,
+            ui.menuOpen(UI::Menu::Simulation) && screenPixel(simulationMenu.x + 3, simulationMenu.y + 3)[2] > 30,
             "Simulation dropdown did not render at this display scale."
         );
         saveImage(scale == 1 ? "simulation-menu.ppm" : "simulation-menu-2x.ppm");
@@ -2967,22 +2637,17 @@ void circuitViewsPresentation(Renderer& renderer)
         click(ui.tabBounds(UI::Tab::Custom), GLFW_MOUSE_BUTTON_LEFT);
         draw();
         saveImage(scale == 1 ? "library-drafts.ppm" : "library-drafts-2x.ppm");
-        ui.showUnsavedPrompt(
-            {"Main", "Adder", "Learning circuit", "Workspace", "Draft"}, true, input
-        );
+        ui.showUnsavedPrompt({"Main", "Adder", "Learning circuit", "Workspace", "Draft"}, true, input);
         draw();
         const auto unsavedBox = ui.unsavedPromptBounds();
         const auto save = ui.unsavedButtonBounds(UI::UnsavedChoice::Save);
         require(
-            screenPixel(unsavedBox.x + 2, unsavedBox.y + 2)[2] > 25 &&
-                screenPixel(save.x + 3, save.y + 3)[2] > 80,
+            screenPixel(unsavedBox.x + 2, unsavedBox.y + 2)[2] > 25 && screenPixel(save.x + 3, save.y + 3)[2] > 80,
             "Unsaved-work prompt or Save All button did not render above the UI."
         );
         saveImage(scale == 1 ? "unsaved-work.ppm" : "unsaved-work-2x.ppm");
         click(ui.unsavedButtonBounds(UI::UnsavedChoice::Cancel), GLFW_MOUSE_BUTTON_LEFT);
-        require(
-            ui.takeUnsavedChoice() == UI::UnsavedChoice::Cancel, "Rendered Cancel did not dispatch."
-        );
+        require(ui.takeUnsavedChoice() == UI::UnsavedChoice::Cancel, "Rendered Cancel did not dispatch.");
         input.setUiCapture({});
     }
     ui.dismissPopups(input);
@@ -2990,6 +2655,8 @@ void circuitViewsPresentation(Renderer& renderer)
     input.setScene(nullptr);
 }
 
+
+/** @brief Verify resized panels retain their controls and clip contents to the available area. */
 void bottomResizePresentation(Renderer& renderer)
 {
     for (int dpi : {1, 2})
@@ -3028,25 +2695,18 @@ void bottomResizePresentation(Renderer& renderer)
         camera.setViewport(input.getCanvasViewport());
         frame = camera.frame(surface);
         renderer.beginFrame(frame);
-        const auto components =
-            buildComponentPresentation(views.activeScene().getComponentViewMap());
+        const auto components = buildComponentPresentation(views.activeScene().getComponentViewMap());
         renderer.drawCanvas({components, views.activeScene().getWires(), {}});
         ui.draw(renderer, views.activeScene(), frame);
         const auto resized = ui.bottomResizeBounds();
         std::array<unsigned char, 4> color;
         glReadPixels(
             static_cast<int>((resized.x + resized.width / 2) * dpi),
-            extent - 1 - static_cast<int>((resized.y + 2) * dpi),
-            1,
-            1,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            color.data()
+            extent - 1 - static_cast<int>((resized.y + 2) * dpi), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, color.data()
         );
         require(
             color[2] > 200 && color[2] > color[0] + 80 &&
-                frame.viewport.y + frame.viewport.height == ui.bottomBounds().y &&
-                ui.clockListBounds().height >= 160,
+                frame.viewport.y + frame.viewport.height == ui.bottomBounds().y && ui.clockListBounds().height >= 160,
             "Resized panel lost its visible grip, canvas boundary, or expanded clock rows."
         );
         saveImage(dpi == 1 ? "bottom-resized.ppm" : "bottom-resized-2x.ppm");
@@ -3056,6 +2716,8 @@ void bottomResizePresentation(Renderer& renderer)
     }
 }
 
+
+/** @brief Verify recorded clock history and future previews render independently under speed and window changes. */
 void clockPresentation(Renderer& renderer)
 {
     CircuitViews views;
@@ -3085,23 +2747,14 @@ void clockPresentation(Renderer& renderer)
         renderer.beginFrame(frame);
         ui.draw(renderer, views.activeScene(), frame);
         const auto list = ui.clockListBounds();
-        const double labelWidth =
-            std::min(220.0, std::min(list.width * 0.65, std::max(160.0, list.width * 0.4)));
+        const double labelWidth = std::min(220.0, std::min(list.width * 0.65, std::max(160.0, list.width * 0.4)));
         const double graphX = list.x + labelWidth, graphWidth = list.width - labelWidth;
         auto sample = [&](double time, double rowY)
         {
             std::array<unsigned char, 4> color;
             glReadPixels(
-                static_cast<int>(
-                    (graphX + (time - ui.clockStartTime()) / ui.clockWindowSeconds() * graphWidth) *
-                    dpi
-                ),
-                extent - 1 - static_cast<int>((list.y + rowY) * dpi),
-                1,
-                1,
-                GL_RGBA,
-                GL_UNSIGNED_BYTE,
-                color.data()
+                static_cast<int>((graphX + (time - ui.clockStartTime()) / ui.clockWindowSeconds() * graphWidth) * dpi),
+                extent - 1 - static_cast<int>((list.y + rowY) * dpi), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, color.data()
             );
             return color;
         };
@@ -3112,8 +2765,7 @@ void clockPresentation(Renderer& renderer)
         );
         const double now = views.activeClockTimeline().time();
         require(
-            sample(now, 5)[2] > 150 &&
-                std::abs((now - ui.clockStartTime()) / ui.clockWindowSeconds() - 0.5) < 1e-9,
+            sample(now, 5)[2] > 150 && std::abs((now - ui.clockStartTime()) / ui.clockWindowSeconds() - 0.5) < 1e-9,
             "The current-time marker is missing from the centre of the clock graph."
         );
         const auto future = sample(2.0, 10);
@@ -3134,12 +2786,7 @@ void clockPresentation(Renderer& renderer)
             std::vector<unsigned char> pixels(width * height * 4);
             glReadPixels(
                 static_cast<int>((graphX + (future ? graphWidth / 2 + 2 : 0)) * dpi),
-                extent - static_cast<int>((list.y + 44) * dpi),
-                width,
-                height,
-                GL_RGBA,
-                GL_UNSIGNED_BYTE,
-                pixels.data()
+                extent - static_cast<int>((list.y + 44) * dpi), width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data()
             );
             return pixels;
         };
@@ -3149,64 +2796,44 @@ void clockPresentation(Renderer& renderer)
         {
             require(
                 static_cast<bool>(EditorActions(views.activeScene())
-                                      .apply({ConfigureComponentProperties{
-                                          .componentId = 0, .clockFrequency = hz
-                                      }})),
+                                      .apply({ConfigureComponentProperties{.componentId = 0, .clockFrequency = hz}})),
                 "Cannot change the preview frequency."
             );
             ui.layout(views.activeScene().getComponentCatalog(), surface, input);
             renderer.beginFrame(frame);
             ui.draw(renderer, views.activeScene(), frame);
             require(
-                ui.clockWindowSeconds() == window && ui.clockStartTime() == start &&
-                    graphRegion(false) == past && graphRegion(true) != forecast,
+                ui.clockWindowSeconds() == window && ui.clockStartTime() == start && graphRegion(false) == past &&
+                    graphRegion(true) != forecast,
                 "Changing Hz rescaled/redrew past history or left the old future preview."
             );
             if (hz == 0.5f)
-                saveImage(
-                    dpi == 1 ? "clock-preview-rate-change.ppm" : "clock-preview-rate-change-2x.ppm"
-                );
+                saveImage(dpi == 1 ? "clock-preview-rate-change.ppm" : "clock-preview-rate-change-2x.ppm");
         }
         require(
-            static_cast<bool>(
-                EditorActions(views.activeScene())
-                    .apply({ConfigureComponentProperties{.componentId = 0, .clockFrequency = 1.0f}})
-            ),
+            static_cast<bool>(EditorActions(views.activeScene())
+                                  .apply({ConfigureComponentProperties{.componentId = 0, .clockFrequency = 1.0f}})),
             "Cannot restore the original clock frequency."
         );
         renderer.beginFrame(frame);
         ui.draw(renderer, views.activeScene(), frame);
     }
     const auto list = ui.clockListBounds();
-    const double labelWidth =
-        std::min(220.0, std::min(list.width * 0.65, std::max(160.0, list.width * 0.4)));
+    const double labelWidth = std::min(220.0, std::min(list.width * 0.65, std::max(160.0, list.width * 0.4)));
     const double graphX = list.x + labelWidth, graphWidth = list.width - labelWidth;
     auto colorAt = [&](double x, double y)
     {
         std::array<unsigned char, 4> color;
         glReadPixels(
-            static_cast<int>(x * 2),
-            extent - 1 - static_cast<int>(y * 2),
-            1,
-            1,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            color.data()
+            static_cast<int>(x * 2), extent - 1 - static_cast<int>(y * 2), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, color.data()
         );
         return color;
     };
     const double cursor = graphX + graphWidth / 2;
-    require(
-        colorAt(cursor, list.y + 45)[2] < 65,
-        "Clock cursor/edge guide extended into the gap between rows."
-    );
+    require(colorAt(cursor, list.y + 45)[2] < 65, "Clock cursor/edge guide extended into the gap between rows.");
     views.activeScene().removeComponent(0);
     renderer.beginFrame(CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
-    ui.draw(
-        renderer,
-        views.activeScene(),
-        CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent})
-    );
+    ui.draw(renderer, views.activeScene(), CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
     require(colorAt(cursor, list.y + 10)[2] < 65, "No-clock panel retained a time cursor.");
     saveImage("clock-panel-empty.ppm");
 
@@ -3226,13 +2853,9 @@ void clockPresentation(Renderer& renderer)
         click.x = box.x + box.width / 2;
         click.y = box.y + box.height / 2;
         click.action = GLFW_PRESS;
-        ui.handleInput(
-            click, scene, input, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent})
-        );
+        ui.handleInput(click, scene, input, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
         click.action = GLFW_RELEASE;
-        ui.handleInput(
-            click, scene, input, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent})
-        );
+        ui.handleInput(click, scene, input, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
     };
     clickControl(UI::ClockControl::Fit);
     for (int i = 0; i < 11; ++i)
@@ -3244,8 +2867,7 @@ void clockPresentation(Renderer& renderer)
         int count = 0;
         for (int y = 0; y < 44; ++y)
             for (int x = future ? static_cast<int>(graphWidth / 2) + 2 : 0;
-                 x < static_cast<int>(future ? graphWidth : graphWidth / 2) - 2;
-                 ++x)
+                 x < static_cast<int>(future ? graphWidth : graphWidth / 2) - 2; ++x)
             {
                 const auto color = colorAt(graphX + x, list.y + y);
                 if (color[1] > color[0] + 20 && color[1] > color[2] + 20)
@@ -3258,9 +2880,8 @@ void clockPresentation(Renderer& renderer)
         "An unreadable clock still drew dense lines or a shaded block."
     );
     saveImage("clock-panel-too-fast.ppm");
-    const auto slowRate = EditorActions(scene).apply(
-        {ConfigureComponentProperties{.componentId = fast, .clockFrequency = 0.1f}}
-    );
+    const auto slowRate =
+        EditorActions(scene).apply({ConfigureComponentProperties{.componentId = fast, .clockFrequency = 0.1f}});
     require(
         static_cast<bool>(slowRate) && !ui.clockWaveformTooDense(0.1f),
         "Historical-density fixture still exceeded the nominal rate limit."
@@ -3271,9 +2892,8 @@ void clockPresentation(Renderer& renderer)
         greenPixels() == 0 && greenPixels(true) > 0,
         "Dense history was drawn or suppressed the independently readable clock preview."
     );
-    const auto restoreRate = EditorActions(scene).apply(
-        {ConfigureComponentProperties{.componentId = fast, .clockFrequency = 1000.0f}}
-    );
+    const auto restoreRate =
+        EditorActions(scene).apply({ConfigureComponentProperties{.componentId = fast, .clockFrequency = 1000.0f}});
     require(static_cast<bool>(restoreRate), "Could not restore the fitted clock fixture.");
     clickControl(UI::ClockControl::Fit);
     require(ui.clockWindowSeconds() == 0.004, "High-frequency waveform did not fit four cycles.");
@@ -3281,17 +2901,12 @@ void clockPresentation(Renderer& renderer)
     const auto fit = ui.clockControlBounds(UI::ClockControl::Fit);
     hover.x = fit.x + 2;
     hover.y = fit.y + 2;
-    ui.handleInput(
-        hover, scene, input, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent})
-    );
+    ui.handleInput(hover, scene, input, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
     ui.update(20, input);
     ui.update(20.8, input);
     renderer.beginFrame(CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
     ui.draw(renderer, scene, CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent}));
-    require(
-        !ui.clockWaveformTooDense(1000) && greenPixels() > 40,
-        "Fit did not restore visible waveform edges."
-    );
+    require(!ui.clockWaveformTooDense(1000) && greenPixels() > 40, "Fit did not restore visible waveform edges.");
     const auto popup = ui.clockTooltipBounds(scene);
     require(
         popup.width > 0 && colorAt(popup.x + 4, popup.y + 4)[2] > 30,
@@ -3305,17 +2920,14 @@ void clockPresentation(Renderer& renderer)
     views.create(input);
     auto& multiple = views.activeScene();
     multiple.addComponent(BuiltinComponentIds::Clock, {0, 0});
-    multiple.addComponent(
-        BuiltinComponentIds::Clock, {20, 0}, ComponentOverrides{.clockFrequency = 2.0f}
-    );
+    multiple.addComponent(BuiltinComponentIds::Clock, {20, 0}, ComponentOverrides{.clockFrequency = 2.0f});
     multiple.stepAllClocks(1, &views.activeClockTimeline());
     multiple.stepAllClocks(2, &views.activeClockTimeline());
     ui.layout(multiple.getComponentCatalog(), {extent / 2, extent / 2, extent, extent}, input);
     const auto multipleFrame = CanvasCamera{}.frame({extent / 2, extent / 2, extent, extent});
     renderer.beginFrame(multipleFrame);
     ui.draw(renderer, multiple, multipleFrame);
-    const double fastOnlyEdge =
-        graphX + (0.25 - ui.clockStartTime()) / ui.clockWindowSeconds() * graphWidth;
+    const double fastOnlyEdge = graphX + (0.25 - ui.clockStartTime()) / ui.clockWindowSeconds() * graphWidth;
     require(
         colorAt(fastOnlyEdge, list.y + 5)[2] < 65 && colorAt(fastOnlyEdge, list.y + 53)[2] > 65,
         "One clock's edge guide crossed into another clock's row."
@@ -3325,6 +2937,8 @@ void clockPresentation(Renderer& renderer)
     input.setScene(nullptr);
 }
 
+
+/** @brief Verify selected signals show recorded levels and availability without inventing future transitions. */
 void signalPresentation(Renderer& renderer)
 {
     for (int dpi : {1, 2})
@@ -3340,8 +2954,7 @@ void signalPresentation(Renderer& renderer)
             static_cast<bool>(EditorActions(scene).apply(
                 {ConfigureComponentProperties{.componentId = data, .label = "Data"},
                  ConfigureComponentProperties{.componentId = flip, .label = "Register"},
-                 AddWire{{{-11, 2}, {-3, 2}, {-3, 1}}},
-                 AddWire{{{-11, -2}, {-3, -2}, {-3, -1}}}}
+                 AddWire{{{-11, 2}, {-3, 2}, {-3, 1}}}, AddWire{{{-11, -2}, {-3, -2}, {-3, -1}}}}
             )),
             "Signal render fixture failed."
         );
@@ -3354,12 +2967,7 @@ void signalPresentation(Renderer& renderer)
             const auto* view = scene.getCommittedComponentView(id);
             const auto& pin = view->getOutputPins()[index];
             timeline.toggleSignal(
-                {{id},
-                 PinType::OUTPUT,
-                 index,
-                 pin.id,
-                 scene.signalName(id, PinType::OUTPUT, index),
-                 {}}
+                {{id}, PinType::OUTPUT, index, pin.id, scene.signalName(id, PinType::OUTPUT, index), {}}
             );
         }
         scene.stepAllClocks(2, &timeline);
@@ -3381,12 +2989,7 @@ void signalPresentation(Renderer& renderer)
         {
             std::array<unsigned char, 4> pixel;
             glReadPixels(
-                static_cast<int>(x * dpi),
-                extent - 1 - static_cast<int>(y * dpi),
-                1,
-                1,
-                GL_RGBA,
-                GL_UNSIGNED_BYTE,
+                static_cast<int>(x * dpi), extent - 1 - static_cast<int>(y * dpi), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE,
                 pixel.data()
             );
             return pixel;
@@ -3432,8 +3035,7 @@ void signalPresentation(Renderer& renderer)
         draw();
         saveImage(dpi == 1 ? "signal-traces.ppm" : "signal-traces-2x.ppm");
         const auto list = ui.clockListBounds();
-        const double labelWidth =
-            std::min(220.0, std::min(list.width * 0.65, std::max(160.0, list.width * 0.4)));
+        const double labelWidth = std::min(220.0, std::min(list.width * 0.65, std::max(160.0, list.width * 0.4)));
         const double graphX = list.x + labelWidth;
         int green = 0;
         for (double x = graphX + 1; x < list.x + list.width; x += 2)
@@ -3442,8 +3044,7 @@ void signalPresentation(Renderer& renderer)
             green += pixel[1] > 120 && pixel[1] > pixel[0] * 1.5;
         }
         require(green > 4, "Signal waveform is missing from the panel.");
-        const double nowFraction =
-            (timeline.time() - ui.clockStartTime()) / ui.clockWindowSeconds();
+        const double nowFraction = (timeline.time() - ui.clockStartTime()) / ui.clockWindowSeconds();
         require(
             nowFraction > 0 && nowFraction <= 1 &&
                 (timeline.time() < ui.clockWindowSeconds() || std::abs(nowFraction - 1) < 1e-9),
@@ -3457,14 +3058,10 @@ void signalPresentation(Renderer& renderer)
             futureGreen += pixel[1] > 120 && pixel[1] > pixel[0] * 1.5;
         }
         require(futureGreen == 0, "Signals projected unrecorded values into the future.");
-        const auto point =
-            *cameraFrame().worldToWindow(scene.getCommittedComponentView(flip)->getPosition());
+        const auto point = *cameraFrame().worldToWindow(scene.getCommittedComponentView(flip)->getPosition());
         click({point.x - 1, point.y - 1, 2, 2}, GLFW_MOUSE_BUTTON_RIGHT);
         draw();
-        require(
-            ui.signalTraceBounds(scene, PinType::OUTPUT, 0).width > 0,
-            "Popup lost its pin trace control."
-        );
+        require(ui.signalTraceBounds(scene, PinType::OUTPUT, 0).width > 0, "Popup lost its pin trace control.");
         saveImage(dpi == 1 ? "signal-trace-popup.ppm" : "signal-trace-popup-2x.ppm");
         ui.dismissPopups(input);
         // Bounded dense-region handling must not create hundreds of overlapping edges.
@@ -3489,6 +3086,7 @@ void signalPresentation(Renderer& renderer)
 
 
 } // namespace
+
 
 int main(int argc, char** argv)
 {
@@ -3526,10 +3124,7 @@ int main(int argc, char** argv)
         Renderer renderer;
         try
         {
-            require(
-                glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
-                "Framebuffer incomplete."
-            );
+            require(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Framebuffer incomplete.");
             require(renderer.init(), "Renderer could not initialize required resources.");
             const auto camera = CanvasCamera{}.frame({extent, extent, extent, extent});
             if (argc > 1 && std::string(argv[1]) == "--profile")

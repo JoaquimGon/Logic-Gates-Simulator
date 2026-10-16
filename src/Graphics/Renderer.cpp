@@ -13,7 +13,9 @@
 #include <unordered_set>
 #include <utility>
 
+
 Renderer::Renderer() {}
+
 
 Renderer::~Renderer()
 {
@@ -22,9 +24,9 @@ Renderer::~Renderer()
     shutdown();
 }
 
+
 void Renderer::shutdown()
 {
-    // reset() destroys each Mesh, whose destructor releases its GL buffers.
     m_gateMesh.reset();
     m_gridMesh.reset();
     m_pointMesh.reset();
@@ -37,19 +39,16 @@ void Renderer::shutdown()
     m_debugHasText = false;
     m_text.shutdown();
 
-    // Runs every Shader destructor, i.e. glDeleteProgram(), before the context
-    // dies.
     m_sm.release();
 }
+
 
 Shader* Renderer::acquireShader(const std::string& name)
 {
     if (Shader* shader = m_sm.get(name))
         return shader;
 
-    // A miss here is a programming error: some component was registered with a
-    // shader name that init() never loaded, so nothing would ever be drawn for
-    // it. Report it once per name instead of failing silently every frame.
+    // Missing catalog shaders are actionable; report each name once rather than every frame.
     if (m_missingShaderWarned.insert(name).second)
     {
         std::cerr << "[Renderer] No shader registered under the name \"" << name
@@ -58,6 +57,7 @@ Shader* Renderer::acquireShader(const std::string& name)
     }
     return nullptr;
 }
+
 
 bool Renderer::init()
 {
@@ -69,17 +69,16 @@ bool Renderer::init()
         if (!m_sm.load(key, vertex, fragment))
             ready = false;
     };
-    // ==========================================
-    // OpenGL State Configuration
-    // ==========================================
+
+
+    // Shared passes use alpha blending for bodies, text and antialiased overlays.
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
     glEnable(GL_PROGRAM_POINT_SIZE);
 
-    // ==========================================
-    // Shaders
-    // ==========================================
+
+    // Load each native presentation shader once, followed by the shared canvas and UI shaders.
     std::unordered_set<std::string> loadedComponentShaders;
     for (const auto& definition : nativeDefinitions())
     {
@@ -90,83 +89,57 @@ bool Renderer::init()
     const auto& box = boxShaderResources();
     load(box.key, box.vertexPath, box.fragmentPath);
 
-    load(
-        "inputBubble",
-        "shaders/components/gates/gate.vert",
-        "shaders/components/gates/inputBubble.frag"
-    );
+    load("inputBubble", "shaders/components/gates/gate.vert", "shaders/components/gates/inputBubble.frag");
 
-    // Pins
     load("pin", "shaders/components/pins.vert", "shaders/components/pins.frag");
 
-    // Text
     load("text", "shaders/text/text.vert", "shaders/text/text.frag");
 
-    // Grid & Wires
     load("grid", "shaders/vec3Shader.vert", "shaders/grid.frag");
     load("wire", "shaders/wires/wires.vert", "shaders/wires/wires.frag");
 
-    // ==========================================
-    // Meshes
-    // ==========================================
-    // 1. Gate Mesh
-    std::vector<float> quadVertices = {
-        -0.5f, 0.5f, 0.0, -0.5f, -0.5f, 0.0, 0.5f, -0.5f, 0.0, 0.5f, 0.5f, 0.0
-    };
+
+    // Static body/grid meshes share the renderer; dynamic passes reuse their allocated buffers.
+    std::vector<float> quadVertices = {-0.5f, 0.5f, 0.0, -0.5f, -0.5f, 0.0, 0.5f, -0.5f, 0.0, 0.5f, 0.5f, 0.0};
     std::vector<unsigned int> quadIndices = {0, 1, 2, 2, 3, 0};
     VertexLayout gateLayout;
     gateLayout.addAttribute(3);
     m_gateMesh = std::make_unique<Mesh>(quadVertices, quadIndices, gateLayout, GL_TRIANGLES);
 
-    // 2. Grid Mesh
-    std::vector<float> fullScreenVertices = {
-        -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f
-    };
+    std::vector<float> fullScreenVertices = {-1.0f, 1.0f,  -1.0f, -1.0f, -1.0f, -1.0f,
+                                             1.0f,  -1.0f, -1.0f, 1.0f,  1.0f,  -1.0f};
     std::vector<unsigned int> fullScreenIndeces = {0, 1, 2, 2, 3, 0};
     VertexLayout gridLayout;
     gridLayout.addAttribute(3);
-    m_gridMesh =
-        std::make_unique<Mesh>(fullScreenVertices, fullScreenIndeces, gridLayout, GL_TRIANGLES);
+    m_gridMesh = std::make_unique<Mesh>(fullScreenVertices, fullScreenIndeces, gridLayout, GL_TRIANGLES);
 
-    // 3. Pin Mesh
     std::vector<float> pointVertices = {0.0f, 0.0f, 0.0f};
     VertexLayout pointLayout;
     pointLayout.addAttribute(3);
-    m_pointMesh =
-        std::make_unique<Mesh>(pointVertices, std::vector<unsigned int>{}, pointLayout, GL_POINTS);
+    m_pointMesh = std::make_unique<Mesh>(pointVertices, std::vector<unsigned int>{}, pointLayout, GL_POINTS);
 
-    // 4. Wire Mesh
     VertexLayout wireLayout;
-    wireLayout.addAttribute(3); // Location 0: Position (X, Y, Z)
-    wireLayout.addAttribute(4); // Location 1: Color (R, G, B, A)
-    m_wireMesh = std::make_unique<Mesh>(
-        std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_TRIANGLES
-    );
+    wireLayout.addAttribute(3);
+    wireLayout.addAttribute(4);
+    m_wireMesh = std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_TRIANGLES);
 
-    m_leadMesh = std::make_unique<Mesh>(
-        std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_TRIANGLES
-    );
+    m_leadMesh = std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, wireLayout, GL_TRIANGLES);
 
-    // ==========================================
-    // Bounding Box Mesh
-    // ==========================================
+
     VertexLayout boundsLayout;
-    boundsLayout.addAttribute(3); // Position
-    boundsLayout.addAttribute(4); // Color
-    m_boundsMesh = std::make_unique<Mesh>(
-        std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_TRIANGLES
-    );
+    boundsLayout.addAttribute(3);
+    boundsLayout.addAttribute(4);
+    m_boundsMesh =
+        std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_TRIANGLES);
 
-    m_debugBackgroundMesh = std::make_unique<Mesh>(
-        std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_TRIANGLES
-    );
+    m_debugBackgroundMesh =
+        std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, boundsLayout, GL_TRIANGLES);
     VertexLayout textLayout;
     textLayout.addAttribute(2);
     textLayout.addAttribute(2);
     textLayout.addAttribute(4);
-    m_debugTextMesh = std::make_unique<Mesh>(
-        std::vector<float>{}, std::vector<unsigned int>{}, textLayout, GL_TRIANGLES
-    );
+    m_debugTextMesh =
+        std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, textLayout, GL_TRIANGLES);
 
     ready = m_text.init(PROJECT_FONT_PATH) && ready;
     if (!ready)
@@ -176,6 +149,7 @@ bool Renderer::init()
     }
     return ready;
 }
+
 
 void Renderer::beginFrame(const CanvasCameraFrame& camera)
 {
@@ -188,6 +162,7 @@ void Renderer::beginFrame(const CanvasCameraFrame& camera)
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
+
 void Renderer::setScreenViewport()
 {
     if (m_screenClip)
@@ -199,12 +174,11 @@ void Renderer::setScreenViewport()
     else
         glDisable(GL_SCISSOR_TEST);
     glViewport(
-        0,
-        0,
-        std::max(0, m_currentCamera.surface.framebufferWidth),
+        0, 0, std::max(0, m_currentCamera.surface.framebufferWidth),
         std::max(0, m_currentCamera.surface.framebufferHeight)
     );
 }
+
 
 void Renderer::setScreenClip(std::optional<CanvasViewport> bounds)
 {
@@ -218,6 +192,7 @@ void Renderer::setScreenClip(std::optional<CanvasViewport> bounds)
     setScreenViewport();
 }
 
+
 bool Renderer::setCanvasViewport()
 {
     if (!m_currentCamera.valid())
@@ -229,6 +204,7 @@ bool Renderer::setCanvasViewport()
     return true;
 }
 
+
 bool Renderer::useCanvasShader(Shader& shader)
 {
     if (!setCanvasViewport())
@@ -239,6 +215,7 @@ bool Renderer::useCanvasShader(Shader& shader)
     shader.setFloat("uOutlineScale", std::min(m_currentCamera.viewProjection[1][1], 1.0f));
     return true;
 }
+
 
 void Renderer::drawGrid()
 {
@@ -253,6 +230,7 @@ void Renderer::drawGrid()
     m_gridMesh->draw();
     recordDrawCalls(DrawCategory::StaticUI);
 }
+
 
 void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire, float opacity)
 {
@@ -286,9 +264,8 @@ void Renderer::drawWires(const std::map<WireId, Wire>& wires, const Wire* active
     }
 }
 
-void Renderer::drawWireSegmentBoundingBox(
-    const GridCoords& start, const GridCoords& end, float padding, float alpha
-)
+
+void Renderer::drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding, float alpha)
 {
     auto* shader = acquireShader("wire");
     if (!shader)
@@ -299,15 +276,14 @@ void Renderer::drawWireSegmentBoundingBox(
     const auto p1 = GridSystem::gridToWorld(start);
     const auto p2 = GridSystem::gridToWorld(end);
     const auto boxData = buildBoundsVertices(
-        {std::min(p1.x, p2.x), std::min(p1.y, p2.y), std::max(p1.x, p2.x), std::max(p1.y, p2.y)},
-        padding,
-        alpha
+        {std::min(p1.x, p2.x), std::min(p1.y, p2.y), std::max(p1.x, p2.x), std::max(p1.y, p2.y)}, padding, alpha
     );
 
     m_boundsMesh->updateData(boxData, 7);
     m_boundsMesh->draw();
     recordDrawCalls(DrawCategory::Wires);
 }
+
 
 void Renderer::drawComponents(std::span<const ComponentRenderData> components, float opacity)
 {
@@ -333,9 +309,7 @@ void Renderer::drawComponents(std::span<const ComponentRenderData> components, f
                 auto style = component.body.style;
                 style.tint[3] *= opacity;
                 constexpr float size = GridMetrics::Spacing * 1.15f;
-                bubbles.push_back(
-                    {component.body.id, *pin.inversionBubble, {size, size}, "inputBubble", style}
-                );
+                bubbles.push_back({component.body.id, *pin.inversionBubble, {size, size}, "inputBubble", style});
             }
     if (!bubbles.empty())
         if (auto* shader = acquireShader("inputBubble"); shader && useCanvasShader(*shader))
@@ -346,6 +320,8 @@ void Renderer::drawComponents(std::span<const ComponentRenderData> components, f
         }
 }
 
+
+/** @brief Build pin connections, input rails and antialiased extensions that meet the visible body contour. */
 void Renderer::drawPinLeads(std::span<const ComponentRenderData> components, float opacity)
 {
     auto* shader = acquireShader("wire");
@@ -379,20 +355,19 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components, flo
                 auto orient = [&](glm::vec2 point)
                 {
                     const auto center = component.body.position;
-                    const auto rotated = rotatePoint(
-                        point.x - center.x, point.y - center.y, component.body.orientation
-                    );
+                    const auto rotated =
+                        rotatePoint(point.x - center.x, point.y - center.y, component.body.orientation);
                     return center + glm::vec2{rotated[0], rotated[1]};
                 };
                 segment(orient(a), orient(b), halfWidth, ink);
             };
             if (!component.inputArc.empty())
             {
-                const float width = component.body.style.inverted ? component.body.size.x / 1.5f
-                                                                  : component.body.size.x;
+                const float width =
+                    component.body.style.inverted ? component.body.size.x / 1.5f : component.body.size.x;
                 const float halfWidth = 0.013f * width;
-                const float outline = 1.5f * std::min(m_currentCamera.viewProjection[1][1], 1.0f) /
-                                      m_currentCamera.pixelsPerWorldUnit;
+                const float outline =
+                    1.5f * std::min(m_currentCamera.viewProjection[1][1], 1.0f) / m_currentCamera.pixelsPerWorldUnit;
                 // A continuous ribbon with a one-pixel alpha fringe smooths the curve
                 // without changing the wire shader or overlapping AA edges at every joint.
                 const float fringe = 1.0f / m_currentCamera.pixelsPerWorldUnit;
@@ -400,8 +375,7 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components, flo
                 {
                     const auto previous = i == 0 ? 0 : i - 1;
                     const auto next = std::min(i + 1, component.inputArc.size() - 1);
-                    const auto tangent =
-                        glm::normalize(component.inputArc[next] - component.inputArc[previous]);
+                    const auto tangent = glm::normalize(component.inputArc[next] - component.inputArc[previous]);
                     return glm::vec2{-tangent.y, tangent.x};
                 };
                 for (bool border : {true, false})
@@ -437,25 +411,16 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components, flo
                 // Only extend past the upper/lower back corners; keep the concave middle open.
                 const float corner = 0.38f * component.body.size.y;
                 railSegment(
-                    {rail->centerX(), rail->bottom},
-                    {rail->centerX(), component.body.position.y - corner},
-                    rail->width() / 2,
-                    color
+                    {rail->centerX(), rail->bottom}, {rail->centerX(), component.body.position.y - corner},
+                    rail->width() / 2, color
                 );
                 railSegment(
-                    {rail->centerX(), component.body.position.y + corner},
-                    {rail->centerX(), rail->top},
-                    rail->width() / 2,
-                    color
+                    {rail->centerX(), component.body.position.y + corner}, {rail->centerX(), rail->top},
+                    rail->width() / 2, color
                 );
             }
             else
-                railSegment(
-                    {rail->centerX(), rail->bottom},
-                    {rail->centerX(), rail->top},
-                    rail->width() / 2,
-                    color
-                );
+                railSegment({rail->centerX(), rail->bottom}, {rail->centerX(), rail->top}, rail->width() / 2, color);
         }
     // White terminals go over the extensions; inner XOR rows continue to the solid body.
     for (const auto& component : components)
@@ -469,11 +434,9 @@ void Renderer::drawPinLeads(std::span<const ComponentRenderData> components, flo
     recordDrawCalls(DrawCategory::Components);
 }
 
+
 void Renderer::drawPins(
-    std::span<const ComponentRenderData> components,
-    int hoveredCompId,
-    int hoveredPinIdx,
-    PinType hoveredPinType,
+    std::span<const ComponentRenderData> components, int hoveredCompId, int hoveredPinIdx, PinType hoveredPinType,
     float opacity
 )
 {
@@ -484,7 +447,7 @@ void Renderer::drawPins(
         return;
     shader->setFloat("uPixelsPerWorldUnit", m_currentCamera.pixelsPerWorldUnit);
 
-    // World-space diameter: ~half a grid cell (0.05 * 0.48 = 0.024f)
+    // Pin diameter is expressed in world units so markers follow the canvas zoom.
     shader->setFloat("uPointSize", 0.024f);
 
     auto& pinInstanceData = m_pinData;
@@ -496,8 +459,7 @@ void Renderer::drawPins(
         {
             pinInstanceData.insert(pinInstanceData.end(), {pin.position.x, pin.position.y});
             if (component.body.id == hoveredCompId && hoveredPinIdx >= 0 &&
-                pin.index == static_cast<unsigned int>(hoveredPinIdx) &&
-                pin.direction == hoveredPinType)
+                pin.index == static_cast<unsigned int>(hoveredPinIdx) && pin.direction == hoveredPinType)
                 pinInstanceData.insert(pinInstanceData.end(), {1, 159.0f / 255, 28.0f / 255, 1});
             else if (pin.state == PinState::DISCONNECTED)
                 pinInstanceData.insert(pinInstanceData.end(), {0, 0, 1, 1});
@@ -517,6 +479,7 @@ void Renderer::drawPins(
     }
 }
 
+
 void Renderer::drawComponentBoundingBox(BodyBounds bounds, float padding, float alpha)
 {
     auto* shader = acquireShader("wire");
@@ -530,6 +493,7 @@ void Renderer::drawComponentBoundingBox(BodyBounds bounds, float padding, float 
     m_boundsMesh->draw();
     recordDrawCalls(DrawCategory::Components);
 }
+
 
 void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
 {
@@ -552,6 +516,7 @@ void Renderer::drawGridPointHighlight(GridCoords gridPos, float opacity)
     recordDrawCalls(DrawCategory::Wires);
 }
 
+
 void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
 {
     if (intersectionData.empty())
@@ -564,7 +529,7 @@ void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
         return;
     shader->setFloat("uPixelsPerWorldUnit", m_currentCamera.pixelsPerWorldUnit);
 
-    // Increased size so the outer dark rim extends past the wire boundaries
+    // Extend the dark rim beyond wire edges to keep junction markers distinguishable.
     shader->setFloat("uPointSize", 0.034f);
 
     auto& instancedData = m_intersectionData;
@@ -573,8 +538,7 @@ void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
 
     for (const auto& data : intersectionData)
     {
-        glm::vec2 worldPos =
-            GridSystem::gridToWorld({static_cast<int>(data.x), static_cast<int>(data.y)});
+        glm::vec2 worldPos = GridSystem::gridToWorld({static_cast<int>(data.x), static_cast<int>(data.y)});
         instancedData.push_back(worldPos.x);
         instancedData.push_back(worldPos.y);
 
@@ -591,6 +555,7 @@ void Renderer::drawIntersections(std::span<const glm::vec3> intersectionData)
     recordDrawCalls(DrawCategory::Wires);
 }
 
+
 void Renderer::drawWorldRect(BodyBounds bounds, glm::vec4 color)
 {
     auto* shader = acquireShader("wire");
@@ -598,17 +563,15 @@ void Renderer::drawWorldRect(BodyBounds bounds, glm::vec4 color)
         return;
     std::vector<float> vertices;
     for (const auto point :
-         {glm::vec2{bounds.left, bounds.bottom},
-          glm::vec2{bounds.right, bounds.bottom},
-          glm::vec2{bounds.right, bounds.top},
-          glm::vec2{bounds.left, bounds.bottom},
-          glm::vec2{bounds.right, bounds.top},
-          glm::vec2{bounds.left, bounds.top}})
+         {glm::vec2{bounds.left, bounds.bottom}, glm::vec2{bounds.right, bounds.bottom},
+          glm::vec2{bounds.right, bounds.top}, glm::vec2{bounds.left, bounds.bottom},
+          glm::vec2{bounds.right, bounds.top}, glm::vec2{bounds.left, bounds.top}})
         vertices.insert(vertices.end(), {point.x, point.y, 0, color.r, color.g, color.b, color.a});
     m_boundsMesh->updateData(vertices, 7);
     m_boundsMesh->draw();
     recordDrawCalls(DrawCategory::StaticUI);
 }
+
 
 void Renderer::drawScreenRect(CanvasViewport bounds, glm::vec4 color)
 {
@@ -616,11 +579,12 @@ void Renderer::drawScreenRect(CanvasViewport bounds, glm::vec4 color)
     drawScreenRects(std::span<const ScreenRect>{&rectangle, 1});
 }
 
+
 void Renderer::drawScreenRects(std::span<const ScreenRect> rectangles)
 {
     const auto& surface = m_currentCamera.surface;
-    if (rectangles.empty() || surface.windowWidth <= 0 || surface.windowHeight <= 0 ||
-        surface.framebufferWidth <= 0 || surface.framebufferHeight <= 0)
+    if (rectangles.empty() || surface.windowWidth <= 0 || surface.windowHeight <= 0 || surface.framebufferWidth <= 0 ||
+        surface.framebufferHeight <= 0)
         return;
     std::vector<float> vertices;
     vertices.reserve(rectangles.size() * 42);
@@ -631,21 +595,13 @@ void Renderer::drawScreenRects(std::span<const ScreenRect> rectangles)
         if (bounds.width <= 0 || bounds.height <= 0)
             continue;
         for (const auto point :
-             {glm::dvec2{bounds.x, bounds.y},
-              glm::dvec2{bounds.x + bounds.width, bounds.y},
-              glm::dvec2{bounds.x + bounds.width, bounds.y + bounds.height},
-              glm::dvec2{bounds.x, bounds.y},
+             {glm::dvec2{bounds.x, bounds.y}, glm::dvec2{bounds.x + bounds.width, bounds.y},
+              glm::dvec2{bounds.x + bounds.width, bounds.y + bounds.height}, glm::dvec2{bounds.x, bounds.y},
               glm::dvec2{bounds.x + bounds.width, bounds.y + bounds.height},
               glm::dvec2{bounds.x, bounds.y + bounds.height}})
             vertices.insert(
                 vertices.end(),
-                {static_cast<float>(point.x),
-                 static_cast<float>(point.y),
-                 0,
-                 color.r,
-                 color.g,
-                 color.b,
-                 color.a}
+                {static_cast<float>(point.x), static_cast<float>(point.y), 0, color.r, color.g, color.b, color.a}
             );
     }
     if (vertices.empty())
@@ -658,12 +614,7 @@ void Renderer::drawScreenRects(std::span<const ScreenRect> rectangles)
     shader->setMat4(
         "uViewProjection",
         glm::ortho(
-            0.0f,
-            static_cast<float>(surface.windowWidth),
-            static_cast<float>(surface.windowHeight),
-            0.0f,
-            -1.0f,
-            1.0f
+            0.0f, static_cast<float>(surface.windowWidth), static_cast<float>(surface.windowHeight), 0.0f, -1.0f, 1.0f
         )
     );
     m_boundsMesh->updateData(vertices, 7);
@@ -671,12 +622,12 @@ void Renderer::drawScreenRects(std::span<const ScreenRect> rectangles)
     recordDrawCalls(m_uiDrawCategory);
 }
 
+
 void Renderer::drawScreenComponent(const ComponentBodyInstance& body)
 {
     const auto& surface = m_currentCamera.surface;
-    if (body.size.x <= 0 || body.size.y <= 0 || surface.windowWidth <= 0 ||
-        surface.windowHeight <= 0 || surface.framebufferWidth <= 0 ||
-        surface.framebufferHeight <= 0)
+    if (body.size.x <= 0 || body.size.y <= 0 || surface.windowWidth <= 0 || surface.windowHeight <= 0 ||
+        surface.framebufferWidth <= 0 || surface.framebufferHeight <= 0)
         return;
     auto* shader = acquireShader(body.shader);
     if (!shader)
@@ -686,12 +637,7 @@ void Renderer::drawScreenComponent(const ComponentBodyInstance& body)
     shader->setMat4(
         "uViewProjection",
         glm::ortho(
-            0.0f,
-            static_cast<float>(surface.windowWidth),
-            static_cast<float>(surface.windowHeight),
-            0.0f,
-            -1.0f,
-            1.0f
+            0.0f, static_cast<float>(surface.windowWidth), static_cast<float>(surface.windowHeight), 0.0f, -1.0f, 1.0f
         )
     );
     shader->setFloat("uOutlineScale", 1.0f);
@@ -703,12 +649,13 @@ void Renderer::drawScreenComponent(const ComponentBodyInstance& body)
     recordDrawCalls(m_uiDrawCategory);
 }
 
+
 void Renderer::drawText(std::span<const TextRun> runs, TextSpace space)
 {
     auto* shader = acquireShader("text");
     const auto& surface = m_currentCamera.surface;
-    if (!shader || surface.windowWidth <= 0 || surface.windowHeight <= 0 ||
-        surface.framebufferWidth <= 0 || surface.framebufferHeight <= 0)
+    if (!shader || surface.windowWidth <= 0 || surface.windowHeight <= 0 || surface.framebufferWidth <= 0 ||
+        surface.framebufferHeight <= 0)
         return;
     glm::mat4 projection;
     if (space == TextSpace::World)
@@ -721,12 +668,7 @@ void Renderer::drawText(std::span<const TextRun> runs, TextSpace space)
     {
         setScreenViewport();
         projection = glm::ortho(
-            0.0f,
-            static_cast<float>(surface.windowWidth),
-            static_cast<float>(surface.windowHeight),
-            0.0f,
-            -1.0f,
-            1.0f
+            0.0f, static_cast<float>(surface.windowWidth), static_cast<float>(surface.windowHeight), 0.0f, -1.0f, 1.0f
         );
     }
     recordDrawCalls(
@@ -734,6 +676,7 @@ void Renderer::drawText(std::span<const TextRun> runs, TextSpace space)
         m_text.draw(runs, space, projection, *shader)
     );
 }
+
 
 void Renderer::drawLabels(std::span<const ComponentRenderData> components, float opacity)
 {
@@ -743,10 +686,12 @@ void Renderer::drawLabels(std::span<const ComponentRenderData> components, float
     drawText(runs, TextSpace::World);
 }
 
+
 void Renderer::recordDrawCalls(DrawCategory category, int count)
 {
     m_drawCalls.calls[static_cast<std::size_t>(category)] += count;
 }
+
 
 void Renderer::beginUiTiming(bool enabled)
 {
@@ -757,19 +702,19 @@ void Renderer::beginUiTiming(bool enabled)
         m_uiTimeStart = std::chrono::steady_clock::now();
 }
 
+
 void Renderer::setUiDrawCategory(DrawCategory category)
 {
     if (m_timingUi)
     {
         const auto now = std::chrono::steady_clock::now();
-        m_uiCpuTimes
-            [m_uiDrawCategory == DrawCategory::DynamicUI ? CpuPhase::DynamicUI
-                                                         : CpuPhase::StaticUI] +=
+        m_uiCpuTimes[m_uiDrawCategory == DrawCategory::DynamicUI ? CpuPhase::DynamicUI : CpuPhase::StaticUI] +=
             std::chrono::duration<double, std::milli>(now - m_uiTimeStart).count();
         m_uiTimeStart = now;
     }
     m_uiDrawCategory = category;
 }
+
 
 CpuTimings Renderer::endUiTiming()
 {
@@ -778,14 +723,16 @@ CpuTimings Renderer::endUiTiming()
     return m_uiCpuTimes;
 }
 
+
+/** @brief Refresh cached diagnostic text when needed and draw it without contaminating scene draw counters. */
 void Renderer::drawDebugOverlay(
     const DebugMetrics& metrics, bool showMetrics, std::chrono::steady_clock::time_point now
 )
 {
     const auto& surface = m_currentCamera.surface;
     if ((!showMetrics && metrics.evalResult == SimulationResult::OK) || surface.windowWidth <= 0 ||
-        surface.windowHeight <= 0 || surface.framebufferWidth <= 0 ||
-        surface.framebufferHeight <= 0 || !m_debugTextMesh || !m_debugBackgroundMesh)
+        surface.windowHeight <= 0 || surface.framebufferWidth <= 0 || surface.framebufferHeight <= 0 ||
+        !m_debugTextMesh || !m_debugBackgroundMesh)
     {
         invalidateDebugOverlay();
         return;
@@ -796,16 +743,14 @@ void Renderer::drawDebugOverlay(
         return;
     const bool hasShorts = metrics.shortedNetCount > 0;
     const bool hasRejections = metrics.rejectedConnectionCount > 0;
-    const bool refresh = !m_debugCacheValid || surface != m_debugSurface ||
-                         showMetrics != m_debugShowMetrics || metrics.evalResult != m_debugResult ||
-                         hasShorts != m_debugHasShorts || hasRejections != m_debugHasRejections ||
-                         now < m_debugRefreshTime ||
+    const bool refresh = !m_debugCacheValid || surface != m_debugSurface || showMetrics != m_debugShowMetrics ||
+                         metrics.evalResult != m_debugResult || hasShorts != m_debugHasShorts ||
+                         hasRejections != m_debugHasRejections || now < m_debugRefreshTime ||
                          now - m_debugRefreshTime >= std::chrono::milliseconds(250);
     if (refresh)
     {
-        const auto runs = layoutDebugOverlay(
-            metrics, showMetrics, surface.windowWidth, surface.windowHeight, m_text.metrics()
-        );
+        const auto runs =
+            layoutDebugOverlay(metrics, showMetrics, surface.windowWidth, surface.windowHeight, m_text.metrics());
         m_debugHasText = m_text.prepareMesh(*m_debugTextMesh, runs, TextSpace::Screen);
         if (m_debugHasText)
         {
@@ -816,21 +761,16 @@ void Renderer::drawDebugOverlay(
                 const float lineHeight = m_text.metrics().fontHeight * run.scale;
                 left = std::min(left, run.baseline.x);
                 top = std::min(top, run.baseline.y - lineHeight);
-                right = std::max(
-                    right, run.baseline.x + getTextWidth(run.text, run.scale, m_text.metrics())
-                );
+                right = std::max(right, run.baseline.x + getTextWidth(run.text, run.scale, m_text.metrics()));
                 bottom = std::max(bottom, run.baseline.y + lineHeight * 0.25f);
             }
             constexpr float padding = 8;
             std::vector<float> background;
             background.reserve(42);
             for (const auto point :
-                 {glm::vec2{left - padding, top - padding},
-                  glm::vec2{right + padding, top - padding},
-                  glm::vec2{right + padding, bottom + padding},
-                  glm::vec2{left - padding, top - padding},
-                  glm::vec2{right + padding, bottom + padding},
-                  glm::vec2{left - padding, bottom + padding}})
+                 {glm::vec2{left - padding, top - padding}, glm::vec2{right + padding, top - padding},
+                  glm::vec2{right + padding, bottom + padding}, glm::vec2{left - padding, top - padding},
+                  glm::vec2{right + padding, bottom + padding}, glm::vec2{left - padding, bottom + padding}})
                 background.insert(background.end(), {point.x, point.y, 0, 0, 0, 0, 0.5f});
             m_debugBackgroundMesh->updateData(background, 7);
         }
@@ -846,12 +786,7 @@ void Renderer::drawDebugOverlay(
         return;
     setScreenClip(std::nullopt);
     const auto projection = glm::ortho(
-        0.0f,
-        static_cast<float>(surface.windowWidth),
-        static_cast<float>(surface.windowHeight),
-        0.0f,
-        -1.0f,
-        1.0f
+        0.0f, static_cast<float>(surface.windowWidth), static_cast<float>(surface.windowHeight), 0.0f, -1.0f, 1.0f
     );
     // Dedicated meshes survive all other UI draws. Debug submissions stay outside scene counters.
     backgroundShader->use();
@@ -859,6 +794,7 @@ void Renderer::drawDebugOverlay(
     m_debugBackgroundMesh->draw();
     m_text.drawPrepared(*m_debugTextMesh, projection, *textShader);
 }
+
 
 void Renderer::drawCanvas(const CanvasFrame& frame)
 {
@@ -881,19 +817,13 @@ void Renderer::drawCanvas(const CanvasFrame& frame)
         drawComponentBoundingBox(frame.bodyHighlight->bounds, 0.01f, frame.bodyHighlight->opacity);
     if (frame.segmentHighlight)
         drawWireSegmentBoundingBox(
-            frame.segmentHighlight->start,
-            frame.segmentHighlight->end,
-            0.01f,
-            frame.segmentHighlight->opacity
+            frame.segmentHighlight->start, frame.segmentHighlight->end, 0.01f, frame.segmentHighlight->opacity
         );
     drawPins(frame.components, frame.hoveredComponent, frame.hoveredPin, frame.hoveredDirection);
     if (frame.wireStartHighlight)
-        drawGridPointHighlight(
-            frame.wireStartHighlight->position, frame.wireStartHighlight->opacity
-        );
+        drawGridPointHighlight(frame.wireStartHighlight->position, frame.wireStartHighlight->opacity);
     if (frame.gridHighlight &&
-        (!frame.wireStartHighlight ||
-         frame.gridHighlight->position != frame.wireStartHighlight->position))
+        (!frame.wireStartHighlight || frame.gridHighlight->position != frame.wireStartHighlight->position))
         drawGridPointHighlight(frame.gridHighlight->position, frame.gridHighlight->opacity);
     drawLabels(frame.components);
     if (frame.pasteWires)

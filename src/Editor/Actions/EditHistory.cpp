@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <set>
 
+
 void EditHistory::record(const EditResult& result)
 {
     if (!result || !result.change)
@@ -17,17 +18,19 @@ void EditHistory::record(const EditResult& result)
         m_undo.pop_front();
 }
 
+
 void EditHistory::clear()
 {
     m_undo.clear();
     m_redo.clear();
 }
 
+
+/** @brief Restore an immutable scene snapshot while retaining unused definitions added later to the session library. */
 EditResult EditHistory::restore(Scene& scene, const Scene& snapshot)
 {
     edit_profile::Scope restoreScope(edit_profile::Phase::Restore);
-    Scene target =
-        edit_profile::measure(edit_profile::Phase::SceneCopy, [&] { return Scene(snapshot); });
+    Scene target = edit_profile::measure(edit_profile::Phase::SceneCopy, [&] { return Scene(snapshot); });
     // Keep unused session-library entries added/updated since the historical edit.
     std::set<std::string> used;
     for (const auto& [id, view] : target.getComponentViewMap())
@@ -53,6 +56,7 @@ EditResult EditHistory::restore(Scene& scene, const Scene& snapshot)
     return result;
 }
 
+
 EditResult EditHistory::undo(Scene& scene)
 {
     if (m_undo.empty())
@@ -66,6 +70,7 @@ EditResult EditHistory::undo(Scene& scene)
     }
     return result;
 }
+
 
 EditResult EditHistory::redo(Scene& scene)
 {
@@ -81,13 +86,13 @@ EditResult EditHistory::redo(Scene& scene)
     return result;
 }
 
+
 bool EditHistory::referencesDefinition(const std::string& id) const
 {
     auto uses = [&](const auto& records)
     {
         return std::any_of(
-            records.begin(),
-            records.end(),
+            records.begin(), records.end(),
             [&](const auto& record)
             {
                 for (const auto* image : {record->before.get(), record->after.get()})

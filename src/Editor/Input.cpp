@@ -10,6 +10,7 @@
 #include <cmath>
 #include <utility>
 
+
 void Input::reportEditResult(const EditResult& result)
 {
     m_lastEditError = result.error;
@@ -22,11 +23,13 @@ void Input::reportEditResult(const EditResult& result)
         );
 }
 
+
 void Input::recordEdit(const EditResult& result)
 {
     reportEditResult(result);
     m_history->record(result);
 }
+
 
 bool Input::applyEdit(EditOperation operation)
 {
@@ -37,6 +40,7 @@ bool Input::applyEdit(EditOperation operation)
     return static_cast<bool>(result);
 }
 
+
 void Input::beginSelectionDrag(GridCoords pointer)
 {
     const auto& components = m_selection.components();
@@ -45,6 +49,7 @@ void Input::beginSelectionDrag(GridCoords pointer)
     const std::vector<WireId> wireIds(wires.begin(), wires.end());
     m_drag.begin(*m_scene, componentIds, wireIds, pointer);
 }
+
 
 void Input::setScene(Scene* scene, EditHistory* history)
 {
@@ -73,10 +78,12 @@ void Input::setScene(Scene* scene, EditHistory* history)
     m_lastEditMessage.clear();
 }
 
+
 bool Input::isReadOnly() const
 {
     return m_scene && m_scene->isReadOnly();
 }
+
 
 void Input::setMode(EditorMode mode)
 {
@@ -87,11 +94,13 @@ void Input::setMode(EditorMode mode)
     m_mode = mode;
 }
 
+
 void Input::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
     if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
         input->handleMouseButton(window, button, action, mods);
 }
+
 
 void Input::cursorPositionCallback(GLFWwindow* window, double x, double y)
 {
@@ -99,11 +108,13 @@ void Input::cursorPositionCallback(GLFWwindow* window, double x, double y)
         input->handleCursorPos(window, x, y);
 }
 
+
 void Input::scrollCallback(GLFWwindow* window, double x, double y)
 {
     if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
         input->handleScroll(window, x, y);
 }
+
 
 void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
@@ -111,11 +122,13 @@ void Input::keyCallback(GLFWwindow* window, int key, int scancode, int action, i
         input->handleKey(key, action, mods, scancode);
 }
 
+
 void Input::focusCallback(GLFWwindow* window, int focused)
 {
     if (auto* input = static_cast<Input*>(glfwGetWindowUserPointer(window)))
         input->handleFocus(focused != GLFW_FALSE);
 }
+
 
 void Input::handleKey(int key, int action, int mods, int scanCode)
 {
@@ -144,14 +157,11 @@ void Input::handleKey(int key, int action, int mods, int scanCode)
         m_pendingKeyPresses.clear();
         return;
     }
-    const bool control = (mods & GLFW_MOD_CONTROL) ||
-                         m_pressedKeys.contains(GLFW_KEY_LEFT_CONTROL) ||
+    const bool control = (mods & GLFW_MOD_CONTROL) || m_pressedKeys.contains(GLFW_KEY_LEFT_CONTROL) ||
                          m_pressedKeys.contains(GLFW_KEY_RIGHT_CONTROL);
-    if (control && !(mods & (GLFW_MOD_ALT | GLFW_MOD_SUPER)) &&
-        (key == GLFW_KEY_Z || key == GLFW_KEY_Y))
+    if (control && !(mods & (GLFW_MOD_ALT | GLFW_MOD_SUPER)) && (key == GLFW_KEY_Z || key == GLFW_KEY_Y))
     {
-        const bool redo = key == GLFW_KEY_Y || (mods & GLFW_MOD_SHIFT) ||
-                          m_pressedKeys.contains(GLFW_KEY_LEFT_SHIFT) ||
+        const bool redo = key == GLFW_KEY_Y || (mods & GLFW_MOD_SHIFT) || m_pressedKeys.contains(GLFW_KEY_LEFT_SHIFT) ||
                           m_pressedKeys.contains(GLFW_KEY_RIGHT_SHIFT);
         executeEditCommand(redo ? EditCommand::Redo : EditCommand::Undo);
         return;
@@ -173,11 +183,9 @@ void Input::handleKey(int key, int action, int mods, int scanCode)
         executeEditCommand(EditCommand::SelectAll);
         return;
     }
-    const bool plain =
-        !(mods & (GLFW_MOD_SHIFT | GLFW_MOD_CONTROL | GLFW_MOD_ALT | GLFW_MOD_SUPER)) && !control;
+    const bool plain = !(mods & (GLFW_MOD_SHIFT | GLFW_MOD_CONTROL | GLFW_MOD_ALT | GLFW_MOD_SUPER)) && !control;
     if ((plain && (key == GLFW_KEY_HOME || key == GLFW_KEY_F)) ||
-        (control && !(mods & (GLFW_MOD_SHIFT | GLFW_MOD_ALT | GLFW_MOD_SUPER)) &&
-         key == GLFW_KEY_0))
+        (control && !(mods & (GLFW_MOD_SHIFT | GLFW_MOD_ALT | GLFW_MOD_SUPER)) && key == GLFW_KEY_0))
     {
         const auto command = key == GLFW_KEY_HOME ? ViewCommand::FitCircuit
                              : key == GLFW_KEY_F  ? ViewCommand::CenterSelection
@@ -193,14 +201,13 @@ void Input::handleKey(int key, int action, int mods, int scanCode)
     if (key == GLFW_KEY_F2)
     {
         if (!(mods & (GLFW_MOD_SHIFT | GLFW_MOD_CONTROL | GLFW_MOD_ALT | GLFW_MOD_SUPER)))
-            setMode(
-                m_mode == EditorMode::Selection ? EditorMode::Interaction : EditorMode::Selection
-            );
+            setMode(m_mode == EditorMode::Selection ? EditorMode::Interaction : EditorMode::Selection);
         return;
     }
     if (key != GLFW_KEY_F3)
         m_pendingKeyPresses.insert(key);
 }
+
 
 bool Input::consumeKeyPress(int key)
 {
@@ -208,12 +215,14 @@ bool Input::consumeKeyPress(int key)
     return pressed && canvasKeyboardAvailable();
 }
 
+
 void Input::cancelCurrentAction()
 {
     cancelGestures();
     m_pendingKeyPresses.erase(GLFW_KEY_V);
     m_selection.clear();
 }
+
 
 void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mods)
 {
@@ -254,8 +263,8 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         return;
 
     // A placement click may arrive in the same event poll as Ctrl+V.
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && m_scene &&
-        m_mode == EditorMode::Selection && isIdle() && consumeKeyPress(GLFW_KEY_V))
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && m_scene && m_mode == EditorMode::Selection &&
+        isIdle() && consumeKeyPress(GLFW_KEY_V))
         executeEditCommand(EditCommand::Paste, GridSystem::worldToGrid(getMouseWorldCoord(window)));
     if (m_paste.active() && button == GLFW_MOUSE_BUTTON_LEFT)
     {
@@ -302,8 +311,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
         }
         const bool shift = (mods & GLFW_MOD_SHIFT) || m_pressedKeys.contains(GLFW_KEY_LEFT_SHIFT) ||
                            m_pressedKeys.contains(GLFW_KEY_RIGHT_SHIFT);
-        const bool control = (mods & GLFW_MOD_CONTROL) ||
-                             m_pressedKeys.contains(GLFW_KEY_LEFT_CONTROL) ||
+        const bool control = (mods & GLFW_MOD_CONTROL) || m_pressedKeys.contains(GLFW_KEY_LEFT_CONTROL) ||
                              m_pressedKeys.contains(GLFW_KEY_RIGHT_CONTROL);
         if (shift)
         {
@@ -367,9 +375,8 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
                     selectedPaths.push_back(found->second);
             }
             const auto result = m_drag.finish(
-                *m_scene,
-                !(mods & GLFW_MOD_ALT) && !m_pressedKeys.contains(GLFW_KEY_LEFT_ALT) &&
-                    !m_pressedKeys.contains(GLFW_KEY_RIGHT_ALT)
+                *m_scene, !(mods & GLFW_MOD_ALT) && !m_pressedKeys.contains(GLFW_KEY_LEFT_ALT) &&
+                              !m_pressedKeys.contains(GLFW_KEY_RIGHT_ALT)
             );
             recordEdit(result);
             if (result && result.change)
@@ -393,6 +400,7 @@ void Input::handleMouseButton(GLFWwindow* window, int button, int action, int mo
     }
 }
 
+
 void Input::handleCursorPos(GLFWwindow* window, double x, double y)
 {
     UiInputEvent event{UiInputKind::Cursor};
@@ -402,8 +410,7 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
     synchronizeSurface(window);
     if (consumed || !m_windowFocused || m_uiCapture.pointer || !containsCanvasPoint(window, x, y))
     {
-        if (m_pasteAwaitingCanvas && m_windowFocused && !m_uiCapture.pointer &&
-            !containsCanvasPoint(window, x, y))
+        if (m_pasteAwaitingCanvas && m_windowFocused && !m_uiCapture.pointer && !containsCanvasPoint(window, x, y))
         {
             clearHover();
             lastMouseX = x;
@@ -439,14 +446,13 @@ void Input::handleCursorPos(GLFWwindow* window, double x, double y)
     }
     else if (m_pan.active())
     {
-        m_pan.update(
-            {static_cast<float>(x), static_cast<float>(y)}, getCameraFrame(window), m_camera
-        );
+        m_pan.update({static_cast<float>(x), static_cast<float>(y)}, getCameraFrame(window), m_camera);
         mouseGridCoords = GridSystem::worldToGrid(getMouseWorldCoord(window));
     }
     lastMouseX = x;
     lastMouseY = y;
 }
+
 
 void Input::process(GLFWwindow* window)
 {
@@ -472,20 +478,10 @@ void Input::process(GLFWwindow* window)
     const bool canEdit = m_scene && !isReadOnly() && m_mode == EditorMode::Selection && isIdle() &&
                          isCanvasPointerAvailable(window) && canvasKeyboardAvailable();
     for (int key :
-         {GLFW_KEY_1,
-          GLFW_KEY_2,
-          GLFW_KEY_3,
-          GLFW_KEY_4,
-          GLFW_KEY_5,
-          GLFW_KEY_6,
-          GLFW_KEY_7,
-          GLFW_KEY_8,
-          GLFW_KEY_9,
-          GLFW_KEY_U,
-          GLFW_KEY_I})
+         {GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9,
+          GLFW_KEY_U, GLFW_KEY_I})
         if (consumeKeyPress(key) && canEdit)
-            if (auto command =
-                    componentShortcut(key, GridSystem::worldToGrid(getMouseWorldCoord(window))))
+            if (auto command = componentShortcut(key, GridSystem::worldToGrid(getMouseWorldCoord(window))))
                 applyEdit(std::move(*command));
 
     if (consumeKeyPress(GLFW_KEY_V) && canEdit)
@@ -517,6 +513,7 @@ void Input::process(GLFWwindow* window)
     updateHoverState(window);
 }
 
+
 void Input::handleScroll(GLFWwindow* window, double x, double y)
 {
     UiInputEvent event{UiInputKind::Scroll};
@@ -531,13 +528,13 @@ void Input::handleScroll(GLFWwindow* window, double x, double y)
         interruptCanvas();
         return;
     }
-    if (m_pressedKeys.contains(GLFW_KEY_LEFT_CONTROL) ||
-        m_pressedKeys.contains(GLFW_KEY_RIGHT_CONTROL))
+    if (m_pressedKeys.contains(GLFW_KEY_LEFT_CONTROL) || m_pressedKeys.contains(GLFW_KEY_RIGHT_CONTROL))
     {
         if (std::isfinite(y))
             setZoom(std::clamp(m_camera.zoom() + static_cast<float>(y) * 0.15f, 0.2f, 5.0f));
     }
 }
+
 
 void Input::updateHoverState(GLFWwindow* window)
 {
@@ -592,9 +589,9 @@ void Input::updateHoverState(GLFWwindow* window)
     // been merged or split away since the hit test ran.
     const Wire* hoveredWire = m_scene->getWire(hoveredWireId);
     m_hoveredSegmentValid =
-        hoveredWire &&
-        hoveredWire->getSegmentAt(mouseGridCoords, m_hoveredSegmentStart, m_hoveredSegmentEnd);
+        hoveredWire && hoveredWire->getSegmentAt(mouseGridCoords, m_hoveredSegmentStart, m_hoveredSegmentEnd);
 }
+
 
 glm::vec2 Input::getMouseWorldCoord(GLFWwindow* window) const
 {

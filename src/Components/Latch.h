@@ -21,6 +21,7 @@ class Latch : public Component
         setStateOutPin(1, true);
     }
 
+    /** @brief Evaluate the level-sensitive latch, retaining stored state when its control inputs require a hold. */
     void evaluate() override
     {
         if (m_type == LatchType::SR_LATCH)

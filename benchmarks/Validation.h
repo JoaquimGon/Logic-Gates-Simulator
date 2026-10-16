@@ -8,8 +8,8 @@
 
 namespace bench
 {
-inline std::string
-propagationReason(SimulationResult result, std::size_t remaining, const SimulationWork& work)
+/** @brief Classify a propagation attempt from its final result, remaining evaluation budget and bounded round count. */
+inline std::string propagationReason(SimulationResult result, std::size_t remaining, const SimulationWork& work)
 {
     if (result == SimulationResult::OK)
         return "settled";
@@ -31,8 +31,8 @@ inline bool pixelMatches(const Pixel& actual, const Pixel& expected, int toleran
 }
 
 // Compare the COMPLETE retained trace, including availability, compression and ordering.
-inline bool
-traceMatches(const std::deque<ClockSample>& actual, const std::deque<ClockSample>& expected)
+/** @brief Compare complete ordered signal samples, including timestamps, levels and availability. */
+inline bool traceMatches(const std::deque<ClockSample>& actual, const std::deque<ClockSample>& expected)
 {
     if (actual.size() != expected.size())
         return false;

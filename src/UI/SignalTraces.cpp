@@ -6,14 +6,15 @@
 #include <cmath>
 #include <limits>
 
+
+/** @brief Map a component information row to its concrete input or output pin. */
 const PinUI* UI::infoPinAtLine(const Scene& scene, int line) const
 {
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
     if (!view)
         return nullptr;
     const auto info = componentInfo(scene);
-    const int extra =
-        !canName(scene) && !view->getBodyLabel().empty() && view->getBodyLabel() != info.front();
+    const int extra = !canName(scene) && !view->getBodyLabel().empty() && view->getBodyLabel() != info.front();
     int start = 2 + extra;
     for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
     {
@@ -24,8 +25,9 @@ const PinUI* UI::infoPinAtLine(const Scene& scene, int line) const
     return nullptr;
 }
 
-std::optional<SignalTrace>
-UI::signalForPin(const Scene& scene, PinType direction, unsigned int index) const
+
+/** @brief Build a stable nested signal reference for a selected information-panel pin. */
+std::optional<SignalTrace> UI::signalForPin(const Scene& scene, PinType direction, unsigned int index) const
 {
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
     if (!view)
@@ -37,20 +39,18 @@ UI::signalForPin(const Scene& scene, PinType direction, unsigned int index) cons
             auto label = scene.signalName(m_infoComponent, direction, index);
             if (m_views && m_views->inspecting())
                 label = m_views->inspectionLabel() + " / " + label;
-            return SignalTrace{
-                m_views ? m_views->signalPath(m_infoComponent) : ClockPath{m_infoComponent},
-                direction,
-                index,
-                pin.id,
-                label,
-                {}
-            };
+            return SignalTrace{m_views ? m_views->signalPath(m_infoComponent) : ClockPath{m_infoComponent},
+                               direction,
+                               index,
+                               pin.id,
+                               label,
+                               {}};
         }
     return std::nullopt;
 }
 
-CanvasViewport
-UI::signalTraceBounds(const Scene& scene, PinType direction, unsigned int index) const
+
+CanvasViewport UI::signalTraceBounds(const Scene& scene, PinType direction, unsigned int index) const
 {
     if (m_infoComponent == -1 || m_truthTableOpen)
         return {};
@@ -69,15 +69,14 @@ UI::signalTraceBounds(const Scene& scene, PinType direction, unsigned int index)
         if (pin && pin->type == direction && pin->pin_index == index)
             return {
                 bounds.x + bounds.width - 62,
-                bounds.y + infoHeaderSize(scene) + infoLabelHeight +
-                    (canName(scene) ? infoNameHeight : 0) + infoSettingsHeight(scene) +
-                    row * infoRowHeight + 1,
-                50,
-                infoRowHeight - 2
+                bounds.y + infoHeaderSize(scene) + infoLabelHeight + (canName(scene) ? infoNameHeight : 0) +
+                    infoSettingsHeight(scene) + row * infoRowHeight + 1,
+                50, infoRowHeight - 2
             };
     }
     return {};
 }
+
 
 CanvasViewport UI::signalRemoveBounds(int row) const
 {
@@ -87,6 +86,8 @@ CanvasViewport UI::signalRemoveBounds(int row) const
     return {list.x + clockLabelWidth() - 28, list.y + row * 48 + 23, 24, 21};
 }
 
+
+/** @brief Choose an explicit fitted signal interval from observed transitions rather than unrecorded predictions. */
 double UI::fittedSignalWindow() const
 {
     double shortest = std::numeric_limits<double>::infinity();

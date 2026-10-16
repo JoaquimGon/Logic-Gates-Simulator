@@ -1,7 +1,7 @@
 #pragma once
 
-#include "NetTypes.h"
 #include "Components/PinTypes.h"
+#include "NetTypes.h"
 
 #include <algorithm>
 #include <optional>
@@ -12,7 +12,6 @@ class Net
   public:
     // Drivers (at most 1 valid driver; >1 signifies a short circuit)
     bool hasDriver() const { return m_drivers.size() == 1; }
-
     bool shorted() const { return m_drivers.size() > 1; }
 
     std::optional<PinRef> getDriver() const
@@ -24,6 +23,7 @@ class Net
 
     const std::vector<PinRef>& getDrivers() const { return m_drivers; }
 
+    /** @brief Track net drivers and flag contention when more than one driver is present. */
     bool addDriver(const PinRef& pin)
     {
         if (std::find(m_drivers.begin(), m_drivers.end(), pin) == m_drivers.end())
@@ -49,10 +49,7 @@ class Net
         return true;
     }
 
-    bool isSink(const PinRef& pin) const
-    {
-        return std::find(m_sinks.begin(), m_sinks.end(), pin) != m_sinks.end();
-    }
+    bool isSink(const PinRef& pin) const { return std::find(m_sinks.begin(), m_sinks.end(), pin) != m_sinks.end(); }
 
     // Geometry
     const std::vector<WireId>& getGeometry() const { return m_geometry; }
@@ -65,7 +62,6 @@ class Net
 
     // Electrical State
     PinState getState() const { return m_state; }
-
     void setState(PinState newState) { m_state = newState; }
 
   private:

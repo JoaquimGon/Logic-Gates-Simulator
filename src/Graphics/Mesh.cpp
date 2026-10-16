@@ -4,7 +4,7 @@
 
 namespace
 {
-// The bound buffer keeps its storage until the incoming data outgrows it.
+/** @brief Reuse allocated buffer storage until incoming geometry exceeds its capacity. */
 void upload(const std::vector<float>& data, std::vector<float>& uploaded, std::size_t& capacity)
 {
     if (data == uploaded)
@@ -21,10 +21,9 @@ void upload(const std::vector<float>& data, std::vector<float>& uploaded, std::s
 }
 } // namespace
 
+
 Mesh::Mesh(
-    const std::vector<float>& vertices,
-    const std::vector<unsigned int>& indices,
-    const VertexLayout& vertexLayout,
+    const std::vector<float>& vertices, const std::vector<unsigned int>& indices, const VertexLayout& vertexLayout,
     unsigned int drawMode
 )
 {
@@ -45,17 +44,11 @@ Mesh::Mesh(
     {
         glGenBuffers(1, &EBO);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-        glBufferData(
-            GL_ELEMENT_ARRAY_BUFFER,
-            indices.size() * sizeof(unsigned int),
-            indices.data(),
-            GL_STATIC_DRAW
-        );
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
     }
     else
     {
-        vertexCount =
-            static_cast<int>(vertices.size() / (vertexLayout.getStride() / sizeof(float)));
+        vertexCount = static_cast<int>(vertices.size() / (vertexLayout.getStride() / sizeof(float)));
     }
 
     vertexLayout.applyToVAO();
@@ -63,16 +56,16 @@ Mesh::Mesh(
     glBindVertexArray(0);
 }
 
+
 Mesh::~Mesh()
 {
     destroy();
 }
 
+
 void Mesh::destroy()
 {
-    // glDelete*() silently ignores 0, but zeroing the handles afterwards both
-    // keeps this idempotent and makes it obvious the mesh no longer owns any GL
-    // object.
+    // Clear handles after deletion so explicit shutdown and the destructor can safely share this path.
     if (VAO != 0)
         glDeleteVertexArrays(1, &VAO);
     if (VBO != 0)
@@ -80,7 +73,7 @@ void Mesh::destroy()
     if (EBO != 0)
         glDeleteBuffers(1, &EBO);
     if (instanceVBO != 0)
-        glDeleteBuffers(1, &instanceVBO); // this one used to be leaked
+        glDeleteBuffers(1, &instanceVBO);
 
     VAO = 0;
     VBO = 0;
@@ -92,6 +85,7 @@ void Mesh::destroy()
     m_instanceAttributes.clear();
     m_instanceAttributeStart = -1;
 }
+
 
 void Mesh::draw() const
 {
@@ -106,10 +100,9 @@ void Mesh::draw() const
     }
 }
 
+
 void Mesh::setInstanceData(
-    const std::vector<float>& instanceData,
-    const std::vector<int>& attributeSizes,
-    int startingAttributeLocation
+    const std::vector<float>& instanceData, const std::vector<int>& attributeSizes, int startingAttributeLocation
 )
 {
     glBindVertexArray(VAO);
@@ -128,25 +121,19 @@ void Mesh::setInstanceData(
     m_instanceAttributes = attributeSizes;
     m_instanceAttributeStart = startingAttributeLocation;
 
-    // Calculate total stride (e.g., 2 + 4 = 6 floats total per instance)
     int totalStride = 0;
     for (int size : attributeSizes)
     {
         totalStride += size;
     }
 
-    // Set up the attribute pointers.
     int currentOffset = 0;
     for (size_t i = 0; i < attributeSizes.size(); ++i)
     {
         int location = startingAttributeLocation + static_cast<int>(i);
         glEnableVertexAttribArray(location);
         glVertexAttribPointer(
-            location,
-            attributeSizes[i],
-            GL_FLOAT,
-            GL_FALSE,
-            totalStride * sizeof(float),
+            location, attributeSizes[i], GL_FLOAT, GL_FALSE, totalStride * sizeof(float),
             (void*)(currentOffset * sizeof(float))
         );
         glVertexAttribDivisor(location, 1);
@@ -155,6 +142,7 @@ void Mesh::setInstanceData(
 
     glBindVertexArray(0);
 }
+
 
 void Mesh::drawInstanced(int instanceCount) const
 {
@@ -170,13 +158,13 @@ void Mesh::drawInstanced(int instanceCount) const
     glBindVertexArray(0);
 }
 
+
 void Mesh::updateData(const std::vector<float>& vertices, int floatsPerVertex)
 {
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     upload(vertices, m_uploadedVertices, m_vertexCapacity);
 
-    // Update the vertex count so glDrawArrays knows how many points to draw
     vertexCount = static_cast<int>(vertices.size() / floatsPerVertex);
 
     glBindVertexArray(0);

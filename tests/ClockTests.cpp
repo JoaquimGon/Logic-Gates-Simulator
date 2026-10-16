@@ -22,29 +22,34 @@ void require(bool value, const char* message)
         throw std::runtime_error(message);
 }
 
+
 class EdgeProbe : public Component
 {
   public:
     EdgeProbe() : Component(-1, 1, 1) {}
 
+
     std::unique_ptr<Component> clone() const override { return std::make_unique<EdgeProbe>(*this); }
+
 
     int clockInputPin() const override { return 0; }
 
+
     void onClockEdge(bool high) override { edges.push_back(high); }
 
+
     void evaluate() override { setStateOutPin(0, getStateInPin(0)); }
+
 
     std::vector<bool> edges;
 };
 
+
 class FailingReceiver : public EdgeProbe
 {
   public:
-    std::unique_ptr<Component> clone() const override
-    {
-        return std::make_unique<FailingReceiver>(*this);
-    }
+    std::unique_ptr<Component> clone() const override { return std::make_unique<FailingReceiver>(*this); }
+
 
     SimulationResult simulationResult() const override
     {
@@ -52,6 +57,8 @@ class FailingReceiver : public EdgeProbe
     }
 };
 
+
+/** @brief Verify chronological stepping, nested clock traversal and bounded catch-up preserve expected transitions. */
 void steps()
 {
     Circuit circuit;
@@ -62,9 +69,8 @@ void steps()
     circuit.connectComponents(clock, 0, receiver, 0);
     auto* probe = static_cast<EdgeProbe*>(circuit.getComponent(receiver));
     require(
-        circuit.stepClocks(1, &timeline) == 1 && circuit.clocksPaused() &&
-            circuit.clockTime() == 0.5 && probe->getStateOutPin(0) &&
-            probe->edges == std::vector<bool>{true},
+        circuit.stepClocks(1, &timeline) == 1 && circuit.clocksPaused() && circuit.clockTime() == 0.5 &&
+            probe->getStateOutPin(0) && probe->edges == std::vector<bool>{true},
         "Single step did not settle the rising edge."
     );
     require(
@@ -78,16 +84,14 @@ void steps()
         "Step recording lost states or included disabled edges."
     );
     require(
-        !circuit.updateClocks(30, &timeline) && circuit.clockTime() == 1.5 &&
-            circuit.pendingClockTime() == 0,
+        !circuit.updateClocks(30, &timeline) && circuit.clockTime() == 1.5 && circuit.pendingClockTime() == 0,
         "Global pause accumulated elapsed time."
     );
     circuit.setClocksPaused(false);
     circuit.updateClocks(0.5f, &timeline);
     require(
         !static_cast<Clock*>(circuit.getComponent(clock))->isPaused() &&
-            static_cast<Clock*>(circuit.getComponent(disabled))->isPaused() &&
-            !probe->getStateOutPin(0),
+            static_cast<Clock*>(circuit.getComponent(disabled))->isPaused() && !probe->getStateOutPin(0),
         "Run changed individual clock settings or lost phase."
     );
 
@@ -96,17 +100,13 @@ void steps()
     ClockTimeline simultaneous;
     require(
         multiple.stepClocks(2, &simultaneous) == 2 && multiple.clockTime() == 0.5 &&
-            multiple.getComponent(slow)->getStateOutPin(0) &&
-            !multiple.getComponent(fast)->getStateOutPin(0) &&
+            multiple.getComponent(slow)->getStateOutPin(0) && !multiple.getComponent(fast)->getStateOutPin(0) &&
             simultaneous.steps() == std::deque<double>{0.25, 0.5},
         "Several clocks stepped together instead of chronologically."
     );
     static_cast<Clock*>(multiple.getComponent(slow))->setPaused(true);
     static_cast<Clock*>(multiple.getComponent(fast))->setPaused(true);
-    require(
-        multiple.stepClocks(2) == 0 && multiple.clockTime() == 0.5,
-        "Stepping forced disabled clocks."
-    );
+    require(multiple.stepClocks(2) == 0 && multiple.clockTime() == 0.5, "Stepping forced disabled clocks.");
     Circuit failed;
     const int oscillator = failed.addGate(NOT), blocked = failed.addClock();
     failed.connectComponents(oscillator, 0, oscillator, 0);
@@ -122,8 +122,8 @@ void steps()
     ClockTimeline stopped;
     require(
         midStepFailure.stepClocks(2, &stopped) == 1 &&
-            midStepFailure.getLastEvalResult() == SimulationResult::NON_CONVERGENT &&
-            stopped.steps().size() == 1 && midStepFailure.clockTime() == 0.5,
+            midStepFailure.getLastEvalResult() == SimulationResult::NON_CONVERGENT && stopped.steps().size() == 1 &&
+            midStepFailure.clockTime() == 0.5,
         "Double step continued after a settling failure."
     );
 
@@ -131,11 +131,13 @@ void steps()
     phase.advanceSlice(0.25);
     phase.setFrequency(10);
     require(
-        std::abs(phase.timeUntilEdge() - 0.025) < 1e-9,
-        "Frequency edit did not preserve the fractional cycle phase."
+        std::abs(phase.timeUntilEdge() - 0.025) < 1e-9, "Frequency edit did not preserve the fractional cycle phase."
     );
 }
 
+
+/** @brief Verify resetting sources preserves configured frequency and pause controls while clearing pending timing
+ * work. */
 void resetSources()
 {
     auto child = std::make_shared<Circuit>();
@@ -162,8 +164,7 @@ void resetSources()
     circuit.updateClocks(0.375f, &timeline);
     circuit.setClocksPaused(true);
     require(
-        circuit.getComponent(clock)->getStateOutPin() && circuit.clockReadings()[2].high &&
-            !timeline.steps().empty(),
+        circuit.getComponent(clock)->getStateOutPin() && circuit.clockReadings()[2].high && !timeline.steps().empty(),
         "Reset fixture did not start clocks HIGH with a recorded phase."
     );
     circuit.resetSources();
@@ -172,15 +173,13 @@ void resetSources()
     for (const auto& reading : circuit.clockReadings())
         require(!reading.high, "Reset left a native or nested clock HIGH.");
     require(
-        !circuit.getComponent(manual)->getStateOutPin() && circuit.clocksPaused() &&
-            disabledClock->isPaused() && disabledClock->getFrequency() == 5 &&
-            circuit.clockTime() == 0 && circuit.pendingClockTime() == 0 &&
+        !circuit.getComponent(manual)->getStateOutPin() && circuit.clocksPaused() && disabledClock->isPaused() &&
+            disabledClock->getFrequency() == 5 && circuit.clockTime() == 0 && circuit.pendingClockTime() == 0 &&
             timeline.traces().empty() && timeline.steps().empty(),
         "Reset changed clock settings or retained manual inputs/time/history."
     );
     require(
-        circuit.getComponent(nested)->getStateOutPin() &&
-            child->getComponent(innerClock)->getStateOutPin() == false,
+        circuit.getComponent(nested)->getStateOutPin() && child->getComponent(innerClock)->getStateOutPin() == false,
         "Reset corrupted driven subcircuit ports or the shared definition template."
     );
     circuit.stepClocks(1, &timeline);
@@ -196,12 +195,14 @@ void resetSources()
     backlog.resetSources();
     backlog.propagate();
     require(
-        backlog.pendingClockTime() == 0 && backlog.clockTime() == 0 &&
-            !backlog.getComponent(fast)->getStateOutPin() && !backlog.clocksPaused(),
+        backlog.pendingClockTime() == 0 && backlog.clockTime() == 0 && !backlog.getComponent(fast)->getStateOutPin() &&
+            !backlog.clocksPaused(),
         "Reset retained old catch-up work or paused running clocks."
     );
 }
 
+
+/** @brief Verify recorded clock transitions, bounded retention and clear operations preserve simulation state. */
 void history()
 {
     Scene names;
@@ -210,28 +211,21 @@ void history()
     const int namedFirst = names.addComponent(BuiltinComponentIds::Clock, {-20, 0});
     const int namedSecond = names.addComponent(BuiltinComponentIds::Clock, {-40, 0});
     require(
-        namedFirst == 6 && names.clockName({namedFirst}) == "Clock 1" &&
-            names.clockName({namedSecond}) == "Clock 2" &&
+        namedFirst == 6 && names.clockName({namedFirst}) == "Clock 1" && names.clockName({namedSecond}) == "Clock 2" &&
             names.getCommittedComponentView(namedFirst)->getBodyLabel().empty(),
         "Clock fallbacks exposed component IDs or changed the saved label."
     );
-    const auto renamed = EditorActions(names).apply(
-        {ConfigureComponentProperties{.componentId = namedFirst, .label = "Reference"}}
-    );
+    const auto renamed =
+        EditorActions(names).apply({ConfigureComponentProperties{.componentId = namedFirst, .label = "Reference"}});
     require(
-        renamed && names.clockName({namedFirst}) == "Reference" &&
-            names.clockName({namedSecond}) == "Clock 2",
+        renamed && names.clockName({namedFirst}) == "Reference" && names.clockName({namedSecond}) == "Clock 2",
         "Clock names gained ID suffixes or numbered non-clock components."
     );
     names.removeComponent(namedFirst);
-    require(
-        names.clockName({namedSecond}) == "Clock 1", "Fallback numbering included deleted clocks."
-    );
+    require(names.clockName({namedSecond}) == "Clock 1", "Fallback numbering included deleted clocks.");
     Scene fresh;
     const int freshClock = fresh.addComponent(BuiltinComponentIds::Clock, {0, 0});
-    require(
-        fresh.clockName({freshClock}) == "Clock 1", "New workspaces inherited clock numbering."
-    );
+    require(fresh.clockName({freshClock}) == "Clock 1", "New workspaces inherited clock numbering.");
 
     Circuit circuit;
     ClockTimeline timeline;
@@ -239,16 +233,12 @@ void history()
     circuit.updateClocks(0.01f, &timeline);
     while (circuit.pendingClockTime() > 0)
         circuit.updateClocks(0, &timeline);
-    require(
-        timeline.traces().at({clock}).size() >= 20,
-        "Waveform was sampled once per frame instead of at each edge."
-    );
+    require(timeline.traces().at({clock}).size() >= 20, "Waveform was sampled once per frame instead of at each edge.");
     for (int i = 0; i < 1100; ++i)
         circuit.stepClocks(2, &timeline);
     require(
         timeline.traces().at({clock}).size() == ClockTimeline::sampleLimit &&
-            timeline.steps().size() == ClockTimeline::sampleLimit &&
-            timeline.traces().at({clock}).front().time > 0,
+            timeline.steps().size() == ClockTimeline::sampleLimit && timeline.traces().at({clock}).front().time > 0,
         "Clock history was unbounded."
     );
     circuit.delComponent(clock);
@@ -279,6 +269,8 @@ void history()
     );
 }
 
+
+/** @brief Verify phase-based forecasts change independently of recorded history and explicit time scaling. */
 void previewPanel(GLFWwindow* window)
 {
     CircuitViews views;
@@ -312,10 +304,9 @@ void previewPanel(GLFWwindow* window)
     const auto originalStart = ui.clockStartTime();
     const auto predicted = ui.clockPreview(reading);
     require(
-        ui.clockStartTime() + ui.clockWindowSeconds() / 2 == timeline.time() &&
-            reading.timeUntilEdge == 0.25 && predicted.front().time == 0.25 &&
-            !predicted.front().high && predicted[1].time == 0.5 && predicted[1].high &&
-            scene.clockTime() == 0.25 && !scene.getLogicComponent(id)->getStateOutPin(),
+        ui.clockStartTime() + ui.clockWindowSeconds() / 2 == timeline.time() && reading.timeUntilEdge == 0.25 &&
+            predicted.front().time == 0.25 && !predicted.front().high && predicted[1].time == 0.5 &&
+            predicted[1].high && scene.clockTime() == 0.25 && !scene.getLogicComponent(id)->getStateOutPin(),
         "Clock preview ignored the live phase, moved the cursor or changed simulation."
     );
     scene.togglePauseAllClocks();
@@ -324,25 +315,23 @@ void previewPanel(GLFWwindow* window)
         "Globally paused clocks lost their scheduled preview."
     );
     require(
-        static_cast<bool>(EditorActions(scene).apply(
-            {ConfigureComponentProperties{.componentId = id, .clockFrequency = 2.0f}}
-        )),
+        static_cast<bool>(
+            EditorActions(scene).apply({ConfigureComponentProperties{.componentId = id, .clockFrequency = 2.0f}})
+        ),
         "Cannot edit preview frequency."
     );
     const auto changed = ui.clockPreview(scene.clockReadings().front());
     ui.layout(scene.getComponentCatalog(), {800, 800, 800, 800}, input);
     require(
-        changed[1].time == 0.375 && changed[2].time == 0.625 &&
-            ui.clockWindowSeconds() == originalWindow && ui.clockStartTime() == originalStart &&
-            timeline.traces().at({id}).size() == before.size() &&
+        changed[1].time == 0.375 && changed[2].time == 0.625 && ui.clockWindowSeconds() == originalWindow &&
+            ui.clockStartTime() == originalStart && timeline.traces().at({id}).size() == before.size() &&
             timeline.traces().at({id}).front().time == before.front().time &&
             timeline.traces().at({id}).back().time == before.back().time,
         "Hz changes reset phase, kept an old forecast or modified recorded history."
     );
     click(ui.clockPauseBounds(0));
     require(
-        ui.clockPreview(scene.clockReadings().front()).size() == 1 &&
-            ui.clockWindowSeconds() == originalWindow,
+        ui.clockPreview(scene.clockReadings().front()).size() == 1 && ui.clockWindowSeconds() == originalWindow,
         "A disabled clock preview invented future transitions."
     );
     click(ui.clockPauseBounds(0));
@@ -383,10 +372,7 @@ void previewPanel(GLFWwindow* window)
     );
     click(ui.clockControlBounds(UI::ClockControl::ZoomOut));
     click(ui.bottomTabBounds(UI::BottomTab::Clocks));
-    require(
-        ui.clockWindowSeconds() == manualWindow,
-        "Changing the Signals time frame rescaled the Clocks history."
-    );
+    require(ui.clockWindowSeconds() == manualWindow, "Changing the Signals time frame rescaled the Clocks history.");
     click(ui.clockControlBounds(UI::ClockControl::Clear));
     require(
         ui.clockStartTime() + manualWindow / 2 == timeline.time() &&
@@ -397,6 +383,8 @@ void previewPanel(GLFWwindow* window)
     input.setScene(nullptr);
 }
 
+
+/** @brief Exercise clock-panel playback, frequency edits, timeline controls and input capture. */
 void panel(GLFWwindow* window)
 {
     Input input;
@@ -410,8 +398,7 @@ void panel(GLFWwindow* window)
     ui.setCircuitViews(&views, &font);
     const int clock = views.activeScene().addComponent(BuiltinComponentIds::Clock, {0, 0});
     views.markSaved(0);
-    auto layout = [&]
-    { ui.layout(views.activeScene().getComponentCatalog(), {800, 800, 800, 800}, input); };
+    auto layout = [&] { ui.layout(views.activeScene().getComponentCatalog(), {800, 800, 800, 800}, input); };
     layout();
     input.setUiInputHandler(
         [&](const UiInputEvent& event)
@@ -455,10 +442,7 @@ void panel(GLFWwindow* window)
     );
     const auto zoom = input.getZoom();
     click(ui.clockControlBounds(UI::ClockControl::ZoomIn));
-    require(
-        ui.clockWindowSeconds() == 2 && input.getZoom() == zoom,
-        "Timeline zoom affected the canvas."
-    );
+    require(ui.clockWindowSeconds() == 2 && input.getZoom() == zoom, "Timeline zoom affected the canvas.");
     click(ui.clockControlBounds(UI::ClockControl::Fit));
     require(
         ui.clockWindowSeconds() == 4 && ui.clockTimeFrameText() == "Time frame = 4 s",
@@ -468,16 +452,14 @@ void panel(GLFWwindow* window)
     input.handleText('8');
     key(GLFW_KEY_ENTER);
     require(
-        static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency() ==
-                8 &&
+        static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency() == 8 &&
             input.getUndoCount() == 1 && views.hasUnsavedChanges(0) && ui.clockWindowSeconds() == 4,
         "Frequency edit was not undoable/savable."
     );
     input.setCanvasFocused(true);
     key(GLFW_KEY_Z, GLFW_MOD_CONTROL);
     require(
-        static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency() ==
-                1 &&
+        static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency() == 1 &&
             views.activeClockTimeline().traces().empty(),
         "Undo retained incompatible trace history."
     );
@@ -486,8 +468,7 @@ void panel(GLFWwindow* window)
     key(GLFW_KEY_ENTER);
     require(
         input.getUiCapture().keyboard &&
-            static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))
-                    ->getFrequency() == 1,
+            static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency() == 1,
         "Invalid frequency changed simulation or released typing capture."
     );
     key(GLFW_KEY_ESCAPE);
@@ -500,8 +481,7 @@ void panel(GLFWwindow* window)
     const auto disabledTip = ui.clockTooltip(views.activeScene());
     require(
         std::any_of(
-            disabledTip.begin(),
-            disabledTip.end(),
+            disabledTip.begin(), disabledTip.end(),
             [](const auto& text) { return text.find("All clocks disabled") != std::string::npos; }
         ),
         "Disabled stepping did not have a hover explanation."
@@ -519,12 +499,10 @@ void panel(GLFWwindow* window)
     const auto undoCount = input.getUndoCount();
     click(ui.clockControlBounds(UI::ClockControl::Clear));
     require(
-        views.activeClockTimeline().steps().empty() &&
-            views.activeClockTimeline().traces().at({clock}).size() == 1 &&
+        views.activeClockTimeline().steps().empty() && views.activeClockTimeline().traces().at({clock}).size() == 1 &&
             views.activeClockTimeline().traces().at({clock}).front().time == time &&
             views.activeScene().clockTime() == time &&
-            views.activeScene().getLogicComponent(clock)->getStateOutPin() == high &&
-            input.getUndoCount() == undoCount,
+            views.activeScene().getLogicComponent(clock)->getStateOutPin() == high && input.getUndoCount() == undoCount,
         "Clear reset the simulation or retained old graph data."
     );
     click(ui.clockControlBounds(UI::ClockControl::SingleStep));
@@ -533,16 +511,12 @@ void panel(GLFWwindow* window)
     layout();
     require(
         ui.bottomTabBounds(UI::BottomTab::Clocks).width > 0 &&
-            ui.bottomTabBounds(UI::BottomTab::Subcircuit).width > 0 &&
-            views.activeClockTimeline().traces().empty(),
+            ui.bottomTabBounds(UI::BottomTab::Subcircuit).width > 0 && views.activeClockTimeline().traces().empty(),
         "Subcircuit tab inherited workspace traces."
     );
     views.select(0, input);
     layout();
-    require(
-        views.activeClockTimeline().steps().size() == mainSteps,
-        "Switching tabs lost the outgoing timeline."
-    );
+    require(views.activeClockTimeline().steps().size() == mainSteps, "Switching tabs lost the outgoing timeline.");
     Scene authored;
     const int gap = authored.addComponent(BuiltinComponentIds::And, {60, 60});
     authored.removeComponent(gap);
@@ -550,9 +524,8 @@ void panel(GLFWwindow* window)
     authored.addComponent(BuiltinComponentIds::Output, {20, 0});
     const int namedClock = authored.addComponent(BuiltinComponentIds::Clock, {0, 20});
     authored.setInterfaceNamingRequired(true);
-    const auto named = EditorActions(authored).apply(
-        {ConfigureComponentProperties{.componentId = namedClock, .label = "Pulse"}}
-    );
+    const auto named =
+        EditorActions(authored).apply({ConfigureComponentProperties{.componentId = namedClock, .label = "Pulse"}});
     require(static_cast<bool>(named), "Nested clock naming fixture failed.");
     const auto definition = makeSubcircuit(authored, {"subcircuit.clock-panel", 1}, "Timer");
     views.publishSubcircuits({definition});
@@ -583,14 +556,11 @@ void panel(GLFWwindow* window)
     const int fast = views.activeScene().addComponent(
         BuiltinComponentIds::Clock, {0, 0}, ComponentOverrides{.clockFrequency = 256.0f}
     );
-    views.activeScene().addComponent(
-        BuiltinComponentIds::Clock, {20, 0}, ComponentOverrides{.clockFrequency = 1.0f}
-    );
+    views.activeScene().addComponent(BuiltinComponentIds::Clock, {20, 0}, ComponentOverrides{.clockFrequency = 1.0f});
     layout();
     click(ui.bottomTabBounds(UI::BottomTab::Clocks));
     require(
-        ui.clockWindowSeconds() == 4.0 / 256 &&
-            ui.clockTimeFrameText() == "Time frame = 0.015625 s",
+        ui.clockWindowSeconds() == 4.0 / 256 && ui.clockTimeFrameText() == "Time frame = 0.015625 s",
         "High-frequency clocks did not automatically receive a readable time frame."
     );
     click(ui.clockControlBounds(UI::ClockControl::ZoomOut));
@@ -598,8 +568,7 @@ void panel(GLFWwindow* window)
     for (int i = 0; i < 7; ++i)
         click(ui.clockControlBounds(UI::ClockControl::ZoomOut));
     require(
-        ui.clockWindowSeconds() == 4 && ui.clockWaveformTooDense(256),
-        "256 Hz over four seconds was not suppressed."
+        ui.clockWindowSeconds() == 4 && ui.clockWaveformTooDense(256), "256 Hz over four seconds was not suppressed."
     );
     ui.layout(views.activeScene().getComponentCatalog(), {1900, 800, 1900, 800}, input);
     require(ui.clockWaveformTooDense(256), "Wide windows allowed thousands of clock edges.");
@@ -607,12 +576,10 @@ void panel(GLFWwindow* window)
     require(!ui.clockWaveformTooDense(256), "Fit did not restore a readable waveform.");
     layout();
     click(ui.clockControlBounds(UI::ClockControl::ZoomOut));
-    const auto rate =
-        EditorActions(views.activeScene())
-            .apply({ConfigureComponentProperties{.componentId = fast, .clockFrequency = 1024.0f}});
+    const auto rate = EditorActions(views.activeScene())
+                          .apply({ConfigureComponentProperties{.componentId = fast, .clockFrequency = 1024.0f}});
     require(
-        static_cast<bool>(rate) && ui.clockWindowSeconds() == manualWindow,
-        "Frequency changes overwrote manual zoom."
+        static_cast<bool>(rate) && ui.clockWindowSeconds() == manualWindow, "Frequency changes overwrote manual zoom."
     );
     click(ui.clockControlBounds(UI::ClockControl::Fit));
     require(ui.clockWindowSeconds() == 4.0 / 1024, "Fit did not explicitly rescale the graph.");
@@ -623,9 +590,7 @@ void panel(GLFWwindow* window)
 
     auto loaded = views.activeScene();
     views.replaceWorkspace(std::move(loaded), "Opened", input);
-    require(
-        views.activeClockTimeline().traces().empty(), "Opening a scene retained its old trace."
-    );
+    require(views.activeClockTimeline().traces().empty(), "Opening a scene retained its old trace.");
     ui.dismissPopups(input);
     // Reset from the navbar must work in Interaction mode and affect this view only.
     views.select(0, input);
@@ -634,8 +599,7 @@ void panel(GLFWwindow* window)
     views.activeScene().propagate();
     views.markSaved(0);
     views.activeScene().stepAllClocks(1, &views.activeClockTimeline());
-    const auto frequency =
-        static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency();
+    const auto frequency = static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency();
     const auto paused = views.activeScene().clocksPaused();
     const auto cameraPan = input.getPanOffset();
     input.setMode(EditorMode::Interaction);
@@ -646,14 +610,12 @@ void panel(GLFWwindow* window)
     ui.update(50, input);
     require(
         !views.activeScene().getLogicComponent(clock)->getStateOutPin() &&
-            !views.activeScene().getLogicComponent(manual)->getStateOutPin() &&
-            views.activeScene().clockTime() == 0 && views.activeClockTimeline().traces().empty() &&
-            views.activeClockTimeline().steps().empty() &&
+            !views.activeScene().getLogicComponent(manual)->getStateOutPin() && views.activeScene().clockTime() == 0 &&
+            views.activeClockTimeline().traces().empty() && views.activeClockTimeline().steps().empty() &&
             views.activeScene().clocksPaused() == paused &&
-            static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))
-                    ->getFrequency() == frequency &&
-            input.getPanOffset() == cameraPan && views.hasUnsavedChanges(0) &&
-            ui.takeSimulationReset() && !ui.takeSimulationReset(),
+            static_cast<const Clock*>(views.activeScene().getLogicComponent(clock))->getFrequency() == frequency &&
+            input.getPanOffset() == cameraPan && views.hasUnsavedChanges(0) && ui.takeSimulationReset() &&
+            !ui.takeSimulationReset(),
         "Navbar reset lost settings/camera or retained signals/time/traces."
     );
     input.setUiInputHandler({});
@@ -661,6 +623,7 @@ void panel(GLFWwindow* window)
     glfwSetWindowUserPointer(window, nullptr);
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {

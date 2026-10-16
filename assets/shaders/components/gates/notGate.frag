@@ -4,6 +4,8 @@ out vec4 FragColor;
 in vec4 instanceTint;
 in vec2 localPos;
 
+
+/** @brief Shade the triangular inverter and its output bubble without exposing the internal overlap seam. */
 void main()
 {
     // The quad is 0.2 wide (4 cells) and 0.10 tall (2 cells) -> 2:1 ratio.
@@ -12,7 +14,7 @@ void main()
 
     // Flat back edge perfectly aligns with the left input pin at -2 cells (localPos.x = -0.5)
     float backEdge = -p.x - 0.5;
-    
+
     // The sloped edges converge to a tip at the center (localPos.x = 0.0)
     // This creates a triangle exactly 2 grid cells wide.
     float slopedEdges = abs(p.y) - 0.5 * (-p.x);
@@ -27,7 +29,6 @@ void main()
     // Combine them
     float d = min(triangle, bubble);
 
-    // Anti-aliasing
     float fillFactor = centeredFillCoverage(d);
 
     float outline = outlineFactor(d);

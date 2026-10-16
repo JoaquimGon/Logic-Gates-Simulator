@@ -48,6 +48,7 @@ inline std::array<float, 2> rotatePoint(float x, float y, Orientation orientatio
     throw std::invalid_argument("Unknown gate orientation.");
 }
 
+/** @brief Rotate integer grid offsets with checked arithmetic so extreme coordinates cannot overflow. */
 inline GridCoords rotateGridPoint(GridCoords point, Orientation orientation)
 {
     std::int64_t x = point.x, y = point.y;

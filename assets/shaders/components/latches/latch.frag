@@ -1,11 +1,13 @@
 #version 330 core
 
-#include "../common/sdf.glsl"
 #include "../common/outline.glsl"
+#include "../common/sdf.glsl"
 out vec4 FragColor;
 in vec4 instanceTint;
 in vec2 localPos;
 
+
+/** @brief Shade the native latch or flip-flop body with its inset outline and instance tint. */
 void main()
 {
     // localPos is -0.5 to 0.5. The half extents are equal on both axes and sit
@@ -18,7 +20,7 @@ void main()
 
     // Deep slate blue/charcoal body
     vec3 bodyColor = vec3(0.14, 0.16, 0.22);
-    
+
     // Subtle border
     float border = outlineFactor(d);
     vec3 borderColor = vec3(0.12, 0.15, 0.20);

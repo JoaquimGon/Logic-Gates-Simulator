@@ -8,9 +8,7 @@ struct Attribute
     int m_offsetBytes;
 };
 
-/**
- * @brief Utility class for configuring and building VAO attribute layouts.
- */
+/** @brief Describes interleaved float attributes for a vertex array. */
 class VertexLayout
 {
   private:
@@ -18,20 +16,11 @@ class VertexLayout
     int strideBytes = 0;
 
   public:
-    /**
-     * @brief Registers a new vertex attribute layout specification for the VBO.
-     * @param floatCount Number of floats for the attribute (e.g., 3 for x, y, z
-     * positions)
-     */
     void addAttribute(int floatCount);
 
-    /**
-     * @brief Applies the vertex attributes to the VAO.
-     */
+    /** @brief Configure attributes on the currently bound vertex array. */
     void applyToVAO() const;
 
-    /**
-     * @brief Returns stride in number of bytes.
-     */
+    /** @return Stride in bytes. */
     int getStride() const;
 };

@@ -14,6 +14,7 @@
 
 namespace
 {
+/** @brief Count nested design resources under shared depth and size limits before compiling a reusable definition. */
 void countDesign(const Scene& scene, const std::string& id, int depth, std::size_t& count)
 {
     if (depth >= 8)
@@ -32,6 +33,7 @@ void countDesign(const Scene& scene, const std::string& id, int depth, std::size
     }
 }
 } // namespace
+
 
 std::string subcircuitProblem(const Scene& scene)
 {
@@ -55,6 +57,7 @@ std::string subcircuitProblem(const Scene& scene)
     return {};
 }
 
+
 std::vector<std::string> subcircuitClockNames(const Scene& scene)
 {
     std::vector<std::string> names;
@@ -63,8 +66,8 @@ std::vector<std::string> subcircuitClockNames(const Scene& scene)
     return names;
 }
 
-ComponentDefinition
-makeSubcircuit(const Scene& scene, DefinitionIdentity identity, const std::string& name)
+
+ComponentDefinition makeSubcircuit(const Scene& scene, DefinitionIdentity identity, const std::string& name)
 {
     Scene authored(scene);
     authored.propagate();
@@ -98,11 +101,7 @@ makeSubcircuit(const Scene& scene, DefinitionIdentity identity, const std::strin
             options.clockPaused = clock->isPaused();
         }
         const auto created = ComponentFactory::create(
-            runtime,
-            authored.getComponentCatalog(),
-            view.getDefinitionIdentity().id,
-            {0, 0},
-            options,
+            runtime, authored.getComponentCatalog(), view.getDefinitionIdentity().id, {0, 0}, options,
             view.getDefinitionIdentity().version
         );
         runtimeIds[id] = created.id;
@@ -113,9 +112,7 @@ makeSubcircuit(const Scene& scene, DefinitionIdentity identity, const std::strin
     for (int id : authoredIds)
         for (const auto& edge : authored.getLogicComponent(id)->getOutConnections())
             if (!runtime.connectComponents(
-                    runtimeIds.at(edge.srcComponentId),
-                    edge.srcPinIndex,
-                    runtimeIds.at(edge.destComponentId),
+                    runtimeIds.at(edge.srcComponentId), edge.srcPinIndex, runtimeIds.at(edge.destComponentId),
                     edge.destPinIndex
                 ))
                 throw std::invalid_argument("Cannot compile subcircuit connections.");
@@ -132,8 +129,7 @@ makeSubcircuit(const Scene& scene, DefinitionIdentity identity, const std::strin
         const auto index = static_cast<unsigned int>(ids.size());
         ids.push_back(runtimeIds.at(component.id));
         definition.layout.pins.push_back(
-            {(input ? "in." : "out.") +
-                 authored.getCommittedComponentView(component.id)->getPortId(),
+            {(input ? "in." : "out.") + authored.getCommittedComponentView(component.id)->getPortId(),
              component.name,
              input ? PinType::INPUT : PinType::OUTPUT,
              index,
@@ -145,9 +141,7 @@ makeSubcircuit(const Scene& scene, DefinitionIdentity identity, const std::strin
     definition.layout.width = 8 * GridMetrics::Spacing;
     definition.layout.height = (2 * rows + 2) * GridMetrics::Spacing;
     for (auto& pin : definition.layout.pins)
-        pin.anchor = {
-            pin.direction == PinType::INPUT ? -4 : 4, rows - 1 - 2 * static_cast<int>(pin.index)
-        };
+        pin.anchor = {pin.direction == PinType::INPUT ? -4 : 4, rows - 1 - 2 * static_cast<int>(pin.index)};
     definition.behavior = std::move(behavior);
     definition.presentation.shader = boxShaderResources();
     definition.presentation.bodyLabel = name;
@@ -156,6 +150,7 @@ makeSubcircuit(const Scene& scene, DefinitionIdentity identity, const std::strin
     validateDefinition(definition);
     return definition;
 }
+
 
 std::string newSubcircuitId()
 {

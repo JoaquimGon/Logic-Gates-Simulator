@@ -28,26 +28,22 @@ class Scene
     Scene();
 
     const ComponentCatalog& getComponentCatalog() const { return *m_catalog; }
-
     bool requiresInterfaceNames() const { return m_requireInterfaceNames; }
 
-    /** Enables subcircuit authoring names; existing unnamed vital components receive defaults. */
+    /** @brief Enables subcircuit authoring names; existing unnamed vital components receive defaults. */
     bool setInterfaceNamingRequired(bool required);
 
     int addComponent(
-        const std::string& definitionId,
-        GridCoords position,
-        const ComponentOverrides& overrides = {},
-        PlacementPolicy placement = PlacementPolicy::RejectSharedAnchors,
-        std::uint32_t version = 0
+        const std::string& definitionId, GridCoords position, const ComponentOverrides& overrides = {},
+        PlacementPolicy placement = PlacementPolicy::RejectSharedAnchors, std::uint32_t version = 0
     );
+
     Scene(const Scene& other);
     Scene& operator=(const Scene& other);
     Scene(Scene&&) noexcept = default;
     Scene& operator=(Scene&&) noexcept = default;
 
     std::uint64_t getRevision() const { return m_revision; }
-
     std::uint64_t getTopologyBuildCount() const { return m_topologyBuildCount; }
 
     /** @brief Reads model placement independently of a presentation-only move preview. */
@@ -56,7 +52,6 @@ class Scene
     /**
      * @brief Creates a gate whose logical input count matches the supplied visual pins.
      * @param type Gate operation; NOT requires one input, other gates at least two.
-     * @param gridPos Component origin on the grid.
      * @param size Visual footprint in world units.
      * @param shaderName Registered shader for the gate.
      * @param inputs Unique input indices from zero to input count minus one, in any order.
@@ -64,34 +59,28 @@ class Scene
      * @return Created component ID. Invalid layouts throw std::invalid_argument.
      */
     int addGate(
-        GateType type,
-        GridCoords gridPos,
-        glm::vec2 size,
-        const std::string& shaderName,
-        std::vector<PinUI> inputs,
+        GateType type, GridCoords gridPos, glm::vec2 size, const std::string& shaderName, std::vector<PinUI> inputs,
         std::vector<PinUI> outputs
     );
 
     int addInputPin(
-        GridCoords gridPos,
-        glm::vec2 size,
-        const std::string& shaderName,
+        GridCoords gridPos, glm::vec2 size, const std::string& shaderName,
         std::optional<bool> initialState = std::nullopt
     );
 
     int addLatch(LatchType type, GridCoords gridPos);
 
     void removeComponent(int componentId);
+
     // Borrowed views expire on committed edits or preview transitions; reacquire by ID.
     ComponentView* getComponentView(int componentId);
+
     Component* getLogicComponent(int componentId);
     const Component* getLogicComponent(int componentId) const;
-    /** Read-only layout projection; the owner must rebind before reading after a design edit. */
+
+    /** @brief Read-only layout projection; the owner must rebind before reading after a design edit. */
     void observeRuntime(
-        const Circuit& runtime,
-        const std::vector<std::pair<int, int>>& ids,
-        SimulationResult result,
-        bool dirty
+        const Circuit& runtime, const std::vector<std::pair<int, int>>& ids, SimulationResult result, bool dirty
     );
 
     bool isReadOnly() const { return m_observedCircuit != nullptr; }
@@ -118,7 +107,7 @@ class Scene
     // stable.
     const std::map<WireId, Wire>& getWires() const { return m_wires; }
 
-    /** Presentation-only translated wires during a group move; saves keep committed paths. */
+    /** @brief Presentation-only translated wires during a group move; saves keep committed paths. */
     const std::map<WireId, Wire>& getVisibleWires() const
     {
         return m_previewToken != 0 && !m_previewWireIds.empty() ? m_previewWires : m_wires;
@@ -132,37 +121,35 @@ class Scene
     // edit, and rebuildNets() is what turns that geometry into connectivity and
     // Circuit edges.
     std::optional<WireId> commitWire(Wire wire);
+
     std::optional<Wire> extractWire(WireId id);
+
     bool splitWireAt(WireId id, GridCoords point, Wire& outA, Wire& outB);
+
     std::pair<WireId, WireId> addWires(Wire a, Wire b);
+
     bool removeWire(WireId id);
 
     std::vector<glm::vec3> getWireIntersections() const;
+
     bool getCollinearOverlap(
-        GridCoords a,
-        GridCoords b,
-        GridCoords c,
-        GridCoords d,
-        GridCoords& outStart,
-        GridCoords& outEnd
+        GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd
     ) const;
 
     // ----- Nets: the single source of truth for connectivity -----
     size_t netCount() const { return m_nets.size(); }
-
     const std::map<NetId, Net>& getNets() const { return m_nets; }
 
     /** @brief Lists rejected edges from the most recent topology rebuild. */
-    const std::vector<RejectedConnection>& getRejectedConnections() const
-    {
-        return m_rejectedConnections;
-    }
+    const std::vector<RejectedConnection>& getRejectedConnections() const { return m_rejectedConnections; }
 
     const Net* getNet(NetId id) const;
+
     NetId netOfWire(WireId id) const;
+
     NetId netOfPin(const PinRef& pin, PinType type) const;
 
-    /*
+    /**
      * @brief The state a wire drawn from this pin would show right now.
      * An output pin is a driver, so it reports its own value even before any
      * geometry has been drawn from it; an input pin reports whatever drives the
@@ -170,7 +157,7 @@ class Scene
      */
     PinState pinState(const PinRef& pin, PinType type);
 
-    /*
+    /**
      * @brief Re-derives every net, and the Circuit edges that follow from them.
      * Run after every geometry or component edit, never per frame: a net is one
      * connected component of normalized routes that share an endpoint. Geometry
@@ -185,68 +172,70 @@ class Scene
     // Forwards the simulation status (e.g. a detected combinational loop) so
     // callers can report it without catching exceptions.
     SimulationResult propagate();
+
+    /** @brief Propagate runtime pin levels and topology failures into committed component and wire presentation. */
     void syncVisuals();
+
     bool handleClick(int componentId);
+
     bool checkOverlap(int draggedComponentId) const;
 
     bool updateClocks(float deltaTime, ClockTimeline* timeline = nullptr);
+
     std::string signalName(int componentId, PinType direction, unsigned int index) const;
+
+    /** @brief Reconcile selected signals with the current topology and record whether their levels are available. */
     void prepareSignalTraces(ClockTimeline& timeline) const;
+
     void recordSignalTraces(ClockTimeline& timeline) const;
-    /** Resets sources in this scene and settles/synchronizes existing circuitry. */
+
+    /** @brief Resets sources in this scene and settles/synchronizes existing circuitry. */
     void resetSimulation();
 
     bool clocksPaused() const { return m_circuit.clocksPaused(); }
-
     double clockTime() const { return m_circuit.clockTime(); }
-
     std::vector<ClockReading> clockReadings() const { return m_circuit.clockReadings(); }
 
-    /** Custom names or one-based clock fallbacks, qualified by human-readable nested paths. */
+    /** @brief Custom names or one-based clock fallbacks, qualified by human-readable nested paths. */
     std::string clockName(const ClockPath& path) const;
 
     double pendingClockTime() const { return m_circuit.pendingClockTime(); }
-
     int unsettledComponent() const { return m_circuit.unsettledComponent(); }
 
     bool isSimulationDirty() const
     {
         if (isReadOnly())
             return m_observedDirty;
-        return m_topologyResult == SimulationResult::OK ? m_circuit.isStateDirty()
-                                                        : m_topologyInvalidNeedsUpdate;
+        return m_topologyResult == SimulationResult::OK ? m_circuit.isStateDirty() : m_topologyInvalidNeedsUpdate;
     }
 
     void markSimulationDirty() { m_circuit.markStateDirty(); }
 
     void togglePauseAllClocks();
+
     int stepAllClocks(int count = 1, ClockTimeline* timeline = nullptr);
+
     void setAllClocksFrequency(float hz);
 
     int addClock(
-        GridCoords gridPos,
-        glm::vec2 size,
-        const std::string& shaderName,
+        GridCoords gridPos, glm::vec2 size, const std::string& shaderName,
         std::optional<float> frequencyHz = std::nullopt
     );
 
     // Debugging
     SimulationWork takeSimulationWork() { return m_circuit.takeSimulationWork(); }
-
     float getLastPropagateTimeMs() const { return m_circuit.getLastPropagateTimeMs(); }
 
     SimulationResult getLastEvalResult() const
     {
         if (isReadOnly())
             return m_observedResult;
-        return m_topologyResult == SimulationResult::OK ? m_circuit.getLastEvalResult()
-                                                        : m_topologyResult;
+        return m_topologyResult == SimulationResult::OK ? m_circuit.getLastEvalResult() : m_topologyResult;
     }
 
     size_t getSimulationComponentCount() const
     {
-        return getLastEvalResult() == SimulationResult::OK ? m_circuit.getSimulationComponentCount()
-                                                           : 0;
+        return getLastEvalResult() == SimulationResult::OK ? m_circuit.getSimulationComponentCount() : 0;
     }
 
     size_t getComponentCount() const { return m_circuit.getComponentCount(); }
@@ -308,11 +297,6 @@ class Scene
     // spaces that overlap.
     PinNetIndex m_pinNet;
 
-    /*
-     * @brief Stores a wire under a freshly allocated id, without validating its
-     * path.
-     * @param wire The wire to store.
-     * @return The id the wire was stored under.
-     */
+    /** @brief Allocate a wire ID and store its geometry; path validation belongs to the staged edit pipeline. */
     WireId insertWire(Wire wire);
 };

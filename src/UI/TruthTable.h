@@ -7,7 +7,7 @@
 
 class Component;
 
-/** Read-only learning data. Rows use external pin levels in binary order. */
+/** @brief Read-only learning data. Rows use external pin levels in binary order. */
 struct TruthTable
 {
     int inputCount = 0;
@@ -17,6 +17,8 @@ struct TruthTable
 };
 
 bool hasTruthTable(const Component* component);
-TruthTable buildTruthTable(
-    const Component& component, const std::vector<PinUI>& inputs, const std::vector<PinUI>& outputs
-);
+
+/** @brief Use an isolated copy for combinational results; sequential components return next-state rows.
+ */
+TruthTable
+buildTruthTable(const Component& component, const std::vector<PinUI>& inputs, const std::vector<PinUI>& outputs);

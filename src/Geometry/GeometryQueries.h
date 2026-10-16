@@ -7,10 +7,7 @@
 
 /** @brief Hits pins before wire endpoints/bodies, then inset component bodies. */
 HitResult hitGeometry(
-    std::span<const ComponentGeometry> components,
-    const std::map<WireId, Wire>& wires,
-    float worldX,
-    float worldY,
+    std::span<const ComponentGeometry> components, const std::map<WireId, Wire>& wires, float worldX, float worldY,
     GridCoords gridPos
 );
 
@@ -25,5 +22,4 @@ bool overlapsComponent(std::span<const ComponentGeometry> components, int compon
 bool sharesComponentAnchor(std::span<const ComponentGeometry> components, int componentId);
 
 /** @brief Returns degree-three-or-higher endpoints, excluding component pin anchors. */
-std::vector<WireJunction>
-wireJunctions(const std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins);
+std::vector<WireJunction> wireJunctions(const std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins);

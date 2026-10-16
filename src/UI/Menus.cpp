@@ -8,15 +8,10 @@
 
 namespace
 {
-constexpr std::array edits{
-    Input::EditCommand::Undo,
-    Input::EditCommand::Redo,
-    Input::EditCommand::Copy,
-    Input::EditCommand::Paste,
-    Input::EditCommand::Delete,
-    Input::EditCommand::SelectAll
-};
+constexpr std::array edits{Input::EditCommand::Undo,  Input::EditCommand::Redo,   Input::EditCommand::Copy,
+                           Input::EditCommand::Paste, Input::EditCommand::Delete, Input::EditCommand::SelectAll};
 }
+
 
 CanvasViewport UI::menuBounds(Menu menu) const
 {
@@ -25,22 +20,23 @@ CanvasViewport UI::menuBounds(Menu menu) const
     return {x, 0, std::clamp(m_bar.width - x, 0.0, width), m_bar.height};
 }
 
+
 double UI::navigationStatusX() const
 {
     const auto last = menuBounds(Menu::Simulation);
     return last.x + last.width + 12;
 }
 
+
 CanvasViewport UI::dropdownBounds(Menu menu) const
 {
     const double width = std::min(menu == Menu::File ? 300.0 : 320.0, m_bar.width);
     return {
-        std::min(menuBounds(menu).x, std::max(0.0, m_bar.width - width)),
-        m_bar.height,
-        width,
+        std::min(menuBounds(menu).x, std::max(0.0, m_bar.width - width)), m_bar.height, width,
         std::min(2.0 + menuOptions(menu).size() * 30, m_panel.height)
     };
 }
+
 
 CanvasViewport UI::menuOptionBounds(Menu menu, int index) const
 {
@@ -48,17 +44,17 @@ CanvasViewport UI::menuOptionBounds(Menu menu, int index) const
         return {};
     const auto bounds = dropdownBounds(menu);
     return {
-        bounds.x + 1,
-        bounds.y + 1 + index * 30,
-        std::max(0.0, bounds.width - 2),
+        bounds.x + 1, bounds.y + 1 + index * 30, std::max(0.0, bounds.width - 2),
         std::clamp(bounds.height - 1 - index * 30, 0.0, 30.0)
     };
 }
+
 
 CanvasViewport UI::fileBounds() const
 {
     return menuBounds(Menu::File);
 }
+
 
 CanvasViewport UI::examplesMenuBounds() const
 {
@@ -77,13 +73,9 @@ CanvasViewport UI::examplesMenuBounds() const
             y = parent.y + parent.height;
         }
     }
-    return {
-        x,
-        std::clamp(y, m_bar.height, std::max(m_bar.height, m_surface.windowHeight - height)),
-        width,
-        height
-    };
+    return {x, std::clamp(y, m_bar.height, std::max(m_bar.height, m_surface.windowHeight - height)), width, height};
 }
+
 
 CanvasViewport UI::exampleOptionBounds(int index) const
 {
@@ -91,22 +83,23 @@ CanvasViewport UI::exampleOptionBounds(int index) const
         return {};
     const auto menu = examplesMenuBounds();
     return {
-        menu.x + 1,
-        menu.y + 1 + index * 30,
-        std::max(0.0, menu.width - 2),
+        menu.x + 1, menu.y + 1 + index * 30, std::max(0.0, menu.width - 2),
         std::clamp(menu.height - 1 - index * 30, 0.0, 30.0)
     };
 }
+
 
 CanvasViewport UI::fileMenuBounds() const
 {
     return dropdownBounds(Menu::File);
 }
 
+
 CanvasViewport UI::fileOptionBounds(int index) const
 {
     return menuOptionBounds(Menu::File, index);
 }
+
 
 std::vector<UI::MenuItem> UI::menuOptions(Menu menu) const
 {
@@ -123,16 +116,11 @@ std::vector<UI::MenuItem> UI::menuOptions(Menu menu) const
     return items;
 }
 
+
 void UI::refreshMenuOptions(const Input& input)
 {
-    m_editOptions = {
-        {"Undo", "Ctrl+Z"},
-        {"Redo", "Ctrl+Y / Ctrl+Shift+Z"},
-        {"Copy", "Ctrl+C"},
-        {"Paste", "Ctrl+V"},
-        {"Delete", "Del / Backspace"},
-        {"Select All", "Ctrl+A"}
-    };
+    m_editOptions = {{"Undo", "Ctrl+Z"},  {"Redo", "Ctrl+Y / Ctrl+Shift+Z"}, {"Copy", "Ctrl+C"},
+                     {"Paste", "Ctrl+V"}, {"Delete", "Del / Backspace"},     {"Select All", "Ctrl+A"}};
     for (std::size_t i = 0; i < edits.size(); ++i)
         m_editOptions[i].enabled = input.canEditCommand(edits[i]);
     m_viewOptions = {
@@ -144,14 +132,14 @@ void UI::refreshMenuOptions(const Input& input)
     };
 }
 
+
+/** @brief Translate a selected menu item into the shared file, edit or camera command path. */
 void UI::executeMenuOption(Menu menu, int index, Input& input)
 {
     if (menu == Menu::Edit)
     {
         if (index >= 0 && index < static_cast<int>(edits.size()))
-            input.executeEditCommand(
-                edits[index], GridSystem::worldToGrid(input.getPanOffset()), true
-            );
+            input.executeEditCommand(edits[index], GridSystem::worldToGrid(input.getPanOffset()), true);
         return;
     }
     if (menu == Menu::Simulation)
@@ -198,6 +186,7 @@ void UI::executeMenuOption(Menu menu, int index, Input& input)
     }
 }
 
+
 void UI::closeMenu(Input& input)
 {
     if (!m_openMenu)
@@ -208,6 +197,8 @@ void UI::closeMenu(Input& input)
     input.setCanvasFocused(true);
 }
 
+
+/** @brief Handle menu navigation and submenu capture before canvas input can consume the same event. */
 bool UI::handleMenus(const UiInputEvent& event, Input& input)
 {
     if (event.kind == UiInputKind::WindowFocus && !event.focused)
@@ -228,8 +219,8 @@ bool UI::handleMenus(const UiInputEvent& event, Input& input)
         }
         return event.code != GLFW_KEY_F3;
     }
-    if (event.kind == UiInputKind::Key && !m_openMenu && input.isCanvasFocused() &&
-        !input.getUiCapture().keyboard && event.action == GLFW_PRESS)
+    if (event.kind == UiInputKind::Key && !m_openMenu && input.isCanvasFocused() && !input.getUiCapture().keyboard &&
+        event.action == GLFW_PRESS)
     {
         const int modifiers = event.modifiers;
         if ((event.code == GLFW_KEY_F3 && modifiers == 0) ||
@@ -240,15 +231,13 @@ bool UI::handleMenus(const UiInputEvent& event, Input& input)
             return event.code != GLFW_KEY_F3;
         }
     }
-    if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE &&
-        m_fileMousePressed)
+    if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE && m_fileMousePressed)
     {
         m_fileMousePressed = false;
         input.setCanvasFocused(true);
         return true;
     }
-    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
-        (m_openMenu || m_fileEscapePressed))
+    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE && (m_openMenu || m_fileEscapePressed))
     {
         if (event.action == GLFW_PRESS)
         {
@@ -262,8 +251,8 @@ bool UI::handleMenus(const UiInputEvent& event, Input& input)
             input.setCanvasFocused(true);
         return true;
     }
-    if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
-        event.action == GLFW_PRESS && messageNoticeBounds().contains(event.x, event.y))
+    if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
+        messageNoticeBounds().contains(event.x, event.y))
     {
         dismissPopups(input);
         m_bottomVisible = true;
@@ -291,8 +280,7 @@ bool UI::handleMenus(const UiInputEvent& event, Input& input)
         }
         else if (*m_openMenu == Menu::File)
         {
-            const auto parent =
-                menuOptionBounds(Menu::File, static_cast<int>(fileCommands().size()));
+            const auto parent = menuOptionBounds(Menu::File, static_cast<int>(fileCommands().size()));
             if (parent.contains(m_pointer.x, m_pointer.y))
                 m_examplesOpen = true;
             else if (

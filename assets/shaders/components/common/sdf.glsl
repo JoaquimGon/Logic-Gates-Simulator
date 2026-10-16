@@ -6,6 +6,7 @@ float sdBox(vec2 p, vec2 b)
     return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
+
 float sdSegment(vec2 p, vec2 a, vec2 b)
 {
     vec2 pa = p - a, ba = b - a;
@@ -13,11 +14,13 @@ float sdSegment(vec2 p, vec2 a, vec2 b)
     return length(pa - ba * h);
 }
 
+
 float sdRoundBox(vec2 p, vec2 b, float r)
 {
     vec2 q = abs(p) - b + r;
     return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
 }
+
 
 float sdRightTriangle(vec2 p, float halfW, float halfH)
 {
@@ -26,6 +29,8 @@ float sdRightTriangle(vec2 p, float halfW, float halfH)
     return max(backEdge, slopedEdges);
 }
 
+
+/** @brief Union the straight body and rounded cap so their internal seam cannot become a visible edge. */
 float sdAndGate(vec2 p, vec2 halfSize)
 {
     p.y = abs(p.y);
@@ -43,11 +48,14 @@ float sdAndGate(vec2 p, vec2 halfSize)
     return min(straight, cap);
 }
 
+
 float sdCircle(vec2 p, vec2 center, float r)
 {
     return length(p - center) - r;
 }
 
+
+/** @brief Intersect two circles and subtract the rear cavity to form the solid OR silhouette. */
 float sdOrGate(vec2 p)
 {
     // Lens body: circles intersect at tip
@@ -55,7 +63,7 @@ float sdOrGate(vec2 p)
     float cy = 0.65;
     float cx = -0.334;
 
-    float topCircle = sdCircle(p, vec2(cx,  cy), Rc);
+    float topCircle = sdCircle(p, vec2(cx, cy), Rc);
     float botCircle = sdCircle(p, vec2(cx, -cy), Rc);
     float lens = max(topCircle, botCircle);
 
@@ -68,6 +76,8 @@ float sdOrGate(vec2 p)
     return max(lens, -backCut);
 }
 
+
+/** @brief Build the solid XOR body separately from its decorative rear arc. */
 float sdXorGate(vec2 p)
 {
     // Lens body: circles intersect at tip (+0.49, 0.0)
@@ -75,7 +85,7 @@ float sdXorGate(vec2 p)
     float cy = 0.65;
     float cx = -0.334;
 
-    float topCircle = sdCircle(p, vec2(cx,  cy), Rc);
+    float topCircle = sdCircle(p, vec2(cx, cy), Rc);
     float botCircle = sdCircle(p, vec2(cx, -cy), Rc);
     float lens = max(topCircle, botCircle);
 

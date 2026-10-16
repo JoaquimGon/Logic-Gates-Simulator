@@ -13,13 +13,16 @@ int checkedInputPinCount(GateType type, int inputPinCount)
 }
 } // namespace
 
+
 Gate::Gate(int id, GateType gateType) : Gate(id, gateType, gateType == NOT ? 1 : 2) {}
+
 
 Gate::Gate(int id, GateType gateType, int inputPinCount)
     : Component(id, checkedInputPinCount(gateType, inputPinCount), 1), m_gateType(gateType),
       m_invertedInputs(inputPinCount, false)
 {
 }
+
 
 bool Gate::isValidInputPinCount(GateType type, int inputPinCount)
 {
@@ -39,10 +42,12 @@ bool Gate::isValidInputPinCount(GateType type, int inputPinCount)
     }
 }
 
+
 void Gate::setInverted(bool inverted)
 {
     m_gateType = typeWithInversion(m_gateType, inverted);
 }
+
 
 GateType Gate::typeWithInversion(GateType type, bool inverted)
 {
@@ -61,6 +66,7 @@ GateType Gate::typeWithInversion(GateType type, bool inverted)
         throw std::invalid_argument("NOT has fixed inversion.");
     }
 }
+
 
 void Gate::evaluate()
 {

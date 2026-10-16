@@ -6,7 +6,8 @@ IndentWidth: 4
 TabWidth: 4
 UseTab: Never
 BreakBeforeBraces: Allman
-ColumnLimit: 100
+ColumnLimit: 120
+BreakStringLiterals: false
 
 # Pointers
 PointerAlignment: Left
@@ -15,9 +16,10 @@ PointerAlignment: Left
 MaxEmptyLinesToKeep: 2
 KeepEmptyLinesAtTheStartOfBlocks: false
 EmptyLineBeforeAccessModifier: Always
-SeparateDefinitionBlocks: Always
-BinPackParameters: false
-BinPackArguments: false
+EmptyLineAfterAccessModifier: Never
+SeparateDefinitionBlocks: Leave
+BinPackParameters: BinPack
+BinPackArguments: true
 AlignAfterOpenBracket: BlockIndent
 
 
@@ -32,7 +34,7 @@ BreakConstructorInitializers: BeforeColon
 ConstructorInitializerIndentWidth: 4
 AlwaysBreakTemplateDeclarations: Yes
 
-# Control Blocks (Safe values across all LLVM versions)
+# Compact statements still keep their control-flow boundaries visible.
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 AllowShortBlocksOnASingleLine: false

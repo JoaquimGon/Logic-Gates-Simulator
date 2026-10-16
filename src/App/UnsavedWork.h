@@ -4,7 +4,7 @@
 
 #include <functional>
 
-/** Protects only destructive Open, tab-close and exit operations. */
+/** @brief Protects only destructive Open, tab-close and exit operations. */
 class UnsavedWork
 {
   public:
@@ -21,10 +21,11 @@ class UnsavedWork
         std::size_t index;
     };
 
+    /** @brief Queue an operation and identify the dirty workspace that must be resolved before it can run. */
     void request(Request request, CircuitViews& views, UI& ui, Input& input);
-    /** Returns an approved request; a cancelled/failed Save aborts it. */
-    std::optional<Request>
-    resolve(CircuitViews& views, UI& ui, Input& input, const std::function<bool()>& saveActive);
+
+    /** @brief Returns an approved request; a cancelled/failed Save aborts it. */
+    std::optional<Request> resolve(CircuitViews& views, UI& ui, Input& input, const std::function<bool()>& saveActive);
 
     bool pending() const { return m_request.has_value(); }
 

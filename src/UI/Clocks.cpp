@@ -10,12 +10,14 @@
 #include <iomanip>
 #include <sstream>
 
+
 std::string UI::frequencyText(float frequency)
 {
     std::ostringstream text;
     text << std::setprecision(5) << frequency;
     return text.str();
 }
+
 
 void UI::showClockPanel(Input& input)
 {
@@ -25,15 +27,18 @@ void UI::showClockPanel(Input& input)
     layoutBottom(input);
 }
 
+
 ClockTimeline& UI::clockTimeline()
 {
     return m_views ? m_views->activeClockTimeline() : m_clockTimeline;
 }
 
+
 const ClockTimeline& UI::clockTimeline() const
 {
     return m_views ? m_views->activeClockTimeline() : m_clockTimeline;
 }
+
 
 CanvasViewport UI::clockControlBounds(ClockControl control) const
 {
@@ -41,35 +46,25 @@ CanvasViewport UI::clockControlBounds(ClockControl control) const
     const int index = static_cast<int>(control);
     const double scale = std::min(1.0, std::max(0.0, m_bottom.width - 16) / 498.0);
     if (control == ClockControl::Clear)
-        return {
-            m_bottom.x + m_bottom.width - 8 - widths[index] * scale,
-            m_bottom.y + 40,
-            widths[index] * scale,
-            24
-        };
+        return {m_bottom.x + m_bottom.width - 8 - widths[index] * scale, m_bottom.y + 40, widths[index] * scale, 24};
     double x = m_bottom.x + 8;
     for (int i = 0; i < index; ++i)
         x += (widths[i] + 6) * scale;
     return {x, m_bottom.y + 40, widths[index] * scale, 24};
 }
 
+
 CanvasViewport UI::clockListBounds() const
 {
-    return {
-        m_bottom.x + 8,
-        m_bottom.y + 88,
-        std::max(0.0, m_bottom.width - 16),
-        std::max(0.0, m_bottom.height - 96)
-    };
+    return {m_bottom.x + 8, m_bottom.y + 88, std::max(0.0, m_bottom.width - 16), std::max(0.0, m_bottom.height - 96)};
 }
+
 
 double UI::clockLabelWidth() const
 {
-    return std::min(
-        220.0,
-        std::min(clockListBounds().width * 0.65, std::max(160.0, clockListBounds().width * 0.4))
-    );
+    return std::min(220.0, std::min(clockListBounds().width * 0.65, std::max(160.0, clockListBounds().width * 0.4)));
 }
+
 
 CanvasViewport UI::clockFrequencyBounds(int row) const
 {
@@ -77,41 +72,41 @@ CanvasViewport UI::clockFrequencyBounds(int row) const
     return {list.x + 2, list.y + row * 48 + 23, std::max(0.0, clockLabelWidth() - 100), 22};
 }
 
+
 CanvasViewport UI::clockPauseBounds(int row) const
 {
     const auto frequency = clockFrequencyBounds(row);
     return {frequency.x + frequency.width + 6, frequency.y, 78, 22};
 }
 
+
 int UI::clockScroll(const Scene& scene) const
 {
     const int rows = std::max(1, static_cast<int>(clockListBounds().height / 48));
     return std::clamp(
-        m_clockScroll,
-        0,
+        m_clockScroll, 0,
         std::max(
-            0,
-            static_cast<int>(
-                m_bottomTab == BottomTab::Signals ? clockTimeline().signals().size()
-                                                  : scene.clockReadings().size()
-            ) - rows
+            0, static_cast<int>(
+                   m_bottomTab == BottomTab::Signals ? clockTimeline().signals().size() : scene.clockReadings().size()
+               ) - rows
         )
     );
 }
+
 
 double UI::clockStartTime() const
 {
     const double window = clockWindowSeconds();
     if (m_bottomTab == BottomTab::Signals)
     {
-        const double end = m_clockFollow
-                               ? std::max(window, clockTimeline().time())
-                               : std::min(m_clockEnd, std::max(window, clockTimeline().time()));
+        const double end = m_clockFollow ? std::max(window, clockTimeline().time())
+                                         : std::min(m_clockEnd, std::max(window, clockTimeline().time()));
         return std::max(0.0, end - window);
     }
     const double liveStart = clockTimeline().time() - window / 2;
     return m_clockFollow ? liveStart : std::clamp(m_clockEnd - window, -window / 2, liveStart);
 }
+
 
 std::deque<ClockSample> UI::clockPreview(const ClockReading& clock) const
 {
@@ -120,8 +115,7 @@ std::deque<ClockSample> UI::clockPreview(const ClockReading& clock) const
     if (stop <= now)
         return {};
     std::deque<ClockSample> preview{{now, clock.high}};
-    if (clock.paused || !std::isfinite(clock.timeUntilEdge) || !std::isfinite(clock.frequency) ||
-        clock.frequency <= 0)
+    if (clock.paused || !std::isfinite(clock.timeUntilEdge) || !std::isfinite(clock.frequency) || clock.frequency <= 0)
         return preview;
     const double halfPeriod = 0.5 / clock.frequency;
     for (int i = 0; i < 128; ++i)
@@ -134,6 +128,8 @@ std::deque<ClockSample> UI::clockPreview(const ClockReading& clock) const
     return preview;
 }
 
+
+/** @brief Finish or cancel the active frequency edit and restore keyboard ownership to the surrounding UI. */
 void UI::closeClockEdit(Input& input)
 {
     if (m_clockEditing != -1)
@@ -146,6 +142,8 @@ void UI::closeClockEdit(Input& input)
     }
 }
 
+
+/** @brief Route clock and signal-panel controls, including playback, frequency edits and explicit timeline scaling. */
 bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
 {
     if (event.kind == UiInputKind::WindowFocus && !event.focused)
@@ -156,8 +154,7 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
         m_clockCommittedKey = -1;
         return false;
     }
-    if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE &&
-        m_clockMousePressed)
+    if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE && m_clockMousePressed)
     {
         m_clockMousePressed = false;
         if (m_clockEditing == -1)
@@ -197,19 +194,16 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
                 else if (event.code == GLFW_KEY_ENTER || event.code == GLFW_KEY_KP_ENTER)
                 {
                     float hz = 0;
-                    const auto parsed = std::from_chars(
-                        m_clockDraft.data(), m_clockDraft.data() + m_clockDraft.size(), hz
-                    );
-                    if (parsed.ec != std::errc{} ||
-                        parsed.ptr != m_clockDraft.data() + m_clockDraft.size() ||
+                    const auto parsed =
+                        std::from_chars(m_clockDraft.data(), m_clockDraft.data() + m_clockDraft.size(), hz);
+                    if (parsed.ec != std::errc{} || parsed.ptr != m_clockDraft.data() + m_clockDraft.size() ||
                         !std::isfinite(hz) || hz < 0.1f)
                         m_clockError = "Enter a frequency of at least 0.1 Hz.";
                     else
                     {
-                        const auto result =
-                            EditorActions(scene).apply({ConfigureComponentProperties{
-                                .componentId = m_clockEditing, .clockFrequency = hz
-                            }});
+                        const auto result = EditorActions(scene).apply(
+                            {ConfigureComponentProperties{.componentId = m_clockEditing, .clockFrequency = hz}}
+                        );
                         input.recordEdit(result);
                         if (result)
                         {
@@ -226,8 +220,7 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
         else if (event.kind == UiInputKind::Text)
         {
             if ((event.codepoint >= '0' && event.codepoint <= '9') || event.codepoint == '.' ||
-                event.codepoint == 'e' || event.codepoint == 'E' || event.codepoint == '+' ||
-                event.codepoint == '-')
+                event.codepoint == 'e' || event.codepoint == 'E' || event.codepoint == '+' || event.codepoint == '-')
             {
                 if (m_clockReplaceDraft)
                     m_clockDraft.clear();
@@ -244,8 +237,7 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
         m_openMenu.has_value() || m_circuitTabs.popupOpen() || m_infoComponent != -1)
         return false;
     const auto list = clockListBounds();
-    if (event.kind == UiInputKind::Scroll && m_bottom.contains(m_pointer.x, m_pointer.y) &&
-        std::isfinite(event.y))
+    if (event.kind == UiInputKind::Scroll && m_bottom.contains(m_pointer.x, m_pointer.y) && std::isfinite(event.y))
     {
         closeClockEdit(input);
         m_clockHover = -1;
@@ -262,20 +254,18 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
         }
         else
             m_clockScroll = static_cast<int>(std::clamp(
-                clockScroll(scene) - event.y,
-                0.0,
+                clockScroll(scene) - event.y, 0.0,
                 static_cast<double>(std::max(
-                    0,
-                    static_cast<int>(
-                        m_bottomTab == BottomTab::Signals ? clockTimeline().signals().size()
-                                                          : scene.clockReadings().size()
-                    ) - 1
+                    0, static_cast<int>(
+                           m_bottomTab == BottomTab::Signals ? clockTimeline().signals().size()
+                                                             : scene.clockReadings().size()
+                       ) - 1
                 ))
             ));
         return true;
     }
-    if (event.kind != UiInputKind::MouseButton || event.action != GLFW_PRESS ||
-        event.code != GLFW_MOUSE_BUTTON_LEFT || !m_bottom.contains(event.x, event.y))
+    if (event.kind != UiInputKind::MouseButton || event.action != GLFW_PRESS || event.code != GLFW_MOUSE_BUTTON_LEFT ||
+        !m_bottom.contains(event.x, event.y))
         return false;
     // Bottom-tab selection remains in the existing UI route.
     if (event.y < m_bottom.y + 36)
@@ -284,14 +274,8 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
     m_clockMousePressed = true;
     input.setCanvasFocused(false);
     for (auto control :
-         {ClockControl::RunPause,
-          ClockControl::SingleStep,
-          ClockControl::DoubleStep,
-          ClockControl::ZoomOut,
-          ClockControl::ZoomIn,
-          ClockControl::Live,
-          ClockControl::Fit,
-          ClockControl::Clear})
+         {ClockControl::RunPause, ClockControl::SingleStep, ClockControl::DoubleStep, ClockControl::ZoomOut,
+          ClockControl::ZoomIn, ClockControl::Live, ClockControl::Fit, ClockControl::Clear})
         if (clockControlBounds(control).contains(event.x, event.y))
         {
             closeClockEdit(input);
@@ -329,11 +313,8 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
             {
                 const double window = clockWindowSeconds();
                 m_clockEnd = clockStartTime() + window;
-                auto& selectedWindow =
-                    m_bottomTab == BottomTab::Signals ? m_signalWindow : m_clockWindow;
-                selectedWindow = std::clamp(
-                    window * (control == ClockControl::ZoomIn ? 0.5 : 2.0), 0.000001, 3600.0
-                );
+                auto& selectedWindow = m_bottomTab == BottomTab::Signals ? m_signalWindow : m_clockWindow;
+                selectedWindow = std::clamp(window * (control == ClockControl::ZoomIn ? 0.5 : 2.0), 0.000001, 3600.0);
                 if (m_bottomTab == BottomTab::Clocks)
                     m_clockFitPending = false;
             }
@@ -356,8 +337,7 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
         return true;
     const auto readings = scene.clockReadings();
     const int offset = clockScroll(scene);
-    for (int row = 0; row + offset < static_cast<int>(readings.size()) && row * 48 < list.height;
-         ++row)
+    for (int row = 0; row + offset < static_cast<int>(readings.size()) && row * 48 < list.height; ++row)
     {
         const auto& clock = readings[row + offset];
         if (clock.path.size() != 1)
@@ -372,9 +352,9 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
         }
         else if (clockPauseBounds(row).contains(event.x, event.y))
         {
-            const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
-                .componentId = clock.path.front(), .clockPaused = !clock.paused
-            }});
+            const auto result = EditorActions(scene).apply(
+                {ConfigureComponentProperties{.componentId = clock.path.front(), .clockPaused = !clock.paused}}
+            );
             input.recordEdit(result);
             m_clockError = result ? "" : result.message;
         }
@@ -382,6 +362,8 @@ bool UI::handleClocks(const UiInputEvent& event, Scene& scene, Input& input)
     return true;
 }
 
+
+/** @brief Choose a bounded clock time window that keeps half-cycles legible at the available graph width. */
 double UI::fittedClockWindow(const std::vector<ClockReading>& readings)
 {
     double fastest = 0, disabled = 0;
@@ -397,12 +379,14 @@ double UI::fittedClockWindow(const std::vector<ClockReading>& readings)
     return fastest > 0 ? std::clamp(4.0 / fastest, 0.000001, 3600.0) : 2.0;
 }
 
+
 double UI::clockWindowSeconds() const
 {
     if (m_bottomTab == BottomTab::Signals)
         return m_signalWindow;
     return m_clockWindow;
 }
+
 
 bool UI::clockWaveformTooDense(float frequency) const
 {
@@ -412,6 +396,7 @@ bool UI::clockWaveformTooDense(float frequency) const
     return 2.0 * frequency * clockWindowSeconds() > edgeLimit;
 }
 
+
 std::string UI::clockTimeFrameText() const
 {
     std::ostringstream text;
@@ -419,25 +404,24 @@ std::string UI::clockTimeFrameText() const
     return text.str();
 }
 
+
+/** @brief Resolve the hovered timeline control or sample and update its tooltip target. */
 void UI::updateClockHover(double now)
 {
     m_clockHoverNow = now;
     int target = -1;
-    if (m_bottomVisible &&
-        (m_bottomTab == BottomTab::Clocks || m_bottomTab == BottomTab::Signals) &&
+    if (m_bottomVisible && (m_bottomTab == BottomTab::Clocks || m_bottomTab == BottomTab::Signals) &&
         !m_resizingBottom && !dragging() && !m_openMenu.has_value() && !m_circuitTabs.popupOpen() &&
         m_infoComponent == -1 && m_clockEditing == -1)
     {
         for (int i = 0; i <= static_cast<int>(ClockControl::Clear); ++i)
             if (clockControlBounds(static_cast<ClockControl>(i)).contains(m_pointer.x, m_pointer.y))
                 target = i;
-        if (m_bottomTab == BottomTab::Clocks && m_views &&
-            clockListBounds().contains(m_pointer.x, m_pointer.y))
+        if (m_bottomTab == BottomTab::Clocks && m_views && clockListBounds().contains(m_pointer.x, m_pointer.y))
         {
             const auto readings = m_views->activeScene().clockReadings();
             const int offset = clockScroll(m_views->activeScene());
-            for (int row = 0; row + offset < static_cast<int>(readings.size()) &&
-                              row * 48 < clockListBounds().height;
+            for (int row = 0; row + offset < static_cast<int>(readings.size()) && row * 48 < clockListBounds().height;
                  ++row)
                 if (clockPauseBounds(row).contains(m_pointer.x, m_pointer.y))
                     target = 8 + row;
@@ -450,34 +434,27 @@ void UI::updateClockHover(double now)
     }
 }
 
+
 std::vector<std::string> UI::clockTooltip(const Scene& scene) const
 {
     if (m_clockHover < 0 || m_clockHoverNow - m_clockHoverSince < 0.75 || !m_bottomVisible ||
-        (m_bottomTab != BottomTab::Clocks && m_bottomTab != BottomTab::Signals) ||
-        m_openMenu.has_value() || m_circuitTabs.popupOpen() || m_infoComponent != -1 ||
-        m_resizingBottom || dragging())
+        (m_bottomTab != BottomTab::Clocks && m_bottomTab != BottomTab::Signals) || m_openMenu.has_value() ||
+        m_circuitTabs.popupOpen() || m_infoComponent != -1 || m_resizingBottom || dragging())
         return {};
     if (m_readOnly && m_clockHover >= 8)
-        return {
-            "Live inspection is read only", "Return to the parent circuit to edit clock settings."
-        };
+        return {"Live inspection is read only", "Return to the parent circuit to edit clock settings."};
     const auto readings = scene.clockReadings();
-    const bool enabled = std::any_of(
-        readings.begin(), readings.end(), [](const auto& clock) { return !clock.paused; }
-    );
+    const bool enabled = std::any_of(readings.begin(), readings.end(), [](const auto& clock) { return !clock.paused; });
     if (m_clockHover >= 8)
     {
         const int index = clockScroll(scene) + m_clockHover - 8;
         if (index >= static_cast<int>(readings.size()))
             return {};
         if (readings[index].path.size() != 1)
-            return {
-                "Clock inside a placed subcircuit", "Change its settings in the subcircuit editor."
-            };
+            return {"Clock inside a placed subcircuit", "Change its settings in the subcircuit editor."};
         return {
             readings[index].paused ? "Enable this clock" : "Disable this clock",
-            "Disabled clocks freeze their phase and do not step.",
-            "Enabling does not resume globally paused time."
+            "Disabled clocks freeze their phase and do not step.", "Enabling does not resume globally paused time."
         };
     }
     std::vector<std::string> text;
@@ -485,8 +462,7 @@ std::vector<std::string> UI::clockTooltip(const Scene& scene) const
     {
     case ClockControl::RunPause:
         text = {
-            "Run / Pause automatic clock time",
-            "Preserves each clock's Enable / Disable setting.",
+            "Run / Pause automatic clock time", "Preserves each clock's Enable / Disable setting.",
             "Manual input changes still settle while paused."
         };
         break;
@@ -512,49 +488,39 @@ std::vector<std::string> UI::clockTooltip(const Scene& scene) const
         break;
     case ClockControl::ZoomOut:
         return {
-            "Zoom out in time",
-            "Double the displayed time frame.",
+            "Zoom out in time", "Double the displayed time frame.",
             "Only the graph scale changes; clock Hz stays the same.",
             "Unreadable waveforms are hidden. Use Fit or zoom in."
         };
     case ClockControl::ZoomIn:
         return {
-            "Zoom in in time",
-            "Halve the displayed time frame.",
+            "Zoom in in time", "Halve the displayed time frame.",
             "Only the graph scale changes; clock Hz stays the same."
         };
     case ClockControl::Live:
         if (m_bottomTab == BottomTab::Signals)
-            return {
-                "Follow the newest recorded time",
-                "Keeps your zoom level. Shift + scroll browses history."
-            };
+            return {"Follow the newest recorded time", "Keeps your zoom level. Shift + scroll browses history."};
         return {
-            "Centre the current time",
-            "Recorded history left; dashed clock preview right.",
+            "Centre the current time", "Recorded history left; dashed clock preview right.",
             "Preview uses the current Hz and phase; settings can change.",
             "Keeps your zoom level. Shift + scroll browses history."
         };
     case ClockControl::Fit:
         if (m_bottomTab == BottomTab::Signals)
             return {
-                "Fit the selected signals",
-                "Uses the shortest recorded interval between settled changes.",
+                "Fit the selected signals", "Uses the shortest recorded interval between settled changes.",
                 "Rounds the frame up: 0.5, 1, 2, 4, 8 seconds, etc.",
                 "Keeps this frame until you press Fit or zoom again.",
                 "Manual changes while paused share the same simulation time."
             };
         return {
-            "Fit four cycles of the fastest enabled clock",
-            "Sets time frame = 4 / Hz at the current settings.",
-            "Hz and Enable edits keep the time frame fixed.",
-            "Use Fit or zoom to change the displayed time frame.",
+            "Fit four cycles of the fastest enabled clock", "Sets time frame = 4 / Hz at the current settings.",
+            "Hz and Enable edits keep the time frame fixed.", "Use Fit or zoom to change the displayed time frame.",
             "If all clocks are disabled, uses their configured Hz."
         };
     case ClockControl::Clear:
         return {
-            "Clear this view's graph recordings",
-            "Circuit state, phase and simulation time stay unchanged.",
+            "Clear this view's graph recordings", "Circuit state, phase and simulation time stay unchanged.",
             "Selected pins stay selected; new changes are recorded."
         };
     }
@@ -570,6 +536,7 @@ std::vector<std::string> UI::clockTooltip(const Scene& scene) const
     return text;
 }
 
+
 CanvasViewport UI::clockTooltipBounds(const Scene& scene) const
 {
     const auto text = clockTooltip(scene);
@@ -579,8 +546,6 @@ CanvasViewport UI::clockTooltipBounds(const Scene& scene) const
     const double height = 16 + static_cast<double>(text.size()) * 20;
     return {
         std::clamp(m_pointer.x, 8.0, std::max(8.0, m_surface.windowWidth - width - 8)),
-        std::max(8.0, m_bottom.y - height - 8),
-        width,
-        height
+        std::max(8.0, m_bottom.y - height - 8), width, height
     };
 }

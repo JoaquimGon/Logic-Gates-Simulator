@@ -1,4 +1,5 @@
 """Capture build inputs on EVERY benchmark build, not at CMake configuration time."""
+
 import argparse
 from datetime import datetime, timezone
 import hashlib
@@ -22,6 +23,7 @@ def command(root, *args):
 
 
 def main():
+    """Capture current build inputs and embed their exact versioned manifest in a generated C++ header."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--build", type=Path, required=True)
@@ -35,8 +37,7 @@ def main():
     files = []
     for directory in ("src", "external", "cmake", "assets", "benchmarks"):
         for path in (root / directory).rglob("*"):
-            if (path.is_file() and "results" not in path.relative_to(root).parts
-                    and "__pycache__" not in path.parts):
+            if path.is_file() and "results" not in path.relative_to(root).parts and "__pycache__" not in path.parts:
                 files.append(path)
     files += [p for p in root.glob("CMake*") if p.is_file()]
     entries = {str(p.relative_to(root)).replace("\\", "/"): sha256(p) for p in sorted(files)}
@@ -56,10 +57,11 @@ def main():
             name, value = line.split("=", 1)
             directory = Path(value)
             if directory.is_dir() and directory.resolve() != root:
-                hashes = {str(p.relative_to(directory)).replace("\\", "/"): sha256(p)
-                          for p in sorted(directory.rglob("*"))
-                          if p.is_file() and p.suffix in (".h", ".hpp", ".inl", ".c", ".cpp")
-                          and ".git" not in p.parts}
+                hashes = {
+                    str(p.relative_to(directory)).replace("\\", "/"): sha256(p)
+                    for p in sorted(directory.rglob("*"))
+                    if p.is_file() and p.suffix in (".h", ".hpp", ".inl", ".c", ".cpp") and ".git" not in p.parts
+                }
                 if hashes:
                     dependencies[name.split(":")[0]] = {"directory": str(directory), "files": hashes}
     configuration = {}
@@ -67,22 +69,37 @@ def main():
         path = build / name
         if path.is_file():
             configuration[name] = {"sha256": sha256(path), "text": path.read_text(encoding="utf-8")}
-    manifest = dict(schema=2, captured_utc=datetime.now(timezone.utc).isoformat(),
-                    source_root=str(root), build_root=str(build), configuration=args.config,
-                    revision=command(root, "git", "rev-parse", "HEAD"),
-                    git_status=command(root, "git", "status", "--porcelain"),
-                    compiler=args.compiler, compiler_version=args.compiler_version,
-                    cmake_version=args.cmake_version, python_version=sys.version,
-                    host=platform.platform(), files=entries, dependencies=dependencies,
-                    build_files=configuration, tools=tools, runtime_resources=runtime_resources)
+    manifest = dict(
+        schema=2,
+        captured_utc=datetime.now(timezone.utc).isoformat(),
+        source_root=str(root),
+        build_root=str(build),
+        configuration=args.config,
+        revision=command(root, "git", "rev-parse", "HEAD"),
+        git_status=command(root, "git", "status", "--porcelain"),
+        compiler=args.compiler,
+        compiler_version=args.compiler_version,
+        cmake_version=args.cmake_version,
+        python_version=sys.version,
+        host=platform.platform(),
+        files=entries,
+        dependencies=dependencies,
+        build_files=configuration,
+        tools=tools,
+        runtime_resources=runtime_resources,
+    )
     payload = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     digest = hashlib.sha256(payload.encode()).hexdigest()
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    chunks = ',\n'.join('R"manifest(' + payload[i:i+8000] + ')manifest"'
-                        for i in range(0, len(payload), 8000))
-    args.output.write_text('#pragma once\ninline constexpr const char* benchmarkManifestChunks[] = {\n'
-                           + chunks + '\n};\ninline constexpr auto benchmarkManifestHash = "'
-                           + digest + '";\n', encoding="utf-8")
+    chunks = ",\n".join('R"manifest(' + payload[i : i + 8000] + ')manifest"' for i in range(0, len(payload), 8000))
+    args.output.write_text(
+        "#pragma once\ninline constexpr const char* benchmarkManifestChunks[] = {\n"
+        + chunks
+        + '\n};\ninline constexpr auto benchmarkManifestHash = "'
+        + digest
+        + '";\n',
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":

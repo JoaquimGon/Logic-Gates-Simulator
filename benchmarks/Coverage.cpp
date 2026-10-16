@@ -23,16 +23,8 @@ Scene editorFixture(int size)
     EditBatch batch;
     for (int i = 0; i < size / 2; ++i)
     {
-        batch.push_back(
-            CreateComponent{
-                BuiltinComponentIds::Input, {0, i * 6}, {}, PlacementPolicy::AllowOverlap
-            }
-        );
-        batch.push_back(
-            CreateComponent{
-                BuiltinComponentIds::Output, {12, i * 6}, {}, PlacementPolicy::AllowOverlap
-            }
-        );
+        batch.push_back(CreateComponent{BuiltinComponentIds::Input, {0, i * 6}, {}, PlacementPolicy::AllowOverlap});
+        batch.push_back(CreateComponent{BuiltinComponentIds::Output, {12, i * 6}, {}, PlacementPolicy::AllowOverlap});
         batch.push_back(AddWire{{{1, i * 6}, {11, i * 6}}});
     }
     const auto result = EditorActions(scene).apply(batch);
@@ -40,20 +32,23 @@ Scene editorFixture(int size)
     return scene;
 }
 
+
 void checkConnection(const Scene& scene, int source, int sink)
 {
     check(
         scene.netOfPin({source, 0}, PinType::OUTPUT) == scene.netOfPin({sink, 0}, PinType::INPUT) &&
-            scene.netOfPin({source, 0}, PinType::OUTPUT) != INVALID_NET_ID &&
-            scene.getShortedNetCount() == 0,
+            scene.netOfPin({source, 0}, PinType::OUTPUT) != INVALID_NET_ID && scene.getShortedNetCount() == 0,
         "Structural benchmark disconnected or shorted its circuit."
     );
 }
+
 
 namespace
 {
 using Json = nlohmann::json;
 
+
+/** @brief Capture logical pins, directed edges and runtime diagnostics for full-scene equivalence checks. */
 Json runtimeImage(const Scene& scene)
 {
     Json image = Json::array();
@@ -73,15 +68,15 @@ Json runtimeImage(const Scene& scene)
         for (int pin = 0; pin < component->getOutputPinCount(); ++pin)
             pins.push_back(component->getStateOutPin(pin));
         for (const auto& edge : component->getOutConnections())
-            edges.push_back(
-                {edge.srcPinIndex, ordinal.at(edge.destComponentId), edge.destPinIndex}
-            );
+            edges.push_back({edge.srcPinIndex, ordinal.at(edge.destComponentId), edge.destPinIndex});
         std::sort(edges.begin(), edges.end());
         image.push_back({{"pins", pins}, {"edges", edges}});
     }
     return image;
 }
 
+
+/** @brief Compare complete persisted designs and their recovered logical behaviour after propagation. */
 void equivalent(const Scene& original, const Scene& recovered, const std::string& name)
 {
     check(
@@ -89,13 +84,14 @@ void equivalent(const Scene& original, const Scene& recovered, const std::string
         "Recovered circuit differs in persisted design fields."
     );
     check(
-        runtimeImage(original) == runtimeImage(recovered) &&
-            original.netCount() == recovered.netCount() &&
+        runtimeImage(original) == runtimeImage(recovered) && original.netCount() == recovered.netCount() &&
             original.getShortedNetCount() == recovered.getShortedNetCount(),
         "Recovered connectivity/runtime differs."
     );
 }
 
+
+/** @brief Measure warmed application save/load costs and verify complete design and logical roundtrips. */
 void persistence(const Config& config, Recorder& results)
 {
     for (const int size : config.sizes)
@@ -115,34 +111,20 @@ void persistence(const Config& config, Recorder& results)
                 auto recovered = loadCircuit(path);
                 const double loadMs = milliseconds(start);
                 check(recovered.name == "roundtrip", "Circuit name changed on disk.");
-                check(
-                    recovered.scene.propagate() == SimulationResult::OK,
-                    "Loaded fixture did not settle."
-                );
+                check(recovered.scene.propagate() == SimulationResult::OK, "Loaded fixture did not settle.");
                 equivalent(scene, recovered.scene, "roundtrip");
                 if (sample >= 0)
                 {
+                    results.sample("save_circuit", size, trial, sample, "duration_ms", saveMs, "ms");
+                    results.sample("load_circuit", size, trial, sample, "duration_ms", loadMs, "ms");
                     results.sample(
-                        "save_circuit", size, trial, sample, "duration_ms", saveMs, "ms"
-                    );
-                    results.sample(
-                        "load_circuit", size, trial, sample, "duration_ms", loadMs, "ms"
-                    );
-                    results.sample(
-                        "save_circuit",
-                        size,
-                        trial,
-                        sample,
-                        "file_bytes",
-                        double(std::filesystem::file_size(path)),
+                        "save_circuit", size, trial, sample, "file_bytes", double(std::filesystem::file_size(path)),
                         "bytes"
                     );
                 }
             }
         results.outcome(
-            "persistence_roundtrip",
-            size,
-            "pass",
+            "persistence_roundtrip", size, "pass",
             "Actual atomic save/load; all persisted JSON fields and logical pins/edges compared; "
             "warmed OS cache, not stable-media latency. Transient clock/latch state is outside the "
             "file format."
@@ -150,24 +132,23 @@ void persistence(const Config& config, Recorder& results)
     }
 }
 
+
+/** @brief Route a fixture connection through normal geometry validation and reject invalid setup. */
 void connect(Scene& scene, int source, int target)
 {
     const auto* from = scene.getCommittedComponentView(source);
     const auto* to = scene.getCommittedComponentView(target);
     const auto a = from->getAbsolutePinGridPos(from->getOutputPins().at(0));
     const auto b = to->getAbsolutePinGridPos(to->getInputPins().at(0));
-    const auto path = routeWire(
-        a,
-        b,
-        scene.committedGeometry(),
-        scene.getWires(),
-        scene.netOfPin({source, 0}, PinType::OUTPUT)
-    );
+    const auto path =
+        routeWire(a, b, scene.committedGeometry(), scene.getWires(), scene.netOfPin({source, 0}, PinType::OUTPUT));
     check(bool(path), "Nested fixture route failed.");
     const auto result = EditorActions(scene).apply({AddWire{*path}});
     check(bool(result), result.message);
 }
 
+
+/** @brief Build a reusable inverter nested to the requested depth with stable external interface identities. */
 Scene nestedFixture(int depth)
 {
     Scene leaf;
@@ -191,13 +172,14 @@ Scene nestedFixture(int depth)
         if (level == depth)
             return wrapper;
         check(wrapper.setInterfaceNamingRequired(true), "Cannot name nested wrapper.");
-        definition = makeSubcircuit(
-            wrapper, {"subcircuit.benchmark.nested." + std::to_string(level), 1}, "Nested inverter"
-        );
+        definition =
+            makeSubcircuit(wrapper, {"subcircuit.benchmark.nested." + std::to_string(level), 1}, "Nested inverter");
     }
     throw std::runtime_error("Invalid nesting depth.");
 }
 
+
+/** @brief Measure nested propagation and verify each nested output after every input transition. */
 void nested(const Config& config, Recorder& results)
 {
     for (const int depth : {1, 2, 4})
@@ -205,9 +187,7 @@ void nested(const Config& config, Recorder& results)
         auto scene = nestedFixture(depth);
         check(scene.propagate() == SimulationResult::OK, "Nested fixture failed initial settling.");
         auto recovered = circuitFromJson(circuitToJson(scene, "nested"));
-        check(
-            recovered.scene.propagate() == SimulationResult::OK, "Nested roundtrip did not settle."
-        );
+        check(recovered.scene.propagate() == SimulationResult::OK, "Nested roundtrip did not settle.");
         equivalent(scene, recovered.scene, "nested");
         for (int trial = 0; trial < config.trials; ++trial)
             for (int sample = -config.warmup; sample < config.samples; ++sample)
@@ -218,8 +198,7 @@ void nested(const Config& config, Recorder& results)
                 const auto status = scene.propagate();
                 const double elapsed = milliseconds(start);
                 check(
-                    status == SimulationResult::OK &&
-                        scene.getLogicComponent(2)->getStateInPin(0) != input,
+                    status == SimulationResult::OK && scene.getLogicComponent(2)->getStateInPin(0) != input,
                     "Nested propagation output mismatch."
                 );
                 const Component* current = scene.getLogicComponent(1);
@@ -232,19 +211,16 @@ void nested(const Config& config, Recorder& results)
                 }
                 check(seen == depth, "Benchmark did not exercise the intended nesting depth.");
                 if (sample >= 0)
-                    results.sample(
-                        "nested_propagation", depth, trial, sample, "duration_ms", elapsed, "ms"
-                    );
+                    results.sample("nested_propagation", depth, trial, sample, "duration_ms", elapsed, "ms");
             }
         results.outcome(
-            "nested_propagation",
-            depth,
-            "pass",
+            "nested_propagation", depth, "pass",
             "Nested inverter, full design roundtrip, each nested output verified after every input "
             "change; size means nesting depth."
         );
     }
 }
+
 
 int named(const Scene& scene, const std::string& label)
 {
@@ -254,6 +230,9 @@ int named(const Scene& scene, const std::string& label)
     throw std::runtime_error("Counter fixture label missing: " + label);
 }
 
+
+/** @brief Measure a real two-bit sequential counter while verifying every state, timestamp and recorded output
+ * transition. */
 void sequential(const Config& config, Recorder& results)
 {
     auto scene = buildExampleCircuit(CircuitExample::Counter);
@@ -264,12 +243,7 @@ void sequential(const Config& config, Recorder& results)
         ClockTimeline timeline;
         check(
             timeline.toggleSignal(
-                {{low},
-                 PinType::INPUT,
-                 0,
-                 scene.getCommittedComponentView(low)->getInputPins().at(0).id,
-                 "bit0",
-                 {}}
+                {{low}, PinType::INPUT, 0, scene.getCommittedComponentView(low)->getInputPins().at(0).id, "bit0", {}}
             ) &&
                 timeline.toggleSignal(
                     {{high},
@@ -302,32 +276,26 @@ void sequential(const Config& config, Recorder& results)
                     expected[bit].push_back({edge * .5, state});
             }
             results.sample(
-                "sequential_counter_edge",
-                int(scene.getComponentCount()),
-                trial,
-                edge - 1,
-                "duration_ms",
-                elapsed,
-                "ms"
+                "sequential_counter_edge", int(scene.getComponentCount()), trial, edge - 1, "duration_ms", elapsed, "ms"
             );
         }
         check(timeline.signals().size() == 2, "Sequential counter probes were removed.");
         for (int bit = 0; bit < 2; ++bit)
             check(
-                traceMatches(timeline.signals()[bit].samples, expected[bit]),
-                "Sequential counter probe trace mismatch."
+                traceMatches(timeline.signals()[bit].samples, expected[bit]), "Sequential counter probe trace mismatch."
             );
     }
     results.outcome(
-        "sequential_counter_edge",
-        int(scene.getComponentCount()),
-        "pass",
+        "sequential_counter_edge", int(scene.getComponentCount()), "pass",
         "Real two-bit synchronous counter with D flip-flops and XOR feedback; 256 half cycles per "
         "trial; every state/time and complete bit traces verified. Includes Scene synchronization, "
         "no GUI pacing."
     );
 }
 
+
+/** @brief Measure obstacle detours and branched-source movement while independently checking clearance and sink
+ * connectivity. */
 void routing(const Config& config, Recorder& results)
 {
     for (const int count : {1, 8, 32})
@@ -339,13 +307,9 @@ void routing(const Config& config, Recorder& results)
         for (int trial = 0; trial < config.trials; ++trial)
             for (int sample = -config.warmup; sample < config.samples; ++sample)
             {
-                auto [path, elapsed, capture] = timedEdit(
-                    config.editProfile, [&] { return routeWire(start, end, obstacles, {}); }
-                );
-                check(
-                    path && path->front() == start && path->back() == end,
-                    "Obstacle routing failed."
-                );
+                auto [path, elapsed, capture] =
+                    timedEdit(config.editProfile, [&] { return routeWire(start, end, obstacles, {}); });
+                check(path && path->front() == start && path->back() == end, "Obstacle routing failed.");
                 for (std::size_t segment = 1; segment < path->size(); ++segment)
                 {
                     const auto a = (*path)[segment - 1], b = (*path)[segment];
@@ -353,31 +317,23 @@ void routing(const Config& config, Recorder& results)
                     for (const auto& obstacle : obstacles)
                     {
                         // Independent geometric oracle for these exact .2-wide square obstacles.
-                        const double left = obstacle.origin.x - 2.5,
-                                     right = obstacle.origin.x + 2.5;
+                        const double left = obstacle.origin.x - 2.5, right = obstacle.origin.x + 2.5;
                         const bool intersects =
-                            a.y == b.y ? std::abs(a.y) < 2.5 && std::max(a.x, b.x) > left &&
-                                             std::min(a.x, b.x) < right
-                                       : a.x > left && a.x < right && std::max(a.y, b.y) > -2.5 &&
-                                             std::min(a.y, b.y) < 2.5;
+                            a.y == b.y
+                                ? std::abs(a.y) < 2.5 && std::max(a.x, b.x) > left && std::min(a.x, b.x) < right
+                                : a.x > left && a.x < right && std::max(a.y, b.y) > -2.5 && std::min(a.y, b.y) < 2.5;
                         check(!intersects, "Route violates obstacle clearance.");
                     }
                 }
                 if (sample >= 0)
                 {
-                    results.sample(
-                        "route_obstacles", count, trial, sample, "duration_ms", elapsed, "ms"
-                    );
+                    results.sample("route_obstacles", count, trial, sample, "duration_ms", elapsed, "ms");
                     if (config.editProfile)
-                        recordProfile(
-                            results, "route_obstacles", count, trial, sample, capture, elapsed
-                        );
+                        recordProfile(results, "route_obstacles", count, trial, sample, capture, elapsed);
                 }
             }
         results.outcome(
-            "route_obstacles",
-            count,
-            "pass",
+            "route_obstacles", count, "pass",
             "Independent segment/clearance oracle; bounded production search unchanged; size means "
             "obstacle count."
         );
@@ -385,10 +341,8 @@ void routing(const Config& config, Recorder& results)
     Scene junction;
     const auto created = EditorActions(junction).apply(
         {CreateComponent{BuiltinComponentIds::Input, {-12, 0}, {.inputState = true}},
-         CreateComponent{BuiltinComponentIds::Output, {12, 0}},
-         CreateComponent{BuiltinComponentIds::Output, {0, 8}},
-         AddWire{{{-11, 0}, {11, 0}}},
-         AddWire{{{-6, 0}, {-6, 8}, {-1, 8}}}}
+         CreateComponent{BuiltinComponentIds::Output, {12, 0}}, CreateComponent{BuiltinComponentIds::Output, {0, 8}},
+         AddWire{{{-11, 0}, {11, 0}}}, AddWire{{{-6, 0}, {-6, 8}, {-1, 8}}}}
     );
     check(bool(created), created.message);
     EditHistory history;
@@ -396,8 +350,7 @@ void routing(const Config& config, Recorder& results)
         for (int sample = -1; sample < config.coverageSamples; ++sample)
         {
             auto [moved, elapsed, capture] = timedEdit(
-                config.editProfile,
-                [&] { return EditorActions(junction).apply({MoveComponent{0, {-14, 0}}}); }
+                config.editProfile, [&] { return EditorActions(junction).apply({MoveComponent{0, {-14, 0}}}); }
             );
             check(bool(moved), moved.message);
             history.record(moved);
@@ -406,8 +359,7 @@ void routing(const Config& config, Recorder& results)
             checkConnection(junction, 0, 2);
             check(!junction.getWireIntersections().empty(), "Move erased a branch junction.");
             check(
-                junction.getLogicComponent(1)->getStateInPin(0) &&
-                    junction.getLogicComponent(2)->getStateInPin(0),
+                junction.getLogicComponent(1)->getStateInPin(0) && junction.getLogicComponent(2)->getStateInPin(0),
                 "Junction move lost a driven sink."
             );
             check(bool(history.undo(junction)), "Cannot restore junction move.");
@@ -420,13 +372,13 @@ void routing(const Config& config, Recorder& results)
             }
         }
     results.outcome(
-        "move_junction",
-        3,
-        "pass",
+        "move_junction", 3, "pass",
         "Rerouted moved source while preserving both driven sinks and a fixed branch junction."
     );
 }
 
+
+/** @brief Capture persisted design, runtime and revision state that rejected edits must leave unchanged. */
 Json atomicImage(const Scene& scene)
 {
     Json wires = Json::array();
@@ -446,6 +398,8 @@ Json atomicImage(const Scene& scene)
     };
 }
 
+
+/** @brief Measure expected early and late edit rejections and verify complete scene rollback. */
 void rejected(const Config& config, Recorder& results)
 {
     auto scene = editorFixture(16);
@@ -461,67 +415,41 @@ void rejected(const Config& config, Recorder& results)
             auto wire = EditorActions(target).apply({AddWire{{{-9, 0}, {9, 0}}}});
             check(bool(wire), wire.message);
             target.addComponent(BuiltinComponentIds::Output, {3, 0});
-            check(
-                target.propagate() == SimulationResult::OK, "Rejected-route fixture did not settle."
-            );
+            check(target.propagate() == SimulationResult::OK, "Rejected-route fixture did not settle.");
         }
         const auto original = atomicImage(target);
-        const EditBatch batch =
-            routingFailure
-                ? EditBatch{MoveComponent{0, {0, 0}}}
-                : EditBatch{
-                      ConfigureComponentProperties{.componentId = 0, .label = "must rollback"},
-                      MoveComponent{0, {12, 0}}
-                  };
-        const std::string scenario =
-            routingFailure ? "reject_routing_atomic" : "reject_batch_atomic";
+        const EditBatch batch = routingFailure
+                                    ? EditBatch{MoveComponent{0, {0, 0}}}
+                                    : EditBatch{
+                                          ConfigureComponentProperties{.componentId = 0, .label = "must rollback"},
+                                          MoveComponent{0, {12, 0}}
+                                      };
+        const std::string scenario = routingFailure ? "reject_routing_atomic" : "reject_batch_atomic";
         for (int trial = 0; trial < config.trials; ++trial)
             for (int sample = -config.warmup; sample < config.samples; ++sample)
             {
-                auto [result, elapsed, capture] = timedEdit(
-                    config.editProfile, [&] { return EditorActions(target).apply(batch); }
-                );
+                auto [result, elapsed, capture] =
+                    timedEdit(config.editProfile, [&] { return EditorActions(target).apply(batch); });
                 check(
-                    !result && !result.change && result.createdComponentIds.empty() &&
-                        result.insertedWireIds.empty(),
+                    !result && !result.change && result.createdComponentIds.empty() && result.insertedWireIds.empty(),
                     "Expected rejection produced a change."
                 );
-                check(
-                    atomicImage(target) == original,
-                    "Rejected operation partially changed the scene."
-                );
+                check(atomicImage(target) == original, "Rejected operation partially changed the scene.");
                 if (routingFailure)
-                    check(
-                        result.error == EditError::InvalidWire,
-                        "Routing rejection had an unexpected cause."
-                    );
+                    check(result.error == EditError::InvalidWire, "Routing rejection had an unexpected cause.");
                 if (sample >= 0)
                 {
                     results.sample(
-                        scenario,
-                        int(target.getComponentCount()),
-                        trial,
-                        sample,
-                        "rejected_operation_ms",
-                        elapsed,
-                        "ms"
+                        scenario, int(target.getComponentCount()), trial, sample, "rejected_operation_ms", elapsed, "ms"
                     );
                     if (config.editProfile)
                         recordProfile(
-                            results,
-                            scenario,
-                            int(target.getComponentCount()),
-                            trial,
-                            sample,
-                            capture,
-                            elapsed
+                            results, scenario, int(target.getComponentCount()), trial, sample, capture, elapsed
                         );
                 }
             }
         results.outcome(
-            scenario,
-            int(target.getComponentCount()),
-            "pass",
+            scenario, int(target.getComponentCount()), "pass",
             "Expected typed rejection; complete persisted design, pin states/edges, wire "
             "IDs/nets/states, revision, build count, clock state and result unchanged. Rejected "
             "timings are separate."
@@ -529,6 +457,8 @@ void rejected(const Config& config, Recorder& results)
     }
 }
 
+
+/** @brief Build driven comb networks whose degree-three branches retain the exact requested route count. */
 Scene denseFixture(int wireCount)
 {
     // Driven comb nets: degree-three branch points prevent normalization from
@@ -542,20 +472,10 @@ Scene denseFixture(int wireCount)
         const int count = wireCount / rows + (row < rows / 2 ? -1 : 1);
         const int branches = (count - 1) / 2, y = row * 8;
         batch.push_back(
-            CreateComponent{
-                BuiltinComponentIds::Input,
-                {-2, y},
-                {.inputState = true},
-                PlacementPolicy::AllowOverlap
-            }
+            CreateComponent{BuiltinComponentIds::Input, {-2, y}, {.inputState = true}, PlacementPolicy::AllowOverlap}
         );
         batch.push_back(
-            CreateComponent{
-                BuiltinComponentIds::Output,
-                {4 * branches + 1, y},
-                {},
-                PlacementPolicy::AllowOverlap
-            }
+            CreateComponent{BuiltinComponentIds::Output, {4 * branches + 1, y}, {}, PlacementPolicy::AllowOverlap}
         );
         batch.push_back(AddWire{{{-1, y}, {0, y}}});
         for (int branch = 0; branch < branches; ++branch)
@@ -570,8 +490,7 @@ Scene denseFixture(int wireCount)
     check(bool(result), result.message);
     check(scene.wireCount() == std::size_t(wireCount), "Normalization changed dense route count.");
     check(
-        scene.propagate() == SimulationResult::OK && scene.getShortedNetCount() == 0,
-        "Dense fixture did not settle."
+        scene.propagate() == SimulationResult::OK && scene.getShortedNetCount() == 0, "Dense fixture did not settle."
     );
     scene.syncVisuals();
     for (const auto& [id, wire] : scene.getWires())
@@ -579,11 +498,13 @@ Scene denseFixture(int wireCount)
     return scene;
 }
 
+
+/** @brief Measure rebuild and persistence at increasing route density, verifying exact counts and complete recovered
+ * designs. */
 void density(const Config& config, Recorder& results)
 {
-    const auto counts = config.sizes == std::vector<int>{16}
-                            ? std::vector<int>{64}
-                            : std::vector<int>{1024, 4096, 8192, 16384};
+    const auto counts =
+        config.sizes == std::vector<int>{16} ? std::vector<int>{64} : std::vector<int>{1024, 4096, 8192, 16384};
     for (const int wires : counts)
     {
         auto scene = denseFixture(wires);
@@ -599,29 +520,17 @@ void density(const Config& config, Recorder& results)
                 }
             );
             check(
-                ok && scene.propagate() == SimulationResult::OK &&
-                    scene.wireCount() == std::size_t(wires),
+                ok && scene.propagate() == SimulationResult::OK && scene.wireCount() == std::size_t(wires),
                 "Dense rebuild failed."
             );
-            check(
-                Json::parse(circuitToJson(scene, "dense")) == canonical,
-                "Dense rebuild changed authored geometry."
-            );
+            check(Json::parse(circuitToJson(scene, "dense")) == canonical, "Dense rebuild changed authored geometry.");
             for (int sink = 1; sink < int(scene.getComponentCount()); sink += 2)
                 check(scene.getLogicComponent(sink)->getStateInPin(0), "Dense sink disconnected.");
             results.sample("dense_rebuild", wires, trial, 0, "duration_ms", elapsed, "ms");
             results.sample(
-                "dense_rebuild",
-                wires,
-                trial,
-                0,
-                "component_count",
-                double(scene.getComponentCount()),
-                "count"
+                "dense_rebuild", wires, trial, 0, "component_count", double(scene.getComponentCount()), "count"
             );
-            results.sample(
-                "dense_rebuild", wires, trial, 0, "route_count", double(scene.wireCount()), "count"
-            );
+            results.sample("dense_rebuild", wires, trial, 0, "route_count", double(scene.wireCount()), "count");
             if (config.editProfile)
                 recordProfile(results, "dense_rebuild", wires, trial, 0, capture, elapsed);
         }
@@ -635,9 +544,7 @@ void density(const Config& config, Recorder& results)
         check(loaded.scene.propagate() == SimulationResult::OK, "Dense recovered fixture failed.");
         equivalent(scene, loaded.scene, "dense");
         results.outcome(
-            "dense_rebuild",
-            wires,
-            "pass",
+            "dense_rebuild", wires, "pass",
             "Exact driven comb route count retained through rebuild and disk roundtrip; size means "
             "routes; one measured rebuild per trial, save/load once per process; no rare-tail "
             "claim."
@@ -645,6 +552,7 @@ void density(const Config& config, Recorder& results)
     }
 }
 } // namespace
+
 
 void extendedCoverage(const Config& config, Recorder& results)
 {
@@ -679,9 +587,7 @@ void extendedCoverage(const Config& config, Recorder& results)
         );
     }
     results.outcome(
-        "scene_negative_controls",
-        16,
-        "pass",
+        "scene_negative_controls", 16, "pass",
         "Actual design/runtime validators reject a changed label, input state and extra route."
     );
     persistence(config, results);
@@ -691,6 +597,7 @@ void extendedCoverage(const Config& config, Recorder& results)
     rejected(config, results);
     density(config, results);
 }
+
 
 void lifecycle(const Config& config, Recorder& results)
 {
@@ -704,8 +611,7 @@ void lifecycle(const Config& config, Recorder& results)
         EditHistory history;
         for (int iteration = 0; iteration < 3; ++iteration)
         {
-            auto moved =
-                EditorActions(copy).apply({MoveComponent{size - 1, {14, (size / 2 - 1) * 6}}});
+            auto moved = EditorActions(copy).apply({MoveComponent{size - 1, {14, (size / 2 - 1) * 6}}});
             check(bool(moved), moved.message);
             history.record(moved);
             check(
@@ -714,10 +620,7 @@ void lifecycle(const Config& config, Recorder& results)
             );
             checkConnection(copy, size - 2, size - 1);
         }
-        check(
-            Json::parse(circuitToJson(copy, "cycle")) == original,
-            "Lifecycle failed to restore complete design."
-        );
+        check(Json::parse(circuitToJson(copy, "cycle")) == original, "Lifecycle failed to restore complete design.");
         check(history.undoCount() <= EditHistory::Limit, "Lifecycle history overflowed.");
         ++cycles;
         // All scenes, snapshots, catalogs and histories die before the memory checkpoint.
@@ -736,37 +639,19 @@ void lifecycle(const Config& config, Recorder& results)
             ++seconds;
             memorySample(results, "scene_lifecycle_endurance", size, seconds);
             results.sample(
-                "scene_lifecycle_endurance",
-                size,
-                0,
-                seconds,
-                "elapsed_seconds",
-                milliseconds(start) / 1000,
-                "s"
+                "scene_lifecycle_endurance", size, 0, seconds, "elapsed_seconds", milliseconds(start) / 1000, "s"
             );
             results.sample(
-                "scene_lifecycle_endurance",
-                size,
-                0,
-                seconds,
-                "verified_cycles",
-                cycles - lastCycles,
-                "count"
+                "scene_lifecycle_endurance", size, 0, seconds, "verified_cycles", cycles - lastCycles, "count"
             );
             lastCycles = cycles;
         }
     }
     memorySample(results, "scene_lifecycle_endurance", size, seconds + 1);
-    results.sample(
-        "scene_lifecycle_endurance", size, 0, 0, "measured_seconds", milliseconds(start) / 1000, "s"
-    );
-    results.sample(
-        "scene_lifecycle_endurance", size, 0, 0, "verified_total_cycles", cycles, "count"
-    );
+    results.sample("scene_lifecycle_endurance", size, 0, 0, "measured_seconds", milliseconds(start) / 1000, "s");
+    results.sample("scene_lifecycle_endurance", size, 0, 0, "verified_total_cycles", cycles, "count");
     results.outcome(
-        "scene_lifecycle_endurance",
-        size,
-        "pass",
+        "scene_lifecycle_endurance", size, "pass",
         "Repeated create/copy/destroy scenes and histories; three move/undo/redo/undo cycles per "
         "scene, complete restored-design comparison. Memory after destruction, warmed allocator; "
         "bounded observation, not proof of leak freedom."

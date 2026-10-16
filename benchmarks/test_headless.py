@@ -1,4 +1,5 @@
 """Integration contract for an ACTUAL build without the rendering module."""
+
 import argparse
 import json
 from pathlib import Path
@@ -7,6 +8,7 @@ import tempfile
 
 
 def main():
+    """Check required and optional rendering contracts against the actual no-OpenGL benchmark executable."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("executable", type=Path)
     args = parser.parse_args()

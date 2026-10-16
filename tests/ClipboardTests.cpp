@@ -23,6 +23,7 @@ void require(bool value, const char* message)
         throw std::runtime_error(message);
 }
 
+
 EditResult edit(Scene& scene, const EditBatch& batch)
 {
     auto result = EditorActions(scene).apply(batch);
@@ -31,12 +32,13 @@ EditResult edit(Scene& scene, const EditBatch& batch)
     return result;
 }
 
+
+/** @brief Verify clipboard copies preserve component configuration, geometry and reusable definitions. */
 void settings(GLFWwindow*)
 {
     Scene source;
     const int gate = source.addComponent(BuiltinComponentIds::And, {0, 0});
-    const int input =
-        source.addComponent(BuiltinComponentIds::Input, {-12, 0}, {.inputState = true});
+    const int input = source.addComponent(BuiltinComponentIds::Input, {-12, 0}, {.inputState = true});
     const int clock = source.addComponent(BuiltinComponentIds::Clock, {12, 0});
     edit(
         source,
@@ -51,21 +53,15 @@ void settings(GLFWwindow*)
          },
          ConfigureComponentProperties{.componentId = input, .label = "Enable"},
          ConfigureComponentProperties{
-             .componentId = clock,
-             .label = "Timing",
-             .clockFrequency = 16.f,
-             .clockPaused = true,
-             .labelVisible = true
+             .componentId = clock, .label = "Timing", .clockFrequency = 16.f, .clockPaused = true, .labelVisible = true
          }}
     );
-    const auto latch = edit(
-                           source,
-                           {CreateComponent{
-                               .definitionId = BuiltinComponentIds::DLatch,
-                               .position = {24, 0},
-                               .orientation = Orientation::Up
-                           }}
-    ).createdComponentIds.front();
+    const auto latch =
+        edit(
+            source, {CreateComponent{
+                        .definitionId = BuiltinComponentIds::DLatch, .position = {24, 0}, .orientation = Orientation::Up
+                    }}
+        ).createdComponentIds.front();
     Selection selection;
     const std::vector<int> ids{gate, input, clock, latch};
     selection.selectGroup(ids);
@@ -86,8 +82,7 @@ void settings(GLFWwindow*)
             after->getGridPosition() == GridCoords{before->getGridPosition().x - 6, 12} &&
                 before->getBodyLabel() == after->getBodyLabel() &&
                 before->showsBodyLabel() == after->showsBodyLabel() &&
-                before->getOrientation() == after->getOrientation() &&
-                before->getSize() == after->getSize() &&
+                before->getOrientation() == after->getOrientation() && before->getSize() == after->getSize() &&
                 before->getDefinitionIdentity().id == after->getDefinitionIdentity().id &&
                 before->getDefinitionIdentity().version == after->getDefinitionIdentity().version &&
                 before->getInputPins().size() == after->getInputPins().size(),
@@ -95,32 +90,27 @@ void settings(GLFWwindow*)
         );
         for (std::size_t pin = 0; pin < before->getInputPins().size(); ++pin)
             require(
-                before->getInputPins()[pin].relative_pos ==
-                        after->getInputPins()[pin].relative_pos &&
+                before->getInputPins()[pin].relative_pos == after->getInputPins()[pin].relative_pos &&
                     before->getInputPins()[pin].inverted == after->getInputPins()[pin].inverted,
 
                 "Paste moved a configured input pin."
             );
     }
     const auto revision = destination.getRevision();
-    const auto centered =
-        EditorActions(destination).apply(clipboard.pasteBatch(destination, {0, 12}));
+    const auto centered = EditorActions(destination).apply(clipboard.pasteBatch(destination, {0, 12}));
     require(
         centered.error == EditError::Overlap && destination.getRevision() == revision &&
             destination.getComponentCount() == 4,
         "Direct clipboard creation accepted identical centers or partially committed."
     );
-    const auto* copiedGate =
-        dynamic_cast<const Gate*>(destination.getLogicComponent(pasted.createdComponentIds[0]));
+    const auto* copiedGate = dynamic_cast<const Gate*>(destination.getLogicComponent(pasted.createdComponentIds[0]));
     const auto* copiedInput =
         dynamic_cast<const InputPin*>(destination.getLogicComponent(pasted.createdComponentIds[1]));
-    const auto* copiedClock =
-        dynamic_cast<const Clock*>(destination.getLogicComponent(pasted.createdComponentIds[2]));
+    const auto* copiedClock = dynamic_cast<const Clock*>(destination.getLogicComponent(pasted.createdComponentIds[2]));
     require(
         copiedGate && copiedGate->getInputPinCount() == 8 && copiedGate->isInverted() &&
             copiedGate->isInputInverted(6) && !copiedGate->isInputInverted(0) && copiedInput &&
-            copiedInput->getState() && copiedClock && copiedClock->isPaused() &&
-            copiedClock->getFrequency() == 16.f,
+            copiedInput->getState() && copiedClock && copiedClock->isPaused() && copiedClock->getFrequency() == 16.f,
         "Paste lost arity, inversion, input state or clock settings."
     );
 
@@ -130,8 +120,7 @@ void settings(GLFWwindow*)
     clipboard.copy(wireScene, selection);
     const auto segment = clipboard.pasteBatch(destination, {0, -12});
     require(
-        segment.size() == 1 &&
-            std::get<AddWire>(segment.front()).path == std::vector<GridCoords>{{-3, -12}, {3, -12}},
+        segment.size() == 1 && std::get<AddWire>(segment.front()).path == std::vector<GridCoords>{{-3, -12}, {3, -12}},
         "An ordinary wire selection copied more than its selected segment."
     );
     selection.clear();
@@ -139,11 +128,11 @@ void settings(GLFWwindow*)
     clipboard.copy(wireScene, selection);
     const auto whole = clipboard.pasteBatch(destination, {0, -12});
     require(
-        std::get<AddWire>(whole.front()).path ==
-            std::vector<GridCoords>{{-3, -15}, {3, -15}, {3, -9}},
+        std::get<AddWire>(whole.front()).path == std::vector<GridCoords>{{-3, -15}, {3, -15}, {3, -9}},
         "Whole-wire copy lost its bends or relative geometry."
     );
 }
+
 
 struct Editor
 {
@@ -151,6 +140,7 @@ struct Editor
     Input input;
     GLFWwindow* window;
     int first, second;
+
 
     explicit Editor(GLFWwindow* window) : window(window)
     {
@@ -161,21 +151,21 @@ struct Editor
         edit(scene, {AddWire{{{-4, 0}, {3, 0}}}, AddWire{{{-12, 8}, {12, 8}}}});
     }
 
+
     ~Editor() { glfwSetWindowUserPointer(window, nullptr); }
+
 
     void cursor(GridCoords grid)
     {
-        const auto point =
-            input.getCameraFrame(window).worldToWindow(GridSystem::gridToWorld(grid));
+        const auto point = input.getCameraFrame(window).worldToWindow(GridSystem::gridToWorld(grid));
         require(point.has_value(), "Inactive test canvas.");
         glfwSetCursorPos(window, point->x, point->y);
         input.handleCursorPos(window, point->x, point->y);
     }
 
-    void mouse(int action, int mods = 0)
-    {
-        input.handleMouseButton(window, GLFW_MOUSE_BUTTON_LEFT, action, mods);
-    }
+
+    void mouse(int action, int mods = 0) { input.handleMouseButton(window, GLFW_MOUSE_BUTTON_LEFT, action, mods); }
+
 
     void key(int code, int mods = GLFW_MOD_CONTROL)
     {
@@ -183,6 +173,7 @@ struct Editor
         input.process(window);
         input.handleKey(code, GLFW_RELEASE, mods);
     }
+
 
     void copyGroup()
     {
@@ -194,6 +185,8 @@ struct Editor
     }
 };
 
+
+/** @brief Exercise keyboard copy/paste, selection, preview cancellation and undo/redo as editor transactions. */
 void shortcuts(GLFWwindow* window)
 {
     Editor editor(window);
@@ -209,8 +202,8 @@ void shortcuts(GLFWwindow* window)
     const auto builds = editor.scene.getTopologyBuildCount();
     editor.key(GLFW_KEY_V);
     require(
-        editor.input.getPastePreview().active() && !editor.input.isIdle() &&
-            editor.scene.getComponentCount() == 2 && editor.input.getUndoCount() == 0,
+        editor.input.getPastePreview().active() && !editor.input.isIdle() && editor.scene.getComponentCount() == 2 &&
+            editor.input.getUndoCount() == 0,
         "Ctrl+V committed instead of starting a preview."
     );
     editor.cursor({0, 0});
@@ -239,19 +232,16 @@ void shortcuts(GLFWwindow* window)
     require(!editor.input.getPastePreview().active(), "Successful placement retained its preview.");
     const auto selected = editor.input.getSelectedComponents();
     require(
-        selected.size() == 2 && editor.input.getSelectedWires().size() == 1 &&
-            editor.scene.getComponentCount() == 4 && editor.scene.wireCount() == 3 &&
-            editor.input.getUndoCount() == 1,
+        selected.size() == 2 && editor.input.getSelectedWires().size() == 1 && editor.scene.getComponentCount() == 4 &&
+            editor.scene.wireCount() == 3 && editor.input.getUndoCount() == 1,
         "Group paste did not select its objects or did not create one undo step."
     );
     auto it = selected.begin();
     const int first = *it++, second = *it;
     require(
         editor.scene.getCommittedComponentView(first)->getGridPosition() == GridCoords{-5, -12} &&
-            editor.scene.getCommittedComponentView(second)->getGridPosition() ==
-                GridCoords{5, -12} &&
-            editor.scene.netOfPin({first, 0}, PinType::OUTPUT) ==
-                editor.scene.netOfPin({second, 0}, PinType::INPUT),
+            editor.scene.getCommittedComponentView(second)->getGridPosition() == GridCoords{5, -12} &&
+            editor.scene.netOfPin({first, 0}, PinType::OUTPUT) == editor.scene.netOfPin({second, 0}, PinType::INPUT),
         "Pasted components lost relative positions or internal connectivity."
     );
     const auto revision = editor.scene.getRevision();
@@ -269,8 +259,7 @@ void shortcuts(GLFWwindow* window)
     );
     editor.key(GLFW_KEY_Z);
     require(
-        editor.scene.getComponentCount() == 2 && editor.scene.wireCount() == 2 &&
-            editor.input.getRedoCount() == 1,
+        editor.scene.getComponentCount() == 2 && editor.scene.wireCount() == 2 && editor.input.getRedoCount() == 1,
         "Undo did not remove the whole paste."
     );
     editor.cursor({0, 0});
@@ -283,8 +272,7 @@ void shortcuts(GLFWwindow* window)
     );
     editor.key(GLFW_KEY_Y);
     require(
-        editor.scene.getComponentCount() == 4 && editor.scene.wireCount() == 3,
-        "Redo did not restore the whole paste."
+        editor.scene.getComponentCount() == 4 && editor.scene.wireCount() == 3, "Redo did not restore the whole paste."
     );
     editor.cursor({0, 16});
     editor.input.handleKey(GLFW_KEY_V, GLFW_REPEAT, GLFW_MOD_CONTROL);
@@ -311,14 +299,10 @@ void shortcuts(GLFWwindow* window)
     editor.key(GLFW_KEY_V);
     editor.cursor({0, 16});
     editor.input.process(window);
-    require(
-        editor.scene.getComponentCount() == 4, "Outside-canvas paste fired on pointer reentry."
-    );
+    require(editor.scene.getComponentCount() == 4, "Outside-canvas paste fired on pointer reentry.");
 
-    editor.input.setUiInputHandler(
-        [](const UiInputEvent& event)
-        { return event.kind == UiInputKind::Key && event.code == GLFW_KEY_V; }
-    );
+    editor.input.setUiInputHandler([](const UiInputEvent& event)
+                                   { return event.kind == UiInputKind::Key && event.code == GLFW_KEY_V; });
     editor.input.setCanvasFocused(true);
     editor.key(GLFW_KEY_V);
     editor.input.setUiInputHandler({});
@@ -332,8 +316,7 @@ void shortcuts(GLFWwindow* window)
     editor.mouse(GLFW_RELEASE);
     require(
         editor.scene.getComponentCount() == 4 &&
-            editor.scene.getCommittedComponentView(editor.first)->getGridPosition() ==
-                GridCoords{-5, 0},
+            editor.scene.getCommittedComponentView(editor.first)->getGridPosition() == GridCoords{-5, 0},
         "Copy/paste during a drag committed preview geometry."
     );
 
@@ -341,9 +324,7 @@ void shortcuts(GLFWwindow* window)
     {
         editor.cursor({0, 16});
         editor.key(GLFW_KEY_V);
-        require(
-            editor.input.getPastePreview().active(), "Cancellation fixture did not start a preview."
-        );
+        require(editor.input.getPastePreview().active(), "Cancellation fixture did not start a preview.");
         if (cancellation == 0)
         {
             editor.input.setUiCapture({true, true});
@@ -387,8 +368,7 @@ void shortcuts(GLFWwindow* window)
     editor.mouse(GLFW_PRESS);
     editor.mouse(GLFW_RELEASE);
     require(
-        destination.getComponentCount() == 2 && destination.wireCount() == 1 &&
-            editor.input.getUndoCount() == 1,
+        destination.getComponentCount() == 2 && destination.wireCount() == 1 && editor.input.getUndoCount() == 1,
         "Switching scenes lost the clipboard."
     );
     editor.key(GLFW_KEY_DELETE, 0);
@@ -417,6 +397,8 @@ void shortcuts(GLFWwindow* window)
     );
 }
 
+
+/** @brief Verify paste placement resolves anchor conflicts without corrupting existing scene objects. */
 void overlappingPlacement(GLFWwindow* window)
 {
     Editor editor(window);
@@ -427,11 +409,9 @@ void overlappingPlacement(GLFWwindow* window)
     editor.mouse(GLFW_PRESS);
     editor.mouse(GLFW_RELEASE);
     require(
-        editor.input.getPastePreview().active() &&
-            editor.input.getPastePreview().blockedComponents().size() == 2 &&
-            editor.input.getLastEditError() == EditError::Overlap &&
-            editor.scene.getRevision() == revision && editor.scene.getComponentCount() == 2 &&
-            editor.input.getUndoCount() == 0,
+        editor.input.getPastePreview().active() && editor.input.getPastePreview().blockedComponents().size() == 2 &&
+            editor.input.getLastEditError() == EditError::Overlap && editor.scene.getRevision() == revision &&
+            editor.scene.getComponentCount() == 2 && editor.input.getUndoCount() == 0,
         "An exact-center collision committed, changed history or dismissed the preview."
     );
     editor.cursor({3, 0}); // Copies have different centers, but inputs land on original outputs.
@@ -442,8 +422,7 @@ void overlappingPlacement(GLFWwindow* window)
     editor.mouse(GLFW_PRESS);
     editor.mouse(GLFW_RELEASE);
     require(
-        editor.input.getPastePreview().active() &&
-            editor.input.getLastEditError() == EditError::Overlap &&
+        editor.input.getPastePreview().active() && editor.input.getLastEditError() == EditError::Overlap &&
             editor.scene.getRevision() == revision && editor.input.getUndoCount() == 0,
         "A shared-pin paste committed or dismissed the preview."
     );
@@ -453,8 +432,7 @@ void overlappingPlacement(GLFWwindow* window)
         "Moving to distinct centers and pins did not unblock placement."
     );
     require(
-        editor.input.getPastePreview().overlappingComponents().size() == 2,
-        "Partial overlap lost its placement notice."
+        editor.input.getPastePreview().overlappingComponents().size() == 2, "Partial overlap lost its placement notice."
     );
     const auto builds = editor.scene.getTopologyBuildCount();
     editor.mouse(GLFW_PRESS);
@@ -471,16 +449,13 @@ void overlappingPlacement(GLFWwindow* window)
     require(
         !editor.input.getPastePreview().active() && editor.scene.getComponentCount() == 4 &&
             editor.input.getSelectedComponents().size() == 2 && editor.input.getUndoCount() == 1 &&
-            editor.scene.getTopologyBuildCount() == builds + 1 &&
-            editor.input.getLastEditError() == EditError::None,
+            editor.scene.getTopologyBuildCount() == builds + 1 && editor.input.getLastEditError() == EditError::None,
         "Retrying paste in a clear area failed or created extra undo entries."
     );
     auto selected = editor.input.getSelectedComponents().begin();
     require(
-        editor.scene.getCommittedComponentView(*selected++)->getGridPosition() ==
-                GridCoords{-4, 4} &&
-            editor.scene.getCommittedComponentView(*selected)->getGridPosition() ==
-                GridCoords{6, 4},
+        editor.scene.getCommittedComponentView(*selected++)->getGridPosition() == GridCoords{-4, 4} &&
+            editor.scene.getCommittedComponentView(*selected)->getGridPosition() == GridCoords{6, 4},
         "Retried paste did not respect the chosen position."
     );
     editor.scene.propagate();
@@ -490,14 +465,15 @@ void overlappingPlacement(GLFWwindow* window)
     require(!shorted, "Retried paste accidentally connected to the original wires.");
     editor.key(GLFW_KEY_Z);
     require(
-        editor.scene.getComponentCount() == 2 && editor.scene.wireCount() == 2 &&
-            editor.input.getRedoCount() == 1,
+        editor.scene.getComponentCount() == 2 && editor.scene.wireCount() == 2 && editor.input.getRedoCount() == 1,
         "Undo did not remove the retried paste as one edit."
     );
     editor.key(GLFW_KEY_Y);
     require(editor.scene.getComponentCount() == 4, "Redo rejected the previously accepted paste.");
 }
 
+
+/** @brief Verify UI ownership and editor mode route clipboard commands to the intended workspace. */
 void appRouting(GLFWwindow* window)
 {
     Input input;
@@ -509,8 +485,7 @@ void appRouting(GLFWwindow* window)
     auto& scene = circuits.activeScene();
     const int original = scene.addComponent(BuiltinComponentIds::And, {0, 0});
     glfwSetWindowUserPointer(window, &input);
-    auto layout = [&]()
-    { ui.layout(scene.getComponentCatalog(), input.getCameraFrame(window).surface, input); };
+    auto layout = [&]() { ui.layout(scene.getComponentCatalog(), input.getCameraFrame(window).surface, input); };
     layout();
     // Match Engine's UI-first dispatch, including layout before and after every event.
     input.setUiInputHandler(
@@ -525,21 +500,16 @@ void appRouting(GLFWwindow* window)
     );
     auto cursor = [&](GridCoords position)
     {
-        const auto point =
-            input.getCameraFrame(window).worldToWindow(GridSystem::gridToWorld(position));
+        const auto point = input.getCameraFrame(window).worldToWindow(GridSystem::gridToWorld(position));
         require(point.has_value(), "App canvas is inactive.");
         glfwSetCursorPos(window, point->x, point->y);
         Input::cursorPositionCallback(window, point->x, point->y);
     };
-    auto key = [&](int code, int action, int mods)
-    { Input::keyCallback(window, code, 0, action, mods); };
+    auto key = [&](int code, int action, int mods) { Input::keyCallback(window, code, 0, action, mods); };
     cursor({0, 0});
     Input::mouseButtonCallback(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
     Input::mouseButtonCallback(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
-    require(
-        input.getSelectedComponents() == std::set<int>{original},
-        "App UI blocked component selection."
-    );
+    require(input.getSelectedComponents() == std::set<int>{original}, "App UI blocked component selection.");
     key(GLFW_KEY_LEFT_CONTROL, GLFW_PRESS, GLFW_MOD_CONTROL);
     key(GLFW_KEY_C, GLFW_PRESS, GLFW_MOD_CONTROL);
     key(GLFW_KEY_C, GLFW_RELEASE, GLFW_MOD_CONTROL);
@@ -559,8 +529,7 @@ void appRouting(GLFWwindow* window)
     Input::mouseButtonCallback(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
     require(
         scene.getComponentCount() == 2 && input.getSelectedComponents().size() == 1 &&
-            scene.getCommittedComponentView(input.getSelectedComponentId())->getGridPosition() ==
-                GridCoords{8, 0} &&
+            scene.getCommittedComponentView(input.getSelectedComponentId())->getGridPosition() == GridCoords{8, 0} &&
             input.getUndoCount() == 1,
         "Ctrl+C/Ctrl+V failed through the application's actual UI routing."
     );
@@ -569,25 +538,22 @@ void appRouting(GLFWwindow* window)
     glfwSetWindowUserPointer(window, nullptr);
 }
 
+
+/** @brief Verify clipboard operations remain independent of workspace selection and read-only inspection. */
 void views(GLFWwindow*)
 {
     Scene authored;
     const int in = authored.addComponent(BuiltinComponentIds::Input, {-8, 0});
     const int out = authored.addComponent(BuiltinComponentIds::Output, {8, 0});
     edit(
-        authored,
-        {ConfigureComponentProperties{.componentId = in, .label = "Data"},
-         ConfigureComponentProperties{.componentId = out, .label = "Result"},
-         AddWire{{{-7, 0}, {7, 0}}}}
+        authored, {ConfigureComponentProperties{.componentId = in, .label = "Data"},
+                   ConfigureComponentProperties{.componentId = out, .label = "Result"}, AddWire{{{-7, 0}, {7, 0}}}}
     );
     auto definition = makeSubcircuit(authored, {"subcircuit.clipboard", 1}, "Example");
     Scene source;
     const auto created = edit(
-        source,
-        {RegisterComponentDefinition{definition},
-         CreateComponent{
-             definition.identity.id, {0, 0}, {}, PlacementPolicy::RejectOverlap, 1, "Block"
-         }}
+        source, {RegisterComponentDefinition{definition},
+                 CreateComponent{definition.identity.id, {0, 0}, {}, PlacementPolicy::RejectOverlap, 1, "Block"}}
     );
     Selection selection;
     selection.selectComponent(created.createdComponentIds.front());
@@ -599,10 +565,8 @@ void views(GLFWwindow*)
     const int a = pasted.createdComponentIds.front();
     const auto again = edit(destination, clipboard.pasteBatch(destination, {12, 0}));
     const int b = again.createdComponentIds.front();
-    const int manual =
-        destination.addComponent(BuiltinComponentIds::Input, {-6, 0}, {.inputState = true});
-    const auto anchor =
-        destination.getCommittedComponentView(a)->getInputPins().front().relative_pos;
+    const int manual = destination.addComponent(BuiltinComponentIds::Input, {-6, 0}, {.inputState = true});
+    const auto anchor = destination.getCommittedComponentView(a)->getInputPins().front().relative_pos;
     edit(destination, {AddWire{{{-5, 0}, anchor}}});
     destination.propagate();
     require(
@@ -634,13 +598,12 @@ void views(GLFWwindow*)
     subcircuit.setInterfaceNamingRequired(true);
     const auto named = edit(subcircuit, clipboard.pasteBatch(subcircuit, {0, 0}));
     require(
-        !subcircuit.getCommittedComponentView(named.createdComponentIds.front())
-             ->getBodyLabel()
-             .empty(),
+        !subcircuit.getCommittedComponentView(named.createdComponentIds.front())->getBodyLabel().empty(),
         "An unnamed workspace port pasted into a subcircuit kept an invalid blank name."
     );
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {

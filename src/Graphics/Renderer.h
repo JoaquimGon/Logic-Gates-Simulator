@@ -11,7 +11,7 @@
 #include <optional>
 #include <unordered_set>
 
-/** Coordinates canvas layers and owns context-bound drawing resources. */
+/** @brief Coordinates canvas layers and owns context-bound drawing resources. */
 class Renderer
 {
   public:
@@ -19,34 +19,44 @@ class Renderer
     ~Renderer();
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
+
     /** @return True when every required shader and the font were initialized. */
     bool init();
+
     /** @brief Idempotently releases GPU resources; requires their context to remain current. */
     void shutdown();
+
     void beginFrame(const CanvasCameraFrame& camera);
+
     void drawCanvas(const CanvasFrame& frame);
+
     void drawComponents(std::span<const ComponentRenderData> components, float opacity = 1);
+
     void drawPinLeads(std::span<const ComponentRenderData> components, float opacity = 1);
+
     void drawPins(
-        std::span<const ComponentRenderData> components,
-        int hoveredCompId = -1,
-        int hoveredPinIdx = -1,
-        PinType hoveredPinType = PinType::INPUT,
-        float opacity = 1
+        std::span<const ComponentRenderData> components, int hoveredCompId = -1, int hoveredPinIdx = -1,
+        PinType hoveredPinType = PinType::INPUT, float opacity = 1
     );
+
     void drawGrid();
-    void drawWires(
-        const std::map<WireId, Wire>& wires, const Wire* activeWire = nullptr, float opacity = 1
-    );
-    void drawWireSegmentBoundingBox(
-        const GridCoords& start, const GridCoords& end, float padding = 0.03f, float alpha = 1
-    );
+
+    void drawWires(const std::map<WireId, Wire>& wires, const Wire* activeWire = nullptr, float opacity = 1);
+
+    void
+    drawWireSegmentBoundingBox(const GridCoords& start, const GridCoords& end, float padding = 0.03f, float alpha = 1);
+
     void drawComponentBoundingBox(BodyBounds bounds, float padding = 0.01f, float alpha = 1);
+
     void drawWorldRect(BodyBounds bounds, glm::vec4 color);
+
     void drawGridPointHighlight(GridCoords position, float opacity);
+
     void drawIntersections(std::span<const glm::vec3> intersections);
-    /** @brief Submits generic world/screen text, reusable by later UI adapters. */
+
+    /** @brief Submit positioned text in canvas or logical-window coordinates. */
     void drawText(std::span<const TextRun> runs, TextSpace space);
+
     /** @brief Draws a filled rectangle in logical window pixels for basic UI. */
     void drawScreenRect(CanvasViewport bounds, glm::vec4 color);
 
@@ -56,10 +66,12 @@ class Renderer
         glm::vec4 color;
     };
 
-    /** Batches chronogram segments and guide lines in one screen-space submission. */
+    /** @brief Batches chronogram segments and guide lines in one screen-space submission. */
     void drawScreenRects(std::span<const ScreenRect> rectangles);
+
     /** @brief Draws a shader body in logical window pixels, reusing the canvas component mesh. */
     void drawScreenComponent(const ComponentBodyInstance& body);
+
     /** @brief Clips screen drawing to logical window bounds; nullopt restores full-window drawing.
      */
     void setScreenClip(std::optional<CanvasViewport> bounds);
@@ -67,21 +79,22 @@ class Renderer
     const FontMetrics& fontMetrics() const { return m_text.metrics(); }
 
     void drawLabels(std::span<const ComponentRenderData> components, float opacity = 1);
+
     void drawDebugOverlay(
-        const DebugMetrics& metrics,
-        bool showMetrics = true,
+        const DebugMetrics& metrics, bool showMetrics = true,
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()
     );
 
     void invalidateDebugOverlay() { m_debugCacheValid = false; }
 
     int getDrawCallCount() const { return m_drawCalls.total(); }
-
     const DrawCallCounts& getDrawCallCounts() const { return m_drawCalls; }
 
-    /** Classifies screen submissions; canvas methods classify their own draws. */
+    /** @brief Classifies screen submissions; canvas methods classify their own draws. */
     void setUiDrawCategory(DrawCategory category);
+
     void beginUiTiming(bool enabled);
+
     CpuTimings endUiTiming();
 
   private:
@@ -100,9 +113,13 @@ class Renderer
     std::chrono::steady_clock::time_point m_debugRefreshTime{};
     CanvasCameraFrame m_currentCamera{};
     std::optional<PixelViewport> m_screenClip;
+
     bool setCanvasViewport();
+
     bool useCanvasShader(Shader& shader);
+
     void setScreenViewport();
+
     void recordDrawCalls(DrawCategory category, int count = 1);
     CpuTimings m_uiCpuTimes;
     bool m_timingUi = false;

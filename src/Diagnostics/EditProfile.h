@@ -20,9 +20,8 @@ enum class Phase
     Restore,
     Count
 };
-inline constexpr std::array names{
-    "scene_copy", "snapshot", "routing", "normalization", "connectivity", "restore"
-};
+
+inline constexpr std::array names{"scene_copy", "snapshot", "routing", "normalization", "connectivity", "restore"};
 
 struct Value
 {
@@ -34,6 +33,7 @@ struct Capture
 {
     std::array<Value, static_cast<unsigned>(Phase::Count)> values{};
 };
+
 #if LOGIC_BENCHMARK_EDIT_PROFILE
 class Scope;
 inline thread_local Capture* active = nullptr;
@@ -43,9 +43,7 @@ class Session
 {
   public:
     explicit Session(Capture* capture) : previous(active) { active = capture; }
-
     ~Session() { active = previous; }
-
     Session(const Session&) = delete;
 
   private:
@@ -65,12 +63,13 @@ class Scope
         }
     }
 
+    /** @brief Accumulate inclusive and exclusive phase time, then charge the elapsed interval to the enclosing scope.
+     */
     ~Scope()
     {
         if (!capture)
             return;
-        const double elapsed =
-            std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+        const double elapsed = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
         auto& value = capture->values[static_cast<unsigned>(phase)];
         value.inclusiveMs += elapsed;
         value.exclusiveMs += elapsed - children;
@@ -79,7 +78,6 @@ class Scope
         if (outer)
             outer->children += elapsed;
     }
-
     Scope(const Scope&) = delete;
 
   private:
@@ -91,6 +89,7 @@ class Scope
     double children = 0;
 };
 #else
+
 struct Session
 {
     explicit Session(Capture*) {}
@@ -101,6 +100,7 @@ struct Scope
     explicit Scope(Phase) {}
 };
 #endif
+
 template <class F>
 decltype(auto) measure(Phase phase, F&& operation)
 {

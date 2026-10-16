@@ -20,5 +20,6 @@ struct CircuitExampleInfo
 };
 
 std::span<const CircuitExampleInfo> circuitExamples();
-/** Fresh editable geometry, built and settled before it is opened in the editor. */
+
+/** @brief Fresh editable geometry, built and settled before it is opened in the editor. */
 Scene buildExampleCircuit(CircuitExample example);

@@ -19,11 +19,13 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
 struct Fixture
 {
     Circuit circuit;
     int data = circuit.addInputPin(), second = circuit.addInputPin(), clk = circuit.addInputPin();
     int memory;
+
 
     explicit Fixture(FlipFlopType type)
     {
@@ -35,6 +37,7 @@ struct Fixture
         circuit.propagate();
     }
 
+
     void inputs(bool a, bool b = false)
     {
         static_cast<InputPin*>(circuit.getComponent(data))->setState(a);
@@ -42,11 +45,13 @@ struct Fixture
         circuit.propagate();
     }
 
+
     void clock(bool high)
     {
         static_cast<InputPin*>(circuit.getComponent(clk))->setState(high);
         circuit.propagate();
     }
+
 
     void pulse()
     {
@@ -54,7 +59,9 @@ struct Fixture
         clock(true);
     }
 
+
     bool q() const { return circuit.getComponent(memory)->getStateOutPin(0); }
+
 
     void check(bool expected)
     {
@@ -65,6 +72,8 @@ struct Fixture
     }
 };
 
+
+/** @brief Check D, T and JK rising-edge state transitions against their expected truth tables. */
 void tables()
 {
     for (auto type : {FlipFlopType::D, FlipFlopType::T, FlipFlopType::JK})
@@ -100,10 +109,7 @@ void tables()
                     f.circuit.resetSources();
                     f.circuit.propagate();
                     f.check(expected); // Source reset is a falling edge, not memory erasure.
-                    f.inputs(
-                        type == FlipFlopType::T ? true : !expected,
-                        type == FlipFlopType::JK && expected
-                    );
+                    f.inputs(type == FlipFlopType::T ? true : !expected, type == FlipFlopType::JK && expected);
                     f.clock(true);
                     f.check(!expected);
                     require(
@@ -113,6 +119,8 @@ void tables()
                 }
 }
 
+
+/** @brief Verify level changes and repeated levels cannot synthesize extra active clock edges. */
 void edges()
 {
     for (bool reversed : {false, true})
@@ -131,16 +139,12 @@ void edges()
         circuit.connectComponents(a, 1, notQ, 0);
         circuit.stepClocks(1);
         require(
-            circuit.getComponent(a)->getStateOutPin() &&
-                !circuit.getComponent(b)->getStateOutPin() &&
-                circuit.getComponent(q)->getStateInPin(0) &&
-                !circuit.getComponent(notQ)->getStateInPin(0),
+            circuit.getComponent(a)->getStateOutPin() && !circuit.getComponent(b)->getStateOutPin() &&
+                circuit.getComponent(q)->getStateInPin(0) && !circuit.getComponent(notQ)->getStateInPin(0),
             "Shared-clock registers advanced two stages or lost independent outputs."
         );
         circuit.stepClocks(2);
-        require(
-            circuit.getComponent(b)->getStateOutPin(), "Next rising edge missed the second stage."
-        );
+        require(circuit.getComponent(b)->getStateOutPin(), "Next rising edge missed the second stage.");
     }
     Circuit wiring;
     const int high = wiring.addInputPin(true);
@@ -148,19 +152,17 @@ void edges()
     wiring.connectComponents(high, 0, memory, 0);
     wiring.connectComponents(high, 0, memory, 1);
     wiring.propagate();
-    require(
-        !wiring.getComponent(memory)->getStateOutPin(), "Connecting HIGH invented a clock edge."
-    );
+    require(!wiring.getComponent(memory)->getStateOutPin(), "Connecting HIGH invented a clock edge.");
     auto* source = static_cast<InputPin*>(wiring.getComponent(high));
     source->setState(false);
     wiring.propagate();
     source->setState(true);
     wiring.propagate();
-    require(
-        wiring.getComponent(memory)->getStateOutPin(), "Manual clock transition missed its edge."
-    );
+    require(wiring.getComponent(memory)->getStateOutPin(), "Manual clock transition missed its edge.");
 }
 
+
+/** @brief Verify flip-flops receive chronological transitions through normal circuit and nested simulation paths. */
 void integration()
 {
     for (auto type : {FlipFlopType::D, FlipFlopType::T, FlipFlopType::JK})
@@ -171,8 +173,7 @@ void integration()
         const auto* view = scene.getCommittedComponentView(id);
         require(
             logic && logic->getInputPinCount() == int(view->getInputPins().size()) &&
-                view->getInputPins().back().label == "CLK" &&
-                view->getOutputPins()[1].label == "~Q",
+                view->getInputPins().back().label == "CLK" && view->getOutputPins()[1].label == "~Q",
             "Native declaration/factory lost the flip-flop interface."
         );
         EditHistory history;
@@ -180,8 +181,8 @@ void integration()
             {ConfigureComponentProperties{.componentId = id, .orientation = Orientation::Up}}
         ));
         require(
-            scene.getCommittedComponentView(id)->getOrientation() == Orientation::Up &&
-                history.undo(scene) && history.redo(scene),
+            scene.getCommittedComponentView(id)->getOrientation() == Orientation::Up && history.undo(scene) &&
+                history.redo(scene),
             "Flip-flop orientation/history failed."
         );
         auto custom = *scene.getComponentCatalog().find(builtinDefinitionId(type));
@@ -205,21 +206,15 @@ void integration()
     const int memory = authored.addComponent(BuiltinComponentIds::DFlipFlop, {0, 0});
     authored.addComponent(BuiltinComponentIds::Output, {20, 0});
     const auto wired = EditorActions(authored).apply(
-        {AddWire{{{-19, 0}, {-19, 1}, {-3, 1}}},
-         AddWire{{{-19, -10}, {-19, -1}, {-3, -1}}},
+        {AddWire{{{-19, 0}, {-19, 1}, {-3, 1}}}, AddWire{{{-19, -10}, {-19, -1}, {-3, -1}}},
          AddWire{{{3, 1}, {19, 1}, {19, 0}}}}
     );
     require(bool(wired), "Authored flip-flop wiring was rejected.");
     authored.handleClick(data);
     authored.stepAllClocks();
-    require(
-        authored.getLogicComponent(memory)->getStateOutPin(), "Authored clock missed D capture."
-    );
+    require(authored.getLogicComponent(memory)->getStateOutPin(), "Authored clock missed D capture.");
     auto loaded = circuitFromJson(circuitToJson(authored, "Register"));
-    require(
-        !loaded.scene.getLogicComponent(memory)->getStateOutPin(),
-        "File load retained runtime memory."
-    );
+    require(!loaded.scene.getLogicComponent(memory)->getStateOutPin(), "File load retained runtime memory.");
     authored.setInterfaceNamingRequired(true);
     auto design = makeSubcircuit(authored, {"subcircuit.register", 1}, "Register");
     const auto& behavior = std::get<SubcircuitBehavior>(design.behavior);
@@ -235,6 +230,7 @@ void integration()
     );
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {

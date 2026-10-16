@@ -22,6 +22,7 @@ namespace
 constexpr double cardHeight = 88, cardStep = 96, rowHeight = 48, rowStep = 56;
 }
 
+
 void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& input)
 {
     if (surface != m_surface)
@@ -45,10 +46,9 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     m_panel = {0, m_bar.height, std::min(220.0, width * 0.45), height - m_bar.height};
     const double tabs = m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0;
     m_circuitTabs.layout({m_panel.width, m_bar.height, width - m_panel.width, tabs});
-    m_inspectionBar =
-        m_views && m_views->inspecting()
-            ? CanvasViewport{m_panel.width, m_bar.height + tabs, width - m_panel.width, 30}
-            : CanvasViewport{};
+    m_inspectionBar = m_views && m_views->inspecting()
+                          ? CanvasViewport{m_panel.width, m_bar.height + tabs, width - m_panel.width, 30}
+                          : CanvasViewport{};
     if (m_overviewView != m_circuitTabs.activeViewIndex())
     {
         finishBottomResize(input);
@@ -82,9 +82,7 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     refreshMenuOptions(input);
     if (unsavedPromptOpen())
         input.setUiCapture({true, true});
-    m_list = {
-        12, m_panel.y + 112, std::max(0.0, m_panel.width - 24), std::max(0.0, m_panel.height - 160)
-    };
+    m_list = {12, m_panel.y + 112, std::max(0.0, m_panel.width - 24), std::max(0.0, m_panel.height - 160)};
     m_buttons.clear();
     auto add = [&](const ComponentDefinition& definition)
     {
@@ -117,19 +115,18 @@ void UI::layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& i
     const double itemWidth = (m_list.width - (columns - 1) * 8) / columns;
     for (std::size_t i = 0; i < m_buttons.size(); ++i)
         m_buttons[i].bounds = {
-            m_list.x + (i % columns) * (itemWidth + 8),
-            m_list.y + (i / columns) * step - m_scroll,
-            itemWidth,
+            m_list.x + (i % columns) * (itemWidth + 8), m_list.y + (i / columns) * step - m_scroll, itemWidth,
             itemHeight
         };
 }
 
+
+/** @brief Fit the resizable bottom panel while preserving usable canvas space above its mode controls. */
 void UI::layoutBottom(Input& input)
 {
     const double height = std::max(0, m_surface.windowHeight);
-    const double top = m_bar.height +
-                       (m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0) +
-                       m_inspectionBar.height;
+    const double top =
+        m_bar.height + (m_circuitTabs.enabled() ? std::min(30.0, m_panel.height) : 0) + m_inspectionBar.height;
     const double available = std::max(0.0, height - top);
     // Leave a usable canvas above the mode buttons, even when dragged to the limit.
     const double maximum = available - std::min(156.0, available * 0.5);
@@ -143,10 +140,12 @@ void UI::layoutBottom(Input& input)
     input.setCanvasViewport(CanvasViewport{m_panel.width, top, m_bottom.width, m_bottom.y - top});
 }
 
+
 CanvasViewport UI::bottomResizeBounds() const
 {
     return {m_bottom.x, m_bottom.y, m_bottom.width, std::min(6.0, m_bottom.height)};
 }
+
 
 void UI::finishBottomResize(Input& input)
 {
@@ -157,6 +156,8 @@ void UI::finishBottomResize(Input& input)
     input.setCanvasFocused(true);
 }
 
+
+/** @brief Capture bottom-panel resizing and clamp its stored height so reversing direction remains responsive. */
 bool UI::handleBottomResize(const UiInputEvent& event, Input& input)
 {
     if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
@@ -187,11 +188,11 @@ bool UI::handleBottomResize(const UiInputEvent& event, Input& input)
         }
         return true;
     }
-    if (dragging() || m_openMenu.has_value() || m_circuitTabs.popupOpen() ||
-        m_infoComponent != -1 || m_clockEditing != -1)
+    if (dragging() || m_openMenu.has_value() || m_circuitTabs.popupOpen() || m_infoComponent != -1 ||
+        m_clockEditing != -1)
         return false;
-    if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
-        event.action == GLFW_PRESS && bottomResizeBounds().contains(event.x, event.y))
+    if (event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
+        bottomResizeBounds().contains(event.x, event.y))
     {
         m_resizingBottom = m_bottomResizePressed = true;
         m_bottomResizeY = event.y;
@@ -204,12 +205,14 @@ bool UI::handleBottomResize(const UiInputEvent& event, Input& input)
     return false;
 }
 
+
 void UI::setCircuitViews(CircuitViews* views, const FontMetrics* font)
 {
     m_views = views;
     m_font = font;
     m_circuitTabs.bind(views, font);
 }
+
 
 void UI::update(double now, Input& input)
 {
@@ -230,11 +233,13 @@ void UI::update(double now, Input& input)
         closeInfo(input);
 }
 
+
 CanvasViewport UI::tabBounds(Tab tab) const
 {
     const double width = std::max(0.0, (m_panel.width - 32) / 2);
     return {12 + (tab == Tab::Custom ? width + 8 : 0), m_panel.y + 70, width, 28};
 }
+
 
 CanvasViewport UI::bottomTabBounds(BottomTab tab) const
 {
@@ -244,12 +249,10 @@ CanvasViewport UI::bottomTabBounds(BottomTab tab) const
     const double width = std::min(148.0, std::max(0.0, m_bottom.width - 8 * (count + 1)) / count);
     const int index = static_cast<int>(tab) - (m_showSubcircuit ? 0 : 1);
     return {
-        m_bottom.x + 8 + index * (width + 8),
-        m_bottom.y + 6,
-        width,
-        std::min(28.0, std::max(0.0, m_bottom.height - 12))
+        m_bottom.x + 8 + index * (width + 8), m_bottom.y + 6, width, std::min(28.0, std::max(0.0, m_bottom.height - 12))
     };
 }
+
 
 CanvasViewport UI::modeButtonBounds(EditorMode mode) const
 {
@@ -257,12 +260,10 @@ CanvasViewport UI::modeButtonBounds(EditorMode mode) const
         return {};
     const double width = std::min(60.0, std::max(0.0, (m_modes.width - 24) / 2));
     return {
-        m_modes.x + 8 + (mode == EditorMode::Interaction ? width + 8 : 0),
-        m_modes.y + 4,
-        width,
-        m_modes.height - 8
+        m_modes.x + 8 + (mode == EditorMode::Interaction ? width + 8 : 0), m_modes.y + 4, width, m_modes.height - 8
     };
 }
+
 
 std::optional<EditorMode> UI::hoveredMode() const
 {
@@ -275,6 +276,7 @@ std::optional<EditorMode> UI::hoveredMode() const
     return std::nullopt;
 }
 
+
 CanvasViewport UI::modeTooltipBounds() const
 {
     const auto mode = hoveredMode();
@@ -283,24 +285,17 @@ CanvasViewport UI::modeTooltipBounds() const
     const double width = std::min(360.0, std::max(0.0, m_surface.windowWidth - 16.0));
     const double height = std::min(96.0, std::max(0.0, m_surface.windowHeight - 16.0));
     return {
-        std::clamp(
-            modeButtonBounds(*mode).x, 8.0, std::max(8.0, m_surface.windowWidth - width - 8)
-        ),
-        std::max(8.0, m_modes.y - height - 8),
-        width,
-        height
+        std::clamp(modeButtonBounds(*mode).x, 8.0, std::max(8.0, m_surface.windowWidth - width - 8)),
+        std::max(8.0, m_modes.y - height - 8), width, height
     };
 }
 
+
 CanvasViewport UI::subcircuitListBounds() const
 {
-    return {
-        m_bottom.x + 8,
-        m_bottom.y + 106,
-        std::max(0.0, m_bottom.width - 16),
-        std::max(0.0, m_bottom.height - 114)
-    };
+    return {m_bottom.x + 8, m_bottom.y + 106, std::max(0.0, m_bottom.width - 16), std::max(0.0, m_bottom.height - 114)};
 }
+
 
 std::vector<std::string> UI::subcircuitInfo(const Scene& scene) const
 {
@@ -336,60 +331,49 @@ std::vector<std::string> UI::subcircuitInfo(const Scene& scene) const
     return lines;
 }
 
+
 std::optional<UI::FileCommand> UI::takeFileCommand()
 {
     return std::exchange(m_fileCommand, std::nullopt);
 }
 
+
 std::vector<std::string> UI::fileOptions() const
 {
     if (m_showSubcircuit)
         return {
-            "Save to library",
-            "Export subcircuit...",
-            "Import subcircuit...",
-            "Open storage in Explorer",
+            "Save to library", "Export subcircuit...", "Import subcircuit...", "Open storage in Explorer",
             "Change storage location..."
         };
     return {
-        "Save",
-        "Save As",
-        "Open",
-        "Import subcircuit...",
-        "Open storage in Explorer",
-        "Change storage location..."
+        "Save", "Save As", "Open", "Import subcircuit...", "Open storage in Explorer", "Change storage location..."
     };
 }
+
 
 std::vector<UI::FileCommand> UI::fileCommands() const
 {
     if (m_showSubcircuit)
         return {
-            FileCommand::Save,
-            FileCommand::ExportSubcircuit,
-            FileCommand::LoadSubcircuit,
-            FileCommand::OpenStorage,
+            FileCommand::Save, FileCommand::ExportSubcircuit, FileCommand::LoadSubcircuit, FileCommand::OpenStorage,
             FileCommand::ChangeStorage
         };
-    return {
-        FileCommand::Save,
-        FileCommand::SaveAs,
-        FileCommand::Open,
-        FileCommand::LoadSubcircuit,
-        FileCommand::OpenStorage,
-        FileCommand::ChangeStorage
-    };
+    return {FileCommand::Save,           FileCommand::SaveAs,      FileCommand::Open,
+            FileCommand::LoadSubcircuit, FileCommand::OpenStorage, FileCommand::ChangeStorage};
 }
+
 
 std::optional<std::filesystem::path> UI::takeOpenDraft()
 {
     return std::exchange(m_openDraft, std::nullopt);
 }
 
+
 std::optional<std::string> UI::takeEditSubcircuit()
 {
     return std::exchange(m_editSubcircuit, std::nullopt);
 }
+
 
 void UI::setFileStatus(std::string message, bool error)
 {
@@ -401,6 +385,7 @@ void UI::setFileStatus(std::string message, bool error)
         clearMessages();
 }
 
+
 void UI::dismissPopups(Input& input)
 {
     finishBottomResize(input);
@@ -410,6 +395,7 @@ void UI::dismissPopups(Input& input)
     closeInfo(input);
     m_circuitTabs.cancel(input);
 }
+
 
 const UI::Button* UI::buttonAt(glm::dvec2 point) const
 {
@@ -421,6 +407,8 @@ const UI::Button* UI::buttonAt(glm::dvec2 point) const
     return nullptr;
 }
 
+
+/** @brief Convert a palette drop into a valid grid position inside the current canvas surface. */
 std::optional<GridCoords> UI::dropPosition(const CanvasCameraFrame& camera) const
 {
     if (!camera.valid() || !camera.viewport.contains(m_pointer.x, m_pointer.y) ||
@@ -432,11 +420,11 @@ std::optional<GridCoords> UI::dropPosition(const CanvasCameraFrame& camera) cons
     const double x = std::round(static_cast<double>(world->x) / GridMetrics::Spacing);
     const double y = std::round(static_cast<double>(world->y) / GridMetrics::Spacing);
     for (const double value : {x, y})
-        if (!std::isfinite(value) || value < std::numeric_limits<int>::min() ||
-            value > std::numeric_limits<int>::max())
+        if (!std::isfinite(value) || value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max())
             return std::nullopt;
     return GridCoords{static_cast<int>(x), static_cast<int>(y)};
 }
+
 
 void UI::cancel(Input& input)
 {
@@ -453,6 +441,7 @@ void UI::cancel(Input& input)
     }
 }
 
+
 void UI::closeInfo(Input& input)
 {
     if (m_nameEditing)
@@ -465,42 +454,42 @@ void UI::closeInfo(Input& input)
     m_infoError.clear();
 }
 
+
 bool UI::canName(const Scene& scene) const
 {
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
-    const auto* definition =
-        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    const auto* definition = view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
     return definition && (std::holds_alternative<GateType>(definition->behavior) ||
                           std::holds_alternative<ManualInputBehavior>(definition->behavior) ||
                           std::holds_alternative<OutputBehavior>(definition->behavior) ||
                           std::holds_alternative<ClockBehavior>(definition->behavior));
 }
 
+
 const Gate* UI::infoGate(const Scene& scene) const
 {
     return dynamic_cast<const Gate*>(scene.getLogicComponent(m_infoComponent));
 }
 
+
 bool UI::canResizeGate(const Scene& scene) const
 {
     const auto* gate = infoGate(scene);
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
-    const auto* definition =
-        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    const auto* definition = view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
     return gate && gate->getType() != NOT && definition &&
-           definition->pinLayoutRule == PinLayoutRule::SymmetricGateInputs &&
-           definition->presentation.allowResize;
+           definition->pinLayoutRule == PinLayoutRule::SymmetricGateInputs && definition->presentation.allowResize;
 }
+
 
 bool UI::canInvertGate(const Scene& scene) const
 {
     const auto* gate = infoGate(scene);
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
-    const auto* definition =
-        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
-    return gate && gate->getType() != NOT && definition &&
-           definition->presentation.kind == PresentationKind::NativeSdf;
+    const auto* definition = view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    return gate && gate->getType() != NOT && definition && definition->presentation.kind == PresentationKind::NativeSdf;
 }
+
 
 CanvasViewport UI::gateSettingsBounds(const Scene& scene) const
 {
@@ -508,12 +497,11 @@ CanvasViewport UI::gateSettingsBounds(const Scene& scene) const
         return {};
     const auto bounds = infoBounds(scene);
     return {
-        bounds.x + 10,
-        bounds.y + infoHeaderSize(scene) + infoNameHeight + infoLabelHeight,
-        bounds.width - 20,
+        bounds.x + 10, bounds.y + infoHeaderSize(scene) + infoNameHeight + infoLabelHeight, bounds.width - 20,
         infoGateHeight
     };
 }
+
 
 CanvasViewport UI::gateInputButtonBounds(const Scene& scene, bool increase) const
 {
@@ -523,19 +511,21 @@ CanvasViewport UI::gateInputButtonBounds(const Scene& scene, bool increase) cons
     return {bounds.x + bounds.width - (increase ? 28 : 92), bounds.y, 28, 26};
 }
 
+
 int UI::gateInputRows(const Scene& scene) const
 {
     const auto* gate = infoGate(scene);
     // Reserve the Inputs/Outputs headings and the gate's single output row.
-    return gate ? std::min({4, gate->getInputPinCount(), std::max(0, infoVisibleRows(scene) - 3)})
-                : 0;
+    return gate ? std::min({4, gate->getInputPinCount(), std::max(0, infoVisibleRows(scene) - 3)}) : 0;
 }
+
 
 int UI::gateInputScroll(const Scene& scene) const
 {
     const auto* gate = infoGate(scene);
     return gate ? std::clamp(m_infoScroll, 0, gate->getInputPinCount() - gateInputRows(scene)) : 0;
 }
+
 
 CanvasViewport UI::gateInputListBounds(const Scene& scene) const
 {
@@ -544,48 +534,44 @@ CanvasViewport UI::gateInputListBounds(const Scene& scene) const
     const auto bounds = infoBounds(scene);
     return {
         bounds.x + 8,
-        bounds.y + infoHeaderSize(scene) + infoNameHeight + infoLabelHeight +
-            infoSettingsHeight(scene) + infoRowHeight,
-        bounds.width - 16,
-        gateInputRows(scene) * infoRowHeight
+        bounds.y + infoHeaderSize(scene) + infoNameHeight + infoLabelHeight + infoSettingsHeight(scene) + infoRowHeight,
+        bounds.width - 16, gateInputRows(scene) * infoRowHeight
     };
 }
+
 
 CanvasViewport UI::gateInputInversionBounds(const Scene& scene, unsigned int index) const
 {
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
-    const auto* definition =
-        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
-    if (!infoGate(scene) || !definition ||
-        definition->presentation.kind != PresentationKind::NativeSdf)
+    const auto* definition = view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    if (!infoGate(scene) || !definition || definition->presentation.kind != PresentationKind::NativeSdf)
         return {};
     const auto& pins = view->getInputPins();
-    const auto pin = std::find_if(
-        pins.begin(), pins.end(), [=](const auto& value) { return value.pin_index == index; }
-    );
+    const auto pin =
+        std::find_if(pins.begin(), pins.end(), [=](const auto& value) { return value.pin_index == index; });
     if (pin == pins.end())
         return {};
     const int row = static_cast<int>(pin - pins.begin()) - gateInputScroll(scene);
     if (row < 0 || row >= gateInputRows(scene))
         return {};
     const auto bounds = gateInputListBounds(scene);
-    return {
-        bounds.x + bounds.width - 142, bounds.y + row * infoRowHeight + 1, 78, infoRowHeight - 2
-    };
+    return {bounds.x + bounds.width - 142, bounds.y + row * infoRowHeight + 1, 78, infoRowHeight - 2};
 }
+
 
 bool UI::canOrient(const Scene& scene) const
 {
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
-    const auto* definition =
-        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    const auto* definition = view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
     return definition && supportsOrientation(definition->behavior);
 }
+
 
 double UI::infoSettingsHeight(const Scene& scene) const
 {
     return (infoGate(scene) ? infoGateHeight : 0) + (canOrient(scene) ? infoOrientationHeight : 0);
 }
+
 
 CanvasViewport UI::orientationSettingsBounds(const Scene& scene) const
 {
@@ -596,25 +582,24 @@ CanvasViewport UI::orientationSettingsBounds(const Scene& scene) const
         bounds.x + 10,
         bounds.y + infoHeaderSize(scene) + (canName(scene) ? infoNameHeight : 0) + infoLabelHeight +
             (infoGate(scene) ? infoGateHeight : 0),
-        bounds.width - 20,
-        infoOrientationHeight
+        bounds.width - 20, infoOrientationHeight
     };
 }
+
 
 CanvasViewport UI::componentOrientationBounds(const Scene& scene, Orientation orientation) const
 {
     const auto bounds = orientationSettingsBounds(scene);
     if (bounds.width <= 0)
         return {};
-    constexpr std::array order{
-        Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right
-    };
+    constexpr std::array order{Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right};
     const auto found = std::find(order.begin(), order.end(), orientation);
     if (found == order.end())
         return {};
     const double width = (bounds.width - 12) / 4;
     return {bounds.x + (found - order.begin()) * (width + 4), bounds.y + 16, width, 26};
 }
+
 
 CanvasViewport UI::gateInversionBounds(const Scene& scene) const
 {
@@ -624,6 +609,7 @@ CanvasViewport UI::gateInversionBounds(const Scene& scene) const
     return {bounds.x, bounds.y + 30, bounds.width, 26};
 }
 
+
 CanvasViewport UI::nameBounds(const Scene& scene) const
 {
     if (!canName(scene))
@@ -632,25 +618,23 @@ CanvasViewport UI::nameBounds(const Scene& scene) const
     return {bounds.x + 10, bounds.y + infoHeaderSize(scene) + 18, bounds.width - 20, 28};
 }
 
+
 CanvasViewport UI::labelVisibilityBounds(const Scene& scene) const
 {
     const auto bounds = infoBounds(scene);
     return {
-        bounds.x + 10,
-        bounds.y + infoHeaderSize(scene) + (canName(scene) ? infoNameHeight : 0),
-        bounds.width - 20,
-        26
+        bounds.x + 10, bounds.y + infoHeaderSize(scene) + (canName(scene) ? infoNameHeight : 0), bounds.width - 20, 26
     };
 }
+
 
 bool UI::canEditSubcircuit(const Scene& scene) const
 {
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
-    const auto* definition =
-        view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
-    return !m_readOnly && definition &&
-           std::holds_alternative<SubcircuitBehavior>(definition->behavior);
+    const auto* definition = view ? scene.getComponentCatalog().find(view->getDefinitionIdentity().id) : nullptr;
+    return !m_readOnly && definition && std::holds_alternative<SubcircuitBehavior>(definition->behavior);
 }
+
 
 CanvasViewport UI::editSubcircuitBounds(const Scene& scene) const
 {
@@ -660,16 +644,19 @@ CanvasViewport UI::editSubcircuitBounds(const Scene& scene) const
     return {bounds.x + 10, bounds.y + bounds.height - infoFooterHeight - 28, bounds.width - 20, 26};
 }
 
+
 bool UI::canViewInside(const Scene& scene) const
 {
     const auto* sub = dynamic_cast<const Subcircuit*>(scene.getLogicComponent(m_infoComponent));
     return m_views && sub && sub->authoredScene() && !sub->componentIds().empty();
 }
 
+
 double UI::infoActionHeight(const Scene& scene) const
 {
     return (canViewInside(scene) ? 28 : 0) + (canEditSubcircuit(scene) ? 28 : 0);
 }
+
 
 CanvasViewport UI::viewInsideBounds(const Scene& scene) const
 {
@@ -677,12 +664,10 @@ CanvasViewport UI::viewInsideBounds(const Scene& scene) const
         return {};
     const auto bounds = infoBounds(scene);
     return {
-        bounds.x + 10,
-        bounds.y + bounds.height - infoFooterHeight - infoActionHeight(scene),
-        bounds.width - 20,
-        26
+        bounds.x + 10, bounds.y + bounds.height - infoFooterHeight - infoActionHeight(scene), bounds.width - 20, 26
     };
 }
+
 
 CanvasViewport UI::inspectionBackBounds() const
 {
@@ -691,6 +676,7 @@ CanvasViewport UI::inspectionBackBounds() const
                : CanvasViewport{};
 }
 
+
 std::vector<std::string> UI::componentInfo(const Scene& scene) const
 {
     const auto* view = scene.getCommittedComponentView(m_infoComponent);
@@ -698,8 +684,7 @@ std::vector<std::string> UI::componentInfo(const Scene& scene) const
         return {};
     const auto* definition = scene.getComponentCatalog().find(view->getDefinitionIdentity().id);
     std::string title = definition ? definition->displayName : "Component";
-    if (const auto* gate = infoGate(scene);
-        gate && definition && definition->identity.id.starts_with("native."))
+    if (const auto* gate = infoGate(scene); gate && definition && definition->identity.id.starts_with("native."))
         title = scene.getComponentCatalog().find(builtinDefinitionId(gate->getType()))->displayName;
     std::vector<std::string> lines{title};
     if (!canName(scene) && !view->getBodyLabel().empty() && view->getBodyLabel() != lines.front())
@@ -709,9 +694,8 @@ std::vector<std::string> UI::componentInfo(const Scene& scene) const
         lines.push_back(std::string(heading) + (values.empty() ? ": none" : ""));
         for (const auto& pin : values)
         {
-            const auto name = pin.label.empty()
-                                  ? std::string(fallback) + " " + std::to_string(pin.pin_index + 1)
-                                  : pin.label;
+            const auto name =
+                pin.label.empty() ? std::string(fallback) + " " + std::to_string(pin.pin_index + 1) : pin.label;
             const char* state = pin.state == PinState::ON    ? "1 (ON)"
                                 : pin.state == PinState::OFF ? "0 (OFF)"
                                                              : "Unavailable";
@@ -744,6 +728,7 @@ std::vector<std::string> UI::componentInfo(const Scene& scene) const
     return lines;
 }
 
+
 CanvasViewport UI::infoBounds(const Scene& scene) const
 {
     const auto lines = componentInfo(scene);
@@ -752,55 +737,50 @@ CanvasViewport UI::infoBounds(const Scene& scene) const
     const double desiredWidth =
         m_truthTableOpen ? std::max(300.0, truthTable(scene).headers.size() * 44.0 + 20) : 280.0;
     const double width = std::min(desiredWidth, std::max(0.0, m_surface.windowWidth - 16.0));
-    const double top =
-        m_inspectionBar.height > 0 ? m_inspectionBar.y + m_inspectionBar.height + 8 : 8;
+    const double top = m_inspectionBar.height > 0 ? m_inspectionBar.y + m_inspectionBar.height + 8 : 8;
     const auto* gate = infoGate(scene);
     const int hiddenInputs = gate ? std::max(0, gate->getInputPinCount() - 4) : 0;
     const double height = std::min(
         m_truthTableOpen
-            ? infoHeaderSize(scene) + infoFooterHeight + truthTable(scene).notes.size() * 20 + 48 +
-                  infoRowHeight +
+            ? infoHeaderSize(scene) + infoFooterHeight + truthTable(scene).notes.size() * 20 + 48 + infoRowHeight +
                   std::min(8, static_cast<int>(truthTable(scene).rows.size())) * infoRowHeight
-            : infoHeaderSize(scene) + infoFooterHeight + infoLabelHeight +
-                  (canName(scene) ? infoNameHeight : 0) + infoSettingsHeight(scene) +
-                  infoActionHeight(scene) +
+            : infoHeaderSize(scene) + infoFooterHeight + infoLabelHeight + (canName(scene) ? infoNameHeight : 0) +
+                  infoSettingsHeight(scene) + infoActionHeight(scene) +
                   static_cast<double>(lines.size() - 1 - hiddenInputs) * infoRowHeight,
         std::max(0.0, m_surface.windowHeight - top - 8)
     );
     return {
         std::clamp(m_infoAnchor.x + 14, 8.0, std::max(8.0, m_surface.windowWidth - width - 8)),
-        std::clamp(m_infoAnchor.y + 14, top, std::max(top, m_surface.windowHeight - height - 8)),
-        width,
-        height
+        std::clamp(m_infoAnchor.y + 14, top, std::max(top, m_surface.windowHeight - height - 8)), width, height
     };
 }
+
 
 int UI::infoVisibleRows(const Scene& scene) const
 {
     return std::max(
-        0,
-        static_cast<int>(
-            (infoBounds(scene).height - infoHeaderSize(scene) - infoFooterHeight - infoLabelHeight -
-             (canName(scene) ? infoNameHeight : 0) - infoSettingsHeight(scene) -
-             infoActionHeight(scene)) /
-            infoRowHeight
-        )
+        0, static_cast<int>(
+               (infoBounds(scene).height - infoHeaderSize(scene) - infoFooterHeight - infoLabelHeight -
+                (canName(scene) ? infoNameHeight : 0) - infoSettingsHeight(scene) - infoActionHeight(scene)) /
+               infoRowHeight
+           )
     );
 }
 
-bool UI::handleInput(
-    const UiInputEvent& event, Scene& scene, Input& input, const CanvasCameraFrame& camera
-)
+
+/** @brief Route captured UI operations before handling palette, component settings, naming and truth-table
+ * interactions. */
+bool UI::handleInput(const UiInputEvent& event, Scene& scene, Input& input, const CanvasCameraFrame& camera)
 {
     if (event.kind == UiInputKind::Cursor || event.kind == UiInputKind::MouseButton)
         m_pointer = {event.x, event.y};
     if (event.kind == UiInputKind::WindowFocus && !event.focused)
         m_pointer = {-1, -1};
+    // Modal and queued workspace operations retain ownership until their target has been resolved.
     if (unsavedPromptOpen() || m_unsavedChoice)
         return handleUnsavedPrompt(event, input);
     // A queued operation belongs to this view; do not switch/delete tabs before it runs.
-    if (m_fileCommand || m_editSubcircuit || m_openDraft || m_menuCommand ||
-        m_circuitTabs.hasCloseRequest())
+    if (m_fileCommand || m_editSubcircuit || m_openDraft || m_menuCommand || m_circuitTabs.hasCloseRequest())
     {
         if (event.kind == UiInputKind::MouseButton && event.action == GLFW_RELEASE)
         {
@@ -814,9 +794,8 @@ bool UI::handleInput(
         const bool backKey = event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
                              event.action == GLFW_PRESS && m_infoComponent == -1 && !m_openMenu &&
                              !m_circuitTabs.popupOpen();
-        const bool backClick = event.kind == UiInputKind::MouseButton &&
-                               event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
-                               inspectionBackBounds().contains(event.x, event.y);
+        const bool backClick = event.kind == UiInputKind::MouseButton && event.code == GLFW_MOUSE_BUTTON_LEFT &&
+                               event.action == GLFW_PRESS && inspectionBackBounds().contains(event.x, event.y);
         if (backKey || backClick)
         {
             dismissPopups(input);
@@ -839,8 +818,7 @@ bool UI::handleInput(
             input.setCanvasFocused(true);
         return true;
     }
-    if (m_bottomVisible &&
-        handleClocks(event, m_readOnly && m_views ? m_views->activeScene() : scene, input))
+    if (m_bottomVisible && handleClocks(event, m_readOnly && m_views ? m_views->activeScene() : scene, input))
         return true;
     if (!m_circuitTabs.confirmingDelete() && handleMenus(event, input))
         return true;
@@ -855,8 +833,7 @@ bool UI::handleInput(
         return true;
     if (m_infoComponent != -1 && !scene.getCommittedComponentView(m_infoComponent))
         closeInfo(input);
-    if (event.kind == UiInputKind::Key && event.action == GLFW_RELEASE &&
-        event.code == m_nameCommittedKey)
+    if (event.kind == UiInputKind::Key && event.action == GLFW_RELEASE && event.code == m_nameCommittedKey)
     {
         m_nameCommittedKey = -1;
         input.setCanvasFocused(true);
@@ -874,8 +851,7 @@ bool UI::handleInput(
     }
     if (event.kind == UiInputKind::Cursor || event.kind == UiInputKind::MouseButton)
         m_pointer = {event.x, event.y};
-    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_F2 && !dragging() &&
-        !m_nameEditing)
+    if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_F2 && !dragging() && !m_nameEditing)
         input.setCanvasFocused(true);
     if (event.kind == UiInputKind::Key && event.code == GLFW_KEY_ESCAPE &&
         (m_infoComponent != -1 || m_infoEscapePressed))
@@ -886,6 +862,8 @@ bool UI::handleInput(
             input.setCanvasFocused(true);
         return true;
     }
+
+    // Name edits own typed input and commit/cancel keys before ordinary component controls run.
     if (m_nameEditing && event.kind == UiInputKind::Key)
     {
         if (event.action == GLFW_PRESS || event.action == GLFW_REPEAT)
@@ -894,9 +872,9 @@ bool UI::handleInput(
                 m_nameDraft.pop_back();
             else if (event.code == GLFW_KEY_ENTER || event.code == GLFW_KEY_KP_ENTER)
             {
-                const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
-                    .componentId = m_infoComponent, .label = m_nameDraft
-                }});
+                const auto result = EditorActions(scene).apply(
+                    {ConfigureComponentProperties{.componentId = m_infoComponent, .label = m_nameDraft}}
+                );
                 input.recordEdit(result);
                 if (result)
                 {
@@ -926,8 +904,7 @@ bool UI::handleInput(
         return dragging();
     if (event.kind == UiInputKind::MouseButton)
     {
-        if (event.code == GLFW_MOUSE_BUTTON_RIGHT && event.action == GLFW_RELEASE &&
-            m_infoRightPressed)
+        if (event.code == GLFW_MOUSE_BUTTON_RIGHT && event.action == GLFW_RELEASE && m_infoRightPressed)
         {
             m_infoRightPressed = false;
             input.setCanvasFocused(true);
@@ -944,13 +921,11 @@ bool UI::handleInput(
                 cancel(input);
                 if (position && m_canCreate)
                 {
-                    const auto result =
-                        EditorActions(scene).apply({CreateComponent{id, *position}});
+                    const auto result = EditorActions(scene).apply({CreateComponent{id, *position}});
                     input.recordEdit(result);
                     m_message = result ? ""
-                                       : (result.error == EditError::Overlap
-                                              ? "Space occupied. Try elsewhere."
-                                              : "Cannot place this component.");
+                                       : (result.error == EditError::Overlap ? "Space occupied. Try elsewhere."
+                                                                             : "Cannot place this component.");
                     input.setCanvasFocused(true);
                 }
             }
@@ -962,26 +937,23 @@ bool UI::handleInput(
             {
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS)
                     m_infoLeftPressed = true;
-                if (!m_nameEditing && event.code == GLFW_MOUSE_BUTTON_LEFT &&
-                    event.action == GLFW_PRESS)
+                if (!m_nameEditing && event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS)
                 {
                     if (!m_truthTableOpen)
                     {
                         const auto* view = scene.getCommittedComponentView(m_infoComponent);
                         for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
                             for (const auto& pin : *pins)
-                                if (signalTraceBounds(scene, pin.type, pin.pin_index)
-                                        .contains(event.x, event.y))
+                                if (signalTraceBounds(scene, pin.type, pin.pin_index).contains(event.x, event.y))
                                 {
                                     auto trace = signalForPin(scene, pin.type, pin.pin_index);
                                     if (trace)
                                     {
                                         const auto& root = m_views ? m_views->activeScene() : scene;
                                         root.prepareSignalTraces(clockTimeline());
-                                        m_infoError =
-                                            clockTimeline().toggleSignal(std::move(*trace))
-                                                ? ""
-                                                : "Up to eight signals can be traced.";
+                                        m_infoError = clockTimeline().toggleSignal(std::move(*trace))
+                                                          ? ""
+                                                          : "Up to eight signals can be traced.";
                                         root.recordSignalTraces(clockTimeline());
                                     }
                                     return true;
@@ -1002,8 +974,7 @@ bool UI::handleInput(
                 if (m_truthTableOpen)
                     return true;
                 if (m_canCreate && !m_nameEditing && event.code == GLFW_MOUSE_BUTTON_LEFT &&
-                    event.action == GLFW_PRESS &&
-                    labelVisibilityBounds(scene).contains(event.x, event.y))
+                    event.action == GLFW_PRESS && labelVisibilityBounds(scene).contains(event.x, event.y))
                 {
                     const auto* view = scene.getCommittedComponentView(m_infoComponent);
                     const auto result = EditorActions(scene).apply({ConfigureComponentProperties{
@@ -1021,38 +992,29 @@ bool UI::handleInput(
                     {
                         for (bool increase : {false, true})
                             if (gateInputButtonBounds(scene, increase).contains(event.x, event.y) &&
-                                (increase ? gate->getInputPinCount() < 8
-                                          : gate->getInputPinCount() > 2))
+                                (increase ? gate->getInputPinCount() < 8 : gate->getInputPinCount() > 2))
                                 edit.inputCount = gate->getInputPinCount() + (increase ? 1 : -1);
                         if (gateInversionBounds(scene).contains(event.x, event.y))
                             edit.inverted = !gate->isInverted();
-                        const auto& pins =
-                            scene.getCommittedComponentView(m_infoComponent)->getInputPins();
+                        const auto& pins = scene.getCommittedComponentView(m_infoComponent)->getInputPins();
                         for (const auto& pin : pins)
-                            if (gateInputInversionBounds(scene, pin.pin_index)
-                                    .contains(event.x, event.y))
-                                edit.inputInversion =
-                                    ConfigureGateInput{pin.pin_index, !pin.inverted};
+                            if (gateInputInversionBounds(scene, pin.pin_index).contains(event.x, event.y))
+                                edit.inputInversion = ConfigureGateInput{pin.pin_index, !pin.inverted};
                     }
                     for (const auto direction :
-                         {Orientation::Up,
-                          Orientation::Down,
-                          Orientation::Left,
-                          Orientation::Right})
+                         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
                         if (componentOrientationBounds(scene, direction).contains(event.x, event.y))
                             edit.orientation = direction;
                     if (edit.inputCount || edit.inverted || edit.inputInversion || edit.orientation)
                     {
                         const auto result = EditorActions(scene).apply({edit});
                         input.recordEdit(result);
-                        m_infoError = result ? ""
-                                      : result.error == EditError::AttachedPin
-                                          ? "Disconnect that input before removing it."
-                                      : result.error == EditError::Overlap
-                                          ? "Not enough room to change the component."
-                                      : result.error == EditError::InvalidWire
-                                          ? "No safe route; free space around the component."
-                                          : result.message;
+                        m_infoError =
+                            result                                   ? ""
+                            : result.error == EditError::AttachedPin ? "Disconnect that input before removing it."
+                            : result.error == EditError::Overlap     ? "Not enough room to change the component."
+                            : result.error == EditError::InvalidWire ? "No safe route; free space around the component."
+                                                                     : result.message;
                     }
                 }
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
@@ -1070,15 +1032,12 @@ bool UI::handleInput(
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
                     editSubcircuitBounds(scene).contains(event.x, event.y))
                 {
-                    m_editSubcircuit = scene.getCommittedComponentView(m_infoComponent)
-                                           ->getDefinitionIdentity()
-                                           .id;
+                    m_editSubcircuit = scene.getCommittedComponentView(m_infoComponent)->getDefinitionIdentity().id;
                     dismissPopups(input);
                     return true;
                 }
-                if (m_canCreate && event.code == GLFW_MOUSE_BUTTON_LEFT &&
-                    event.action == GLFW_PRESS && nameBounds(scene).contains(event.x, event.y) &&
-                    !m_nameEditing)
+                if (m_canCreate && event.code == GLFW_MOUSE_BUTTON_LEFT && event.action == GLFW_PRESS &&
+                    nameBounds(scene).contains(event.x, event.y) && !m_nameEditing)
                 {
                     m_nameDraft = scene.getCommittedComponentView(m_infoComponent)->getBodyLabel();
                     m_infoError.clear();
@@ -1114,15 +1073,10 @@ bool UI::handleInput(
                         return true;
                     if (!button->draftPath.empty() && event.code == GLFW_MOUSE_BUTTON_LEFT)
                         m_openDraft = button->draftPath;
-                    else if (
-                        m_tab == Tab::Custom && event.code == GLFW_MOUSE_BUTTON_RIGHT &&
-                        button->draftPath.empty()
-                    )
+                    else if (m_tab == Tab::Custom && event.code == GLFW_MOUSE_BUTTON_RIGHT && button->draftPath.empty())
                     {
-                        const auto* definition =
-                            scene.getComponentCatalog().find(button->definitionId);
-                        if (!definition ||
-                            !std::holds_alternative<SubcircuitBehavior>(definition->behavior))
+                        const auto* definition = scene.getComponentCatalog().find(button->definitionId);
+                        if (!definition || !std::holds_alternative<SubcircuitBehavior>(definition->behavior))
                             return true;
                         m_editSubcircuit = button->definitionId;
                     }
@@ -1157,10 +1111,7 @@ bool UI::handleInput(
                 if (event.code == GLFW_MOUSE_BUTTON_LEFT)
                 {
                     for (const auto tab :
-                         {BottomTab::Subcircuit,
-                          BottomTab::Messages,
-                          BottomTab::Clocks,
-                          BottomTab::Signals})
+                         {BottomTab::Subcircuit, BottomTab::Messages, BottomTab::Clocks, BottomTab::Signals})
                         if (bottomTabBounds(tab).contains(event.x, event.y))
                         {
                             m_bottomTab = tab;
@@ -1171,9 +1122,7 @@ bool UI::handleInput(
                         for (std::size_t i = 0; i < simulationIssues().size(); ++i)
                             if (findMessageBounds(i).contains(event.x, event.y))
                             {
-                                input.setPanOffset(
-                                    GridSystem::gridToWorld(*simulationIssues()[i].location)
-                                );
+                                input.setPanOffset(GridSystem::gridToWorld(*simulationIssues()[i].location));
                                 break;
                             }
                 }
@@ -1182,8 +1131,8 @@ bool UI::handleInput(
                 input.setCanvasFocused(true);
             return true;
         }
-        if (event.code == GLFW_MOUSE_BUTTON_RIGHT && event.action == GLFW_PRESS && input.isIdle() &&
-            camera.valid() && camera.viewport.contains(event.x, event.y))
+        if (event.code == GLFW_MOUSE_BUTTON_RIGHT && event.action == GLFW_PRESS && input.isIdle() && camera.valid() &&
+            camera.viewport.contains(event.x, event.y))
             if (const auto world = camera.windowToWorld(m_pointer))
             {
                 const auto hit = scene.hitTest(*world, GridSystem::worldToGrid(*world));
@@ -1207,34 +1156,28 @@ bool UI::handleInput(
             if (m_truthTableOpen)
             {
                 const int maximum = std::max(
-                    0,
-                    static_cast<int>(truthTable(scene).rows.size()) -
-                        std::max(1, truthTableVisibleRows(scene))
+                    0, static_cast<int>(truthTable(scene).rows.size()) - std::max(1, truthTableVisibleRows(scene))
                 );
-                m_truthScroll = static_cast<int>(
-                    std::clamp(truthTableScroll(scene) - event.y, 0.0, static_cast<double>(maximum))
-                );
+                m_truthScroll =
+                    static_cast<int>(std::clamp(truthTableScroll(scene) - event.y, 0.0, static_cast<double>(maximum)));
                 return true;
             }
             const auto* gate = infoGate(scene);
             if (!gate || gateInputListBounds(scene).contains(m_pointer.x, m_pointer.y))
             {
-                const int maximum = gate ? gate->getInputPinCount() - gateInputRows(scene)
-                                         : std::max(
-                                               0,
-                                               static_cast<int>(componentInfo(scene).size()) - 1 -
-                                                   infoVisibleRows(scene)
-                                           );
+                const int maximum =
+                    gate ? gate->getInputPinCount() - gateInputRows(scene)
+                         : std::max(0, static_cast<int>(componentInfo(scene).size()) - 1 - infoVisibleRows(scene));
                 const int current = gate ? gateInputScroll(scene) : m_infoScroll;
-                m_infoScroll = static_cast<int>(
-                    std::clamp(current - event.y, 0.0, static_cast<double>(maximum))
-                );
+                m_infoScroll = static_cast<int>(std::clamp(current - event.y, 0.0, static_cast<double>(maximum)));
             }
             return true;
         }
         if (event.kind == UiInputKind::Cursor)
             return true;
     }
+
+    // Scroll only the panel under the pointer; unclaimed events remain available to canvas zoom.
     if (event.kind == UiInputKind::Scroll && m_panel.contains(m_pointer.x, m_pointer.y))
     {
         if (!dragging() && std::isfinite(event.y))
@@ -1251,24 +1194,20 @@ bool UI::handleInput(
         const int rows = static_cast<int>(messageBoxBounds().height / 20);
         const int maximum = std::max(0, static_cast<int>(messageRows(m_font).size()) - rows);
         auto& log = messageState();
-        log.scroll =
-            static_cast<int>(std::clamp(log.scroll - event.y, 0.0, static_cast<double>(maximum)));
+        log.scroll = static_cast<int>(std::clamp(log.scroll - event.y, 0.0, static_cast<double>(maximum)));
         return true;
     }
-    if (event.kind == UiInputKind::Scroll && m_showSubcircuit &&
-        m_bottomTab == BottomTab::Subcircuit && m_bottom.contains(m_pointer.x, m_pointer.y) &&
-        std::isfinite(event.y))
+    if (event.kind == UiInputKind::Scroll && m_showSubcircuit && m_bottomTab == BottomTab::Subcircuit &&
+        m_bottom.contains(m_pointer.x, m_pointer.y) && std::isfinite(event.y))
     {
         const int rows = static_cast<int>(subcircuitListBounds().height / 22);
         const int maximum = std::max(0, static_cast<int>(subcircuitInfo(scene).size()) - 3 - rows);
-        m_subcircuitScroll = static_cast<int>(
-            std::clamp(m_subcircuitScroll - event.y, 0.0, static_cast<double>(maximum))
-        );
+        m_subcircuitScroll =
+            static_cast<int>(std::clamp(m_subcircuitScroll - event.y, 0.0, static_cast<double>(maximum)));
         return true;
     }
     return dragging() ||
            ((event.kind == UiInputKind::Cursor || event.kind == UiInputKind::Scroll) &&
-            (m_bottom.contains(m_pointer.x, m_pointer.y) ||
-             m_modes.contains(m_pointer.x, m_pointer.y))) ||
+            (m_bottom.contains(m_pointer.x, m_pointer.y) || m_modes.contains(m_pointer.x, m_pointer.y))) ||
            (event.kind == UiInputKind::Cursor && m_panel.contains(event.x, event.y));
 }

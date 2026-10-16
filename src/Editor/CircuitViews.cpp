@@ -10,11 +10,14 @@
 #include <stdexcept>
 #include <utility>
 
+
 CircuitViews::CircuitViews()
 {
     m_views.push_back(View{"Main"});
 }
 
+
+/** @brief Read a scene's manual-input and clock controls for workspace dirty-state comparisons. */
 std::vector<CircuitViews::SourceSettings> CircuitViews::sourceSettings(const Scene& scene)
 {
     std::vector<SourceSettings> result;
@@ -26,13 +29,10 @@ std::vector<CircuitViews::SourceSettings> CircuitViews::sourceSettings(const Sce
         else if (const auto* input = dynamic_cast<const InputPin*>(logic))
             result.push_back({id, input->getState()});
     }
-    std::sort(
-        result.begin(),
-        result.end(),
-        [](const auto& a, const auto& b) { return a.componentId < b.componentId; }
-    );
+    std::sort(result.begin(), result.end(), [](const auto& a, const auto& b) { return a.componentId < b.componentId; });
     return result;
 }
+
 
 bool CircuitViews::hasUnsavedChanges(std::size_t index) const
 {
@@ -47,8 +47,7 @@ bool CircuitViews::hasUnsavedChanges(std::size_t index) const
     // Serialize only after a design edit or source setting changes, never for clock edges.
     try
     {
-        view.unsaved = currentRole != view.savedRole ||
-                       circuitToJson(*view.scene, view.name) != *view.savedDesign;
+        view.unsaved = currentRole != view.savedRole || circuitToJson(*view.scene, view.name) != *view.savedDesign;
     }
     catch (const std::exception&)
     {
@@ -60,6 +59,7 @@ bool CircuitViews::hasUnsavedChanges(std::size_t index) const
     view.checkedSources = std::move(sources);
     return view.unsaved;
 }
+
 
 void CircuitViews::markSaved(std::size_t index)
 {
@@ -73,6 +73,7 @@ void CircuitViews::markSaved(std::size_t index)
     view.unsaved = false;
 }
 
+
 void CircuitViews::create(Input& input, Role role)
 {
     if (role != Role::Workspace && role != Role::Subcircuit)
@@ -83,6 +84,7 @@ void CircuitViews::create(Input& input, Role role)
     m_views.push_back(std::move(view));
     select(m_views.size() - 1, input);
 }
+
 
 bool CircuitViews::setRole(std::size_t index, Role role)
 {
@@ -96,6 +98,7 @@ bool CircuitViews::setRole(std::size_t index, Role role)
         m_views[index].file.clear(); // The old path holds a different file format.
     return true;
 }
+
 
 bool CircuitViews::select(std::size_t index, Input& input)
 {
@@ -119,6 +122,7 @@ bool CircuitViews::select(std::size_t index, Input& input)
     return true;
 }
 
+
 void CircuitViews::rename(std::size_t index, std::string name)
 {
     const auto first = name.find_first_not_of(' ');
@@ -128,6 +132,7 @@ void CircuitViews::rename(std::size_t index, std::string name)
         name = name.substr(first, name.find_last_not_of(' ') - first + 1);
     m_views.at(index).name = std::move(name);
 }
+
 
 bool CircuitViews::remove(std::size_t index, Input& input)
 {
@@ -142,6 +147,7 @@ bool CircuitViews::remove(std::size_t index, Input& input)
     return true;
 }
 
+
 void CircuitViews::includeLibrary(Scene& scene) const
 {
     EditBatch batch;
@@ -153,6 +159,7 @@ void CircuitViews::includeLibrary(Scene& scene) const
         throw std::invalid_argument(result.message);
 }
 
+
 void CircuitViews::setActiveFile(std::filesystem::path path)
 {
     m_views[m_active].file = path;
@@ -161,29 +168,31 @@ void CircuitViews::setActiveFile(std::filesystem::path path)
         m_libraryFiles[id] = std::move(path);
 }
 
+
 void CircuitViews::rememberSubcircuitFile(const std::string& id, std::filesystem::path path)
 {
     m_libraryFiles[id] = std::move(path);
 }
+
 
 void CircuitViews::replaceMain(Scene scene, std::string name, Input& input)
 {
     replaceWorkspaceAt(0, std::move(scene), std::move(name), input);
 }
 
+
 void CircuitViews::replaceWorkspace(Scene scene, std::string name, Input& input)
 {
     replaceWorkspaceAt(m_active, std::move(scene), std::move(name), input);
 }
 
-void CircuitViews::replaceWorkspaceAt(
-    std::size_t index, Scene scene, std::string name, Input& input
-)
+
+/** @brief Install a loaded scene into a workspace and reset its history, timeline and saved identity. */
+void CircuitViews::replaceWorkspaceAt(std::size_t index, Scene scene, std::string name, Input& input)
 {
     closeInspection(input);
     includeLibrary(scene);
-    const auto result =
-        EditorActions(*m_views[index].scene).restore(scene, m_views[index].scene->getRevision());
+    const auto result = EditorActions(*m_views[index].scene).restore(scene, m_views[index].scene->getRevision());
     if (!result)
         throw std::invalid_argument(result.message);
     rename(index, std::move(name));
@@ -195,6 +204,7 @@ void CircuitViews::replaceWorkspaceAt(
     m_views[index].clockTimeline->clear();
     markSaved(index);
 }
+
 
 void CircuitViews::validatePublication(const std::vector<ComponentDefinition>& definitions) const
 {
@@ -210,6 +220,7 @@ void CircuitViews::validatePublication(const std::vector<ComponentDefinition>& d
     }
 }
 
+
 void CircuitViews::loadLibrary(const std::vector<ComponentDefinition>& definitions)
 {
     for (const auto& definition : definitions)
@@ -217,6 +228,7 @@ void CircuitViews::loadLibrary(const std::vector<ComponentDefinition>& definitio
     for (auto& view : m_views)
         includeLibrary(*view.scene);
 }
+
 
 void CircuitViews::publishSubcircuits(const std::vector<ComponentDefinition>& definitions)
 {
@@ -251,12 +263,9 @@ void CircuitViews::publishSubcircuits(const std::vector<ComponentDefinition>& de
         m_library.insert_or_assign(definition.identity.id, definition);
 }
 
+
 void CircuitViews::openSubcircuit(
-    Scene scene,
-    DefinitionIdentity identity,
-    std::string name,
-    std::filesystem::path file,
-    Input& input
+    Scene scene, DefinitionIdentity identity, std::string name, std::filesystem::path file, Input& input
 )
 {
     for (std::size_t i = 1; i < m_views.size(); ++i)
@@ -276,6 +285,7 @@ void CircuitViews::openSubcircuit(
     select(m_views.size() - 1, input);
 }
 
+
 void CircuitViews::editSubcircuit(const ComponentDefinition& definition, Input& input)
 {
     const auto* sub = std::get_if<SubcircuitBehavior>(&definition.behavior);
@@ -283,10 +293,7 @@ void CircuitViews::editSubcircuit(const ComponentDefinition& definition, Input& 
         throw std::invalid_argument("This component is not a subcircuit.");
     auto found = m_libraryFiles.find(definition.identity.id);
     openSubcircuit(
-        *sub->authored,
-        definition.identity,
-        definition.displayName,
-        found == m_libraryFiles.end() ? std::filesystem::path{} : found->second,
-        input
+        *sub->authored, definition.identity, definition.displayName,
+        found == m_libraryFiles.end() ? std::filesystem::path{} : found->second, input
     );
 }

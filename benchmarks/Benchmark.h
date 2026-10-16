@@ -38,22 +38,19 @@ struct Config
 class Recorder
 {
   public:
+    /** @brief Create an exclusive output directory and capture executable, embedded build and runtime resource
+     * identities.
+     */
     explicit Recorder(const Config& config);
+
     void sample(
-        const std::string& scenario,
-        int size,
-        int trial,
-        int index,
-        const std::string& metric,
-        double value,
+        const std::string& scenario, int size, int trial, int index, const std::string& metric, double value,
         const std::string& unit
     );
-    void outcome(
-        const std::string& scenario,
-        int size,
-        const std::string& status,
-        const std::string& detail = ""
-    );
+
+    void outcome(const std::string& scenario, int size, const std::string& status, const std::string& detail = "");
+
+    /** @brief Persist the final completion flag and timestamp, including failure paths with retained samples. */
     void finish(bool success);
     nlohmann::json metadata;
 
@@ -63,23 +60,31 @@ class Recorder
 };
 
 void check(bool condition, const std::string& message);
+
+/** @brief Record whole-process private memory, working set and handle counts when the platform exposes them. */
 void memorySample(Recorder& results, const std::string& scenario, int size, int index);
+
 void rendering(const Config& config, Recorder& results);
+
 Scene editorFixture(int size);
+
 void checkConnection(const Scene& scene, int source, int sink);
+
 void clockCorrectness(Recorder& results);
+
 void validatorChecks(Recorder& results);
+
 void profileChecks(Recorder& results);
+
 void extendedCoverage(const Config& config, Recorder& results);
+
 void lifecycle(const Config& config, Recorder& results);
+
+/** @brief Record per-phase inclusive/exclusive times and the residual against the original global operation duration.
+ */
 void recordProfile(
-    Recorder& results,
-    const std::string& scenario,
-    int size,
-    int trial,
-    int sample,
-    const edit_profile::Capture& capture,
-    double totalMs
+    Recorder& results, const std::string& scenario, int size, int trial, int sample,
+    const edit_profile::Capture& capture, double totalMs
 );
 
 template <class F>

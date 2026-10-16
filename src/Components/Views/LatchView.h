@@ -8,11 +8,7 @@ class LatchView : public ComponentView
 {
   public:
     LatchView(
-        GridCoords gridPos,
-        int id,
-        glm::vec2 size,
-        std::string shaderName,
-        std::vector<PinUI> inputs,
+        GridCoords gridPos, int id, glm::vec2 size, std::string shaderName, std::vector<PinUI> inputs,
         std::vector<PinUI> outputs
     )
         : ComponentView(gridPos, id, size, std::move(shaderName)), m_inputs(std::move(inputs)),
@@ -20,19 +16,12 @@ class LatchView : public ComponentView
     {
     }
 
-    std::unique_ptr<ComponentView> clone() const override
-    {
-        return std::make_unique<LatchView>(*this);
-    }
+    std::unique_ptr<ComponentView> clone() const override { return std::make_unique<LatchView>(*this); }
 
     const std::vector<PinUI>& getInputPins() const override { return m_inputs; }
-
     const std::vector<PinUI>& getOutputPins() const override { return m_outputs; }
-
     const std::string& getLabel() const { return getBodyLabel(); }
-
     const std::string& getInputLabel(int index) const { return pinLabel(m_inputs, index); }
-
     const std::string& getOutputLabel(int index) const { return pinLabel(m_outputs, index); }
 
   private:
@@ -45,7 +34,6 @@ class LatchView : public ComponentView
     }
 
     std::vector<PinUI>& editInputPins() override { return m_inputs; }
-
     std::vector<PinUI>& editOutputPins() override { return m_outputs; }
 
     std::vector<PinUI> m_inputs, m_outputs;

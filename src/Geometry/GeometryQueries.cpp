@@ -5,11 +5,9 @@
 #include <map>
 #include <set>
 
+
 HitResult hitGeometry(
-    std::span<const ComponentGeometry> components,
-    const std::map<WireId, Wire>& wires,
-    float worldX,
-    float worldY,
+    std::span<const ComponentGeometry> components, const std::map<WireId, Wire>& wires, float worldX, float worldY,
     GridCoords gridPos
 )
 {
@@ -52,13 +50,7 @@ HitResult hitGeometry(
     }
     if (endpointMatches == 1)
     {
-        return {
-            matchedIsStart ? HitType::WIRE_START : HitType::WIRE_END,
-            -1,
-            -1,
-            PinType::INPUT,
-            matchedWireId
-        };
+        return {matchedIsStart ? HitType::WIRE_START : HitType::WIRE_END, -1, -1, PinType::INPUT, matchedWireId};
     }
 
     for (const auto& [id, wire] : wires)
@@ -73,19 +65,18 @@ HitResult hitGeometry(
     {
         const float halfWidth = component.width * 0.5f;
         const float halfHeight = component.height * 0.5f;
-        if (std::abs(worldX - component.centerX) <= halfWidth &&
-            std::abs(worldY - component.centerY) <= halfHeight)
+        if (std::abs(worldX - component.centerX) <= halfWidth && std::abs(worldY - component.centerY) <= halfHeight)
             return {HitType::COMPONENT_BODY, component.componentId};
     }
 
     return {};
 }
 
+
 bool overlapsComponent(std::span<const ComponentGeometry> components, int componentId)
 {
     auto found = std::find_if(
-        components.begin(),
-        components.end(),
+        components.begin(), components.end(),
         [=](const auto& component) { return component.componentId == componentId; }
     );
     if (found == components.end())
@@ -97,10 +88,9 @@ bool overlapsComponent(std::span<const ComponentGeometry> components, int compon
             continue;
         // Tolerance admits exact grid-aligned boundary contact despite float rounding.
         constexpr float tolerance = 0.000001f;
-        if (moved.origin == other.origin || (std::abs(moved.centerX - other.centerX) + tolerance <
-                                                 (moved.width + other.width) * 0.5f &&
-                                             std::abs(moved.centerY - other.centerY) + tolerance <
-                                                 (moved.height + other.height) * 0.5f))
+        if (moved.origin == other.origin ||
+            (std::abs(moved.centerX - other.centerX) + tolerance < (moved.width + other.width) * 0.5f &&
+             std::abs(moved.centerY - other.centerY) + tolerance < (moved.height + other.height) * 0.5f))
             return true;
         for (const auto& pin : moved.pins)
             for (const auto& otherPin : other.pins)
@@ -110,18 +100,17 @@ bool overlapsComponent(std::span<const ComponentGeometry> components, int compon
     return false;
 }
 
+
 bool sharesComponentAnchor(std::span<const ComponentGeometry> components, int componentId)
 {
     const auto found = std::find_if(
-        components.begin(),
-        components.end(),
+        components.begin(), components.end(),
         [=](const auto& component) { return component.componentId == componentId; }
     );
     if (found == components.end())
         return false;
     return std::any_of(
-        components.begin(),
-        components.end(),
+        components.begin(), components.end(),
         [&](const auto& other)
         {
             if (other.componentId == componentId)
@@ -137,8 +126,8 @@ bool sharesComponentAnchor(std::span<const ComponentGeometry> components, int co
     );
 }
 
-std::vector<WireJunction>
-wireJunctions(const std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins)
+
+std::vector<WireJunction> wireJunctions(const std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins)
 {
     struct PointData
     {
@@ -154,8 +143,7 @@ wireJunctions(const std::map<WireId, Wire>& wires, std::span<const PinAnchor> pi
     {
         auto& data = endpoints[{point.x, point.y}];
         ++data.count;
-        if (state == PinState::ON ||
-            (state == PinState::OFF && data.state == PinState::DISCONNECTED))
+        if (state == PinState::ON || (state == PinState::OFF && data.state == PinState::DISCONNECTED))
             data.state = state;
     };
     for (const auto& [id, wire] : wires)

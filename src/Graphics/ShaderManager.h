@@ -5,10 +5,7 @@
 #include <string>
 #include <unordered_map>
 
-/**
- * @brief Singleton Manager class of the shader class, safely loads and gets
- * existing shaders
- */
+/** @brief Owns a named shader cache; all programs must be released before their OpenGL context ends. */
 class ShaderManager
 {
   private:
@@ -18,31 +15,18 @@ class ShaderManager
     ShaderManager();
     ~ShaderManager() = default;
 
-    /*
-     * @brief Loads a shader (vertex and fragment), will search if it's already
-     * loaded first
-     * @param name Name for the shader to be used
-     * @param vertexPath File path for the vertex shader
-     * @param fragmentPath File path for the fragment shader
-     */
-    Shader*
-    load(const std::string& name, const std::string& vertexPath, const std::string& fragmentPath);
+    /** @brief Reuse a cached shader or load it; return nullptr on compilation or linking failure. */
+    Shader* load(const std::string& name, const std::string& vertexPath, const std::string& fragmentPath);
 
-    /*
-     * @brief Gets a shader using the name
-     * @param name Name of the shader
-     */
     Shader* get(const std::string& name);
 
-    /*
+    /**
      * @brief Destroys every loaded shader program.
      * Needs a current OpenGL context, so call it before the context goes away;
      * the manager is left empty and can still be reused afterwards.
      */
     void release();
 
-    /*
-     * @brief Checks if files were altered, if yes trigger shader reload
-     */
+    /** @brief Poll source dependencies and retain the current program when a reload fails. */
     void checkHotReload();
 };

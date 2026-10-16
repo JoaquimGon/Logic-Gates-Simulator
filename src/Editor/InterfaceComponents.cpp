@@ -6,10 +6,12 @@
 #include <array>
 #include <set>
 
+
 bool blankComponentName(const std::string& name)
 {
     return name.find_first_not_of(" \t\r\n") == std::string::npos;
 }
+
 
 std::vector<InterfaceComponent> interfaceComponents(const Scene& scene)
 {
@@ -29,13 +31,12 @@ std::vector<InterfaceComponent> interfaceComponents(const Scene& scene)
             result.push_back({id, *kind, view->getBodyLabel()});
     }
     std::sort(
-        result.begin(),
-        result.end(),
-        [](const auto& a, const auto& b)
-        { return a.kind == b.kind ? a.id < b.id : a.kind < b.kind; }
+        result.begin(), result.end(),
+        [](const auto& a, const auto& b) { return a.kind == b.kind ? a.id < b.id : a.kind < b.kind; }
     );
     return result;
 }
+
 
 EditBatch missingInterfaceNames(const Scene& scene)
 {
@@ -57,9 +58,7 @@ EditBatch missingInterfaceNames(const Scene& scene)
                 name = prefixes[kind] + std::to_string(index++);
             } while (names[kind].contains(name));
             names[kind].insert(name);
-            edits.push_back(
-                ConfigureComponentProperties{.componentId = component.id, .label = name}
-            );
+            edits.push_back(ConfigureComponentProperties{.componentId = component.id, .label = name});
         }
     return edits;
 }

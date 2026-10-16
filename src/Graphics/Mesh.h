@@ -4,9 +4,7 @@
 #include <glad/glad.h>
 #include <vector>
 
-/**
- * @brief Wrapper class for VAO, VBO and EBO creation and binding
- */
+/** @brief Owns geometry buffers and vertex-array state in the current OpenGL context. */
 class Mesh
 {
   private:
@@ -28,33 +26,23 @@ class Mesh
     Mesh(const Mesh&) = delete;
     Mesh& operator=(const Mesh&) = delete;
 
-    /**
-     * @brief Initializes a Mesh object with geometry data.
-     * @param vertices Array of vertex coordinates.
-     * @param indices Array of index data for the EBO.
-     * @param vertexLayout Vertex layout for the VAO.
-     * @param drawMode Draw mode for openGL.
-     */
+    /** @brief Upload interleaved vertices; an empty index list selects non-indexed drawing. */
     Mesh(
-        const std::vector<float>& vertices,
-        const std::vector<unsigned int>& indices,
-        const VertexLayout& vertexLayout,
+        const std::vector<float>& vertices, const std::vector<unsigned int>& indices, const VertexLayout& vertexLayout,
         unsigned int drawMode = GL_TRIANGLES
     );
 
+    /** @brief Upload instance values and restore attribute bindings even when the layout and allocation are unchanged.
+     */
     void setInstanceData(
-        const std::vector<float>& instanceData,
-        const std::vector<int>& attributeSizes,
-        int startingAttributeLocation
+        const std::vector<float>& instanceData, const std::vector<int>& attributeSizes, int startingAttributeLocation
     );
 
     void drawInstanced(int instanceCount) const;
 
+    /** @brief Replace dynamic vertex data while retaining reusable buffer capacity and the correct draw count. */
     void updateData(const std::vector<float>& vertices, int floatsPerVertex);
 
-    /**
-     * @brief Draws the mesh to the screen.
-     */
     void draw() const;
 
     /**
@@ -64,8 +52,5 @@ class Mesh
      */
     void destroy();
 
-    /*
-     * @brief Mesh deconstructor, releases the GPU buffers
-     */
     ~Mesh();
 };

@@ -29,12 +29,7 @@ class Gate : public Component
     void evaluate() override;
 
     bool isInputInverted(unsigned int index) const { return m_invertedInputs.at(index); }
-
-    void setInputInverted(unsigned int index, bool inverted)
-    {
-        m_invertedInputs.at(index) = inverted;
-    }
-
+    void setInputInverted(unsigned int index, bool inverted) { m_invertedInputs.at(index) = inverted; }
     GateType getType() const { return m_gateType; }
 
     bool isInverted() const
@@ -46,6 +41,7 @@ class Gate : public Component
      * NOT has fixed inversion and rejects this operation.
      */
     void setInverted(bool inverted);
+
     static GateType typeWithInversion(GateType type, bool inverted);
 
   private:

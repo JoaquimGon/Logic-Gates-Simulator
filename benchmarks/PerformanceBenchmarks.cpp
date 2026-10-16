@@ -31,6 +31,7 @@
 
 namespace bench
 {
+/** @brief Format system time as a UTC timestamp for run and manifest provenance. */
 std::string utcTime()
 {
     const auto now = std::chrono::system_clock::now();
@@ -46,17 +47,17 @@ std::string utcTime()
     return output.str();
 }
 
+
 void check(bool condition, const std::string& message)
 {
     if (!condition)
         throw std::runtime_error(message);
 }
 
+
 Recorder::Recorder(const Config& config) : m_directory(config.output)
 {
-    std::filesystem::create_directories(
-        m_directory.parent_path().empty() ? "." : m_directory.parent_path()
-    );
+    std::filesystem::create_directories(m_directory.parent_path().empty() ? "." : m_directory.parent_path());
     check(
         std::filesystem::create_directory(m_directory),
         "Output directory already exists; choose a new --output directory."
@@ -81,8 +82,7 @@ Recorder::Recorder(const Config& config) : m_directory(config.output)
         {"arguments", config.argv},
         {"started_utc", utcTime()},
         {"run_id", m_directory.filename().string()},
-        {"repetition_scope",
-         "trials share this process; independent executions have distinct run_id/process_id"},
+        {"repetition_scope", "trials share this process; independent executions have distinct run_id/process_id"},
         {"edit_samples_override", config.editSamples},
         {"preview_operations_per_batch", config.previewBatch},
         {"steady_clock_period_seconds", double(Clock::period::num) / Clock::period::den},
@@ -97,10 +97,7 @@ Recorder::Recorder(const Config& config) : m_directory(config.output)
     std::string payload;
     for (const auto* chunk : benchmarkManifestChunks)
         payload += chunk;
-    check(
-        sha256({payload.begin(), payload.end()}) == benchmarkManifestHash,
-        "Embedded manifest checksum mismatch."
-    );
+    check(sha256({payload.begin(), payload.end()}) == benchmarkManifestHash, "Embedded manifest checksum mismatch.");
     const auto manifest = nlohmann::json::parse(payload);
     metadata["manifest_sha256"] = benchmarkManifestHash;
     metadata["revision"] = manifest["revision"];
@@ -157,13 +154,8 @@ Recorder::Recorder(const Config& config) : m_directory(config.output)
     char name[256]{};
     DWORD bytes = sizeof(name);
     if (RegGetValueA(
-            HKEY_LOCAL_MACHINE,
-            "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0",
-            "ProcessorNameString",
-            RRF_RT_REG_SZ,
-            nullptr,
-            name,
-            &bytes
+            HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", "ProcessorNameString",
+            RRF_RT_REG_SZ, nullptr, name, &bytes
         ) == ERROR_SUCCESS)
         metadata["cpu"] = name;
     MEMORYSTATUSEX memory{sizeof(memory)};
@@ -179,29 +171,22 @@ Recorder::Recorder(const Config& config) : m_directory(config.output)
     );
 }
 
+
 void Recorder::sample(
-    const std::string& scenario,
-    int size,
-    int trial,
-    int index,
-    const std::string& metric,
-    double value,
+    const std::string& scenario, int size, int trial, int index, const std::string& metric, double value,
     const std::string& unit
 )
 {
     check(std::isfinite(value), "Non-finite benchmark result.");
-    m_samples << scenario << ',' << size << ',' << trial << ',' << index << ',' << metric << ','
-              << value << ',' << unit << '\n';
+    m_samples << scenario << ',' << size << ',' << trial << ',' << index << ',' << metric << ',' << value << ',' << unit
+              << '\n';
     check(bool(m_samples), "Failed writing benchmark samples.");
 }
 
-void Recorder::outcome(
-    const std::string& scenario, int size, const std::string& status, const std::string& detail
-)
+
+void Recorder::outcome(const std::string& scenario, int size, const std::string& status, const std::string& detail)
 {
-    metadata["cases"].push_back(
-        {{"scenario", scenario}, {"size", size}, {"status", status}, {"detail", detail}}
-    );
+    metadata["cases"].push_back({{"scenario", scenario}, {"size", size}, {"status", status}, {"detail", detail}});
     m_samples.flush();
     finish(false);
     std::cout << scenario << " size=" << size << ": " << status;
@@ -209,6 +194,7 @@ void Recorder::outcome(
         std::cout << " (" << detail << ')';
     std::cout << std::endl;
 }
+
 
 void Recorder::finish(bool success)
 {
@@ -222,6 +208,7 @@ void Recorder::finish(bool success)
     m_samples.flush();
 }
 
+
 void memorySample(Recorder& results, const std::string& scenario, int size, int index)
 {
 #ifdef _WIN32
@@ -229,22 +216,14 @@ void memorySample(Recorder& results, const std::string& scenario, int size, int 
     counters.cb = sizeof(counters);
     check(
         GetProcessMemoryInfo(
-            GetCurrentProcess(),
-            reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters),
-            sizeof(counters)
+            GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters), sizeof(counters)
         ),
         "Cannot read process memory."
     );
-    results.sample(
-        scenario, size, 0, index, "private_bytes", double(counters.PrivateUsage), "bytes"
-    );
-    results.sample(
-        scenario, size, 0, index, "working_set_bytes", double(counters.WorkingSetSize), "bytes"
-    );
+    results.sample(scenario, size, 0, index, "private_bytes", double(counters.PrivateUsage), "bytes");
+    results.sample(scenario, size, 0, index, "working_set_bytes", double(counters.WorkingSetSize), "bytes");
     DWORD handles = 0;
-    check(
-        GetProcessHandleCount(GetCurrentProcess(), &handles), "Cannot read process handle count."
-    );
+    check(GetProcessHandleCount(GetCurrentProcess(), &handles), "Cannot read process handle count.");
     results.sample(scenario, size, 0, index, "process_handles", handles, "count");
 #else
     (void)results;
@@ -254,14 +233,14 @@ void memorySample(Recorder& results, const std::string& scenario, int size, int 
 #endif
 }
 
+
 namespace
 {
 void connection(Circuit& circuit, int source, int output, int target, int input)
 {
-    check(
-        circuit.connectComponents(source, output, target, input), "Invalid benchmark connection."
-    );
+    check(circuit.connectComponents(source, output, target, input), "Invalid benchmark connection.");
 }
+
 
 struct SettleAttempt
 {
@@ -270,6 +249,7 @@ struct SettleAttempt
     std::size_t remaining;
     double elapsed;
 };
+
 
 SettleAttempt settle(Circuit& circuit)
 {
@@ -281,31 +261,19 @@ SettleAttempt settle(Circuit& circuit)
     return {status, circuit.takeSimulationWork(), remaining, elapsed};
 }
 
+
+/** @brief Record settling work and classify completed versus aborted propagation under the unchanged production limits.
+ */
 void recordAttempt(
-    Recorder& results,
-    const std::string& scenario,
-    int size,
-    int trial,
-    int sample,
-    const std::string& phase,
+    Recorder& results, const std::string& scenario, int size, int trial, int sample, const std::string& phase,
     const SettleAttempt& attempt
 )
 {
     const bool ok = attempt.status == SimulationResult::OK;
     const auto prefix = phase + (ok ? "_completed" : "_aborted");
     results.sample(scenario, size, trial, sample, prefix + "_ms", attempt.elapsed, "ms");
-    results.sample(
-        scenario,
-        size,
-        trial,
-        sample,
-        phase + "_evaluations",
-        double(attempt.work.evaluations),
-        "count"
-    );
-    results.sample(
-        scenario, size, trial, sample, phase + "_rounds", double(attempt.work.rounds), "count"
-    );
+    results.sample(scenario, size, trial, sample, phase + "_evaluations", double(attempt.work.evaluations), "count");
+    results.sample(scenario, size, trial, sample, phase + "_rounds", double(attempt.work.rounds), "count");
     results.metadata["propagation_attempts"].push_back(
         {{"scenario", scenario},
          {"size", size},
@@ -319,6 +287,8 @@ void recordAttempt(
     );
 }
 
+
+/** @brief Build the requested fan-out or NOT-chain topology and establish its initial input state. */
 Circuit logicFixture(int size, bool chain)
 {
     Circuit circuit;
@@ -333,6 +303,8 @@ Circuit logicFixture(int size, bool chain)
     return circuit;
 }
 
+
+/** @brief Measure cold settling and input changes separately, then locate the cold-chain evaluation boundary. */
 void propagation(const Config& config, Recorder& results)
 {
     for (const bool chain : {false, true})
@@ -345,10 +317,7 @@ void propagation(const Config& config, Recorder& results)
             if (initial.status != SimulationResult::OK)
             {
                 results.outcome(
-                    scenario,
-                    size,
-                    "limit",
-                    propagationReason(initial.status, initial.remaining, initial.work)
+                    scenario, size, "limit", propagationReason(initial.status, initial.remaining, initial.work)
                 );
                 continue;
             }
@@ -371,22 +340,17 @@ void propagation(const Config& config, Recorder& results)
                     }
                     for (int i = 1; i < size; ++i)
                         check(
-                            circuit.getComponent(i)->getStateOutPin() ==
-                                (chain ? state != bool(i % 2) : !state),
+                            circuit.getComponent(i)->getStateOutPin() == (chain ? state != bool(i % 2) : !state),
                             "Incorrect gate output in propagation benchmark."
                         );
                     if (sample >= 0)
                     {
                         recordAttempt(results, scenario, size, trial, sample, "change", attempt);
-                        results.sample(
-                            scenario, size, trial, sample, "duration_ms", attempt.elapsed, "ms"
-                        );
+                        results.sample(scenario, size, trial, sample, "duration_ms", attempt.elapsed, "ms");
                     }
                 }
             results.outcome(
-                scenario,
-                size,
-                limited ? "limit" : "pass",
+                scenario, size, limited ? "limit" : "pass",
                 limited ? reason : "Every gate output checked after every operation."
             );
         }
@@ -413,28 +377,30 @@ void propagation(const Config& config, Recorder& results)
     results.metadata["chain_cold_boundary"] = {
         {"largest_settled", low},
         {"first_failed", high},
-        {"assumption",
-         "Monotone cold all-NOT chain, initially-low input, default limits; integer sizes include "
-         "odd counts."}
+        {"assumption", "Monotone cold all-NOT chain, initially-low input, default limits; integer sizes include "
+                       "odd counts."}
     };
     results.outcome(
-        "chain_cold_boundary",
-        high,
-        "pass",
+        "chain_cold_boundary", high, "pass",
         "Adjacent passing/failing sizes identified without increasing production limits."
     );
 }
+
 
 class EdgeProbe : public Component
 {
   public:
     explicit EdgeProbe(Circuit& owner) : Component(-1, 1, 0), circuit(&owner) {}
 
+
     std::unique_ptr<Component> clone() const override { return std::make_unique<EdgeProbe>(*this); }
+
 
     void evaluate() override {}
 
+
     int clockInputPin() const override { return 0; }
+
 
     void onClockEdge(bool high) override
     {
@@ -443,20 +409,24 @@ class EdgeProbe : public Component
         events.push_back({circuit->clockTime(), high});
     }
 
+
     unsigned edges = 0;
     bool ordered = true;
     Circuit* circuit;
     std::deque<ClockSample> events;
 };
 
+
+/** @brief Measure drained clock execution with and without probes, checking complete traces and untimed per-edge
+ * replays. */
 void clocks(const Config& config, Recorder& results)
 {
     for (const int size : config.sizes)
         for (const int frequency : {1, 64, 256, 1024, 8192})
             for (const bool tracing : {false, true})
             {
-                const std::string scenario = "clock_" + std::to_string(frequency) + "hz" +
-                                             (tracing ? "_8probes" : "_no_probes");
+                const std::string scenario =
+                    "clock_" + std::to_string(frequency) + "hz" + (tracing ? "_8probes" : "_no_probes");
                 for (int trial = 0; trial < config.trials; ++trial)
                 {
                     Circuit circuit;
@@ -472,24 +442,18 @@ void clocks(const Config& config, Recorder& results)
                         gates.push_back(gate);
                         if (tracing && timeline.signals().size() < 8)
                             check(
-                                timeline.toggleSignal(
-                                    {{gate}, PinType::OUTPUT, 0, "", "probe", {}}
-                                ),
+                                timeline.toggleSignal({{gate}, PinType::OUTPUT, 0, "", "probe", {}}),
                                 "Cannot add benchmark probe."
                             );
                     }
-                    check(
-                        circuit.propagate() == SimulationResult::OK, "Clock fixture did not settle."
-                    );
+                    check(circuit.propagate() == SimulationResult::OK, "Clock fixture did not settle.");
                     auto* counter = static_cast<EdgeProbe*>(circuit.getComponent(probe));
                     // Warm the identical circuit, phase, probe containers and propagation path.
                     const auto warming = Clock::now();
                     circuit.updateClocks(float(16.0 / frequency), tracing ? &timeline : nullptr);
                     while (circuit.pendingClockTime() > 0)
                     {
-                        check(
-                            milliseconds(warming) < 10000, "Clock warmup drain watchdog expired."
-                        );
+                        check(milliseconds(warming) < 10000, "Clock warmup drain watchdog expired.");
                         circuit.updateClocks(0, tracing ? &timeline : nullptr);
                     }
                     check(milliseconds(warming) < 10000, "Clock warmup drain watchdog expired.");
@@ -497,23 +461,17 @@ void clocks(const Config& config, Recorder& results)
                     counter->ordered = true;
                     counter->events.clear();
                     const double before = circuit.clockTime();
-                    const float horizon =
-                        float(128.0 / frequency); // Exactly 256 edges; binary-exact duration.
+                    const float horizon = float(128.0 / frequency); // Exactly 256 edges; binary-exact duration.
                     const auto start = Clock::now();
                     int calls = 0;
                     std::vector<double> durations;
                     do
                     {
                         const auto call = Clock::now();
-                        circuit.updateClocks(
-                            calls == 0 ? horizon : 0, tracing ? &timeline : nullptr
-                        );
+                        circuit.updateClocks(calls == 0 ? horizon : 0, tracing ? &timeline : nullptr);
                         durations.push_back(milliseconds(call));
                         ++calls;
-                        check(
-                            milliseconds(start) < 10000,
-                            "Clock benchmark exceeded its 10-second drain timeout."
-                        );
+                        check(milliseconds(start) < 10000, "Clock benchmark exceeded its 10-second drain timeout.");
                     } while (circuit.pendingClockTime() > 0);
                     const double elapsed = milliseconds(start);
                     check(
@@ -523,23 +481,17 @@ void clocks(const Config& config, Recorder& results)
                         "Clock benchmark lost time, phase or edges."
                     );
                     for (const int gate : gates)
-                        check(
-                            circuit.getComponent(gate)->getStateOutPin(),
-                            "Clock fan-out ended at the wrong state."
-                        );
+                        check(circuit.getComponent(gate)->getStateOutPin(), "Clock fan-out ended at the wrong state.");
                     std::deque<ClockSample> expectedEdges;
                     for (int edge = 1; edge <= 256; ++edge)
-                        expectedEdges.push_back(
-                            {before + double(edge) / (2 * frequency), bool(edge % 2)}
-                        );
+                        expectedEdges.push_back({before + double(edge) / (2 * frequency), bool(edge % 2)});
                     check(
                         traceMatches(counter->events, expectedEdges),
                         "Clock throughput lost, duplicated or mistimed an edge."
                     );
                     if (tracing)
                     {
-                        std::deque<ClockSample> expectedClocks{{0, false}},
-                            expectedSignals{{0, true}};
+                        std::deque<ClockSample> expectedClocks{{0, false}}, expectedSignals{{0, true}};
                         for (int edge = 1; edge <= 288; ++edge)
                         {
                             const double time = double(edge) / (2 * frequency);
@@ -555,38 +507,23 @@ void clocks(const Config& config, Recorder& results)
                         for (const auto& signal : timeline.signals())
                             check(
                                 traceMatches(signal.samples, expectedSignals) &&
-                                    std::abs(signal.shortestInterval - 1.0 / (2 * frequency)) <
-                                        1e-10,
+                                    std::abs(signal.shortestInterval - 1.0 / (2 * frequency)) < 1e-10,
                                 "Clock throughput probe trace mismatch."
                             );
-                        check(
-                            timeline.steps().size() == 288, "Clock throughput step count mismatch."
-                        );
+                        check(timeline.steps().size() == 288, "Clock throughput step count mismatch.");
                         for (int edge = 1; edge <= 288; ++edge)
                             check(
-                                std::abs(
-                                    timeline.steps()[edge - 1] - double(edge) / (2 * frequency)
-                                ) < 1e-10,
+                                std::abs(timeline.steps()[edge - 1] - double(edge) / (2 * frequency)) < 1e-10,
                                 "Clock throughput step timestamp mismatch."
                             );
                     }
                     for (std::size_t i = 0; i < durations.size(); ++i)
-                        results.sample(
-                            scenario, size, trial, int(i), "update_call_ms", durations[i], "ms"
-                        );
+                        results.sample(scenario, size, trial, int(i), "update_call_ms", durations[i], "ms");
                     results.sample(scenario, size, trial, 0, "batch_ms", elapsed, "ms");
                     results.sample(
-                        scenario,
-                        size,
-                        trial,
-                        0,
-                        "sim_seconds_per_wall_second",
-                        horizon * 1000 / elapsed,
-                        "ratio"
+                        scenario, size, trial, 0, "sim_seconds_per_wall_second", horizon * 1000 / elapsed, "ratio"
                     );
-                    results.sample(
-                        scenario, size, trial, 0, "verified_edges", counter->edges, "count"
-                    );
+                    results.sample(scenario, size, trial, 0, "verified_edges", counter->edges, "count");
                     // Replay the same phase and topology outside measurements, stopping at
                     // every edge to inspect all settled outputs (bulk calls can drain many edges).
                     const auto replay = Clock::now();
@@ -595,14 +532,11 @@ void clocks(const Config& config, Recorder& results)
                         circuit.updateClocks(float(1.0 / (2 * frequency)));
                         while (circuit.pendingClockTime() > 0)
                         {
-                            check(
-                                milliseconds(replay) < 10000, "Per-edge replay watchdog expired."
-                            );
+                            check(milliseconds(replay) < 10000, "Per-edge replay watchdog expired.");
                             circuit.updateClocks(0);
                         }
                         check(
-                            milliseconds(replay) < 10000 &&
-                                circuit.getLastEvalResult() == SimulationResult::OK,
+                            milliseconds(replay) < 10000 && circuit.getLastEvalResult() == SimulationResult::OK,
                             "Per-edge replay failed or timed out."
                         );
                         for (const int gate : gates)
@@ -613,9 +547,7 @@ void clocks(const Config& config, Recorder& results)
                     }
                 }
                 results.outcome(
-                    scenario,
-                    size,
-                    "pass",
+                    scenario, size, "pass",
                     "256 timestamped edges per trial; complete traces and untimed per-edge replay; "
                     "headless capacity, not a "
                     "paced GUI test."
@@ -623,6 +555,9 @@ void clocks(const Config& config, Recorder& results)
             }
 }
 
+
+/** @brief Measure committed moves, undo/redo and preview batches, including phase capture and paired collection
+ * overhead. */
 void editor(const Config& config, Recorder& results)
 {
     for (const int size : config.sizes)
@@ -632,9 +567,8 @@ void editor(const Config& config, Recorder& results)
         const auto original = scene.getCommittedComponentView(sink)->getGridPosition();
         EditHistory history;
         // Expensive edits use fewer samples; raw counts remain explicit in the report.
-        const int samples = config.editSamples > 0
-                                ? config.editSamples
-                                : std::min(config.samples, size >= 1000 ? 5 : 12);
+        const int samples =
+            config.editSamples > 0 ? config.editSamples : std::min(config.samples, size >= 1000 ? 5 : 12);
         for (int trial = 0; trial < config.trials; ++trial)
             for (int sample = -1; sample < samples; ++sample)
             {
@@ -642,62 +576,37 @@ void editor(const Config& config, Recorder& results)
                 const auto builds = scene.getTopologyBuildCount();
                 auto [moved, moveMs, moveProfile] = timedEdit(
                     config.editProfile,
-                    [&]
-                    {
-                        return EditorActions(scene).apply(
-                            {MoveComponent{sink, {original.x + 2, original.y}}}
-                        );
-                    }
+                    [&] { return EditorActions(scene).apply({MoveComponent{sink, {original.x + 2, original.y}}}); }
                 );
                 check(bool(moved), moved.message);
                 history.record(moved);
                 checkConnection(scene, source, sink);
+                check(scene.getTopologyBuildCount() == builds + 1, "An edit rebuilt topology more than once.");
+                auto [undone, undoMs, undoProfile] = timedEdit(config.editProfile, [&] { return history.undo(scene); });
                 check(
-                    scene.getTopologyBuildCount() == builds + 1,
-                    "An edit rebuilt topology more than once."
-                );
-                auto [undone, undoMs, undoProfile] =
-                    timedEdit(config.editProfile, [&] { return history.undo(scene); });
-                check(
-                    bool(undone) &&
-                        scene.getCommittedComponentView(sink)->getGridPosition() == original,
+                    bool(undone) && scene.getCommittedComponentView(sink)->getGridPosition() == original,
                     "Undo benchmark failed."
                 );
                 checkConnection(scene, source, sink);
-                auto [redone, redoMs, redoProfile] =
-                    timedEdit(config.editProfile, [&] { return history.redo(scene); });
+                auto [redone, redoMs, redoProfile] = timedEdit(config.editProfile, [&] { return history.redo(scene); });
                 check(bool(redone), redone.message);
                 checkConnection(scene, source, sink);
                 check(bool(history.undo(scene)), "Cannot reset structural benchmark.");
                 if (sample >= 0)
                 {
-                    results.sample(
-                        "move_connected", size, trial, sample, "duration_ms", moveMs, "ms"
-                    );
+                    results.sample("move_connected", size, trial, sample, "duration_ms", moveMs, "ms");
                     if (config.editProfile)
                     {
-                        recordProfile(
-                            results, "move_connected", size, trial, sample, moveProfile, moveMs
-                        );
-                        recordProfile(
-                            results, "undo_connected_move", size, trial, sample, undoProfile, undoMs
-                        );
-                        recordProfile(
-                            results, "redo_connected_move", size, trial, sample, redoProfile, redoMs
-                        );
+                        recordProfile(results, "move_connected", size, trial, sample, moveProfile, moveMs);
+                        recordProfile(results, "undo_connected_move", size, trial, sample, undoProfile, undoMs);
+                        recordProfile(results, "redo_connected_move", size, trial, sample, redoProfile, redoMs);
                     }
-                    results.sample(
-                        "undo_connected_move", size, trial, sample, "duration_ms", undoMs, "ms"
-                    );
-                    results.sample(
-                        "redo_connected_move", size, trial, sample, "duration_ms", redoMs, "ms"
-                    );
+                    results.sample("undo_connected_move", size, trial, sample, "duration_ms", undoMs, "ms");
+                    results.sample("redo_connected_move", size, trial, sample, "duration_ms", redoMs, "ms");
                 }
             }
         results.outcome(
-            "move_connected",
-            size,
-            "pass",
+            "move_connected", size, "pass",
             "Includes snapshots, routing, normalization and connectivity; excludes GUI "
             "input/rendering."
         );
@@ -710,23 +619,12 @@ void editor(const Config& config, Recorder& results)
                 const auto start = Clock::now();
                 bool success = true;
                 for (int operation = 0; operation < config.previewBatch; ++operation)
-                    success &= EditorActions(scene).previewMove(
-                        *preview, {original.x + 2 + operation % 2, original.y}
-                    );
+                    success &= EditorActions(scene).previewMove(*preview, {original.x + 2 + operation % 2, original.y});
                 const double elapsed = milliseconds(start);
-                check(
-                    success && scene.getTopologyBuildCount() == builds,
-                    "Preview mutated committed topology."
-                );
+                check(success && scene.getTopologyBuildCount() == builds, "Preview mutated committed topology.");
                 if (sample >= 0)
                     results.sample(
-                        "move_preview",
-                        size,
-                        trial,
-                        sample,
-                        "mean_operation_ms",
-                        elapsed / config.previewBatch,
-                        "ms"
+                        "move_preview", size, trial, sample, "mean_operation_ms", elapsed / config.previewBatch, "ms"
                     );
             }
         check(EditorActions(scene).cancelMove(*preview), "Cannot cancel move preview.");
@@ -741,12 +639,7 @@ void editor(const Config& config, Recorder& results)
                 {
                     auto [moved, elapsed, capture] = timedEdit(
                         enabled,
-                        [&]
-                        {
-                            return EditorActions(scene).apply(
-                                {MoveComponent{sink, {original.x + 2, original.y}}}
-                            );
-                        }
+                        [&] { return EditorActions(scene).apply({MoveComponent{sink, {original.x + 2, original.y}}}); }
                     );
                     check(bool(moved), moved.message);
                     checkConnection(scene, source, sink);
@@ -754,23 +647,14 @@ void editor(const Config& config, Recorder& results)
                     check(bool(history.undo(scene)), "Cannot reset instrumentation pair.");
                     history.clear();
                     results.sample(
-                        enabled ? "move_collection_on" : "move_collection_off",
-                        size,
-                        trial,
-                        0,
-                        "duration_ms",
-                        elapsed,
+                        enabled ? "move_collection_on" : "move_collection_off", size, trial, 0, "duration_ms", elapsed,
                         "ms"
                     );
                     if (enabled)
-                        recordProfile(
-                            results, "move_collection_on", size, trial, 0, capture, elapsed
-                        );
+                        recordProfile(results, "move_collection_on", size, trial, 0, capture, elapsed);
                 }
             results.outcome(
-                "move_collection_pair",
-                size,
-                "pass",
+                "move_collection_pair", size, "pass",
                 "Same fixture/binary, paired collection on/off, order alternated across trials. "
                 "Small paired count measures overhead/noise, not rare tails; disabled probes still "
                 "have a branch in this binary."
@@ -780,6 +664,9 @@ void editor(const Config& config, Recorder& results)
     }
 }
 
+
+/** @brief Observe warmed bounded-history memory while verifying repeated connected edits and the history retention
+ * limit. */
 void endurance(const Config& config, Recorder& results)
 {
     constexpr int size = 128;
@@ -788,9 +675,8 @@ void endurance(const Config& config, Recorder& results)
     int operations = 0;
     auto step = [&]
     {
-        const auto result = EditorActions(scene).apply(
-            {MoveComponent{size - 1, {operations % 2 ? 12 : 14, (size / 2 - 1) * 6}}}
-        );
+        const auto result =
+            EditorActions(scene).apply({MoveComponent{size - 1, {operations % 2 ? 12 : 14, (size / 2 - 1) * 6}}});
         check(bool(result), result.message);
         history.record(result);
         ++operations;
@@ -809,39 +695,28 @@ void endurance(const Config& config, Recorder& results)
         {
             ++seconds;
             memorySample(results, "history_endurance", size, seconds);
-            results.sample(
-                "history_endurance",
-                size,
-                0,
-                seconds,
-                "undo_records",
-                double(history.undoCount()),
-                "count"
-            );
+            results.sample("history_endurance", size, 0, seconds, "undo_records", double(history.undoCount()), "count");
         }
     }
     memorySample(results, "history_endurance", size, seconds + 1);
-    results.sample(
-        "history_endurance", size, 0, 0, "measured_seconds", milliseconds(start) / 1000, "s"
-    );
+    results.sample("history_endurance", size, 0, 0, "measured_seconds", milliseconds(start) / 1000, "s");
     results.sample("history_endurance", size, 0, 0, "verified_edits", operations - 220, "count");
     results.outcome(
-        "history_endurance",
-        size,
-        "pass",
+        "history_endurance", size, "pass",
         "Short warmed memory observation, not proof of leak freedom; history retained up to 100 "
         "records."
     );
 }
 
+
+/** @brief Parse and validate workload controls, preserving the full invocation for the run's provenance record. */
 Config arguments(int argc, char** argv)
 {
     Config config;
     config.argv.assign(argv, argv + argc);
-    config.output =
-        std::filesystem::path("out/benchmarks") /
-        ("run-" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) +
-         "-" + std::to_string(std::random_device{}()));
+    config.output = std::filesystem::path("out/benchmarks") /
+                    ("run-" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + "-" +
+                     std::to_string(std::random_device{}()));
     for (int i = 1; i < argc; ++i)
     {
         const std::string key = argv[i];
@@ -905,22 +780,18 @@ Config arguments(int argc, char** argv)
     }
     check(
         !config.sizes.empty() && config.trials > 0 && config.samples > 0 && config.warmup >= 0 &&
-            std::isfinite(config.enduranceSeconds) && config.enduranceSeconds >= 0 &&
-            config.editSamples >= 0 && config.previewBatch > 0 &&
-            std::isfinite(config.lifecycleSeconds) && config.lifecycleSeconds >= 0 &&
+            std::isfinite(config.enduranceSeconds) && config.enduranceSeconds >= 0 && config.editSamples >= 0 &&
+            config.previewBatch > 0 && std::isfinite(config.lifecycleSeconds) && config.lifecycleSeconds >= 0 &&
             config.coverageSamples > 0,
         "Invalid benchmark arguments."
     );
     for (const int size : config.sizes)
-        check(
-            size >= 10 && size <= 4096 && size % 2 == 0,
-            "Sizes must be even values from 10 through 4096."
-        );
+        check(size >= 10 && size <= 4096 && size % 2 == 0, "Sizes must be even values from 10 through 4096.");
     check(
-        config.suite == "all" || config.suite == "cpu" || config.suite == "simulation" ||
-            config.suite == "clocks" || config.suite == "editor" || config.suite == "endurance" ||
-            config.suite == "render" || config.suite == "validators" ||
-            config.suite == "coverage" || config.suite == "lifecycle" || config.suite == "memory",
+        config.suite == "all" || config.suite == "cpu" || config.suite == "simulation" || config.suite == "clocks" ||
+            config.suite == "editor" || config.suite == "endurance" || config.suite == "render" ||
+            config.suite == "validators" || config.suite == "coverage" || config.suite == "lifecycle" ||
+            config.suite == "memory",
         "Unknown suite; use all, cpu, simulation, clocks, editor, endurance, render, validators, "
         "coverage, lifecycle or memory."
     );
@@ -929,6 +800,9 @@ Config arguments(int argc, char** argv)
 } // namespace
 } // namespace bench
 
+
+/** @brief Run the requested benchmark suites and retain explicit incomplete metadata when validation or execution
+ * fails. */
 int main(int argc, char** argv)
 {
     std::unique_ptr<bench::Recorder> results;
@@ -965,13 +839,10 @@ int main(int argc, char** argv)
 #else
         if (selected("render"))
         {
-            results->outcome(
-                "rendering", 0, "unavailable", "Built without the OpenGL application."
-            );
+            results->outcome("rendering", 0, "unavailable", "Built without the OpenGL application.");
             bench::check(
-                !config.requireRendering,
-                "Rendering is required (--require-rendering), but this executable was built "
-                "without OpenGL (BUILD_SIMULATOR_APP=OFF)."
+                !config.requireRendering, "Rendering is required (--require-rendering), but this executable was built "
+                                          "without OpenGL (BUILD_SIMULATOR_APP=OFF)."
             );
         }
 #endif

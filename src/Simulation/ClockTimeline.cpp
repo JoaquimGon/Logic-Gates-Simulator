@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <set>
 
+
 void ClockTimeline::record(double time, const std::vector<ClockReading>& readings, bool edge)
 {
     if (time < m_time)
@@ -30,6 +31,7 @@ void ClockTimeline::record(double time, const std::vector<ClockReading>& reading
         m_steps.pop_front();
 }
 
+
 void ClockTimeline::clear()
 {
     m_time = 0;
@@ -42,6 +44,7 @@ void ClockTimeline::clear()
     m_steps.clear();
 }
 
+
 namespace
 {
 bool sameSignal(const SignalTrace& a, const SignalTrace& b)
@@ -50,21 +53,19 @@ bool sameSignal(const SignalTrace& a, const SignalTrace& b)
 }
 } // namespace
 
+
 bool ClockTimeline::tracesSignal(const SignalTrace& trace) const
 {
     return std::any_of(
-        m_signals.begin(),
-        m_signals.end(),
-        [&](const auto& current) { return sameSignal(current, trace); }
+        m_signals.begin(), m_signals.end(), [&](const auto& current) { return sameSignal(current, trace); }
     );
 }
+
 
 bool ClockTimeline::toggleSignal(SignalTrace trace)
 {
     const auto found = std::find_if(
-        m_signals.begin(),
-        m_signals.end(),
-        [&](const auto& current) { return sameSignal(current, trace); }
+        m_signals.begin(), m_signals.end(), [&](const auto& current) { return sameSignal(current, trace); }
     );
     if (found != m_signals.end())
         m_signals.erase(found);
@@ -75,11 +76,13 @@ bool ClockTimeline::toggleSignal(SignalTrace trace)
     return true;
 }
 
+
 void ClockTimeline::removeSignal(std::size_t index)
 {
     if (index < m_signals.size())
         m_signals.erase(m_signals.begin() + index);
 }
+
 
 bool ClockTimeline::prepareSignals(std::uint64_t revision)
 {
@@ -98,6 +101,7 @@ bool ClockTimeline::prepareSignals(std::uint64_t revision)
     m_signalRevision = revision;
     return true;
 }
+
 
 void ClockTimeline::recordSignals(const Circuit& circuit, bool available)
 {
@@ -122,13 +126,13 @@ void ClockTimeline::recordSignals(const Circuit& circuit, bool available)
             }
         }
         if (!component || signal.pinIndex >= static_cast<unsigned int>(
-                                                 signal.direction == PinType::INPUT
-                                                     ? component->getInputPinCount()
-                                                     : component->getOutputPinCount()
+                                                 signal.direction == PinType::INPUT ? component->getInputPinCount()
+                                                                                    : component->getOutputPinCount()
                                              ))
             return nullptr;
         return component;
     };
+    // Retain transitions and availability changes only; missing runtime paths invalidate their selection.
     for (auto it = m_signals.begin(); it != m_signals.end();)
     {
         auto& signal = *it;
@@ -141,17 +145,14 @@ void ClockTimeline::recordSignals(const Circuit& circuit, bool available)
         const bool pinAvailable =
             available && (signal.direction == PinType::OUTPUT ||
                           std::any_of(
-                              component->getInConnections().begin(),
-                              component->getInConnections().end(),
-                              [&](const auto& edge)
-                              { return edge.destPinIndex == static_cast<int>(signal.pinIndex); }
+                              component->getInConnections().begin(), component->getInConnections().end(),
+                              [&](const auto& edge) { return edge.destPinIndex == static_cast<int>(signal.pinIndex); }
                           ));
-        const bool high = pinAvailable && (signal.direction == PinType::INPUT
-                                               ? component->getStateInPin(signal.pinIndex)
-                                               : component->getStateOutPin(signal.pinIndex));
+        const bool high =
+            pinAvailable && (signal.direction == PinType::INPUT ? component->getStateInPin(signal.pinIndex)
+                                                                : component->getStateOutPin(signal.pinIndex));
         auto& samples = signal.samples;
-        if (samples.empty() || samples.back().high != high ||
-            samples.back().available != pinAvailable)
+        if (samples.empty() || samples.back().high != high || samples.back().available != pinAvailable)
         {
             if (!samples.empty())
             {

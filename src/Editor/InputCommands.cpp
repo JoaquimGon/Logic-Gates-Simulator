@@ -9,6 +9,7 @@
 #include <limits>
 #include <vector>
 
+
 void Input::resetSimulation()
 {
     if (!m_scene || isReadOnly())
@@ -19,12 +20,13 @@ void Input::resetSimulation()
         m_clockTimeline->clear();
 }
 
+
 bool Input::canEditCommand(EditCommand command) const
 {
     if (!m_scene || isReadOnly() || m_mode != EditorMode::Selection || !isIdle())
         return false;
-    const bool selected = !m_selection.components().empty() || !m_selection.wires().empty() ||
-                          m_selection.segment().has_value();
+    const bool selected =
+        !m_selection.components().empty() || !m_selection.wires().empty() || m_selection.segment().has_value();
     switch (command)
     {
     case EditCommand::Undo:
@@ -42,6 +44,8 @@ bool Input::canEditCommand(EditCommand command) const
     return false;
 }
 
+
+/** @brief Delete the selected objects or hovered wire segment through a single validated edit. */
 bool Input::deleteObjects(const HitResult& hit, std::optional<SelectedSegment> segment)
 {
     const auto batch = m_selection.deletions(hit, segment);
@@ -53,6 +57,7 @@ bool Input::deleteObjects(const HitResult& hit, std::optional<SelectedSegment> s
         m_selection.clear();
     return static_cast<bool>(result);
 }
+
 
 bool Input::executeEditCommand(EditCommand command, GridCoords pastePosition, bool waitForCanvas)
 {
@@ -74,8 +79,7 @@ bool Input::executeEditCommand(EditCommand command, GridCoords pastePosition, bo
     {
         cancelCurrentAction();
         m_pendingKeyPresses.clear();
-        const auto result =
-            command == EditCommand::Redo ? m_history->redo(*m_scene) : m_history->undo(*m_scene);
+        const auto result = command == EditCommand::Redo ? m_history->redo(*m_scene) : m_history->undo(*m_scene);
         reportEditResult(result);
         if (result.change && m_clockTimeline)
             m_clockTimeline->clear();
@@ -104,6 +108,7 @@ bool Input::executeEditCommand(EditCommand command, GridCoords pastePosition, bo
     return false;
 }
 
+
 bool Input::canViewCommand(ViewCommand command) const
 {
     if (command == ViewCommand::ResetZoom)
@@ -112,9 +117,9 @@ bool Input::canViewCommand(ViewCommand command) const
         return false;
     if (command == ViewCommand::FitCircuit)
         return m_scene->getComponentCount() > 0 || m_scene->wireCount() > 0;
-    return !m_selection.components().empty() || !m_selection.wires().empty() ||
-           m_selection.segment().has_value();
+    return !m_selection.components().empty() || !m_selection.wires().empty() || m_selection.segment().has_value();
 }
+
 
 bool Input::executeViewCommand(ViewCommand command, CanvasSurface surface)
 {
@@ -162,11 +167,9 @@ bool Input::executeViewCommand(ViewCommand command, CanvasSurface surface)
         const auto frame = m_camera.frame(surface);
         if (!frame.valid())
             return false;
-        const float aspect =
-            static_cast<float>(frame.framebufferViewport.width) / frame.framebufferViewport.height;
+        const float aspect = static_cast<float>(frame.framebufferViewport.width) / frame.framebufferViewport.height;
         const float zoom =
-            0.85f *
-            std::min(2 * aspect / std::max(0.1f, right - left), 2 / std::max(0.1f, top - bottom));
+            0.85f * std::min(2 * aspect / std::max(0.1f, right - left), 2 / std::max(0.1f, top - bottom));
         setZoom(std::clamp(zoom, 0.000001f, 5.0f));
     }
     setPanOffset({left + (right - left) / 2, bottom + (top - bottom) / 2});

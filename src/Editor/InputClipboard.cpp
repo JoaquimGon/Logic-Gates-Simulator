@@ -1,6 +1,7 @@
 #include "Editor/Input.h"
 #include "Editor/Scene.h"
 
+
 void Input::beginPaste(GridCoords position)
 {
     const auto result = m_paste.begin(*m_scene, m_clipboard, position);
@@ -10,6 +11,8 @@ void Input::beginPaste(GridCoords position)
         clearHover();
 }
 
+
+/** @brief Commit the current paste preview and retain created identities as the new selection. */
 void Input::placePaste(GridCoords position)
 {
     m_paste.update(*m_scene, position);

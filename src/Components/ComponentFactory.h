@@ -16,37 +16,34 @@ struct CreatedComponent
 class ComponentFactory
 {
   public:
-    /** Keeps body proportions while adding/removing the native output bubble footprint. */
+    /** @brief Keeps body proportions while adding/removing the native output bubble footprint. */
     static ComponentLayout
     invertedGateLayout(const ComponentCatalog& catalog, const ComponentView& view, bool inverted);
+
     /** @brief Makes one grid cell of room for input bubbles without stretching the body. */
-    static ComponentLayout invertedInputLayout(
-        const ComponentCatalog& catalog,
-        const ComponentView& view,
-        unsigned int index,
-        bool inverted
-    );
+    static ComponentLayout
+    invertedInputLayout(const ComponentCatalog& catalog, const ComponentView& view, unsigned int index, bool inverted);
+
+    /** @brief Reject component placements whose absolute pin anchors exceed the supported grid range. */
     static void validatePosition(const ComponentView& view, GridCoords position);
+
     /** @brief Validates/resolves metadata before adding matching logic and presentation. */
     static CreatedComponent create(
-        Circuit& circuit,
-        const ComponentCatalog& catalog,
-        std::string_view definitionId,
-        GridCoords position,
-        const ComponentOverrides& overrides = {},
-        std::uint32_t version = 0,
+        Circuit& circuit, const ComponentCatalog& catalog, std::string_view definitionId, GridCoords position,
+        const ComponentOverrides& overrides = {}, std::uint32_t version = 0,
         Orientation orientation = Orientation::Right
     );
+
     /** @brief Converts explicit legacy geometry into identity-preserving instance options. */
     static ComponentOverrides layoutOverrides(const ComponentLayout& layout);
+
     /** @brief Validates layout edits against the instance's definition and stamps stable
      * IDs/labels. */
-    static ComponentLayout validateLayout(
-        const ComponentCatalog& catalog, const ComponentView& view, const ComponentLayout& layout
-    );
+    static ComponentLayout
+    validateLayout(const ComponentCatalog& catalog, const ComponentView& view, const ComponentLayout& layout);
+
     /** @brief Generates changed input rows from current geometry, preserving output anchors,
      * surviving pin identity/leads and body dimensions; native rows use one grid cell.
      */
-    static ComponentLayout
-    resizeGateLayout(const ComponentCatalog& catalog, const ComponentView& view, int inputCount);
+    static ComponentLayout resizeGateLayout(const ComponentCatalog& catalog, const ComponentView& view, int inputCount);
 };

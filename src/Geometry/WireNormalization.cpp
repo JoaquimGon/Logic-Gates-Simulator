@@ -11,29 +11,48 @@ namespace
 class WireNormalizer
 {
   public:
-    WireNormalizer(
-        std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins, WireId& nextWireId
-    )
+    WireNormalizer(std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins, WireId& nextWireId)
         : m_wires(wires), m_pins(pins), m_nextWireId(nextWireId)
     {
     }
 
+
     void run();
+
 
   private:
     std::map<WireId, Wire>& m_wires;
     std::span<const PinAnchor> m_pins;
     WireId& m_nextWireId;
+
+
     WireId insertWire(Wire wire);
+
+
     Wire* editWire(WireId id);
+
+
     std::vector<WireId> getWireIds() const;
+
+
     std::pair<WireId, WireId> insertWires(Wire a, Wire b);
+
+
     bool splitWireGeometry(WireId id, GridCoords point, Wire& outA, Wire& outB);
+
+
     void dropDegenerateWires();
+
+
     void mergeOverlaps();
+
+
     void splitJunctions();
+
+
     void healJunctions();
 };
+
 
 WireId WireNormalizer::insertWire(Wire wire)
 {
@@ -42,11 +61,13 @@ WireId WireNormalizer::insertWire(Wire wire)
     return id;
 }
 
+
 Wire* WireNormalizer::editWire(WireId id)
 {
     auto it = m_wires.find(id);
     return it != m_wires.end() ? &it->second : nullptr;
 }
+
 
 std::vector<WireId> WireNormalizer::getWireIds() const
 {
@@ -57,6 +78,8 @@ std::vector<WireId> WireNormalizer::getWireIds() const
     return ids;
 }
 
+
+/** @brief Replace a split route with identity-tracked fragments in the normalization work set. */
 bool WireNormalizer::splitWireGeometry(WireId id, GridCoords point, Wire& outA, Wire& outB)
 {
     Wire* wire = editWire(id);
@@ -69,10 +92,12 @@ bool WireNormalizer::splitWireGeometry(WireId id, GridCoords point, Wire& outA, 
     return true;
 }
 
+
 std::pair<WireId, WireId> WireNormalizer::insertWires(Wire a, Wire b)
 {
     return {insertWire(std::move(a)), insertWire(std::move(b))};
 }
+
 
 void WireNormalizer::run()
 {
@@ -84,6 +109,8 @@ void WireNormalizer::run()
     healJunctions();
 }
 
+
+/** @brief Merge overlapping collinear spans while retaining branch and pin anchors. */
 void WireNormalizer::mergeOverlaps()
 {
     bool overlapMerged = true;
@@ -171,8 +198,7 @@ void WireNormalizer::mergeOverlaps()
                                 {
                                     const auto& ep = existing.getPath();
                                     const auto& fp = frag.getPath();
-                                    if (ep == fp ||
-                                        std::equal(ep.begin(), ep.end(), fp.rbegin(), fp.rend()))
+                                    if (ep == fp || std::equal(ep.begin(), ep.end(), fp.rbegin(), fp.rend()))
                                     {
                                         duplicate = true;
                                         break;
@@ -193,6 +219,8 @@ void WireNormalizer::mergeOverlaps()
     }
 }
 
+
+/** @brief Split routes at explicit endpoints and pin anchors so electrical joins have shared vertices. */
 void WireNormalizer::splitJunctions()
 {
     std::vector<GridCoords> junctions;
@@ -227,6 +255,8 @@ void WireNormalizer::splitJunctions()
     }
 }
 
+
+/** @brief Join compatible degree-two continuations while retaining pin anchors and branching junctions. */
 void WireNormalizer::healJunctions()
 {
     bool healed = true;
@@ -301,21 +331,22 @@ void WireNormalizer::healJunctions()
     }
 }
 
+
+/** @brief Remove routes that no longer contain a usable segment after normalization. */
 void WireNormalizer::dropDegenerateWires()
 {
     // Consecutive duplicate nodes can otherwise invent drawable/electrical endpoints.
     for (auto& [id, wire] : m_wires)
         wire.simplifyPath();
     std::erase_if(
-        m_wires,
-        [](const std::pair<const WireId, Wire>& entry) { return entry.second.getPath().size() < 2; }
+        m_wires, [](const std::pair<const WireId, Wire>& entry) { return entry.second.getPath().size() < 2; }
     );
 }
 
 } // namespace
 
-WireChanges
-normalizeWires(std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins, WireId& nextWireId)
+
+WireChanges normalizeWires(std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins, WireId& nextWireId)
 {
     edit_profile::Scope profileScope(edit_profile::Phase::Normalization);
     std::vector<WireId> before;
@@ -332,9 +363,8 @@ normalizeWires(std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins, W
     return changes;
 }
 
-bool collinearOverlap(
-    GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd
-)
+
+bool collinearOverlap(GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd)
 {
     bool abHorizontal = (a.y == b.y), abVertical = (a.x == b.x);
     bool cdHorizontal = (c.y == d.y), cdVertical = (c.x == d.x);

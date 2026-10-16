@@ -9,7 +9,6 @@ enum class SimulationResult
     CONNECTION_REJECTED
 };
 
-
 enum class ClockWorkLimit
 {
     None,
@@ -17,7 +16,7 @@ enum class ClockWorkLimit
     SliceLimit
 };
 
-/** Work accumulated since the last read; diagnostic state is not saved or copied. */
+/** @brief Work accumulated since the last read; diagnostic state is not saved or copied. */
 struct SimulationWork
 {
     double propagationMs = 0;

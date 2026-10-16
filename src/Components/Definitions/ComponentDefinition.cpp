@@ -14,6 +14,7 @@ namespace
 {
 constexpr int maxPins = 256;
 
+
 std::string inputLabel(unsigned int index)
 {
     std::string label;
@@ -25,42 +26,35 @@ std::string inputLabel(unsigned int index)
     return label;
 }
 
+
 int countPins(const DefinitionLayout& layout, PinType direction)
 {
     return static_cast<int>(std::count_if(
-        layout.pins.begin(),
-        layout.pins.end(),
-        [=](const auto& pin) { return pin.direction == direction; }
+        layout.pins.begin(), layout.pins.end(), [=](const auto& pin) { return pin.direction == direction; }
     ));
 }
 
-void validateLayout(
-    const ComponentBehavior& behavior, const DefinitionLayout& layout, bool requireIdentity = true
-)
+
+/** @brief Reject invalid body geometry, duplicate pin identities and unsupported anchor or path coordinates. */
+void validateLayout(const ComponentBehavior& behavior, const DefinitionLayout& layout, bool requireIdentity = true)
 {
-    if (!std::isfinite(layout.width) || !std::isfinite(layout.height) || layout.width <= 0 ||
-        layout.height <= 0 || layout.pins.size() > maxPins)
-        throw std::invalid_argument(
-            "Positive finite dimensions and at most 256 pins are required."
-        );
+    if (!std::isfinite(layout.width) || !std::isfinite(layout.height) || layout.width <= 0 || layout.height <= 0 ||
+        layout.pins.size() > maxPins)
+        throw std::invalid_argument("Positive finite dimensions and at most 256 pins are required.");
     std::set<std::string> identities;
     std::set<std::pair<int, int>> anchors;
     std::set<unsigned int> inputs, outputs;
     for (const auto& pin : layout.pins)
     {
-        if ((requireIdentity && pin.id.empty()) ||
-            (!pin.id.empty() && !identities.insert(pin.id).second) ||
+        if ((requireIdentity && pin.id.empty()) || (!pin.id.empty() && !identities.insert(pin.id).second) ||
             !anchors.emplace(pin.anchor.x, pin.anchor.y).second)
             throw std::invalid_argument("Pins require distinct IDs and anchors.");
-        if (pin.inverted &&
-            (pin.direction != PinType::INPUT || !std::holds_alternative<GateType>(behavior)))
+        if (pin.inverted && (pin.direction != PinType::INPUT || !std::holds_alternative<GateType>(behavior)))
             throw std::invalid_argument("Input inversion requires a logic-gate input.");
         if (!pin.lead.empty())
         {
             if (pin.lead.size() < 2 || pin.lead.size() > 256 || pin.lead.back() != pin.anchor)
-                throw std::invalid_argument(
-                    "A lead needs 2-256 relative points ending at its pin anchor."
-                );
+                throw std::invalid_argument("A lead needs 2-256 relative points ending at its pin anchor.");
             for (std::size_t i = 1; i < pin.lead.size(); ++i)
             {
                 const auto a = pin.lead[i - 1], b = pin.lead[i];
@@ -79,9 +73,7 @@ void validateLayout(
         unsigned int expected = 0;
         for (unsigned int index : *indices)
             if (index != expected++)
-                throw std::invalid_argument(
-                    "Directional pin indices must be contiguous from zero."
-                );
+                throw std::invalid_argument("Directional pin indices must be contiguous from zero.");
     }
     if (const auto* gate = std::get_if<GateType>(&behavior))
     {
@@ -98,11 +90,8 @@ void validateLayout(
     else if (const auto* flip = std::get_if<FlipFlopType>(&behavior))
     {
         FlipFlop check(-1, *flip);
-        if (inputs.size() != static_cast<std::size_t>(check.getInputPinCount()) ||
-            outputs.size() != 2)
-            throw std::invalid_argument(
-                "Flip-flops require their fixed data/clock inputs and two outputs."
-            );
+        if (inputs.size() != static_cast<std::size_t>(check.getInputPinCount()) || outputs.size() != 2)
+            throw std::invalid_argument("Flip-flops require their fixed data/clock inputs and two outputs.");
     }
     else if (std::holds_alternative<OutputBehavior>(behavior))
     {
@@ -113,14 +102,13 @@ void validateLayout(
     {
         if (!sub->authored || !sub->circuit || inputs.empty() || outputs.empty() ||
             inputs.size() != sub->inputs.size() || outputs.size() != sub->outputs.size())
-            throw std::invalid_argument(
-                "Subcircuits require a design and matching input/output ports."
-            );
+            throw std::invalid_argument("Subcircuits require a design and matching input/output ports.");
     }
     else if (!inputs.empty() || outputs.size() != 1)
         throw std::invalid_argument("Native sources require no inputs and one output.");
 }
 } // namespace
+
 
 void validateClockFrequency(float hz)
 {
@@ -128,13 +116,11 @@ void validateClockFrequency(float hz)
         throw std::invalid_argument("Clock frequency must be finite and at least 0.1 Hz.");
 }
 
+
 void validateDefinition(const ComponentDefinition& definition)
 {
-    if (definition.identity.id.empty() || definition.identity.version == 0 ||
-        definition.displayName.empty())
-        throw std::invalid_argument(
-            "A definition requires a stable ID, nonzero version and display name."
-        );
+    if (definition.identity.id.empty() || definition.identity.version == 0 || definition.displayName.empty())
+        throw std::invalid_argument("A definition requires a stable ID, nonzero version and display name.");
     validateLayout(definition.behavior, definition.layout);
     if (definition.pinLayoutRule != PinLayoutRule::Fixed &&
         definition.pinLayoutRule != PinLayoutRule::SymmetricGateInputs)
@@ -156,9 +142,7 @@ void validateDefinition(const ComponentDefinition& definition)
         throw std::invalid_argument("Invalid body contour/inversion combination.");
     for (float channel : body.tint)
         if (!std::isfinite(channel) || channel < 0 || channel > 1)
-            throw std::invalid_argument(
-                "Body tint channels must be finite values from zero to one."
-            );
+            throw std::invalid_argument("Body tint channels must be finite values from zero to one.");
     if (definition.presentation.kind == PresentationKind::Box)
     {
         if (body.contour != BodyContour::Box || body.inverted)
@@ -167,28 +151,23 @@ void validateDefinition(const ComponentDefinition& definition)
         const auto& resources = definition.presentation.shader;
         if (resources.key != box.key || resources.vertexPath != box.vertexPath ||
             resources.fragmentPath != box.fragmentPath)
-            throw std::invalid_argument(
-                "Box definitions must use the registered box presentation."
-            );
+            throw std::invalid_argument("Box definitions must use the registered box presentation.");
     }
     else if (
-        definition.presentation.kind != PresentationKind::NativeSdf ||
-        definition.presentation.shader.key.empty() ||
-        definition.presentation.shader.vertexPath.empty() ||
-        definition.presentation.shader.fragmentPath.empty()
+        definition.presentation.kind != PresentationKind::NativeSdf || definition.presentation.shader.key.empty() ||
+        definition.presentation.shader.vertexPath.empty() || definition.presentation.shader.fragmentPath.empty()
     )
         throw std::invalid_argument("Native presentation requires registered shader resources.");
     if (std::holds_alternative<ClockBehavior>(definition.behavior))
         validateClockFrequency(definition.defaultClockFrequency);
     else if (definition.defaultClockFrequency != 1.0f || definition.defaultClockPaused)
         throw std::invalid_argument("Clock defaults require clock behavior.");
-    if (!std::holds_alternative<ManualInputBehavior>(definition.behavior) &&
-        definition.defaultInputState)
+    if (!std::holds_alternative<ManualInputBehavior>(definition.behavior) && definition.defaultInputState)
         throw std::invalid_argument("Manual input defaults require manual input behavior.");
 }
 
-ResolvedComponent
-resolveDefinition(const ComponentDefinition& definition, const ComponentOverrides& overrides)
+
+ResolvedComponent resolveDefinition(const ComponentDefinition& definition, const ComponentOverrides& overrides)
 {
     validateDefinition(definition);
     const bool isGate = std::holds_alternative<GateType>(definition.behavior);
@@ -212,103 +191,76 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
         inputCount = countPins(*overrides.layout, PinType::INPUT);
     if (inputCount != defaultInputs)
     {
-        if (definition.pinLayoutRule != PinLayoutRule::SymmetricGateInputs || inputCount < 2 ||
-            inputCount >= maxPins)
+        if (definition.pinLayoutRule != PinLayoutRule::SymmetricGateInputs || inputCount < 2 || inputCount >= maxPins)
             throw std::invalid_argument("This interface cannot use the requested input count.");
         const auto first = std::find_if(
-            result.layout.pins.begin(),
-            result.layout.pins.end(),
+            result.layout.pins.begin(), result.layout.pins.end(),
             [](const auto& pin) { return pin.direction == PinType::INPUT && pin.index == 0; }
         );
         const int x = first->anchor.x;
-        std::erase_if(
-            result.layout.pins, [](const auto& pin) { return pin.direction == PinType::INPUT; }
-        );
+        std::erase_if(result.layout.pins, [](const auto& pin) { return pin.direction == PinType::INPUT; });
         for (int index = 0; index < inputCount; ++index)
         {
             const auto original = std::find_if(
-                definition.layout.pins.begin(),
-                definition.layout.pins.end(),
-                [=](const auto& pin)
-                {
-                    return pin.direction == PinType::INPUT &&
-                           pin.index == static_cast<unsigned int>(index);
-                }
+                definition.layout.pins.begin(), definition.layout.pins.end(), [=](const auto& pin)
+                { return pin.direction == PinType::INPUT && pin.index == static_cast<unsigned int>(index); }
             );
             PinDefinition generated{
                 "in." + std::to_string(index),
                 original != definition.layout.pins.end() ? original->label : inputLabel(index),
                 PinType::INPUT,
                 static_cast<unsigned int>(index),
-                {x,
-                 definition.presentation.kind == PresentationKind::NativeSdf
-                     ? inputCount / 2 - index -
-                           (inputCount % 2 == 0 && index >= inputCount / 2 ? 1 : 0)
-                     : inputCount - 1 - 2 * index},
+                {x, definition.presentation.kind == PresentationKind::NativeSdf
+                        ? inputCount / 2 - index - (inputCount % 2 == 0 && index >= inputCount / 2 ? 1 : 0)
+                        : inputCount - 1 - 2 * index},
                 {},
                 original != definition.layout.pins.end() && original->inverted
             };
             if (original != definition.layout.pins.end())
                 for (const auto point : original->lead)
                 {
-                    const auto leadX = static_cast<std::int64_t>(point.x) + generated.anchor.x -
-                                       original->anchor.x;
-                    const auto leadY = static_cast<std::int64_t>(point.y) + generated.anchor.y -
-                                       original->anchor.y;
+                    const auto leadX = static_cast<std::int64_t>(point.x) + generated.anchor.x - original->anchor.x;
+                    const auto leadY = static_cast<std::int64_t>(point.y) + generated.anchor.y - original->anchor.y;
                     for (const auto coordinate : {leadX, leadY})
                         if (coordinate < std::numeric_limits<int>::min() ||
                             coordinate > std::numeric_limits<int>::max())
-                            throw std::invalid_argument(
-                                "Generated lead exceeds the grid coordinate range."
-                            );
+                            throw std::invalid_argument("Generated lead exceeds the grid coordinate range.");
                     generated.lead.push_back({static_cast<int>(leadX), static_cast<int>(leadY)});
                 }
             result.layout.pins.push_back(std::move(generated));
         }
         // Native gates retain their silhouette; extra input rows use a visual input rail.
         if (definition.presentation.kind != PresentationKind::NativeSdf)
-            result.layout.height =
-                std::max(result.layout.height, 2 * GridMetrics::Spacing * inputCount);
+            result.layout.height = std::max(result.layout.height, 2 * GridMetrics::Spacing * inputCount);
     }
-    if (!definition.presentation.allowResize && (result.layout.width != definition.layout.width ||
-                                                 result.layout.height != definition.layout.height))
-        throw std::invalid_argument(
-            "This definition cannot resize to fit the requested input count."
-        );
+    if (!definition.presentation.allowResize &&
+        (result.layout.width != definition.layout.width || result.layout.height != definition.layout.height))
+        throw std::invalid_argument("This definition cannot resize to fit the requested input count.");
     if (overrides.layout)
     {
         validateLayout(definition.behavior, *overrides.layout, false);
-        if (!definition.presentation.allowResize &&
-            (overrides.layout->width != definition.layout.width ||
-             overrides.layout->height != definition.layout.height))
+        if (!definition.presentation.allowResize && (overrides.layout->width != definition.layout.width ||
+                                                     overrides.layout->height != definition.layout.height))
             throw std::invalid_argument("This definition does not allow body resizing.");
         if (countPins(*overrides.layout, PinType::INPUT) != inputCount ||
-            countPins(*overrides.layout, PinType::OUTPUT) !=
-                countPins(result.layout, PinType::OUTPUT))
+            countPins(*overrides.layout, PinType::OUTPUT) != countPins(result.layout, PinType::OUTPUT))
             throw std::invalid_argument("Layout and logical pin counts disagree.");
         auto layout = *overrides.layout;
         for (auto& pin : layout.pins)
         {
             const auto expected = std::find_if(
-                result.layout.pins.begin(),
-                result.layout.pins.end(),
-                [&](const auto& canonical)
+                result.layout.pins.begin(), result.layout.pins.end(), [&](const auto& canonical)
                 { return canonical.direction == pin.direction && canonical.index == pin.index; }
             );
             // Accept the old generated names in saved layouts, retaining stable pin IDs.
             const bool legacyLabel =
                 expected != result.layout.pins.end() &&
-                definition.pinLayoutRule == PinLayoutRule::SymmetricGateInputs &&
-                pin.direction == PinType::INPUT &&
+                definition.pinLayoutRule == PinLayoutRule::SymmetricGateInputs && pin.direction == PinType::INPUT &&
                 pin.index >= static_cast<unsigned int>(defaultInputs) &&
-                pin.label == "In " + std::to_string(pin.index) &&
-                expected->label == inputLabel(pin.index);
-            if (expected == result.layout.pins.end() ||
-                (!pin.id.empty() && pin.id != expected->id) ||
+                pin.label == "In " + std::to_string(pin.index) && expected->label == inputLabel(pin.index);
+            if (expected == result.layout.pins.end() || (!pin.id.empty() && pin.id != expected->id) ||
                 (!pin.label.empty() && pin.label != expected->label && !legacyLabel))
-                throw std::invalid_argument(
-                    "Instance layouts cannot rename or reassign stable definition pins."
-                );
+                throw std::invalid_argument("Instance layouts cannot rename or reassign stable definition pins.");
             pin.id = expected->id;
             pin.label = expected->label;
         }
@@ -320,26 +272,21 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
             result.presentation.kind != PresentationKind::NativeSdf)
             throw std::invalid_argument("Inversion requires a native paired gate.");
         const bool previous = result.presentation.body.inverted;
-        const auto type =
-            Gate::typeWithInversion(std::get<GateType>(result.behavior), *overrides.inverted);
+        const auto type = Gate::typeWithInversion(std::get<GateType>(result.behavior), *overrides.inverted);
         result.behavior = type;
         for (const auto& native : nativeDefinitions())
-            if (const auto* candidate = std::get_if<GateType>(&native.behavior);
-                candidate && *candidate == type)
+            if (const auto* candidate = std::get_if<GateType>(&native.behavior); candidate && *candidate == type)
                 result.presentation.shader = native.presentation.shader;
         result.presentation.body.inverted = *overrides.inverted;
         if (previous != *overrides.inverted && !overrides.layout)
         {
-            result.layout.width =
-                *overrides.inverted ? result.layout.width * 1.5f : result.layout.width / 1.5f;
+            result.layout.width = *overrides.inverted ? result.layout.width * 1.5f : result.layout.width / 1.5f;
             const int delta = *overrides.inverted ? 1 : -1;
             auto shift = [&](GridCoords& point)
             {
                 const auto x = static_cast<std::int64_t>(point.x) + delta;
                 if (x < std::numeric_limits<int>::min() || x > std::numeric_limits<int>::max())
-                    throw std::invalid_argument(
-                        "Inversion output exceeds the grid coordinate range."
-                    );
+                    throw std::invalid_argument("Inversion output exceeds the grid coordinate range.");
                 point.x = static_cast<int>(x);
             };
             for (auto& pin : result.layout.pins)
@@ -357,10 +304,9 @@ resolveDefinition(const ComponentDefinition& definition, const ComponentOverride
     return result;
 }
 
+
 bool supportsOrientation(const ComponentBehavior& behavior)
 {
-    return std::holds_alternative<GateType>(behavior) ||
-           std::holds_alternative<LatchType>(behavior) ||
-           std::holds_alternative<FlipFlopType>(behavior) ||
-           std::holds_alternative<SubcircuitBehavior>(behavior);
+    return std::holds_alternative<GateType>(behavior) || std::holds_alternative<LatchType>(behavior) ||
+           std::holds_alternative<FlipFlopType>(behavior) || std::holds_alternative<SubcircuitBehavior>(behavior);
 }

@@ -2,6 +2,7 @@
 
 out vec4 FragColor;
 
+
 in vec4 vertexColor; // NEW: Receive the color from the vertex shader!
 
 void main()

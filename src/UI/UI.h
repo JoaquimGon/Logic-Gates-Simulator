@@ -21,7 +21,7 @@ class Input;
 class Renderer;
 class Scene;
 
-/** Small tabbed palette and information popup, with direct label and logic-gate settings. */
+/** @brief Small tabbed palette and information popup, with direct label and logic-gate settings. */
 class UI
 {
   public:
@@ -35,6 +35,7 @@ class UI
         OpenStorage,
         ChangeStorage
     };
+
     enum class Menu
     {
         File,
@@ -50,23 +51,24 @@ class UI
     };
 
     CanvasViewport menuBounds(Menu menu) const;
+
     CanvasViewport dropdownBounds(Menu menu) const;
+
     CanvasViewport menuOptionBounds(Menu menu, int index) const;
+
     std::vector<MenuItem> menuOptions(Menu menu) const;
+
     CanvasViewport examplesMenuBounds() const;
+
     CanvasViewport exampleOptionBounds(int index) const;
 
     bool examplesMenuOpen() const { return m_openMenu == Menu::File && m_examplesOpen; }
-
     std::optional<CircuitExample> takeExample() { return std::exchange(m_example, std::nullopt); }
 
-    /** Lets the frame loop present the reset state before advancing automatic clock time. */
+    /** @brief Lets the frame loop present the reset state before advancing automatic clock time. */
     bool takeSimulationReset() { return std::exchange(m_simulationReset, false); }
-
     bool menuOpen(Menu menu) const { return m_openMenu == menu; }
-
     bool bottomVisible() const { return m_bottomVisible; }
-
     bool debugVisible() const { return m_debugVisible; }
 
     enum class UnsavedChoice
@@ -75,12 +77,15 @@ class UI
         Discard,
         Cancel
     };
+
     void showUnsavedPrompt(std::vector<std::string> names, bool exiting, Input& input);
 
     bool unsavedPromptOpen() const { return !m_unsavedNames.empty(); }
 
     std::optional<UnsavedChoice> takeUnsavedChoice();
+
     CanvasViewport unsavedPromptBounds() const;
+
     CanvasViewport unsavedButtonBounds(UnsavedChoice choice) const;
 
     enum class Tab
@@ -88,6 +93,7 @@ class UI
         Native,
         Custom
     };
+
     enum class BottomTab
     {
         Subcircuit,
@@ -106,17 +112,29 @@ class UI
     void showClockPanel(Input& input);
 
     void addMessage(std::string message, MessageKind kind = MessageKind::Error);
+
     void reportSimulation(const Scene& scene, double now);
+
     const std::vector<std::string>& messages() const;
+
     bool hasUnreadMessages() const;
+
     std::size_t messageCount() const;
+
     bool hasMessageErrors() const;
+
     std::string messagesTabLabel() const;
+
     std::string messageNoticeText() const;
+
     CanvasViewport messageNoticeBounds() const;
+
     const std::vector<CircuitViews::SimulationIssue>& simulationIssues() const;
+
     CanvasViewport findMessageBounds(std::size_t issue) const;
+
     void clearMessages();
+
     CanvasViewport messageBoxBounds() const;
 
     struct Button
@@ -134,32 +152,40 @@ class UI
     std::optional<std::size_t> takeCloseCircuit() { return m_circuitTabs.takeCloseRequest(); }
 
     void layout(const ComponentCatalog& catalog, CanvasSurface surface, Input& input);
+
     void setCircuitViews(CircuitViews* views, const FontMetrics* font);
+
     void update(double now, Input& input);
 
     const CircuitTabs& circuitTabs() const { return m_circuitTabs; }
 
     CanvasViewport fileBounds() const;
+
     CanvasViewport fileMenuBounds() const;
+
     CanvasViewport fileOptionBounds(int index) const;
 
     bool fileMenuOpen() const { return menuOpen(Menu::File); }
 
     std::optional<FileCommand> takeFileCommand();
+
     std::optional<std::string> takeEditSubcircuit();
+
     std::vector<std::string> fileOptions() const;
+
     std::vector<FileCommand> fileCommands() const;
+
     void setFileStatus(std::string message, bool error = false);
+
     void dismissPopups(Input& input);
 
-    bool handleInput(
-        const UiInputEvent& event, Scene& scene, Input& input, const CanvasCameraFrame& camera
-    );
+    bool handleInput(const UiInputEvent& event, Scene& scene, Input& input, const CanvasCameraFrame& camera);
+
     void cancel(Input& input);
+
     void draw(Renderer& renderer, const Scene& scene, const CanvasCameraFrame& camera) const;
 
     const std::vector<Button>& buttons() const { return m_buttons; }
-
     Tab activeTab() const { return m_tab; }
 
     CanvasViewport tabBounds(Tab tab) const;
@@ -171,10 +197,13 @@ class UI
     CanvasViewport modeBarBounds() const { return m_modes; }
 
     CanvasViewport modeButtonBounds(EditorMode mode) const;
+
     std::optional<EditorMode> hoveredMode() const;
+
     CanvasViewport modeTooltipBounds() const;
 
     CanvasViewport bottomTabBounds(BottomTab tab) const;
+
     enum class ClockControl
     {
         RunPause,
@@ -186,113 +215,185 @@ class UI
         Fit,
         Clear
     };
+
     CanvasViewport clockControlBounds(ClockControl control) const;
+
     CanvasViewport clockListBounds() const;
+
     CanvasViewport clockFrequencyBounds(int visibleRow) const;
+
     CanvasViewport clockPauseBounds(int visibleRow) const;
-    CanvasViewport
-    signalTraceBounds(const Scene& scene, PinType direction, unsigned int index) const;
+
+    CanvasViewport signalTraceBounds(const Scene& scene, PinType direction, unsigned int index) const;
+
     CanvasViewport signalRemoveBounds(int row) const;
 
     double clockWindowSeconds() const;
-    /** Clocks centre live time; Signals retain their history-only frame. */
+
+    /** @brief Clocks centre live time; Signals retain their history-only frame. */
     double clockStartTime() const;
-    /** Display-only scheduled edges, bounded independently of the recorded history. */
+
+    /** @brief Display-only scheduled edges, bounded independently of the recorded history. */
     std::deque<ClockSample> clockPreview(const ClockReading& clock) const;
+
     std::string clockTimeFrameText() const;
+
     bool clockWaveformTooDense(float frequency) const;
+
     std::vector<std::string> clockTooltip(const Scene& scene) const;
+
     CanvasViewport clockTooltipBounds(const Scene& scene) const;
 
     CanvasViewport subcircuitListBounds() const;
-    /** Interface readiness and vital names, including clocks inside saved nested components. */
+
+    /** @brief Interface readiness and vital names, including clocks inside saved nested components. */
     std::vector<std::string> subcircuitInfo(const Scene& scene) const;
 
     BottomTab activeBottomTab() const { return m_bottomTab; }
-
     bool dragging() const { return !m_dragDefinition.empty(); }
-
     const std::string& message() const { return m_message; }
-
     int infoComponentId() const { return m_infoComponent; }
 
     /** @brief Reads the current name and synchronized pin states; empty if the component is gone.
      */
     std::vector<std::string> componentInfo(const Scene& scene) const;
+
     CanvasViewport infoBounds(const Scene& scene) const;
+
     CanvasViewport nameBounds(const Scene& scene) const;
+
     CanvasViewport labelVisibilityBounds(const Scene& scene) const;
+
     CanvasViewport editSubcircuitBounds(const Scene& scene) const;
+
     CanvasViewport viewInsideBounds(const Scene& scene) const;
+
     CanvasViewport inspectionBackBounds() const;
+
     CanvasViewport gateSettingsBounds(const Scene& scene) const;
+
     CanvasViewport gateInputButtonBounds(const Scene& scene, bool increase) const;
+
     CanvasViewport gateInputListBounds(const Scene& scene) const;
+
     CanvasViewport gateInputInversionBounds(const Scene& scene, unsigned int index) const;
+
     CanvasViewport componentOrientationBounds(const Scene& scene, Orientation orientation) const;
+
     CanvasViewport gateInversionBounds(const Scene& scene) const;
+
     CanvasViewport infoTabBounds(const Scene& scene, bool table) const;
 
     bool truthTableOpen() const { return m_truthTableOpen; }
 
     const TruthTable& truthTable(const Scene& scene) const;
+
     std::optional<int> truthTableCurrentRow(const Scene& scene) const;
+
     CanvasViewport truthTableRowsBounds(const Scene& scene) const;
+
     CanvasViewport currentTruthRowBounds(const Scene& scene) const;
+
     int truthTableVisibleRows(const Scene& scene) const;
+
     int truthTableScroll(const Scene& scene) const;
 
   private:
     bool handleUnsavedPrompt(const UiInputEvent& event, Input& input);
+
     void drawUnsavedPrompt(Renderer& renderer) const;
+
     void layoutBottom(Input& input);
+
     bool handleBottomResize(const UiInputEvent& event, Input& input);
+
     void finishBottomResize(Input& input);
+
     bool handleMenus(const UiInputEvent& event, Input& input);
+
     void refreshMenuOptions(const Input& input);
+
     void executeMenuOption(Menu menu, int index, Input& input);
+
     bool handleClocks(const UiInputEvent& event, Scene& scene, Input& input);
+
     void closeClockEdit(Input& input);
+
     void drawClocks(Renderer& renderer, const Scene& scene) const;
-    std::optional<SignalTrace>
-    signalForPin(const Scene& scene, PinType direction, unsigned int index) const;
+
+    std::optional<SignalTrace> signalForPin(const Scene& scene, PinType direction, unsigned int index) const;
+
     const PinUI* infoPinAtLine(const Scene& scene, int line) const;
+
     void drawSignalRows(Renderer& renderer) const;
+
     double fittedSignalWindow() const;
+
     void drawClockTooltip(Renderer& renderer, const Scene& scene) const;
+
     void updateClockHover(double now);
+
     static double fittedClockWindow(const std::vector<ClockReading>& readings);
+
     ClockTimeline& clockTimeline();
     const ClockTimeline& clockTimeline() const;
+
     double clockLabelWidth() const;
+
     int clockScroll(const Scene& scene) const;
+
     static std::string frequencyText(float frequency);
+
     void closeMenu(Input& input);
+
     const Button* buttonAt(glm::dvec2 point) const;
+
     std::optional<GridCoords> dropPosition(const CanvasCameraFrame& camera) const;
+
     void closeInfo(Input& input);
+
     bool hasTruthTable(const Scene& scene) const;
+
     double infoHeaderSize(const Scene& scene) const;
+
     void revealCurrentTruthRow(const Scene& scene);
+
     void drawTruthTable(Renderer& renderer, const Scene& scene) const;
+
     bool canName(const Scene& scene) const;
+
     const Gate* infoGate(const Scene& scene) const;
+
     bool canResizeGate(const Scene& scene) const;
+
     bool canInvertGate(const Scene& scene) const;
+
     bool canEditSubcircuit(const Scene& scene) const;
+
     bool canViewInside(const Scene& scene) const;
+
     double infoActionHeight(const Scene& scene) const;
+
     bool canOrient(const Scene& scene) const;
+
     CanvasViewport orientationSettingsBounds(const Scene& scene) const;
+
     double infoSettingsHeight(const Scene& scene) const;
+
     int infoVisibleRows(const Scene& scene) const;
+
     int gateInputRows(const Scene& scene) const;
+
     int gateInputScroll(const Scene& scene) const;
 
     double navigationStatusX() const;
+
     std::string unsavedNoticeText() const;
+
     double unsavedNoticeWidth() const;
+
     double navigationStatusWidth() const;
+
     CircuitViews::Messages& messageState();
     const CircuitViews::Messages& messageState() const;
 

@@ -25,6 +25,7 @@ namespace
 using Json = nlohmann::json;
 constexpr std::size_t maxFileBytes = 16 * 1024 * 1024;
 
+
 int integer(const Json& value)
 {
     if (!value.is_number_integer() || value < std::numeric_limits<int>::min() ||
@@ -33,13 +34,14 @@ int integer(const Json& value)
     return value.get<int>();
 }
 
+
 std::uint32_t version(const Json& value)
 {
-    if (!value.is_number_integer() || value < 1 ||
-        value > std::numeric_limits<std::uint32_t>::max())
+    if (!value.is_number_integer() || value < 1 || value > std::numeric_limits<std::uint32_t>::max())
         throw std::invalid_argument("Definition versions must be positive 32-bit integers.");
     return value.get<std::uint32_t>();
 }
+
 
 float number(const Json& value)
 {
@@ -48,6 +50,7 @@ float number(const Json& value)
     return value.get<float>();
 }
 
+
 const Json& array(const Json& value)
 {
     if (!value.is_array())
@@ -55,12 +58,14 @@ const Json& array(const Json& value)
     return value;
 }
 
+
 GridCoords point(const Json& value)
 {
     if (array(value).size() != 2)
         throw std::invalid_argument("Grid points require exactly two coordinates.");
     return {integer(value.at(0)), integer(value.at(1))};
 }
+
 
 Json points(const std::vector<GridCoords>& path)
 {
@@ -70,6 +75,7 @@ Json points(const std::vector<GridCoords>& path)
     return result;
 }
 
+
 std::vector<GridCoords> points(const Json& value)
 {
     std::vector<GridCoords> result;
@@ -77,6 +83,7 @@ std::vector<GridCoords> points(const Json& value)
         result.push_back(point(p));
     return result;
 }
+
 
 Json layoutJson(const DefinitionLayout& layout)
 {
@@ -93,6 +100,7 @@ Json layoutJson(const DefinitionLayout& layout)
         );
     return {{"size", {layout.width, layout.height}}, {"pins", pins}};
 }
+
 
 DefinitionLayout readLayout(const Json& value)
 {
@@ -111,17 +119,14 @@ DefinitionLayout readLayout(const Json& value)
         if (index < 0)
             throw std::invalid_argument("Pin indices must be non-negative.");
         layout.pins.push_back(
-            {pin.at("id").get<std::string>(),
-             pin.at("label").get<std::string>(),
-             direction == "input" ? PinType::INPUT : PinType::OUTPUT,
-             static_cast<unsigned int>(index),
-             point(pin.at("anchor")),
-             points(pin.at("lead")),
-             pin.value("inverted", false)}
+            {pin.at("id").get<std::string>(), pin.at("label").get<std::string>(),
+             direction == "input" ? PinType::INPUT : PinType::OUTPUT, static_cast<unsigned int>(index),
+             point(pin.at("anchor")), points(pin.at("lead")), pin.value("inverted", false)}
         );
     }
     return layout;
 }
+
 
 DefinitionLayout instanceLayout(const ComponentView& view)
 {
@@ -130,26 +135,21 @@ DefinitionLayout instanceLayout(const ComponentView& view)
     for (const auto* pins : {&view.getInputPins(), &view.getOutputPins()})
         for (const auto& pin : *pins)
             layout.pins.push_back(
-                {pin.id,
-                 pin.label,
-                 pin.type,
-                 pin.pin_index,
-                 pin.relative_pos,
-                 pin.lead,
-                 pin.inverted}
+                {pin.id, pin.label, pin.type, pin.pin_index, pin.relative_pos, pin.lead, pin.inverted}
             );
     return layout;
 }
 
+
 Orientation readOrientation(const Json& component)
 {
     const auto name = component.value("orientation", std::string("Right"));
-    for (const auto orientation :
-         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+    for (const auto orientation : {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
         if (name == orientationName(orientation))
             return orientation;
     throw std::invalid_argument("Unknown component orientation.");
 }
+
 
 std::string behaviorId(const ComponentBehavior& behavior)
 {
@@ -166,7 +166,9 @@ std::string behaviorId(const ComponentBehavior& behavior)
     return BuiltinComponentIds::Output;
 }
 
+
 // Reusable definitions carry their authored design, not runtime instance state.
+/** @brief Serialize reusable definitions from their authored designs rather than mutable runtime instances. */
 Json definitionJson(const ComponentDefinition& definition)
 {
     const auto& p = definition.presentation;
@@ -174,10 +176,8 @@ Json definitionJson(const ComponentDefinition& definition)
         {"id", definition.identity.id},
         {"version", definition.identity.version},
         {"name", definition.displayName},
-        {"behavior",
-         std::holds_alternative<SubcircuitBehavior>(definition.behavior)
-             ? "subcircuit"
-             : behaviorId(definition.behavior)},
+        {"behavior", std::holds_alternative<SubcircuitBehavior>(definition.behavior) ? "subcircuit"
+                                                                                     : behaviorId(definition.behavior)},
         {"layout", layoutJson(definition.layout)},
         {"scalable_inputs", definition.pinLayoutRule == PinLayoutRule::SymmetricGateInputs},
         {"label", p.bodyLabel},
@@ -190,12 +190,13 @@ Json definitionJson(const ComponentDefinition& definition)
         {"clock_paused", definition.defaultClockPaused}
     };
     if (const auto* sub = std::get_if<SubcircuitBehavior>(&definition.behavior))
-        result["subcircuit"] = Json::parse(
-            subcircuitToJson(*sub->authored, definition.identity, definition.displayName)
-        );
+        result["subcircuit"] =
+            Json::parse(subcircuitToJson(*sub->authored, definition.identity, definition.displayName));
     return result;
 }
 
+
+/** @brief Decode and validate a reusable component definition, including nested authored designs. */
 ComponentDefinition readDefinition(const Json& value, const ComponentCatalog& natives)
 {
     ComponentDefinition definition;
@@ -204,12 +205,9 @@ ComponentDefinition readDefinition(const Json& value, const ComponentCatalog& na
     if (value.at("behavior") == "subcircuit")
     {
         auto saved = subcircuitFromJson(value.at("subcircuit").dump());
-        if (saved.identity.id != definition.identity.id ||
-            saved.identity.version != definition.identity.version ||
+        if (saved.identity.id != definition.identity.id || saved.identity.version != definition.identity.version ||
             saved.design.name != definition.displayName)
-            throw std::invalid_argument(
-                "Embedded subcircuit identity does not match its definition."
-            );
+            throw std::invalid_argument("Embedded subcircuit identity does not match its definition.");
         definition = makeSubcircuit(saved.design.scene, saved.identity, saved.design.name);
         const auto claimed = readLayout(value.at("layout"));
         if (layoutJson(claimed) != layoutJson(definition.layout))
@@ -223,15 +221,13 @@ ComponentDefinition readDefinition(const Json& value, const ComponentCatalog& na
         definition.behavior = behavior->behavior;
     }
     definition.layout = readLayout(value.at("layout"));
-    definition.pinLayoutRule = value.at("scalable_inputs").get<bool>()
-                                   ? PinLayoutRule::SymmetricGateInputs
-                                   : PinLayoutRule::Fixed;
+    definition.pinLayoutRule =
+        value.at("scalable_inputs").get<bool>() ? PinLayoutRule::SymmetricGateInputs : PinLayoutRule::Fixed;
     auto& p = definition.presentation;
     p.shader = boxShaderResources();
     p.bodyLabel = value.at("label").get<std::string>();
     p.showPinLabels = value.at("show_pin_labels").get<bool>();
-    p.showBodyLabel =
-        value.value("show_body_label", !std::holds_alternative<ClockBehavior>(definition.behavior));
+    p.showBodyLabel = value.value("show_body_label", !std::holds_alternative<ClockBehavior>(definition.behavior));
     p.allowResize = value.at("allow_resize").get<bool>();
     const auto& tint = array(value.at("tint"));
     if (tint.size() != 4)
@@ -245,6 +241,7 @@ ComponentDefinition readDefinition(const Json& value, const ComponentCatalog& na
     return definition;
 }
 
+
 void applyEdits(Scene& scene, const EditBatch& batch)
 {
     const auto result = EditorActions(scene).apply(batch);
@@ -253,17 +250,14 @@ void applyEdits(Scene& scene, const EditBatch& batch)
 }
 } // namespace
 
+
 std::string circuitToJson(const Scene& scene, const std::string& name)
 {
     if (scene.getComponentCount() > 4096 || scene.wireCount() > 16384)
         throw std::invalid_argument("Circuit exceeds 4096 components or 16384 wire routes.");
     Json document{
-        {"format", "logic-gates-circuit"},
-        {"version", 1},
-        {"name", name},
-        {"definitions", Json::array()},
-        {"components", Json::array()},
-        {"wires", Json::array()}
+        {"format", "logic-gates-circuit"}, {"version", 1},          {"name", name}, {"definitions", Json::array()},
+        {"components", Json::array()},     {"wires", Json::array()}
     };
     std::vector<int> ids;
     for (const auto& [id, view] : scene.getComponentViewMap())
@@ -295,8 +289,7 @@ std::string circuitToJson(const Scene& scene, const std::string& name)
             component["port_id"] = view.getPortId();
         if (const auto* gate = dynamic_cast<const Gate*>(logic))
         {
-            if (gate->getType() != NOT &&
-                definition->presentation.kind == PresentationKind::NativeSdf)
+            if (gate->getType() != NOT && definition->presentation.kind == PresentationKind::NativeSdf)
                 component["inverted"] = gate->isInverted();
         }
         else if (const auto* clock = dynamic_cast<const Clock*>(logic))
@@ -312,6 +305,7 @@ std::string circuitToJson(const Scene& scene, const std::string& name)
         document["wires"].push_back(points(wire.getPath()));
     return document.dump(2) + '\n';
 }
+
 
 SavedCircuit circuitFromJson(std::string_view text)
 {
@@ -408,8 +402,7 @@ SavedCircuit circuitFromJson(std::string_view text)
     for (std::size_t i = 0; i < components.size(); ++i)
     {
         ConfigureComponentProperties properties{
-            .componentId = created.createdComponentIds.at(i),
-            .label = components.at(i).at("label").get<std::string>()
+            .componentId = created.createdComponentIds.at(i), .label = components.at(i).at("label").get<std::string>()
         };
         if (components.at(i).contains("label_visible"))
             properties.labelVisible = components.at(i).at("label_visible").get<bool>();
@@ -423,15 +416,16 @@ SavedCircuit circuitFromJson(std::string_view text)
     return saved;
 }
 
+
 namespace
 {
+/** @brief Write a complete temporary file and replace the destination only after the write succeeds. */
 void writeText(const std::filesystem::path& path, const std::string& text)
 {
     if (text.size() > maxFileBytes)
         throw std::invalid_argument("Circuit exceeds the save-file size limits.");
     auto temporary = path;
-    temporary +=
-        "." + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".tmp";
+    temporary += "." + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".tmp";
     try
     {
         std::ofstream stream;
@@ -440,13 +434,9 @@ void writeText(const std::filesystem::path& path, const std::string& text)
         stream.write(text.data(), static_cast<std::streamsize>(text.size()));
         stream.close();
 #ifdef _WIN32
-        if (!MoveFileExW(
-                temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH
-            ))
+        if (!MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
             throw std::system_error(
-                static_cast<int>(GetLastError()),
-                std::system_category(),
-                "Cannot replace circuit file"
+                static_cast<int>(GetLastError()), std::system_category(), "Cannot replace circuit file"
             );
 #else
         std::filesystem::rename(temporary, path);
@@ -460,6 +450,8 @@ void writeText(const std::filesystem::path& path, const std::string& text)
     }
 }
 
+
+/** @brief Read a complete circuit file and reject I/O failures or files exceeding the supported size. */
 std::string readText(const std::filesystem::path& path)
 {
     const auto size = std::filesystem::file_size(path);
@@ -476,6 +468,7 @@ std::string readText(const std::filesystem::path& path)
 }
 } // namespace
 
+
 void saveCircuit(const std::filesystem::path& path, const Scene& scene, const std::string& name)
 {
     if (scene.getComponentCount() > 4096 || scene.wireCount() > 16384)
@@ -483,13 +476,14 @@ void saveCircuit(const std::filesystem::path& path, const Scene& scene, const st
     writeText(path, circuitToJson(scene, name));
 }
 
+
 SavedCircuit loadCircuit(const std::filesystem::path& path)
 {
     return circuitFromJson(readText(path));
 }
 
-std::string
-subcircuitToJson(const Scene& scene, DefinitionIdentity identity, const std::string& name)
+
+std::string subcircuitToJson(const Scene& scene, DefinitionIdentity identity, const std::string& name)
 {
     if (!identity.id.starts_with("subcircuit.") || identity.version == 0)
         throw std::invalid_argument("Subcircuit files require a stable subcircuit.* identity.");
@@ -520,6 +514,7 @@ subcircuitToJson(const Scene& scene, DefinitionIdentity identity, const std::str
            '\n';
 }
 
+
 SavedSubcircuit subcircuitFromJson(std::string_view text)
 {
     if (text.size() > maxFileBytes)
@@ -543,30 +538,27 @@ SavedSubcircuit subcircuitFromJson(std::string_view text)
         throw std::invalid_argument("Invalid subcircuit identity.");
     // Created IDs follow the sorted serialized component order. Check the explicit interface
     // mapping.
-    const auto expected =
-        Json::parse(subcircuitToJson(saved.design.scene, saved.identity, saved.design.name));
+    const auto expected = Json::parse(subcircuitToJson(saved.design.scene, saved.identity, saved.design.name));
     if (document.at("ports") != expected.at("ports"))
-        throw std::invalid_argument(
-            "Subcircuit port order/names do not match the authored design."
-        );
+        throw std::invalid_argument("Subcircuit port order/names do not match the authored design.");
     saved.design.scene.setInterfaceNamingRequired(true);
     return saved;
 }
 
+
 void saveSubcircuit(
-    const std::filesystem::path& path,
-    const Scene& scene,
-    DefinitionIdentity identity,
-    const std::string& name
+    const std::filesystem::path& path, const Scene& scene, DefinitionIdentity identity, const std::string& name
 )
 {
     writeText(path, subcircuitToJson(scene, std::move(identity), name));
 }
 
+
 SavedSubcircuit loadSubcircuit(const std::filesystem::path& path)
 {
     return subcircuitFromJson(readText(path));
 }
+
 
 void writeTextAtomically(const std::filesystem::path& path, const std::string& text)
 {

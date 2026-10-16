@@ -9,17 +9,18 @@
 #include <stdexcept>
 #include <utility>
 
+
 Circuit::Circuit(const Circuit& other)
-    : m_componentOrder(other.m_componentOrder), m_outputStates(other.m_outputStates),
-      m_currentId(other.m_currentId), m_structureDirty(other.m_structureDirty),
-      m_stateDirty(other.m_stateDirty), m_pendingClockTime(other.m_pendingClockTime),
-      m_clockTime(other.m_clockTime), m_clocksPaused(other.m_clocksPaused),
-      m_lastPropagateDurationMs(other.m_lastPropagateDurationMs),
+    : m_componentOrder(other.m_componentOrder), m_outputStates(other.m_outputStates), m_currentId(other.m_currentId),
+      m_structureDirty(other.m_structureDirty), m_stateDirty(other.m_stateDirty),
+      m_pendingClockTime(other.m_pendingClockTime), m_clockTime(other.m_clockTime),
+      m_clocksPaused(other.m_clocksPaused), m_lastPropagateDurationMs(other.m_lastPropagateDurationMs),
       m_lastEvalResult(other.m_lastEvalResult), m_unsettledComponent(other.m_unsettledComponent)
 {
     for (const auto& [id, component] : other.m_components)
         m_components.emplace(id, component->clone());
 }
+
 
 Circuit& Circuit::operator=(const Circuit& other)
 {
@@ -31,10 +32,12 @@ Circuit& Circuit::operator=(const Circuit& other)
     return *this;
 }
 
+
 void Circuit::preserveAllocatedIds(const Circuit& other)
 {
     m_currentId = std::max(m_currentId, other.m_currentId);
 }
+
 
 void Circuit::resizeGateInputs(int componentId, int inputPinCount)
 {
@@ -44,34 +47,37 @@ void Circuit::resizeGateInputs(int componentId, int inputPinCount)
     const auto connections = gate->getInConnections();
     for (const auto& edge : connections)
         if (edge.destPinIndex >= inputPinCount)
-            disconnectComponents(
-                edge.srcComponentId, edge.srcPinIndex, componentId, edge.destPinIndex
-            );
+            disconnectComponents(edge.srcComponentId, edge.srcPinIndex, componentId, edge.destPinIndex);
     gate->m_stateInPins.resize(inputPinCount, false);
     gate->m_invertedInputs.resize(inputPinCount, false);
     m_structureDirty = true;
     m_stateDirty = true;
 }
 
+
 int Circuit::addGate(GateType type)
 {
     return addGate(type, type == NOT ? 1 : 2);
 }
+
 
 int Circuit::addGate(GateType type, int inputPinCount)
 {
     return addComponent(std::make_unique<Gate>(-1, type, inputPinCount));
 }
 
+
 int Circuit::addInputPin(bool initialState)
 {
     return addComponent(std::make_unique<InputPin>(-1, initialState));
 }
 
+
 int Circuit::addOutputPin()
 {
     return addComponent(std::make_unique<OutputPin>(-1));
 }
+
 
 Component* Circuit::getComponent(int id)
 {
@@ -79,11 +85,13 @@ Component* Circuit::getComponent(int id)
     return it != m_components.end() ? it->second.get() : nullptr;
 }
 
+
 const Component* Circuit::getComponent(int id) const
 {
     auto it = m_components.find(id);
     return it != m_components.end() ? it->second.get() : nullptr;
 }
+
 
 std::vector<int> Circuit::componentIds() const
 {
@@ -94,6 +102,7 @@ std::vector<int> Circuit::componentIds() const
     std::sort(ids.begin(), ids.end());
     return ids;
 }
+
 
 void Circuit::delComponent(int id)
 {
@@ -120,17 +129,15 @@ void Circuit::delComponent(int id)
     m_stateDirty = true;
 }
 
-bool Circuit::connectComponents(
-    int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex
-)
+
+bool Circuit::connectComponents(int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex)
 {
-    return tryConnectComponents(srcComponentId, srcPinIndex, destComponentId, destPinIndex) ==
-           ConnectionResult::OK;
+    return tryConnectComponents(srcComponentId, srcPinIndex, destComponentId, destPinIndex) == ConnectionResult::OK;
 }
 
-ConnectionResult Circuit::tryConnectComponents(
-    int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex
-)
+
+ConnectionResult
+Circuit::tryConnectComponents(int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex)
 {
     Component* src = getComponent(srcComponentId);
     Component* dest = getComponent(destComponentId);
@@ -147,8 +154,7 @@ ConnectionResult Circuit::tryConnectComponents(
     for (const auto& existing : dest->getInConnections())
     {
         if (existing.destPinIndex == destPinIndex)
-            return existing == connection ? ConnectionResult::OK
-                                          : ConnectionResult::INPUT_ALREADY_DRIVEN;
+            return existing == connection ? ConnectionResult::OK : ConnectionResult::INPUT_ALREADY_DRIVEN;
     }
 
     src->addOutConnection(connection);
@@ -160,9 +166,8 @@ ConnectionResult Circuit::tryConnectComponents(
     return ConnectionResult::OK;
 }
 
-void Circuit::disconnectComponents(
-    int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex
-)
+
+void Circuit::disconnectComponents(int srcComponentId, int srcPinIndex, int destComponentId, int destPinIndex)
 {
     Component* src = getComponent(srcComponentId);
     Component* dest = getComponent(destComponentId);
@@ -182,6 +187,7 @@ void Circuit::disconnectComponents(
     m_stateDirty = true;
 }
 
+
 void Circuit::clearConnections()
 {
     for (auto& [id, component] : m_components)
@@ -195,6 +201,7 @@ void Circuit::clearConnections()
     m_stateDirty = true;
 }
 
+
 int Circuit::addComponent(std::unique_ptr<Component> component)
 {
     if (!component)
@@ -206,10 +213,12 @@ int Circuit::addComponent(std::unique_ptr<Component> component)
     return id;
 }
 
+
 int Circuit::addClock(float frequencyHz)
 {
     return addComponent(std::make_unique<Clock>(-1, frequencyHz));
 }
+
 
 void Circuit::replaceComponent(int id, std::unique_ptr<Component> component)
 {
@@ -219,6 +228,7 @@ void Circuit::replaceComponent(int id, std::unique_ptr<Component> component)
     component->m_id = id;
     m_components.emplace(id, std::move(component));
 }
+
 
 void Circuit::collectClocks(std::vector<Clock*>& clocks)
 {
@@ -236,11 +246,14 @@ void Circuit::collectClocks(std::vector<Clock*>& clocks)
     }
 }
 
+
 int Circuit::addLatch(LatchType type)
 {
     return addComponent(std::make_unique<Latch>(-1, type));
 }
 
+
+/** @brief Deliver all changed input levels before invoking clock receivers for the same simulation step. */
 void Circuit::publishOutputs(const std::vector<int>& components, std::vector<int>& changed)
 {
     struct InputChange
@@ -283,11 +296,13 @@ void Circuit::publishOutputs(const std::vector<int>& components, std::vector<int
     }
 }
 
+
 SimulationResult Circuit::propagate()
 {
     std::size_t remaining = 100000;
     return propagate(remaining);
 }
+
 
 SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
 {
@@ -338,8 +353,7 @@ SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
         next.erase(std::unique(next.begin(), next.end()), next.end());
         dirty.swap(next);
     }
-    m_lastEvalResult =
-        !failed && dirty.empty() ? SimulationResult::OK : SimulationResult::NON_CONVERGENT;
+    m_lastEvalResult = !failed && dirty.empty() ? SimulationResult::OK : SimulationResult::NON_CONVERGENT;
     if (m_lastEvalResult != SimulationResult::OK && m_unsettledComponent == -1 && !dirty.empty())
         m_unsettledComponent = dirty.front();
     m_stateDirty = false;
@@ -351,10 +365,12 @@ SimulationResult Circuit::propagate(std::size_t& remainingEvaluations)
     return m_lastEvalResult;
 }
 
+
 SimulationWork Circuit::takeSimulationWork()
 {
     return std::exchange(m_work, {});
 }
+
 
 std::vector<ClockReading> Circuit::clockReadings(ClockPath prefix) const
 {
@@ -374,11 +390,7 @@ std::vector<ClockReading> Circuit::clockReadings(ClockPath prefix) const
         path.push_back(id);
         if (clock)
             readings.push_back(
-                {path,
-                 clock->getFrequency(),
-                 clock->isPaused(),
-                 clock->getStateOutPin(),
-                 clock->timeUntilEdge()}
+                {path, clock->getFrequency(), clock->isPaused(), clock->getStateOutPin(), clock->timeUntilEdge()}
             );
         else if (sub)
         {
@@ -388,6 +400,7 @@ std::vector<ClockReading> Circuit::clockReadings(ClockPath prefix) const
     }
     return readings;
 }
+
 
 void Circuit::resetSources()
 {
@@ -403,6 +416,7 @@ void Circuit::resetSources()
     markStateDirty();
 }
 
+
 void Circuit::setClocksPaused(bool paused)
 {
     m_clocksPaused = paused;
@@ -410,13 +424,11 @@ void Circuit::setClocksPaused(bool paused)
         m_pendingClockTime = 0;
 }
 
+
 namespace
 {
 void recordClocks(
-    ClockTimeline* timeline,
-    double time,
-    std::vector<ClockReading>& readings,
-    const std::vector<Clock*>& clocks,
+    ClockTimeline* timeline, double time, std::vector<ClockReading>& readings, const std::vector<Clock*>& clocks,
     bool edge = false
 )
 {
@@ -428,6 +440,7 @@ void recordClocks(
     timeline->record(time, readings, edge);
 }
 } // namespace
+
 
 int Circuit::stepClocks(int count, ClockTimeline* timeline)
 {
@@ -471,6 +484,7 @@ int Circuit::stepClocks(int count, ClockTimeline* timeline)
     }
     return processed;
 }
+
 
 bool Circuit::updateClocks(float deltaTime, ClockTimeline* timeline)
 {

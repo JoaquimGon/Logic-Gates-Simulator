@@ -1,11 +1,14 @@
 #version 330 core
 
-#include "common/sdf.glsl"
 #include "common/outline.glsl"
+#include "common/sdf.glsl"
 out vec4 FragColor;
 in vec4 instanceTint;
+
+
 in vec2 localPos; // -0.5..0.5, independent of camera (same contract as the gates)
 
+/** @brief Shade the manual input symbol with state tint, antialiased coverage and an inset outline. */
 void main()
 {
     vec2 p = localPos * 1.3; // same internal shape scale as the gates
@@ -16,7 +19,7 @@ void main()
     const float halfSize = 0.42;
     float body = sdRoundBox(p, vec2(halfSize), 0.14);
 
-    // Hollow triangle (dinstict from a gate) 
+    // Hollow triangle (dinstict from a gate)
     float glyph = sdRightTriangle(p, 0.28, 0.32);
     float d = max(body, -glyph);
 

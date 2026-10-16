@@ -8,8 +8,11 @@ struct WireUnion
 {
     std::map<WireId, WireId> parent;
 
+
     void add(WireId id) { parent.emplace(id, id); }
 
+
+    /** @brief Resolve a union-find representative and compress the visited path for subsequent connectivity queries. */
     WireId find(WireId id) const
     {
         auto it = parent.find(id);
@@ -21,6 +24,7 @@ struct WireUnion
         return id;
     }
 
+
     void unite(WireId a, WireId b)
     {
         a = find(a);
@@ -31,11 +35,9 @@ struct WireUnion
 };
 } // namespace
 
+
 ConnectivityResult buildConnectivity(
-    const std::map<WireId, Wire>& wires,
-    std::span<const PinAnchor> pins,
-    Circuit& circuit,
-    NetId nextNetId
+    const std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins, Circuit& circuit, NetId nextNetId
 )
 {
     ConnectivityResult result;
@@ -60,9 +62,7 @@ ConnectivityResult buildConnectivity(
     }
 
     for (const auto& anchor : pins)
-        pinsAtPoint[{anchor.position.x, anchor.position.y}].push_back(
-            {anchor.pin, anchor.type == PinType::OUTPUT}
-        );
+        pinsAtPoint[{anchor.position.x, anchor.position.y}].push_back({anchor.pin, anchor.type == PinType::OUTPUT});
 
     WireUnion groups;
     for (const auto& [id, wire] : wires)
@@ -106,17 +106,15 @@ ConnectivityResult buildConnectivity(
             {
                 if (!net.addDriver(pinAt.pin))
                 {
-                    std::cerr << "[Net Conflict] Short circuit: Component " << pinAt.pin.componentId
-                              << " Pin " << pinAt.pin.pinIndex
-                              << " connects to an already driven net!\n";
+                    std::cerr << "[Net Conflict] Short circuit: Component " << pinAt.pin.componentId << " Pin "
+                              << pinAt.pin.pinIndex << " connects to an already driven net!\n";
                 }
             }
             else
             {
                 net.addSink(pinAt.pin);
             }
-            result.pinNets[{pinAt.pin.componentId, pinAt.pin.pinIndex, pinAt.isOutput}] =
-                netIt->second;
+            result.pinNets[{pinAt.pin.componentId, pinAt.pin.pinIndex, pinAt.isOutput}] = netIt->second;
         }
     }
 
@@ -131,16 +129,13 @@ ConnectivityResult buildConnectivity(
         const PinRef driver = *net.getDriver();
         for (const PinRef& sink : net.getSinks())
         {
-            const ConnectionResult connectionResult = circuit.tryConnectComponents(
-                driver.componentId, driver.pinIndex, sink.componentId, sink.pinIndex
-            );
+            const ConnectionResult connectionResult =
+                circuit.tryConnectComponents(driver.componentId, driver.pinIndex, sink.componentId, sink.pinIndex);
             if (connectionResult == ConnectionResult::OK)
                 continue;
 
             result.rejectedConnections.push_back(
-                {netId,
-                 {driver.componentId, driver.pinIndex, sink.componentId, sink.pinIndex},
-                 connectionResult}
+                {netId, {driver.componentId, driver.pinIndex, sink.componentId, sink.pinIndex}, connectionResult}
             );
             const char* reason = "invalid connection";
             switch (connectionResult)
@@ -160,9 +155,9 @@ ConnectivityResult buildConnectivity(
             if (result.status == SimulationResult::OK)
                 result.status = SimulationResult::CONNECTION_REJECTED;
 
-            std::cerr << "[Connection Rejected] Net " << netId << ": Component "
-                      << driver.componentId << " Out[" << driver.pinIndex << "] -> Component "
-                      << sink.componentId << " In[" << sink.pinIndex << "]: " << reason << ".\n";
+            std::cerr << "[Connection Rejected] Net " << netId << ": Component " << driver.componentId << " Out["
+                      << driver.pinIndex << "] -> Component " << sink.componentId << " In[" << sink.pinIndex
+                      << "]: " << reason << ".\n";
         }
     }
 

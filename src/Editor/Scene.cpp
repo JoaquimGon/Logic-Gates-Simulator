@@ -21,14 +21,14 @@ void validatePins(const std::vector<PinUI>& pins, PinType type, int pinCount)
     std::vector<bool> seen(pinCount, false);
     for (const auto& pin : pins)
     {
-        if (pin.type != type || pin.pin_index >= static_cast<size_t>(pinCount) ||
-            seen[pin.pin_index])
+        if (pin.type != type || pin.pin_index >= static_cast<size_t>(pinCount) || seen[pin.pin_index])
             throw std::invalid_argument("View pin indices must be unique, valid, and directional.");
         seen[pin.pin_index] = true;
     }
 }
 
 } // namespace
+
 
 ComponentView* Scene::getComponentView(int componentId)
 {
@@ -37,10 +37,12 @@ ComponentView* Scene::getComponentView(int componentId)
     return it != views.end() ? it->second.get() : nullptr;
 }
 
+
 Component* Scene::getLogicComponent(int componentId)
 {
     return isReadOnly() ? nullptr : m_circuit.getComponent(componentId);
 }
+
 
 const Component* Scene::getLogicComponent(int componentId) const
 {
@@ -48,6 +50,7 @@ const Component* Scene::getLogicComponent(int componentId) const
         return m_observedCircuit->getComponent(runtimeComponentId(componentId));
     return m_circuit.getComponent(componentId);
 }
+
 
 int Scene::runtimeComponentId(int authoredId) const
 {
@@ -57,11 +60,9 @@ int Scene::runtimeComponentId(int authoredId) const
     return found == m_observedIds.end() ? -1 : found->second;
 }
 
+
 void Scene::observeRuntime(
-    const Circuit& runtime,
-    const std::vector<std::pair<int, int>>& ids,
-    SimulationResult result,
-    bool dirty
+    const Circuit& runtime, const std::vector<std::pair<int, int>>& ids, SimulationResult result, bool dirty
 )
 {
     if (!isReadOnly())
@@ -73,6 +74,7 @@ void Scene::observeRuntime(
     syncVisuals();
 }
 
+
 WireId Scene::insertWire(Wire wire)
 {
     // Ids are handed out in order and never recycled: that is what makes a
@@ -83,11 +85,13 @@ WireId Scene::insertWire(Wire wire)
     return id;
 }
 
+
 const Wire* Scene::getWire(WireId id) const
 {
     auto it = m_wires.find(id);
     return it != m_wires.end() ? &it->second : nullptr;
 }
+
 
 std::vector<WireId> Scene::getWireIds() const
 {
@@ -97,6 +101,7 @@ std::vector<WireId> Scene::getWireIds() const
         ids.push_back(id);
     return ids;
 }
+
 
 void Scene::rebuildNets()
 {
@@ -125,8 +130,7 @@ void Scene::rebuildNets()
         pins.insert(pins.end(), component.pins.begin(), component.pins.end());
     normalizeWires(m_wires, pins, m_nextWireId);
     auto topology = edit_profile::measure(
-        edit_profile::Phase::Connectivity,
-        [&] { return buildConnectivity(m_wires, pins, m_circuit, m_nextNetId); }
+        edit_profile::Phase::Connectivity, [&] { return buildConnectivity(m_wires, pins, m_circuit, m_nextNetId); }
     );
     m_nets = std::move(topology.nets);
     m_pinNet = std::move(topology.pinNets);
@@ -140,6 +144,7 @@ void Scene::rebuildNets()
         syncVisuals();
 }
 
+
 std::vector<ComponentGeometry> Scene::committedGeometry() const
 {
     std::vector<ComponentGeometry> geometry;
@@ -148,25 +153,18 @@ std::vector<ComponentGeometry> Scene::committedGeometry() const
     {
         const auto bounds = view->getBodyBounds();
         ComponentGeometry component{
-            id,
-            view->getGridPosition(),
-            bounds.centerX(),
-            bounds.centerY(),
-            bounds.width(),
-            bounds.height(),
-            {}
+            id, view->getGridPosition(), bounds.centerX(), bounds.centerY(), bounds.width(), bounds.height(), {}
         };
         for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
             for (const auto& pin : *pins)
                 component.pins.push_back(
-                    {{id, static_cast<int>(pin.pin_index)},
-                     pin.type,
-                     view->getAbsolutePinGridPos(pin)}
+                    {{id, static_cast<int>(pin.pin_index)}, pin.type, view->getAbsolutePinGridPos(pin)}
                 );
         geometry.push_back(std::move(component));
     }
     return geometry;
 }
+
 
 const Net* Scene::getNet(NetId id) const
 {
@@ -174,17 +172,20 @@ const Net* Scene::getNet(NetId id) const
     return it != m_nets.end() ? &it->second : nullptr;
 }
 
+
 NetId Scene::netOfWire(WireId id) const
 {
     const Wire* wire = getWire(id);
     return wire ? wire->getNet() : INVALID_NET_ID;
 }
 
+
 NetId Scene::netOfPin(const PinRef& pin, PinType type) const
 {
     auto it = m_pinNet.find({pin.componentId, pin.pinIndex, type == PinType::OUTPUT});
     return it != m_pinNet.end() ? it->second : INVALID_NET_ID;
 }
+
 
 PinState Scene::pinState(const PinRef& pin, PinType type)
 {
@@ -210,10 +211,12 @@ PinState Scene::pinState(const PinRef& pin, PinType type)
     return net->getState() == PinState::ON ? PinState::ON : PinState::DISCONNECTED;
 }
 
+
 HitResult Scene::hitTest(glm::vec2 worldPos, GridCoords gridPos) const
 {
     return hitGeometry(committedGeometry(), m_wires, worldPos.x, worldPos.y, gridPos);
 }
+
 
 bool Scene::getCollinearOverlap(
     GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd
@@ -221,6 +224,7 @@ bool Scene::getCollinearOverlap(
 {
     return collinearOverlap(a, b, c, d, outStart, outEnd);
 }
+
 
 std::string Scene::signalName(int componentId, PinType direction, unsigned int index) const
 {
@@ -236,8 +240,7 @@ std::string Scene::signalName(int componentId, PinType direction, unsigned int i
     {
         int ordinal = 0;
         for (const auto& [id, other] : getComponentViewMap())
-            if (id <= componentId &&
-                other->getDefinitionIdentity().id == view->getDefinitionIdentity().id)
+            if (id <= componentId && other->getDefinitionIdentity().id == view->getDefinitionIdentity().id)
                 ++ordinal;
         name = (definition ? definition->displayName : "Component") + " " + std::to_string(ordinal);
     }
@@ -250,6 +253,7 @@ std::string Scene::signalName(int componentId, PinType direction, unsigned int i
                                                  : " (in)");
     return name;
 }
+
 
 void Scene::prepareSignalTraces(ClockTimeline& timeline) const
 {
@@ -264,11 +268,9 @@ void Scene::prepareSignalTraces(ClockTimeline& timeline) const
             const auto* view = getCommittedComponentView(signal.path.front());
             if (!view)
                 return true;
-            const auto& pins =
-                signal.direction == PinType::INPUT ? view->getInputPins() : view->getOutputPins();
-            const auto found = std::find_if(
-                pins.begin(), pins.end(), [&](const auto& pin) { return pin.id == signal.pinId; }
-            );
+            const auto& pins = signal.direction == PinType::INPUT ? view->getInputPins() : view->getOutputPins();
+            const auto found =
+                std::find_if(pins.begin(), pins.end(), [&](const auto& pin) { return pin.id == signal.pinId; });
             if (found == pins.end())
                 return true;
             return false;
@@ -278,8 +280,7 @@ void Scene::prepareSignalTraces(ClockTimeline& timeline) const
         if (signal.path.size() == 1)
         {
             const auto* view = getCommittedComponentView(signal.path.front());
-            const auto& pins =
-                signal.direction == PinType::INPUT ? view->getInputPins() : view->getOutputPins();
+            const auto& pins = signal.direction == PinType::INPUT ? view->getInputPins() : view->getOutputPins();
             for (const auto& pin : pins)
                 if (pin.id == signal.pinId)
                     signal.pinIndex = pin.pin_index;
@@ -287,19 +288,21 @@ void Scene::prepareSignalTraces(ClockTimeline& timeline) const
         }
 }
 
+
 void Scene::recordSignalTraces(ClockTimeline& timeline) const
 {
     prepareSignalTraces(timeline);
     timeline.recordSignals(m_circuit, getLastEvalResult() == SimulationResult::OK);
 }
 
+
 bool Scene::updateClocks(float deltaTime, ClockTimeline* timeline)
 {
     if (timeline)
         prepareSignalTraces(*timeline);
-    return !isReadOnly() && m_topologyResult == SimulationResult::OK &&
-           m_circuit.updateClocks(deltaTime, timeline);
+    return !isReadOnly() && m_topologyResult == SimulationResult::OK && m_circuit.updateClocks(deltaTime, timeline);
 }
+
 
 void Scene::resetSimulation()
 {
@@ -309,6 +312,7 @@ void Scene::resetSimulation()
     propagate();
     syncVisuals();
 }
+
 
 SimulationResult Scene::propagate()
 {
@@ -322,12 +326,14 @@ SimulationResult Scene::propagate()
     return m_circuit.propagate();
 }
 
+
 void Scene::togglePauseAllClocks()
 {
     if (isReadOnly())
         return;
     m_circuit.setClocksPaused(!m_circuit.clocksPaused());
 }
+
 
 int Scene::stepAllClocks(int count, ClockTimeline* timeline)
 {
@@ -342,6 +348,7 @@ int Scene::stepAllClocks(int count, ClockTimeline* timeline)
     syncVisuals();
     return steps;
 }
+
 
 std::string Scene::clockName(const ClockPath& path) const
 {
@@ -364,16 +371,14 @@ std::string Scene::clockName(const ClockPath& path) const
         const auto* view = authored->getCommittedComponentView(id);
         if (!view)
             return name + "Clock";
-        const auto* definition =
-            authored->getComponentCatalog().find(view->getDefinitionIdentity().id);
+        const auto* definition = authored->getComponentCatalog().find(view->getDefinitionIdentity().id);
         auto label = view->getBodyLabel();
         const bool leaf = level + 1 == path.size();
         if (leaf && blankComponentName(label))
         {
             int number = 0;
             for (const auto& [otherId, ignored] : authored->getComponentViewMap())
-                if (otherId <= id &&
-                    dynamic_cast<const Clock*>(authored->getLogicComponent(otherId)))
+                if (otherId <= id && dynamic_cast<const Clock*>(authored->getLogicComponent(otherId)))
                     ++number;
             label = "Clock " + std::to_string(number);
         }
@@ -384,9 +389,8 @@ std::string Scene::clockName(const ClockPath& path) const
             {
                 int number = 0;
                 for (const auto& [otherId, ignored] : authored->getComponentViewMap())
-                    if (otherId <= id &&
-                        authored->getCommittedComponentView(otherId)->getDefinitionIdentity().id ==
-                            view->getDefinitionIdentity().id)
+                    if (otherId <= id && authored->getCommittedComponentView(otherId)->getDefinitionIdentity().id ==
+                                             view->getDefinitionIdentity().id)
                         ++number;
                 label = defaultLabel + " " + std::to_string(number);
             }
@@ -394,8 +398,7 @@ std::string Scene::clockName(const ClockPath& path) const
         name += label;
         if (!leaf)
         {
-            const auto* sub =
-                definition ? std::get_if<SubcircuitBehavior>(&definition->behavior) : nullptr;
+            const auto* sub = definition ? std::get_if<SubcircuitBehavior>(&definition->behavior) : nullptr;
             if (!sub)
                 break;
             authored = sub->authored.get();
@@ -404,6 +407,7 @@ std::string Scene::clockName(const ClockPath& path) const
     }
     return name;
 }
+
 
 void Scene::setAllClocksFrequency(float hz)
 {
@@ -416,10 +420,10 @@ void Scene::setAllClocksFrequency(float hz)
         clock->setFrequency(hz);
 }
 
+
 void Scene::syncVisuals()
 {
-    const bool blocked =
-        getLastEvalResult() != SimulationResult::OK || (isReadOnly() && m_observedDirty);
+    const bool blocked = getLastEvalResult() != SimulationResult::OK || (isReadOnly() && m_observedDirty);
     auto syncViews = [&](auto& views)
     {
         for (auto& [id, view] : views)
@@ -429,16 +433,14 @@ void Scene::syncVisuals()
                 continue;
 
             for (auto& pin : view->editOutputPins())
-                pin.state = blocked ? PinState::DISCONNECTED
-                                    : (comp->getStateOutPin(static_cast<int>(pin.pin_index))
-                                           ? PinState::ON
-                                           : PinState::OFF);
+                pin.state =
+                    blocked ? PinState::DISCONNECTED
+                            : (comp->getStateOutPin(static_cast<int>(pin.pin_index)) ? PinState::ON : PinState::OFF);
 
             for (auto& pin : view->editInputPins())
-                pin.state = blocked ? PinState::DISCONNECTED
-                                    : (comp->getStateInPin(static_cast<int>(pin.pin_index))
-                                           ? PinState::ON
-                                           : PinState::OFF);
+                pin.state = blocked
+                                ? PinState::DISCONNECTED
+                                : (comp->getStateInPin(static_cast<int>(pin.pin_index)) ? PinState::ON : PinState::OFF);
         }
     };
     syncViews(m_componentViews);
@@ -453,11 +455,9 @@ void Scene::syncVisuals()
         }
         else if (net.hasDriver())
         {
-            const Component* driver =
-                std::as_const(*this).getLogicComponent(net.getDriver()->componentId);
+            const Component* driver = std::as_const(*this).getLogicComponent(net.getDriver()->componentId);
             net.setState(
-                driver ? (driver->getStateOutPin(net.getDriver()->pinIndex) ? PinState::ON
-                                                                            : PinState::OFF)
+                driver ? (driver->getStateOutPin(net.getDriver()->pinIndex) ? PinState::ON : PinState::OFF)
                        : PinState::DISCONNECTED
             );
         }
@@ -478,6 +478,7 @@ void Scene::syncVisuals()
             wire.setState(committed->getState());
 }
 
+
 bool Scene::handleClick(int componentId)
 {
     if (isReadOnly())
@@ -495,31 +496,25 @@ bool Scene::handleClick(int componentId)
     return false;
 }
 
+
 std::vector<glm::vec3> Scene::getWireIntersections() const
 {
     std::vector<PinAnchor> pins;
     for (const auto& [id, view] : getComponentViewMap())
         for (const auto* group : {&view->getInputPins(), &view->getOutputPins()})
             for (const auto& pin : *group)
-                pins.push_back(
-                    {{id, static_cast<int>(pin.pin_index)},
-                     pin.type,
-                     view->getAbsolutePinGridPos(pin)}
-                );
+                pins.push_back({{id, static_cast<int>(pin.pin_index)}, pin.type, view->getAbsolutePinGridPos(pin)});
     std::vector<glm::vec3> intersections;
     for (const auto& junction : wireJunctions(getVisibleWires(), pins))
     {
-        const float state = junction.state == PinState::ON    ? 1.0f
-                            : junction.state == PinState::OFF ? 2.0f
-                                                              : 0.0f;
+        const float state = junction.state == PinState::ON ? 1.0f : junction.state == PinState::OFF ? 2.0f : 0.0f;
         intersections.push_back(
-            {static_cast<float>(junction.position.x),
-             static_cast<float>(junction.position.y),
-             state}
+            {static_cast<float>(junction.position.x), static_cast<float>(junction.position.y), state}
         );
     }
     return intersections;
 }
+
 
 bool Scene::checkOverlap(int draggedComponentId) const
 {

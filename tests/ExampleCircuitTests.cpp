@@ -17,20 +17,21 @@ void require(bool value, const char* message)
         throw std::runtime_error(message);
 }
 
+
 int named(const Scene& scene, const char* label, const char* definition = nullptr)
 {
     for (const auto& [id, view] : scene.getComponentViewMap())
-        if (view->getBodyLabel() == label &&
-            (!definition || view->getDefinitionIdentity().id == definition))
+        if (view->getBodyLabel() == label && (!definition || view->getDefinitionIdentity().id == definition))
             return id;
     throw std::runtime_error(std::string("Missing example label: ") + label);
 }
 
+
 bool output(const Scene& scene, const char* label)
 {
-    return scene.getLogicComponent(named(scene, label, BuiltinComponentIds::Output))
-        ->getStateInPin(0);
+    return scene.getLogicComponent(named(scene, label, BuiltinComponentIds::Output))->getStateInPin(0);
 }
+
 
 void set(Scene& scene, const char* label, bool value)
 {
@@ -39,6 +40,8 @@ void set(Scene& scene, const char* label, bool value)
         scene.handleClick(id);
 }
 
+
+/** @brief Verify logic-gate and adder examples against every expected input combination. */
 void combinational(Scene& scene, CircuitExample example)
 {
     for (int inputs = 0; inputs < (example == CircuitExample::FullAdder ? 8 : 4); ++inputs)
@@ -60,18 +63,19 @@ void combinational(Scene& scene, CircuitExample example)
             );
         else
         {
-            const int sum =
-                int(a) + int(b) + (example == CircuitExample::FullAdder ? int(carry) : 0);
+            const int sum = int(a) + int(b) + (example == CircuitExample::FullAdder ? int(carry) : 0);
             require(
                 output(scene, "Sum") == bool(sum & 1) &&
-                    output(scene, example == CircuitExample::FullAdder ? "Carry out" : "Carry") ==
-                        bool(sum & 2),
+                    output(scene, example == CircuitExample::FullAdder ? "Carry out" : "Carry") == bool(sum & 2),
                 "Adder example has an incorrect truth table."
             );
         }
     }
 }
 
+
+/** @brief Verify all example scenes use valid topology and the sequential example follows its expected count sequence.
+ */
 void circuits()
 {
     require(circuitExamples().size() == 4, "Unexpected example catalog.");
@@ -83,10 +87,7 @@ void circuits()
             "Example opened with a simulation error."
         );
         auto loaded = circuitFromJson(circuitToJson(scene, std::string(info.name)));
-        require(
-            loaded.scene.getComponentCount() == scene.getComponentCount(),
-            "Example did not survive save/reopen."
-        );
+        require(loaded.scene.getComponentCount() == scene.getComponentCount(), "Example did not survive save/reopen.");
         if (info.id != CircuitExample::Counter)
         {
             combinational(scene, info.id);
@@ -103,20 +104,18 @@ void circuits()
                 require(scene.stepAllClocks(1) == 1, "Counter could not single-step.");
                 const int value = (edge + 1) / 2 % 4;
                 require(
-                    output(scene, "Bit 0 (1)") == bool(value & 1) &&
-                        output(scene, "Bit 1 (2)") == bool(value & 2),
+                    output(scene, "Bit 0 (1)") == bool(value & 1) && output(scene, "Bit 1 (2)") == bool(value & 2),
                     "Counter missed a rising edge or counted on a falling edge."
                 );
             }
             scene.resetSimulation();
-            require(
-                !output(scene, "Bit 0 (1)") && !output(scene, "Bit 1 (2)"),
-                "Counter reset did not restore zero."
-            );
+            require(!output(scene, "Bit 0 (1)") && !output(scene, "Bit 1 (2)"), "Counter reset did not restore zero.");
         }
     }
 }
 
+
+/** @brief Verify the File examples submenu routes selection without replacing an existing workspace. */
 void menus()
 {
     CircuitViews views;
@@ -128,8 +127,7 @@ void menus()
     views.setActiveFile("existing.json");
     ui.setCircuitViews(&views, &font);
     const auto original = circuitToJson(views.mainScene(), "Main");
-    for (const auto surface :
-         {CanvasSurface{900, 700, 900, 700}, CanvasSurface{320, 500, 640, 1000}})
+    for (const auto surface : {CanvasSurface{900, 700, 900, 700}, CanvasSurface{320, 500, 640, 1000}})
     {
         ui.layout(views.activeScene().getComponentCatalog(), surface, input);
         const auto frame = CanvasCamera{}.frame(surface);
@@ -165,8 +163,7 @@ void menus()
         const auto parent = ui.fileOptionBounds(static_cast<int>(ui.fileCommands().size()));
         hover(parent);
         require(
-            ui.examplesMenuOpen() && !ui.takeFileCommand(),
-            "Examples hover queued a File command or failed to expand."
+            ui.examplesMenuOpen() && !ui.takeFileCommand(), "Examples hover queued a File command or failed to expand."
         );
         const auto bounds = ui.examplesMenuBounds();
         require(
@@ -183,16 +180,14 @@ void menus()
         click(ui.exampleOptionBounds(1));
         const auto selected = ui.takeExample();
         require(
-            selected == CircuitExample::HalfAdder && !ui.takeExample() && !ui.fileMenuOpen() &&
-                !ui.takeFileCommand(),
+            selected == CircuitExample::HalfAdder && !ui.takeExample() && !ui.fileMenuOpen() && !ui.takeFileCommand(),
             "Example selection did not queue one distinct request and close the menu."
         );
         const auto oldSize = views.size();
         openExampleCircuit(*selected, ui, views, input, surface);
         require(
             views.size() == oldSize + 1 && views.name(views.activeIndex()) == "Half adder" &&
-                views.activeFile().empty() &&
-                circuitToJson(views.mainScene(), "Main") == original &&
+                views.activeFile().empty() && circuitToJson(views.mainScene(), "Main") == original &&
                 input.getMode() == EditorMode::Interaction && input.getUndoCount() == 0,
             "Opening an example replaced existing work or inherited file/history state."
         );
@@ -200,14 +195,14 @@ void menus()
     }
     openExampleCircuit(CircuitExample::Counter, ui, views, input, {900, 700, 900, 700});
     require(
-        ui.activeBottomTab() == UI::BottomTab::Clocks && ui.bottomVisible() &&
-            views.activeScene().clocksPaused(),
+        ui.activeBottomTab() == UI::BottomTab::Clocks && ui.bottomVisible() && views.activeScene().clocksPaused(),
         "Counter did not open with visible clock controls and a paused clock."
     );
     ui.setCircuitViews(nullptr, nullptr);
     input.setScene(nullptr);
 }
 } // namespace
+
 
 int main()
 {

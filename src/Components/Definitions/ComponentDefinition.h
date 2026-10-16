@@ -29,7 +29,7 @@ struct OutputBehavior
 class Scene;
 class Circuit;
 
-/** Authored design and a simulation template; instances clone the latter. */
+/** @brief Authored design and a simulation template; instances clone the latter. */
 struct SubcircuitBehavior
 {
     std::shared_ptr<const Scene> authored;
@@ -40,13 +40,7 @@ struct SubcircuitBehavior
 };
 
 using ComponentBehavior = std::variant<
-    GateType,
-    ManualInputBehavior,
-    ClockBehavior,
-    LatchType,
-    OutputBehavior,
-    SubcircuitBehavior,
-    FlipFlopType>;
+    GateType, ManualInputBehavior, ClockBehavior, LatchType, OutputBehavior, SubcircuitBehavior, FlipFlopType>;
 
 struct DefinitionIdentity
 {
@@ -77,6 +71,7 @@ enum class PresentationKind
     NativeSdf,
     Box
 };
+
 enum class PinLayoutRule
 {
     Fixed,
@@ -99,7 +94,7 @@ struct PresentationDefinition
     bool showBodyLabel = true;
 };
 
-/** Reusable type metadata. Position and live signal/timer/latch state are instance data. */
+/** @brief Reusable type metadata. Position and live signal/timer/latch state are instance data. */
 struct ComponentDefinition
 {
     DefinitionIdentity identity;
@@ -113,7 +108,7 @@ struct ComponentDefinition
     bool defaultClockPaused = false;
 };
 
-/** Explicit instance options; absent fields use catalog defaults. */
+/** @brief Explicit instance options; absent fields use catalog defaults. */
 struct ComponentOverrides
 {
     std::optional<int> inputCount;
@@ -141,7 +136,8 @@ bool supportsOrientation(const ComponentBehavior& behavior);
 
 /** @brief Rejects inconsistent metadata/interfaces and unsupported presentation features. */
 void validateDefinition(const ComponentDefinition& definition);
+
 /** @brief Applies options to a copy; validates stable pin identities and behavior pin counts. */
-ResolvedComponent
-resolveDefinition(const ComponentDefinition& definition, const ComponentOverrides& overrides = {});
+ResolvedComponent resolveDefinition(const ComponentDefinition& definition, const ComponentOverrides& overrides = {});
+
 void validateClockFrequency(float hz);

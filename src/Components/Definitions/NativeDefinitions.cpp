@@ -6,29 +6,19 @@
 
 namespace
 {
-ComponentDefinition gate(
-    const char* id,
-    const char* name,
-    GateType type,
-    const char* shader,
-    const char* fragment,
-    bool inverted = false
-)
+ComponentDefinition
+gate(const char* id, const char* name, GateType type, const char* shader, const char* fragment, bool inverted = false)
 {
     const bool unary = type == NOT;
     ComponentDefinition definition;
     definition.identity = {id, 1};
     definition.displayName = name;
     definition.behavior = type;
-    definition.layout = {
-        (inverted ? 6 : 4) * GridMetrics::Spacing, (unary ? 2 : 4) * GridMetrics::Spacing, {}
-    };
+    definition.layout = {(inverted ? 6 : 4) * GridMetrics::Spacing, (unary ? 2 : 4) * GridMetrics::Spacing, {}};
     definition.layout.pins.push_back({"in.0", "A", PinType::INPUT, 0, {-2, unary ? 0 : 1}, {}});
     if (!unary)
         definition.layout.pins.push_back({"in.1", "B", PinType::INPUT, 1, {-2, -1}, {}});
-    definition.layout.pins.push_back(
-        {"out", "Y", PinType::OUTPUT, 0, {unary ? 1 : (inverted ? 3 : 2), 0}, {}}
-    );
+    definition.layout.pins.push_back({"out", "Y", PinType::OUTPUT, 0, {unary ? 1 : (inverted ? 3 : 2), 0}, {}});
     definition.pinLayoutRule = unary ? PinLayoutRule::Fixed : PinLayoutRule::SymmetricGateInputs;
     definition.presentation.kind = PresentationKind::NativeSdf;
     definition.presentation.shader = {shader, "shaders/components/gates/gate.vert", fragment};
@@ -46,35 +36,28 @@ ComponentDefinition gate(
     return definition;
 }
 
-ComponentDefinition source(
-    const char* id,
-    const char* name,
-    ComponentBehavior behavior,
-    const char* shader,
-    const char* fragment
-)
+
+ComponentDefinition
+source(const char* id, const char* name, ComponentBehavior behavior, const char* shader, const char* fragment)
 {
     ComponentDefinition definition;
     definition.identity = {id, 1};
     definition.displayName = name;
     definition.behavior = behavior;
     definition.layout = {
-        3 * GridMetrics::Spacing,
-        3 * GridMetrics::Spacing,
-        {{"out", "Out", PinType::OUTPUT, 0, {1, 0}, {}}}
+        3 * GridMetrics::Spacing, 3 * GridMetrics::Spacing, {{"out", "Out", PinType::OUTPUT, 0, {1, 0}, {}}}
     };
     definition.presentation.kind = PresentationKind::NativeSdf;
     definition.presentation.shader = {shader, "shaders/components/gates/gate.vert", fragment};
     const bool clock = std::holds_alternative<ClockBehavior>(behavior);
     definition.presentation.showBodyLabel = !clock;
     definition.presentation.body = {
-        clock ? BodyContour::Clock : BodyContour::Input,
-        false,
-        clock ? std::array<float, 4>{0.18f, 0.65f, 0.60f, 1}
-              : std::array<float, 4>{0.85f, 0.82f, 0.25f, 1}
+        clock ? BodyContour::Clock : BodyContour::Input, false,
+        clock ? std::array<float, 4>{0.18f, 0.65f, 0.60f, 1} : std::array<float, 4>{0.85f, 0.82f, 0.25f, 1}
     };
     return definition;
 }
+
 
 ComponentDefinition latch(const char* id, const char* name, LatchType type)
 {
@@ -100,6 +83,7 @@ ComponentDefinition latch(const char* id, const char* name, LatchType type)
     return definition;
 }
 
+
 ComponentDefinition flipFlop(const char* id, const char* name, const char* label, FlipFlopType type)
 {
     const bool jk = type == FlipFlopType::JK;
@@ -122,9 +106,7 @@ ComponentDefinition flipFlop(const char* id, const char* name, const char* label
     );
     if (jk)
         definition.layout.pins.push_back({"k", "K", PinType::INPUT, 1, {-3, 0}, {}});
-    definition.layout.pins.push_back(
-        {"clk", "CLK", PinType::INPUT, jk ? 2u : 1u, {-3, jk ? -2 : -1}, {}}
-    );
+    definition.layout.pins.push_back({"clk", "CLK", PinType::INPUT, jk ? 2u : 1u, {-3, jk ? -2 : -1}, {}});
     definition.layout.pins.push_back({"q", "Q", PinType::OUTPUT, 0, {3, 1}, {}});
     definition.layout.pins.push_back({"not-q", "~Q", PinType::OUTPUT, 1, {3, -1}, {}});
     definition.presentation.kind = PresentationKind::Box;
@@ -134,6 +116,7 @@ ComponentDefinition flipFlop(const char* id, const char* name, const char* label
     return definition;
 }
 
+
 ComponentDefinition output()
 {
     ComponentDefinition definition;
@@ -141,9 +124,7 @@ ComponentDefinition output()
     definition.displayName = "Output";
     definition.behavior = OutputBehavior{};
     definition.layout = {
-        3 * GridMetrics::Spacing,
-        3 * GridMetrics::Spacing,
-        {{"in", "Signal", PinType::INPUT, 0, {-1, 0}, {}}}
+        3 * GridMetrics::Spacing, 3 * GridMetrics::Spacing, {{"in", "Signal", PinType::INPUT, 0, {-1, 0}, {}}}
     };
     definition.presentation.kind = PresentationKind::NativeSdf;
     definition.presentation.shader = {
@@ -154,58 +135,22 @@ ComponentDefinition output()
 }
 } // namespace
 
+
 const std::vector<ComponentDefinition>& nativeDefinitions()
 {
     static const std::vector<ComponentDefinition> definitions{
         source(
-            BuiltinComponentIds::Input,
-            "Input",
-            ManualInputBehavior{},
-            "inputPin",
-            "shaders/components/inputPin.frag"
+            BuiltinComponentIds::Input, "Input", ManualInputBehavior{}, "inputPin", "shaders/components/inputPin.frag"
         ),
         output(),
-        source(
-            BuiltinComponentIds::Clock,
-            "Clock",
-            ClockBehavior{},
-            "clock",
-            "shaders/components/clock.frag"
-        ),
-        gate(
-            BuiltinComponentIds::Not, "NOT", NOT, "NOTgate", "shaders/components/gates/notGate.frag"
-        ),
-        gate(
-            BuiltinComponentIds::And, "AND", AND, "ANDgate", "shaders/components/gates/andGate.frag"
-        ),
-        gate(
-            BuiltinComponentIds::Nand,
-            "NAND",
-            NAND,
-            "NANDgate",
-            "shaders/components/gates/nandGate.frag",
-            true
-        ),
+        source(BuiltinComponentIds::Clock, "Clock", ClockBehavior{}, "clock", "shaders/components/clock.frag"),
+        gate(BuiltinComponentIds::Not, "NOT", NOT, "NOTgate", "shaders/components/gates/notGate.frag"),
+        gate(BuiltinComponentIds::And, "AND", AND, "ANDgate", "shaders/components/gates/andGate.frag"),
+        gate(BuiltinComponentIds::Nand, "NAND", NAND, "NANDgate", "shaders/components/gates/nandGate.frag", true),
         gate(BuiltinComponentIds::Or, "OR", OR, "ORgate", "shaders/components/gates/orGate.frag"),
-        gate(
-            BuiltinComponentIds::Nor,
-            "NOR",
-            NOR,
-            "NORgate",
-            "shaders/components/gates/norGate.frag",
-            true
-        ),
-        gate(
-            BuiltinComponentIds::Xor, "XOR", XOR, "XORgate", "shaders/components/gates/xorGate.frag"
-        ),
-        gate(
-            BuiltinComponentIds::Nxor,
-            "NXOR",
-            NXOR,
-            "NXORgate",
-            "shaders/components/gates/nxorGate.frag",
-            true
-        ),
+        gate(BuiltinComponentIds::Nor, "NOR", NOR, "NORgate", "shaders/components/gates/norGate.frag", true),
+        gate(BuiltinComponentIds::Xor, "XOR", XOR, "XORgate", "shaders/components/gates/xorGate.frag"),
+        gate(BuiltinComponentIds::Nxor, "NXOR", NXOR, "NXORgate", "shaders/components/gates/nxorGate.frag", true),
         latch(BuiltinComponentIds::SrLatch, "SR LATCH", LatchType::SR_LATCH),
         latch(BuiltinComponentIds::DLatch, "D LATCH", LatchType::D_LATCH),
         flipFlop(BuiltinComponentIds::DFlipFlop, "D FLIP-FLOP", "D FF", FlipFlopType::D),
@@ -215,6 +160,7 @@ const std::vector<ComponentDefinition>& nativeDefinitions()
     return definitions;
 }
 
+
 const ShaderResources& boxShaderResources()
 {
     static const ShaderResources resources{
@@ -223,25 +169,28 @@ const ShaderResources& boxShaderResources()
     return resources;
 }
 
+
 template <typename T>
 const std::string& nativeId(T type)
 {
     for (const auto& definition : nativeDefinitions())
-        if (const auto* behavior = std::get_if<T>(&definition.behavior);
-            behavior && *behavior == type)
+        if (const auto* behavior = std::get_if<T>(&definition.behavior); behavior && *behavior == type)
             return definition.identity.id;
     throw std::invalid_argument("Unknown native behavior.");
 }
+
 
 const std::string& builtinDefinitionId(GateType type)
 {
     return nativeId(type);
 }
 
+
 const std::string& builtinDefinitionId(LatchType type)
 {
     return nativeId(type);
 }
+
 
 const std::string& builtinDefinitionId(FlipFlopType type)
 {

@@ -10,14 +10,15 @@ float circle(float x, float y, float cx, float cy, float radius)
     return std::hypot(x - cx, y - cy) - radius;
 }
 
+
 float box(float x, float y, float hx, float hy, float radius)
 {
     const float dx = std::abs(x) - hx + radius;
     const float dy = std::abs(y) - hy + radius;
-    return std::min(std::max(dx, dy), 0.0f) + std::hypot(std::max(dx, 0.0f), std::max(dy, 0.0f)) -
-           radius;
+    return std::min(std::max(dx, dy), 0.0f) + std::hypot(std::max(dx, 0.0f), std::max(dy, 0.0f)) - radius;
 }
 } // namespace
+
 
 BodyBounds normalizedBodyBounds(const BodyStyle& style)
 {
@@ -34,10 +35,8 @@ BodyBounds normalizedBodyBounds(const BodyStyle& style)
         break;
     case BodyContour::Xor:
         bounds = {
-            -1.27f + std::sqrt(0.847f * 0.847f - 0.38f * 0.38f),
-            -0.4f,
-            -0.334f + std::sqrt(1.05f * 1.05f - 0.65f * 0.65f),
-            0.4f
+            -1.27f + std::sqrt(0.847f * 0.847f - 0.38f * 0.38f), -0.4f,
+            -0.334f + std::sqrt(1.05f * 1.05f - 0.65f * 0.65f), 0.4f
         };
         break;
     case BodyContour::Not:
@@ -62,16 +61,13 @@ BodyBounds normalizedBodyBounds(const BodyStyle& style)
     return bounds;
 }
 
+
 BodyBounds bodyBounds(const BodyStyle& style, float x, float y, float width, float height)
 {
     const auto bounds = normalizedBodyBounds(style);
-    return {
-        x + bounds.left * width,
-        y + bounds.bottom * height,
-        x + bounds.right * width,
-        y + bounds.top * height
-    };
+    return {x + bounds.left * width, y + bounds.bottom * height, x + bounds.right * width, y + bounds.top * height};
 }
+
 
 BodyBounds orientedBounds(BodyBounds bounds, float x, float y, Orientation orientation)
 {
@@ -90,6 +86,7 @@ BodyBounds orientedBounds(BodyBounds bounds, float x, float y, Orientation orien
         }
     return result;
 }
+
 
 float bodyContourDistance(const BodyStyle& style, float x, float y)
 {
@@ -114,9 +111,7 @@ float bodyContourDistance(const BodyStyle& style, float x, float y)
     }
     case BodyContour::Not:
         y *= 0.5f;
-        return std::min(
-            std::max(-x - 0.5f, std::abs(y) + 0.5f * x), circle(x, y, 0.125f, 0, 0.125f)
-        );
+        return std::min(std::max(-x - 0.5f, std::abs(y) + 0.5f * x), circle(x, y, 0.125f, 0, 0.125f));
     case BodyContour::Input:
         return box(x * 1.3f, y * 1.3f, 0.42f, 0.42f, 0.14f);
     case BodyContour::Clock:
@@ -129,12 +124,13 @@ float bodyContourDistance(const BodyStyle& style, float x, float y)
     return style.inverted ? std::min(d, circle(x, y, 0.615f, 0, 0.13f)) : d;
 }
 
+
 bool usesHorizontalContact(const BodyStyle& style, float x, float y)
 {
-    return style.contour == BodyContour::And || style.contour == BodyContour::Or ||
-           style.contour == BodyContour::Xor || style.contour == BodyContour::Not ||
-           std::abs(x) >= std::abs(y);
+    return style.contour == BodyContour::And || style.contour == BodyContour::Or || style.contour == BodyContour::Xor ||
+           style.contour == BodyContour::Not || std::abs(x) >= std::abs(y);
 }
+
 
 std::array<float, 2> bodyContact(const BodyStyle& style, float x, float y)
 {
@@ -147,10 +143,7 @@ std::array<float, 2> bodyContact(const BodyStyle& style, float x, float y)
     const float start = std::clamp(varying, -0.75f, 0.75f);
     const float end = -sign * 0.75f;
     auto distance = [&](float along, float row)
-    {
-        return horizontal ? bodyContourDistance(style, along, row)
-                          : bodyContourDistance(style, row, along);
-    };
+    { return horizontal ? bodyContourDistance(style, along, row) : bodyContourDistance(style, row, along); };
     // First try the exact pin row. Extreme rows get a dogleg into a safe inner band.
     for (const float row : {fixed, std::clamp(fixed, -0.3f, 0.3f), 0.0f})
     {
@@ -168,8 +161,7 @@ std::array<float, 2> bodyContact(const BodyStyle& style, float x, float y)
                     else
                         inside = middle;
                 }
-                return horizontal ? std::array<float, 2>{inside, row}
-                                  : std::array<float, 2>{row, inside};
+                return horizontal ? std::array<float, 2>{inside, row} : std::array<float, 2>{row, inside};
             }
             outside = inside;
         }

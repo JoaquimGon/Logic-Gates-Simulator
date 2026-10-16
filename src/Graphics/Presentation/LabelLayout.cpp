@@ -5,9 +5,7 @@
 
 namespace
 {
-float fitScale(
-    const std::string& text, float width, float height, float maximum, const FontMetrics& font
-)
+float fitScale(const std::string& text, float width, float height, float maximum, const FontMetrics& font)
 {
     const float naturalWidth = getTextWidth(text, 1, font);
     const float cap = getCapHeight(1, font);
@@ -17,37 +15,31 @@ float fitScale(
 }
 } // namespace
 
-std::vector<TextRun>
-layoutComponentLabels(std::span<const ComponentRenderData> components, const FontMetrics& font)
+
+std::vector<TextRun> layoutComponentLabels(std::span<const ComponentRenderData> components, const FontMetrics& font)
 {
     std::vector<TextRun> runs;
     for (const auto& component : components)
     {
         const auto& body = component.body;
         const auto bounds = body.getBodyBounds();
-        const bool vertical =
-            body.orientation == Orientation::Up || body.orientation == Orientation::Down;
+        const bool vertical = body.orientation == Orientation::Up || body.orientation == Orientation::Down;
         const glm::vec2 size = vertical ? glm::vec2{body.size.y, body.size.x} : body.size;
         const glm::vec2 low{bounds.left, bounds.bottom};
         const glm::vec2 high{bounds.right, bounds.top};
         const float inset = std::min({0.01f, size.x * 0.05f, size.y * 0.05f});
         if (!component.bodyLabel.empty())
         {
-            const bool below = body.style.contour == BodyContour::Input ||
-                               body.style.contour == BodyContour::Output ||
+            const bool below = body.style.contour == BodyContour::Input || body.style.contour == BodyContour::Output ||
                                body.style.contour == BodyContour::Clock;
-            float scale = fitScale(
-                component.bodyLabel, size.x * (below ? 2.5f : 0.8f), size.y * 0.2f, 0.0012f, font
-            );
+            float scale = fitScale(component.bodyLabel, size.x * (below ? 2.5f : 0.8f), size.y * 0.2f, 0.0012f, font);
             // Prefer the center; move into a free band when pin labels occupy that row.
             float row = below ? low.y - 0.015f - getCapHeight(scale, font) * 0.5f : body.position.y;
             if (!below && component.showPinLabels && !component.pins.empty())
             {
                 float bestClearance = -1;
                 for (const float candidate :
-                     {body.position.y,
-                      body.position.y + size.y * 0.3f,
-                      body.position.y - size.y * 0.3f})
+                     {body.position.y, body.position.y + size.y * 0.3f, body.position.y - size.y * 0.3f})
                 {
                     float clearance = size.y;
                     for (const auto& pin : component.pins)
@@ -85,16 +77,11 @@ layoutComponentLabels(std::span<const ComponentRenderData> components, const Fon
                     if (separation > 0.00001f)
                         availableHeight = std::min(availableHeight, separation * 0.7f);
                 }
-            const bool left =
-                relative.x < 0 || (relative.x == 0 && pin.direction == PinType::INPUT);
-            const float edge =
-                horizontal
-                    ? std::clamp(
-                          pin.position.x + (left ? inset : -inset), low.x + inset, high.x - inset
-                      )
-                    : body.position.x;
-            float width = horizontal ? (left ? high.x - inset - edge : edge - low.x - inset)
-                                     : size.x - 2 * inset;
+            const bool left = relative.x < 0 || (relative.x == 0 && pin.direction == PinType::INPUT);
+            const float edge = horizontal
+                                   ? std::clamp(pin.position.x + (left ? inset : -inset), low.x + inset, high.x - inset)
+                                   : body.position.x;
+            float width = horizontal ? (left ? high.x - inset - edge : edge - low.x - inset) : size.x - 2 * inset;
             width = std::min(width, size.x * 0.38f);
             const float scale = fitScale(pin.label, width, availableHeight, 0.001f, font);
             if (scale <= 0)
@@ -109,14 +96,9 @@ layoutComponentLabels(std::span<const ComponentRenderData> components, const Fon
                 };
             else
                 baseline = {
-                    std::clamp(
-                        pin.position.x - textWidth * 0.5f, low.x + inset, high.x - inset - textWidth
-                    ),
-                    relative.y > 0
-                        ? std::clamp(
-                              pin.position.y - inset - cap, low.y + inset, high.y - inset - cap
-                          )
-                        : std::clamp(pin.position.y + inset, low.y + inset, high.y - inset - cap)
+                    std::clamp(pin.position.x - textWidth * 0.5f, low.x + inset, high.x - inset - textWidth),
+                    relative.y > 0 ? std::clamp(pin.position.y - inset - cap, low.y + inset, high.y - inset - cap)
+                                   : std::clamp(pin.position.y + inset, low.y + inset, high.y - inset - cap)
                 };
             runs.push_back({pin.label, baseline, scale, {0.75f, 0.85f, 0.95f, 0.85f}});
         }

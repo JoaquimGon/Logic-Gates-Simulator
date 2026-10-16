@@ -12,7 +12,7 @@ class Input;
 class Renderer;
 struct FontMetrics;
 
-/** A tab strip with simple rename/deletion popups, drawn with existing rectangles and text. */
+/** @brief A tab strip with simple rename/deletion popups, drawn with existing rectangles and text. */
 class CircuitTabs
 {
   public:
@@ -21,45 +21,64 @@ class CircuitTabs
     std::optional<std::size_t> takeCloseRequest();
 
     bool hasCloseRequest() const { return m_closeRequest.has_value(); }
-
     bool enabled() const { return m_views && m_font; }
 
     void layout(CanvasViewport bar);
+
     void update(double now, Input& input);
+
     bool handleInput(const UiInputEvent& event, Input& input);
+
     void cancel(Input& input);
+
     void draw(Renderer& renderer) const;
 
     CanvasViewport tabBounds(std::size_t index) const;
+
     CanvasViewport addBounds() const;
+
     CanvasViewport createMenuBounds() const;
+
     CanvasViewport createOptionBounds(int index) const;
+
     CanvasViewport roleBounds() const;
+
     CanvasViewport closeBounds(std::size_t index) const;
+
     CanvasViewport popupBounds() const;
+
     CanvasViewport nameBounds() const;
+
     CanvasViewport deleteBounds() const;
+
     CanvasViewport cancelDeleteBounds() const;
+
     bool contains(double x, double y) const;
+
     std::string tabName(std::size_t index) const;
+
     std::string activeViewLabel() const;
+
     std::string activeViewName() const;
+
     bool activeIsSubcircuit() const;
+
     bool activeHasUnsavedChanges() const;
+
     std::size_t activeViewIndex() const;
 
     bool popupOpen() const { return m_popup.has_value() || m_createMenu; }
-
     bool choosingRole() const { return m_createMenu; }
-
     std::optional<std::size_t> popupIndex() const { return m_popup; }
-
     bool confirmingDelete() const { return m_confirmDelete; }
 
   private:
     std::optional<std::size_t> tabAt(double x, double y) const;
+
     void open(std::size_t index);
+
     void stopEditing(Input& input);
+
     double maxScroll() const;
 
     CircuitViews* m_views = nullptr;

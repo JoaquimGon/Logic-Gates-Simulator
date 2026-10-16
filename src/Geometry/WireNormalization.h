@@ -20,9 +20,6 @@ struct WireChanges
  * @return Removed/added IDs relative to the input. Unchanged routes retain their IDs.
  * No nets or simulation edges are built here; callers must rebuild derived connectivity.
  */
-WireChanges
-normalizeWires(std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins, WireId& nextWireId);
+WireChanges normalizeWires(std::map<WireId, Wire>& wires, std::span<const PinAnchor> pins, WireId& nextWireId);
 
-bool collinearOverlap(
-    GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd
-);
+bool collinearOverlap(GridCoords a, GridCoords b, GridCoords c, GridCoords d, GridCoords& outStart, GridCoords& outEnd);

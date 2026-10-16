@@ -13,7 +13,7 @@ enum class UiInputKind
     WindowFocus
 };
 
-/** Native event values; key/button/action/modifier codes match GLFW without requiring its headers.
+/** @brief Native event values; key/button/action/modifier codes match GLFW without requiring its headers.
  */
 struct UiInputEvent
 {
@@ -31,9 +31,10 @@ struct UiInputCapture
 {
     bool keyboard = false;
     bool pointer = false;
+
     bool operator==(const UiInputCapture&) const = default;
 };
 
-/** Called before canvas handling; true consumes this event. Persistent ownership uses setUiCapture.
+/** @brief Called before canvas handling; true consumes this event. Persistent ownership uses setUiCapture.
  */
 using UiInputHandler = std::function<bool(const UiInputEvent&)>;

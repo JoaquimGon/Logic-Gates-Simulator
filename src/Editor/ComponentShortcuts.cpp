@@ -4,6 +4,7 @@
 
 #include <GLFW/glfw3.h>
 
+
 std::optional<EditOperation> componentShortcut(int key, GridCoords position)
 {
     const char* definitionId;

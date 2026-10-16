@@ -24,6 +24,7 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
 class Editor
 {
   public:
@@ -33,7 +34,9 @@ class Editor
         glfwSetWindowUserPointer(window, &input);
     }
 
+
     ~Editor() { glfwSetWindowUserPointer(window, nullptr); }
+
 
     void cursorPixels(double x, double y)
     {
@@ -41,15 +44,17 @@ class Editor
         Input::cursorPositionCallback(window, x, y);
     }
 
+
     void cursor(GridCoords position)
     {
-        const auto point =
-            input.getCameraFrame(window).worldToWindow(GridSystem::gridToWorld(position));
+        const auto point = input.getCameraFrame(window).worldToWindow(GridSystem::gridToWorld(position));
         require(point.has_value(), "Cursor helper received an inactive canvas.");
         cursorPixels(point->x, point->y);
     }
 
+
     void mouse(int button, int action) { Input::mouseButtonCallback(window, button, action, 0); }
+
 
     void key(int key)
     {
@@ -58,17 +63,16 @@ class Editor
         Input::keyCallback(window, key, 0, GLFW_RELEASE, 0);
     }
 
+
+    /** @brief Build a native inverter with known pin anchors for input gesture tests. */
     int inverter(GridCoords position)
     {
         return scene.addGate(
-            NOT,
-            position,
-            {0.2f, 0.1f},
-            "NOTgate",
-            {{PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 0}}},
+            NOT, position, {0.2f, 0.1f}, "NOTgate", {{PinType::INPUT, 0, PinState::DISCONNECTED, {-2, 0}}},
             {{PinType::OUTPUT, 0, PinState::DISCONNECTED, {1, 0}}}
         );
     }
+
 
     void wire(std::vector<GridCoords> path)
     {
@@ -77,14 +81,15 @@ class Editor
         scene.commitWire(std::move(wire));
     }
 
+
+    /** @brief Check logical and visual pin anchors remain aligned after configuration and orientation changes. */
     void verifyPinLocations()
     {
         for (const auto& [id, view] : scene.getComponentViewMap())
         {
             for (PinType type : {PinType::INPUT, PinType::OUTPUT})
             {
-                const auto& pins =
-                    type == PinType::INPUT ? view->getInputPins() : view->getOutputPins();
+                const auto& pins = type == PinType::INPUT ? view->getInputPins() : view->getOutputPins();
                 for (const auto& pin : pins)
                 {
                     const GridCoords position = view->getAbsolutePinGridPos(pin);
@@ -109,13 +114,17 @@ class Editor
         }
     }
 
+
     Scene scene;
     Input input;
+
 
   private:
     GLFWwindow* window;
 };
 
+
+/** @brief Verify cancelled component drags restore geometry and leave committed topology unchanged. */
 void dragCancellation(GLFWwindow* window)
 {
     for (int cancelMethod = 0; cancelMethod < 4; ++cancelMethod)
@@ -162,12 +171,8 @@ void dragCancellation(GLFWwindow* window)
         editor.verifyPinLocations();
         editor.scene.propagate();
         editor.scene.syncVisuals();
-        require(
-            editor.scene.getLogicComponent(sink)->getStateInPin(0), "Cancellation lost wiring."
-        );
-        require(
-            editor.scene.getWireIds() == wireIds, "Cancellation changed settled wire geometry."
-        );
+        require(editor.scene.getLogicComponent(sink)->getStateInPin(0), "Cancellation lost wiring.");
+        require(editor.scene.getWireIds() == wireIds, "Cancellation changed settled wire geometry.");
 
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
         require(
@@ -177,6 +182,8 @@ void dragCancellation(GLFWwindow* window)
     }
 }
 
+
+/** @brief Verify a completed drag publishes one undoable edit with correctly connected routes. */
 void dragCommit(GLFWwindow* window)
 {
     for (GridCoords target : {GridCoords{6, 4}, GridCoords{0, 4}, GridCoords{12, 0}})
@@ -220,6 +227,8 @@ void dragCommit(GLFWwindow* window)
     }
 }
 
+
+/** @brief Verify small drag offsets and release positions resolve into stable grid-aligned placements. */
 void forgivingDrag(GLFWwindow* window)
 {
     Editor editor(window);
@@ -261,6 +270,8 @@ void forgivingDrag(GLFWwindow* window)
     );
 }
 
+
+/** @brief Verify alternate movement retains fixed wire geometry and reconnects only at actual landed anchors. */
 void altDrag(GLFWwindow* window)
 {
     for (bool rightAlt : {false, true})
@@ -309,8 +320,7 @@ void altDrag(GLFWwindow* window)
         );
     }
     Editor editor(window);
-    const int first =
-        editor.scene.addComponent(BuiltinComponentIds::Input, {-8, 0}, {.inputState = true});
+    const int first = editor.scene.addComponent(BuiltinComponentIds::Input, {-8, 0}, {.inputState = true});
     const int second = editor.scene.addComponent(BuiltinComponentIds::Input, {-8, 4});
     const int gate = editor.inverter({0, 0});
     editor.wire({{-7, 0}, {-2, 0}});
@@ -320,10 +330,8 @@ void altDrag(GLFWwindow* window)
     editor.cursor({6, 4});
     Input::mouseButtonCallback(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, GLFW_MOD_ALT);
     require(
-        editor.scene.netOfPin({gate, 0}, PinType::INPUT) ==
-                editor.scene.netOfPin({second, 0}, PinType::OUTPUT) &&
-            editor.scene.netOfPin({gate, 0}, PinType::INPUT) !=
-                editor.scene.netOfPin({first, 0}, PinType::OUTPUT),
+        editor.scene.netOfPin({gate, 0}, PinType::INPUT) == editor.scene.netOfPin({second, 0}, PinType::OUTPUT) &&
+            editor.scene.netOfPin({gate, 0}, PinType::INPUT) != editor.scene.netOfPin({first, 0}, PinType::OUTPUT),
         "Alt drop at a new wire endpoint did not reconnect to that wire."
     );
     editor.input.cancelCurrentAction();
@@ -332,8 +340,7 @@ void altDrag(GLFWwindow* window)
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     Input::mouseButtonCallback(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, GLFW_MOD_ALT);
     require(
-        editor.scene.getRevision() == revision &&
-            editor.scene.netOfPin({gate, 0}, PinType::INPUT) != INVALID_NET_ID,
+        editor.scene.getRevision() == revision && editor.scene.netOfPin({gate, 0}, PinType::INPUT) != INVALID_NET_ID,
         "Alt drop at the same position lost connectivity or created an unnecessary edit."
     );
     editor.input.cancelCurrentAction();
@@ -349,6 +356,9 @@ void altDrag(GLFWwindow* window)
     );
 }
 
+
+/** @brief Verify newly placed components obey anchor policies and fit nearby wires consistently with moved components.
+ */
 void spawnPlacement(GLFWwindow* window)
 {
     for (const int key : {GLFW_KEY_1, GLFW_KEY_9})
@@ -360,8 +370,7 @@ void spawnPlacement(GLFWwindow* window)
         editor.key(key);
         require(
             editor.scene.getComponentCount() == 1 && editor.scene.wireCount() == 1 &&
-                editor.scene.getTopologyBuildCount() == builds + 1 &&
-                editor.input.getUndoCount() == 1 &&
+                editor.scene.getTopologyBuildCount() == builds + 1 && editor.input.getUndoCount() == 1 &&
                 editor.scene.getWires().begin()->second.containsPoint({1, 0}) &&
                 editor.scene.getWires().begin()->second.containsPoint({6, 0}) &&
                 !editor.scene.getWires().begin()->second.containsPoint({-6, 0}),
@@ -370,24 +379,14 @@ void spawnPlacement(GLFWwindow* window)
         editor.verifyPinLocations();
     }
     for (int key :
-         {GLFW_KEY_1,
-          GLFW_KEY_2,
-          GLFW_KEY_3,
-          GLFW_KEY_4,
-          GLFW_KEY_5,
-          GLFW_KEY_6,
-          GLFW_KEY_7,
-          GLFW_KEY_8,
-          GLFW_KEY_9,
-          GLFW_KEY_U,
-          GLFW_KEY_I})
+         {GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9,
+          GLFW_KEY_U, GLFW_KEY_I})
     {
         Editor editor(window);
         editor.scene.addClock({0, 0}, {0.15f, 0.15f}, "clock");
         const bool latch = key == GLFW_KEY_U || key == GLFW_KEY_I;
         const bool inverted = key == GLFW_KEY_4 || key == GLFW_KEY_6 || key == GLFW_KEY_8;
-        const int outputX =
-            latch || inverted ? 3 : (key >= GLFW_KEY_3 && key <= GLFW_KEY_8 ? 2 : 1);
+        const int outputX = latch || inverted ? 3 : (key >= GLFW_KEY_3 && key <= GLFW_KEY_8 ? 2 : 1);
         const int outputY = latch ? 1 : 0;
         const int shift = 1;
         const int sink = editor.inverter({outputX + shift + 7, outputY - shift});
@@ -396,9 +395,7 @@ void spawnPlacement(GLFWwindow* window)
         editor.cursor({0, 0});
         const auto builds = editor.scene.getTopologyBuildCount();
         editor.key(key);
-        require(
-            editor.scene.getTopologyBuildCount() == builds + 1, "Spawn rebuilt before placement."
-        );
+        require(editor.scene.getTopologyBuildCount() == builds + 1, "Spawn rebuilt before placement.");
         require(editor.scene.getComponentCount() == 3, "Spawn shortcut did not add one component.");
 
         int spawned = -1;
@@ -418,8 +415,7 @@ void spawnPlacement(GLFWwindow* window)
             "Spawn left two components at the same center."
         );
         const std::string expectedDefinition =
-            latch
-                ? builtinDefinitionId(key == GLFW_KEY_U ? LatchType::SR_LATCH : LatchType::D_LATCH)
+            latch               ? builtinDefinitionId(key == GLFW_KEY_U ? LatchType::SR_LATCH : LatchType::D_LATCH)
             : key == GLFW_KEY_1 ? BuiltinComponentIds::Input
             : key == GLFW_KEY_9 ? BuiltinComponentIds::Clock
                                 : builtinDefinitionId(static_cast<GateType>(key - GLFW_KEY_2));
@@ -448,6 +444,8 @@ void spawnPlacement(GLFWwindow* window)
     }
 }
 
+
+/** @brief Verify deleting one selected segment preserves unrelated route geometry and connectivity. */
 void wireSegmentDeletion(GLFWwindow* window)
 {
     Editor editor(window);
@@ -466,6 +464,8 @@ void wireSegmentDeletion(GLFWwindow* window)
     require(!editor.input.hasSelectedSegment(), "Deletion retained a stale selected segment.");
 }
 
+
+/** @brief Verify component interaction and editing gestures obey selection, wiring and interaction modes. */
 void interactionModes(GLFWwindow* window)
 {
     Editor editor(window);
@@ -481,8 +481,7 @@ void interactionModes(GLFWwindow* window)
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     editor.cursor({-8, 4});
     require(
-        editor.scene.getLogicComponent(source)->getStateOutPin(),
-        "Selection mode toggled the input while dragging."
+        editor.scene.getLogicComponent(source)->getStateOutPin(), "Selection mode toggled the input while dragging."
     );
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
@@ -507,8 +506,7 @@ void interactionModes(GLFWwindow* window)
 
     editor.key(GLFW_KEY_F2);
     require(
-        editor.input.getMode() == EditorMode::Interaction &&
-            editor.input.getSelectedComponentId() == -1,
+        editor.input.getMode() == EditorMode::Interaction && editor.input.getSelectedComponentId() == -1,
         "F2 did not switch and clear selection."
     );
     const auto runtimeBuilds = editor.scene.getTopologyBuildCount();
@@ -518,8 +516,7 @@ void interactionModes(GLFWwindow* window)
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
         !editor.scene.getLogicComponent(source)->getStateOutPin() &&
-            editor.scene.getCommittedComponentView(source)->getGridPosition() ==
-                GridCoords{-8, 4} &&
+            editor.scene.getCommittedComponentView(source)->getGridPosition() == GridCoords{-8, 4} &&
             editor.input.isIdle(),
         "Interaction mode did not toggle without dragging."
     );
@@ -545,19 +542,8 @@ void interactionModes(GLFWwindow* window)
     }
     editor.cursor({-8, 4});
     for (int key :
-         {GLFW_KEY_1,
-          GLFW_KEY_2,
-          GLFW_KEY_3,
-          GLFW_KEY_4,
-          GLFW_KEY_5,
-          GLFW_KEY_6,
-          GLFW_KEY_7,
-          GLFW_KEY_8,
-          GLFW_KEY_9,
-          GLFW_KEY_U,
-          GLFW_KEY_I,
-          GLFW_KEY_DELETE,
-          GLFW_KEY_BACKSPACE})
+         {GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9,
+          GLFW_KEY_U, GLFW_KEY_I, GLFW_KEY_DELETE, GLFW_KEY_BACKSPACE})
         editor.key(key);
     require(
         editor.scene.getComponentCount() == 3 && editor.scene.wireCount() == 1 &&
@@ -578,6 +564,8 @@ void interactionModes(GLFWwindow* window)
     require(!editor.scene.getLogicComponent(source), "Selection mode could not delete an input.");
 }
 
+
+/** @brief Verify mode changes cancel unfinished previews without publishing partial edits. */
 void modeCancellation(GLFWwindow* window)
 {
     Editor editor(window);
@@ -600,10 +588,7 @@ void modeCancellation(GLFWwindow* window)
     Input::keyCallback(window, GLFW_KEY_F2, 0, GLFW_RELEASE, 0);
     Input::keyCallback(window, GLFW_KEY_1, 0, GLFW_RELEASE, 0);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
-    require(
-        editor.scene.getLogicComponent(source)->getStateOutPin(),
-        "Release after mode switch toggled the input."
-    );
+    require(editor.scene.getLogicComponent(source)->getStateOutPin(), "Release after mode switch toggled the input.");
     editor.key(GLFW_KEY_F2);
     editor.input.process(window);
     require(editor.scene.getComponentCount() == 1, "Queued edit escaped mode cancellation.");
@@ -619,8 +604,7 @@ void modeCancellation(GLFWwindow* window)
     editor.key(GLFW_KEY_F2);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
-        editor.scene.wireCount() == 0 && editor.input.isIdle() &&
-            editor.scene.getTopologyBuildCount() == builds,
+        editor.scene.wireCount() == 0 && editor.input.isIdle() && editor.scene.getTopologyBuildCount() == builds,
         "Mode switching committed a cancelled wire."
     );
 
@@ -639,6 +623,8 @@ void modeCancellation(GLFWwindow* window)
     );
 }
 
+
+/** @brief Verify drawing, cancellation and panning route button ownership without leaving stuck gestures. */
 void wireAndPanGestures(GLFWwindow* window)
 {
     Editor editor(window);
@@ -650,8 +636,7 @@ void wireAndPanGestures(GLFWwindow* window)
     require(editor.input.getWireStartPoint() == GridCoords{-7, 0}, "Wire start marker is missing.");
     editor.cursor({6, 4});
     require(
-        editor.input.getActiveWire().getPath() ==
-            std::vector<GridCoords>{{-7, 0}, {5, 0}, {5, 4}, {6, 4}},
+        editor.input.getActiveWire().getPath() == std::vector<GridCoords>{{-7, 0}, {5, 0}, {5, 4}, {6, 4}},
         "Wire bend chose the wrong initial axis."
     );
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
@@ -664,38 +649,25 @@ void wireAndPanGestures(GLFWwindow* window)
         "Committed wire retained its creation highlight."
     );
     editor.cursor({6, 4});
-    require(
-        !editor.input.shouldShowGridPointHighlight(),
-        "Same-cell motion restored a committed marker."
-    );
+    require(!editor.input.shouldShowGridPointHighlight(), "Same-cell motion restored a committed marker.");
     editor.scene.propagate();
     editor.scene.syncVisuals();
-    require(
-        editor.scene.getLogicComponent(sink)->getStateInPin(0), "Wire gesture did not connect."
-    );
+    require(editor.scene.getLogicComponent(sink)->getStateInPin(0), "Wire gesture did not connect.");
 
     editor.cursor({0, 0});
-    require(
-        editor.input.shouldShowGridPointHighlight(),
-        "Leaving the endpoint did not restore hover markers."
-    );
+    require(editor.input.shouldShowGridPointHighlight(), "Leaving the endpoint did not restore hover markers.");
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     require(
         !editor.input.isCurrentlyDrawingWire() && editor.input.hasSelectedSegment(),
         "Wire click did not defer branching."
     );
-    require(
-        editor.input.getWireStartPoint() == GridCoords{0, 0}, "Deferred branch has no start marker."
-    );
+    require(editor.input.getWireStartPoint() == GridCoords{0, 0}, "Deferred branch has no start marker.");
     editor.cursor({0, -4});
     require(
         editor.input.isCurrentlyDrawingWire() && editor.input.getWireOriginPin().componentId == 0,
         "Branch did not retain driver identity."
     );
-    require(
-        editor.input.getWireStartPoint() == GridCoords{0, 0},
-        "Branch start marker followed its endpoint."
-    );
+    require(editor.input.getWireStartPoint() == GridCoords{0, 0}, "Branch start marker followed its endpoint.");
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
         editor.scene.getTopologyBuildCount() == ++builds && editor.scene.netCount() == 1,
@@ -762,6 +734,8 @@ void wireAndPanGestures(GLFWwindow* window)
     }
 }
 
+
+/** @brief Verify visual crossings remain separate while explicit joins and feedback remain valid connections. */
 void wireCrossingsAndFeedback(GLFWwindow* window)
 {
     {
@@ -811,8 +785,7 @@ void wireCrossingsAndFeedback(GLFWwindow* window)
         require(
             editor.scene.getTopologyBuildCount() == builds + 1 && net != INVALID_NET_ID &&
                 editor.scene.netOfPin({gate, 1}, PinType::INPUT) == net &&
-                editor.scene.getNet(net)->getSinks().size() == 2 &&
-                editor.input.getLastEditError() == EditError::None,
+                editor.scene.getNet(net)->getSinks().size() == 2 && editor.input.getLastEditError() == EditError::None,
             "Undriven branch to the same component disappeared on release."
         );
         // A return to the already-connected input is legitimate, even if overlap normalization
@@ -822,10 +795,8 @@ void wireCrossingsAndFeedback(GLFWwindow* window)
         editor.cursor({-2, 1});
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
         require(
-            editor.scene.getTopologyBuildCount() == builds + 2 &&
-                editor.input.getLastEditError() == EditError::None &&
-                editor.scene.netOfPin({gate, 0}, PinType::INPUT) ==
-                    editor.scene.netOfPin({gate, 1}, PinType::INPUT),
+            editor.scene.getTopologyBuildCount() == builds + 2 && editor.input.getLastEditError() == EditError::None &&
+                editor.scene.netOfPin({gate, 0}, PinType::INPUT) == editor.scene.netOfPin({gate, 1}, PinType::INPUT),
             "Returning a branch to the same input was silently rejected."
         );
         editor.scene.addComponent(BuiltinComponentIds::Input, {-12, 1}, {.inputState = true});
@@ -850,8 +821,7 @@ void wireCrossingsAndFeedback(GLFWwindow* window)
         editor.cursor({-2, 0});
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
         require(
-            editor.scene.netOfPin({gate, 0}, PinType::OUTPUT) ==
-                    editor.scene.netOfPin({gate, 0}, PinType::INPUT) &&
+            editor.scene.netOfPin({gate, 0}, PinType::OUTPUT) == editor.scene.netOfPin({gate, 0}, PinType::INPUT) &&
                 editor.scene.getLogicComponent(gate)->getInConnections().size() == 1 &&
                 editor.input.getLastEditError() == EditError::None,
             "Feedback branch to its own component disappeared on release."
@@ -878,6 +848,8 @@ void wireCrossingsAndFeedback(GLFWwindow* window)
     }
 }
 
+
+/** @brief Verify UI capture prevents canvas shortcuts, typing and pointer gestures from consuming the same event. */
 void uiInputRouting(GLFWwindow* window)
 {
     Editor editor(window);
@@ -899,13 +871,7 @@ void uiInputRouting(GLFWwindow* window)
     Input::keyCallback(window, GLFW_KEY_1, 27, GLFW_PRESS, GLFW_MOD_SHIFT);
     editor.input.setUiCapture({true, true});
     Input::keyCallback(window, GLFW_KEY_1, 27, GLFW_RELEASE, GLFW_MOD_SHIFT);
-    for (int key :
-         {GLFW_KEY_1,
-          GLFW_KEY_DELETE,
-          GLFW_KEY_BACKSPACE,
-          GLFW_KEY_ESCAPE,
-          GLFW_KEY_F2,
-          GLFW_KEY_F3})
+    for (int key : {GLFW_KEY_1, GLFW_KEY_DELETE, GLFW_KEY_BACKSPACE, GLFW_KEY_ESCAPE, GLFW_KEY_F2, GLFW_KEY_F3})
         editor.key(key);
     Input::charCallback(window, 0x03A9);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
@@ -919,14 +885,10 @@ void uiInputRouting(GLFWwindow* window)
         editor.scene.getComponentCount() == 2 && editor.input.isIdle() &&
             editor.input.getSelectedComponentId() == source &&
             editor.scene.getLogicComponent(source)->getStateOutPin() &&
-            editor.input.getMode() == EditorMode::Selection &&
-            !editor.input.consumeKeyPress(GLFW_KEY_F3),
+            editor.input.getMode() == EditorMode::Selection && !editor.input.consumeKeyPress(GLFW_KEY_F3),
         "Captured events escaped into scene edits or replayed on release."
     );
-    require(
-        events.front().scanCode == 27 && events.front().modifiers == GLFW_MOD_SHIFT,
-        "UI lost native key payload."
-    );
+    require(events.front().scanCode == 27 && events.front().modifiers == GLFW_MOD_SHIFT, "UI lost native key payload.");
     bool text = false, mouse = false, cursor = false, scroll = false;
     for (const auto& event : events)
     {
@@ -969,9 +931,7 @@ void uiInputRouting(GLFWwindow* window)
     );
     editor.input.setCanvasFocused(true);
     editor.key(GLFW_KEY_SPACE);
-    require(
-        editor.scene.clocksPaused(), "Pointer capture also blocked an uncaptured focused keyboard."
-    );
+    require(editor.scene.clocksPaused(), "Pointer capture also blocked an uncaptured focused keyboard.");
     editor.key(GLFW_KEY_SPACE);
     editor.input.setUiCapture({true, false});
     editor.key(GLFW_KEY_SPACE);
@@ -1002,6 +962,8 @@ void uiInputRouting(GLFWwindow* window)
     require(focus, "UI missed window focus callbacks.");
 }
 
+
+/** @brief Verify UI ownership and focus changes cancel active canvas previews safely. */
 void uiGestureCancellation(GLFWwindow* window)
 {
     // Exercise each ownership transfer against drag previews, wire branches, and panning.
@@ -1012,10 +974,8 @@ void uiGestureCancellation(GLFWwindow* window)
             const int component = editor.inverter({0, 0});
             editor.wire({{-8, -4}, {8, -4}});
             bool consumeText = false;
-            editor.input.setUiInputHandler(
-                [&](const UiInputEvent& event)
-                { return consumeText && event.kind == UiInputKind::Text; }
-            );
+            editor.input.setUiInputHandler([&](const UiInputEvent& event)
+                                           { return consumeText && event.kind == UiInputKind::Text; });
             editor.cursor(gesture == 0 ? GridCoords{0, 0} : GridCoords{0, -4});
             const int button = gesture == 2 ? GLFW_MOUSE_BUTTON_MIDDLE : GLFW_MOUSE_BUTTON_LEFT;
             editor.mouse(button, GLFW_PRESS);
@@ -1053,8 +1013,8 @@ void uiGestureCancellation(GLFWwindow* window)
             editor.mouse(button, GLFW_RELEASE);
             require(
                 editor.input.isIdle() && editor.scene.getRevision() == revision &&
-                    editor.scene.getTopologyBuildCount() == builds &&
-                    editor.scene.getWireIds() == wireIds && editor.input.getPanOffset() == offset,
+                    editor.scene.getTopologyBuildCount() == builds && editor.scene.getWireIds() == wireIds &&
+                    editor.input.getPanOffset() == offset,
                 "Cancelled input resumed or its release committed geometry."
             );
             editor.verifyPinLocations();
@@ -1070,9 +1030,8 @@ void uiGestureCancellation(GLFWwindow* window)
             if (!consume || event.kind != UiInputKind::MouseButton)
                 return false;
             editor.input.setUiCapture({false, true});
-            sawCancelled =
-                editor.input.isIdle() &&
-                editor.scene.getComponentView(component)->getGridPosition() == GridCoords{0, 0};
+            sawCancelled = editor.input.isIdle() &&
+                           editor.scene.getComponentView(component)->getGridPosition() == GridCoords{0, 0};
             return true;
         }
     );
@@ -1089,6 +1048,8 @@ void uiGestureCancellation(GLFWwindow* window)
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
 }
 
+
+/** @brief Verify gestures respect the clipped canvas viewport and do not start through surrounding panels. */
 void canvasInputBounds(GLFWwindow* window)
 {
     Editor editor(window);
@@ -1105,8 +1066,7 @@ void canvasInputBounds(GLFWwindow* window)
     editor.cursorPixels(420, 420);
     const auto revision = editor.scene.getRevision();
     for (const auto& invalid :
-         {CanvasViewport{0, 0, -1, 20},
-          CanvasViewport{0, 0, 20, std::numeric_limits<double>::infinity()}})
+         {CanvasViewport{0, 0, -1, 20}, CanvasViewport{0, 0, 20, std::numeric_limits<double>::infinity()}})
     {
         bool rejected = false;
         try
@@ -1140,8 +1100,7 @@ void canvasInputBounds(GLFWwindow* window)
     Input::scrollCallback(window, 0, 1);
     editor.input.handleKey(GLFW_KEY_LEFT_CONTROL, GLFW_RELEASE);
     require(
-        editor.scene.getComponentCount() == 1 && editor.input.getZoom() == 1 &&
-            !editor.input.isCanvasFocused(),
+        editor.scene.getComponentCount() == 1 && editor.input.getZoom() == 1 && !editor.input.isCanvasFocused(),
         "Sidebar input modified the canvas."
     );
     editor.input.cancelCurrentAction(); // A second click on a selected component deselects it.
@@ -1164,11 +1123,11 @@ void canvasInputBounds(GLFWwindow* window)
     editor.input.setCanvasViewport(std::nullopt);
     require(editor.input.isCanvasPointerAvailable(window), "Full-window fallback rejected input.");
     editor.cursorPixels(800, 400);
-    require(
-        !editor.input.isCanvasPointerAvailable(window), "Full-window right edge accepted input."
-    );
+    require(!editor.input.isCanvasPointerAvailable(window), "Full-window right edge accepted input.");
 }
 
+
+/** @brief Verify zoom, pan and framing use logical-window coordinates and preserve pointer anchoring. */
 void canvasCameraInteraction(GLFWwindow* window)
 {
     Editor editor(window);
@@ -1179,10 +1138,7 @@ void canvasCameraInteraction(GLFWwindow* window)
     const int sink = editor.inverter({12, 2});
     editor.cursor({0, 0});
     editor.input.process(window);
-    require(
-        editor.input.getHoveredComponentId() == source,
-        "Offset canvas did not hit the rendered component."
-    );
+    require(editor.input.getHoveredComponentId() == source, "Offset canvas did not hit the rendered component.");
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     editor.cursor({4, 2});
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
@@ -1211,8 +1167,7 @@ void canvasCameraInteraction(GLFWwindow* window)
     editor.cursorPixels(428, 320);
     editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE);
     require(
-        glm::length(*editor.input.getCameraFrame(window).windowToWorld({428, 320}) - anchor) <
-            0.00001f,
+        glm::length(*editor.input.getCameraFrame(window).windowToWorld({428, 320}) - anchor) < 0.00001f,
         "Panning did not keep the grabbed world point under the cursor."
     );
     editor.cursor({4, 2});
@@ -1230,34 +1185,25 @@ void canvasCameraInteraction(GLFWwindow* window)
     );
     editor.input.setCanvasViewport(std::nullopt);
     const auto resized = editor.input.getCameraFrame(window);
-    require(
-        resized.viewport == CanvasViewport{0, 0, 1000, 700},
-        "Full-window canvas did not follow a resize."
-    );
+    require(resized.viewport == CanvasViewport{0, 0, 1000, 700}, "Full-window canvas did not follow a resize.");
     glfwSetWindowSize(window, 800, 800);
 }
 
+
+/** @brief Verify palette selection, dragging, scrolling and placement use the current component catalog. */
 void componentPalette(GLFWwindow* window)
 {
     glfwSetWindowSize(window, 800, 800);
     Editor editor(window);
     UI ui;
     auto layout = [&]
-    {
-        ui.layout(
-            editor.scene.getComponentCatalog(),
-            editor.input.getCameraFrame(window).surface,
-            editor.input
-        );
-    };
+    { ui.layout(editor.scene.getComponentCatalog(), editor.input.getCameraFrame(window).surface, editor.input); };
     layout();
     editor.input.setUiInputHandler(
         [&](const UiInputEvent& event)
         {
             layout();
-            return ui.handleInput(
-                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
-            );
+            return ui.handleInput(event, editor.scene, editor.input, editor.input.getCameraFrame(window));
         }
     );
     require(
@@ -1267,21 +1213,11 @@ void componentPalette(GLFWwindow* window)
     const auto buttons = ui.buttons();
     require(buttons.size() == 15, "Palette did not use the registered component catalog.");
     const std::vector<std::string> expected{
-        BuiltinComponentIds::Input,
-        BuiltinComponentIds::Output,
-        BuiltinComponentIds::Clock,
-        BuiltinComponentIds::Not,
-        BuiltinComponentIds::And,
-        BuiltinComponentIds::Nand,
-        BuiltinComponentIds::Or,
-        BuiltinComponentIds::Nor,
-        BuiltinComponentIds::Xor,
-        BuiltinComponentIds::Nxor,
-        BuiltinComponentIds::SrLatch,
-        BuiltinComponentIds::DLatch,
-        BuiltinComponentIds::DFlipFlop,
-        BuiltinComponentIds::TFlipFlop,
-        BuiltinComponentIds::JkFlipFlop
+        BuiltinComponentIds::Input,     BuiltinComponentIds::Output,    BuiltinComponentIds::Clock,
+        BuiltinComponentIds::Not,       BuiltinComponentIds::And,       BuiltinComponentIds::Nand,
+        BuiltinComponentIds::Or,        BuiltinComponentIds::Nor,       BuiltinComponentIds::Xor,
+        BuiltinComponentIds::Nxor,      BuiltinComponentIds::SrLatch,   BuiltinComponentIds::DLatch,
+        BuiltinComponentIds::DFlipFlop, BuiltinComponentIds::TFlipFlop, BuiltinComponentIds::JkFlipFlop
     };
     for (std::size_t i = 0; i < expected.size(); ++i)
         require(buttons[i].definitionId == expected[i], "Native card order is incorrect.");
@@ -1320,25 +1256,21 @@ void componentPalette(GLFWwindow* window)
         editor.cursorPixels(button.bounds.x + 20, button.bounds.y + 15);
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
         require(
-            ui.dragging() && editor.input.isIdle() &&
-                editor.input.getUiCapture() == UiInputCapture{true, true} &&
+            ui.dragging() && editor.input.isIdle() && editor.input.getUiCapture() == UiInputCapture{true, true} &&
                 editor.scene.getComponentCount() == before,
             "Palette press leaked into a canvas gesture or created too early."
         );
         editor.key(GLFW_KEY_A);
-        const GridCoords target =
-            i < 12 ? GridCoords{-8 + static_cast<int>(i % 3) * 8, 8 - static_cast<int>(i / 3) * 8}
-                   : GridCoords{16, 8 - static_cast<int>(i - 12) * 8};
+        const GridCoords target = i < 12 ? GridCoords{-8 + static_cast<int>(i % 3) * 8, 8 - static_cast<int>(i / 3) * 8}
+                                         : GridCoords{16, 8 - static_cast<int>(i - 12) * 8};
         editor.cursor(target);
         editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
         require(
             !ui.dragging() && editor.input.getUiCapture() == UiInputCapture{} &&
                 editor.scene.getComponentCount() == before + 1 &&
-                editor.scene.getCommittedComponentView(static_cast<int>(before))
-                        ->getDefinitionIdentity()
-                        .id == button.definitionId &&
-                editor.scene.getCommittedComponentView(static_cast<int>(before))
-                        ->getGridPosition() == target &&
+                editor.scene.getCommittedComponentView(static_cast<int>(before))->getDefinitionIdentity().id ==
+                    button.definitionId &&
+                editor.scene.getCommittedComponentView(static_cast<int>(before))->getGridPosition() == target &&
                 editor.input.isIdle(),
             "Palette drop used the wrong component/transform or leaked release to the canvas."
         );
@@ -1368,17 +1300,14 @@ void componentPalette(GLFWwindow* window)
     const int overlapping = static_cast<int>(count);
     require(
         editor.scene.getComponentCount() == count + 1 && ui.message().empty() &&
-            editor.scene.getCommittedComponentView(overlapping)->getGridPosition() ==
-                GridCoords{-7, 8} &&
+            editor.scene.getCommittedComponentView(overlapping)->getGridPosition() == GridCoords{-7, 8} &&
             editor.scene.checkOverlap(overlapping),
         "Palette placement rejected body overlap at a different center."
     );
     editor.scene.removeComponent(overlapping);
     start();
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
-    require(
-        editor.scene.getComponentCount() == count, "Click without dragging created a component."
-    );
+    require(editor.scene.getComponentCount() == count, "Click without dragging created a component.");
     for (int cancel = 0; cancel < 4; ++cancel)
     {
         start();
@@ -1415,10 +1344,8 @@ void componentPalette(GLFWwindow* window)
         "Palette scrolling zoomed the canvas or hid the last item."
     );
     const auto partial = std::find_if(
-        ui.buttons().begin(),
-        ui.buttons().end(),
-        [](const auto& item)
-        { return item.bounds.y < 142 && item.bounds.y + item.bounds.height > 142; }
+        ui.buttons().begin(), ui.buttons().end(),
+        [](const auto& item) { return item.bounds.y < 142 && item.bounds.y + item.bounds.height > 142; }
     );
     require(partial != ui.buttons().end(), "Scroll fixture did not leave a partly visible card.");
     const double partialX = partial->bounds.x + 4;
@@ -1447,8 +1374,7 @@ void componentPalette(GLFWwindow* window)
     require(ui.buttons().front().bounds.y == 142, "Tab switch retained stale scroll position.");
     editor.key(GLFW_KEY_F2);
     require(
-        editor.input.getMode() == EditorMode::Selection,
-        "Palette focus prevented switching back to Selection mode."
+        editor.input.getMode() == EditorMode::Selection, "Palette focus prevented switching back to Selection mode."
     );
     auto custom = *editor.scene.getComponentCatalog().find(BuiltinComponentIds::DLatch);
     custom.identity = {"test.custom-memory", 1};
@@ -1463,8 +1389,8 @@ void componentPalette(GLFWwindow* window)
     require(ui.buttons().size() == 15, "Registered custom component leaked into native cards.");
     switchTab(UI::Tab::Custom);
     require(
-        ui.buttons().size() == 1 && ui.buttons()[0].label == "Custom memory" &&
-            ui.buttons()[0].inputCount == 2 && ui.buttons()[0].outputCount == 2,
+        ui.buttons().size() == 1 && ui.buttons()[0].label == "Custom memory" && ui.buttons()[0].inputCount == 2 &&
+            ui.buttons()[0].outputCount == 2,
         "Custom list omitted the registered name or indexed pin counts."
     );
     start();
@@ -1477,41 +1403,32 @@ void componentPalette(GLFWwindow* window)
     Input::keyCallback(window, GLFW_KEY_Z, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
     Input::keyCallback(window, GLFW_KEY_Z, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
     require(
-        editor.scene.getComponentCount() == count &&
-            editor.scene.getComponentCatalog().find("test.custom-memory"),
+        editor.scene.getComponentCount() == count && editor.scene.getComponentCatalog().find("test.custom-memory"),
         "Undo did not remove a palette placement or removed its registered definition."
     );
     Input::keyCallback(window, GLFW_KEY_Y, 0, GLFW_PRESS, GLFW_MOD_CONTROL);
     Input::keyCallback(window, GLFW_KEY_Y, 0, GLFW_RELEASE, GLFW_MOD_CONTROL);
-    require(
-        editor.scene.getComponentCount() == count + 1, "Redo did not restore a palette placement."
-    );
+    require(editor.scene.getComponentCount() == count + 1, "Redo did not restore a palette placement.");
     ui.cancel(editor.input);
     editor.input.setUiInputHandler({});
     glfwSetWindowSize(window, 800, 800);
 }
 
+
+/** @brief Verify component details, selection and contextual actions follow the committed scene. */
 void componentInformation(GLFWwindow* window)
 {
     glfwSetWindowSize(window, 800, 600);
     Editor editor(window);
     UI ui;
     auto layout = [&]
-    {
-        ui.layout(
-            editor.scene.getComponentCatalog(),
-            editor.input.getCameraFrame(window).surface,
-            editor.input
-        );
-    };
+    { ui.layout(editor.scene.getComponentCatalog(), editor.input.getCameraFrame(window).surface, editor.input); };
     layout();
     editor.input.setUiInputHandler(
         [&](const UiInputEvent& event)
         {
             layout();
-            return ui.handleInput(
-                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
-            );
+            return ui.handleInput(event, editor.scene, editor.input, editor.input.getCameraFrame(window));
         }
     );
     const int gate = editor.scene.addComponent(BuiltinComponentIds::And, {-6, 4});
@@ -1552,9 +1469,8 @@ void componentInformation(GLFWwindow* window)
     editor.cursorPixels(300, 250);
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
     require(
-        ui.infoComponentId() == gate && editor.input.getPanOffset() == pan &&
-            editor.input.isIdle() && editor.scene.getRevision() == revision &&
-            editor.scene.getTopologyBuildCount() == builds,
+        ui.infoComponentId() == gate && editor.input.getPanOffset() == pan && editor.input.isIdle() &&
+            editor.scene.getRevision() == revision && editor.scene.getTopologyBuildCount() == builds,
         "Information click/drag changed camera or committed scene state."
     );
     require(
@@ -1565,16 +1481,14 @@ void componentInformation(GLFWwindow* window)
     editor.scene.getLogicComponent(gate)->setStateInPin(1, true);
     refresh();
     require(
-        has("A: 1 (ON)") && has("B: 1 (ON)") && has("Y: 1 (ON)"),
-        "Open information retained a stale signal snapshot."
+        has("A: 1 (ON)") && has("B: 1 (ON)") && has("Y: 1 (ON)"), "Open information retained a stale signal snapshot."
     );
     const auto popup = ui.infoBounds(editor.scene);
     editor.cursorPixels(popup.x + 8, popup.y + 12);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
-        ui.infoComponentId() == gate && editor.input.isIdle() &&
-            editor.scene.getRevision() == revision,
+        ui.infoComponentId() == gate && editor.input.isIdle() && editor.scene.getRevision() == revision,
         "Clicking the popup leaked into component dragging or wiring."
     );
     editor.key(GLFW_KEY_ESCAPE);
@@ -1594,10 +1508,9 @@ void componentInformation(GLFWwindow* window)
         editor.cursorPixels(start.x + 30, start.y + 20);
         editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE);
         require(
-            ui.infoComponentId() == -1 && editor.input.isIdle() &&
-                editor.input.getPanOffset() != offset && editor.scene.getRevision() == revision &&
-                editor.scene.getCommittedComponentView(gate)->getGridPosition() ==
-                    GridCoords{-6, 4},
+            ui.infoComponentId() == -1 && editor.input.isIdle() && editor.input.getPanOffset() != offset &&
+                editor.scene.getRevision() == revision &&
+                editor.scene.getCommittedComponentView(gate)->getGridPosition() == GridCoords{-6, 4},
             "Middle-drag over a component failed to pan or opened information/edited the scene."
         );
         editor.input.setPanOffset(offset);
@@ -1606,15 +1519,13 @@ void componentInformation(GLFWwindow* window)
 
     open(latch);
     require(
-        has("SR LATCH") && has("S: 0 (OFF)") && has("R: 0 (OFF)") && has("Q: 0 (OFF)") &&
-            has("~Q: 1 (ON)"),
+        has("SR LATCH") && has("S: 0 (OFF)") && has("R: 0 (OFF)") && has("Q: 0 (OFF)") && has("~Q: 1 (ON)"),
         "Latch information confused its independent outputs or labels."
     );
     editor.key(GLFW_KEY_F2);
     open(source);
     require(
-        editor.input.getMode() == EditorMode::Interaction && has("Inputs: none") &&
-            has("Out: 0 (OFF)"),
+        editor.input.getMode() == EditorMode::Interaction && has("Inputs: none") && has("Out: 0 (OFF)"),
         "Information was unavailable in Interaction mode or invented source inputs."
     );
     open(clock);
@@ -1638,23 +1549,20 @@ void componentInformation(GLFWwindow* window)
     custom.presentation.bodyLabel = "MY BLOCK";
     const auto result =
         EditorActions(editor.scene)
-            .apply(
-                {RegisterComponentDefinition{custom}, CreateComponent{custom.identity.id, {0, -12}}}
-            );
+            .apply({RegisterComponentDefinition{custom}, CreateComponent{custom.identity.id, {0, -12}}});
     require(static_cast<bool>(result), "Cannot create custom information fixture.");
     const int box = result.createdComponentIds.front();
     editor.scene.getLogicComponent(box)->setStateInPin(2, true);
     refresh();
     open(box);
     require(
-        has("Learning gate") && ui.nameBounds(editor.scene).width > 0 && has("C: 1 (ON)") &&
-            has("A: 0 (OFF)") && has("Input 2: 0 (OFF)") && has("Result: 1 (ON)"),
+        has("Learning gate") && ui.nameBounds(editor.scene).width > 0 && has("C: 1 (ON)") && has("A: 0 (OFF)") &&
+            has("Input 2: 0 (OFF)") && has("Result: 1 (ON)"),
         "Custom information used vector order as pin identity or lost fallback names."
     );
     const auto bounds = ui.infoBounds(editor.scene);
     require(
-        bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 800 &&
-            bounds.y + bounds.height <= 600,
+        bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 800 && bounds.y + bounds.height <= 600,
         "Popup extended past the window edge."
     );
     editor.input.handleFocus(false);
@@ -1662,22 +1570,17 @@ void componentInformation(GLFWwindow* window)
     require(ui.infoComponentId() == -1, "Focus loss left the popup open.");
     open(gate);
     const auto emptyCanvas = editor.input.getCameraFrame(window).viewport;
-    const double panStartY =
-        std::min(emptyCanvas.y + emptyCanvas.height - 25, ui.modeBarBounds().y - 25);
+    const double panStartY = std::min(emptyCanvas.y + emptyCanvas.height - 25, ui.modeBarBounds().y - 25);
     editor.cursorPixels(240, panStartY);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
-    require(
-        ui.infoComponentId() == -1 && editor.input.isIdle(),
-        "Dismissal click created a canvas gesture."
-    );
+    require(ui.infoComponentId() == -1 && editor.input.isIdle(), "Dismissal click created a canvas gesture.");
     const auto beforePan = editor.input.getPanOffset();
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS);
     editor.cursorPixels(280, panStartY - 30);
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
     require(
-        editor.input.getPanOffset() == beforePan && ui.infoComponentId() == -1,
-        "Empty-canvas right-drag still pans."
+        editor.input.getPanOffset() == beforePan && ui.infoComponentId() == -1, "Empty-canvas right-drag still pans."
     );
     editor.mouse(GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS);
     editor.cursorPixels(320, panStartY - 60);
@@ -1696,8 +1599,7 @@ void componentInformation(GLFWwindow* window)
     editor.mouse(GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE);
     editor.mouse(GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE);
     require(
-        ui.infoComponentId() == -1 && editor.input.isIdle(),
-        "Right-click inspection replaced active drag cancellation."
+        ui.infoComponentId() == -1 && editor.input.isIdle(), "Right-click inspection replaced active drag cancellation."
     );
     open(latch);
     glfwSetWindowSize(window, 800, 220);
@@ -1722,8 +1624,7 @@ void componentInformation(GLFWwindow* window)
     refresh();
     open(oscillator);
     require(
-        editor.scene.getLastEvalResult() == SimulationResult::NON_CONVERGENT &&
-            has("Y: Unavailable"),
+        editor.scene.getLastEvalResult() == SimulationResult::NON_CONVERGENT && has("Y: Unavailable"),
         "Paused simulation information presented a retained output as a valid signal."
     );
     editor.key(GLFW_KEY_ESCAPE);
@@ -1731,27 +1632,21 @@ void componentInformation(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+
+/** @brief Verify name editing, validation and keyboard capture preserve component identity and undo history. */
 void componentNaming(GLFWwindow* window)
 {
     glfwSetWindowSize(window, 800, 600);
     Editor editor(window);
     UI ui;
     auto layout = [&]
-    {
-        ui.layout(
-            editor.scene.getComponentCatalog(),
-            editor.input.getCameraFrame(window).surface,
-            editor.input
-        );
-    };
+    { ui.layout(editor.scene.getComponentCatalog(), editor.input.getCameraFrame(window).surface, editor.input); };
     layout();
     editor.input.setUiInputHandler(
         [&](const UiInputEvent& event)
         {
             layout();
-            return ui.handleInput(
-                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
-            );
+            return ui.handleInput(event, editor.scene, editor.input, editor.input.getCameraFrame(window));
         }
     );
     const int source = editor.scene.addComponent(BuiltinComponentIds::Input, {-6, 0});
@@ -1778,8 +1673,7 @@ void componentNaming(GLFWwindow* window)
         for (unsigned char c : value)
             Input::charCallback(window, c);
     };
-    for (const auto& [id, name] :
-         std::vector<std::pair<int, std::string>>{{source, "Data"}, {output, "Sum"}})
+    for (const auto& [id, name] : std::vector<std::pair<int, std::string>>{{source, "Data"}, {output, "Sum"}})
     {
         const auto builds = editor.scene.getTopologyBuildCount();
         open(id);
@@ -1792,15 +1686,13 @@ void componentNaming(GLFWwindow* window)
         editor.key(GLFW_KEY_BACKSPACE);
         require(
             editor.scene.getCommittedComponentView(id)->getBodyLabel().empty() &&
-                editor.scene.getComponentCount() == count &&
-                editor.input.getMode() == EditorMode::Selection,
+                editor.scene.getComponentCount() == count && editor.input.getMode() == EditorMode::Selection,
             "Draft typing committed early or activated canvas shortcuts."
         );
         editor.key(GLFW_KEY_ENTER);
         require(
             editor.scene.getCommittedComponentView(id)->getBodyLabel() == name &&
-                editor.input.getUiCapture() == UiInputCapture{} &&
-                editor.scene.getTopologyBuildCount() == builds,
+                editor.input.getUiCapture() == UiInputCapture{} && editor.scene.getTopologyBuildCount() == builds,
             "Saving a port name changed topology or retained keyboard capture."
         );
         const auto undoCount = editor.input.getUndoCount();
@@ -1863,8 +1755,7 @@ void componentNaming(GLFWwindow* window)
         editor.key(GLFW_KEY_BACKSPACE);
     editor.key(GLFW_KEY_ENTER);
     require(
-        editor.scene.getCommittedComponentView(source)->getBodyLabel().empty(),
-        "Empty name did not clear the label."
+        editor.scene.getCommittedComponentView(source)->getBodyLabel().empty(), "Empty name did not clear the label."
     );
     editor.key(GLFW_KEY_ESCAPE);
     const int clock = editor.scene.addComponent(BuiltinComponentIds::Clock, {0, 10});
@@ -1898,27 +1789,21 @@ void componentNaming(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+
+/** @brief Verify label visibility controls alter presentation through the normal editor transaction path. */
 void labelVisibility(GLFWwindow* window)
 {
     glfwSetWindowSize(window, 800, 600);
     Editor editor(window);
     UI ui;
     auto layout = [&]()
-    {
-        ui.layout(
-            editor.scene.getComponentCatalog(),
-            editor.input.getCameraFrame(window).surface,
-            editor.input
-        );
-    };
+    { ui.layout(editor.scene.getComponentCatalog(), editor.input.getCameraFrame(window).surface, editor.input); };
     layout();
     editor.input.setUiInputHandler(
         [&](const UiInputEvent& event)
         {
             layout();
-            return ui.handleInput(
-                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
-            );
+            return ui.handleInput(event, editor.scene, editor.input, editor.input.getCameraFrame(window));
         }
     );
     const std::vector<int> ids{
@@ -1931,8 +1816,7 @@ void labelVisibility(GLFWwindow* window)
     for (int id : ids)
     {
         const auto named =
-            EditorActions(editor.scene)
-                .apply({ConfigureComponentProperties{.componentId = id, .label = "Example"}});
+            EditorActions(editor.scene).apply({ConfigureComponentProperties{.componentId = id, .label = "Example"}});
         require(static_cast<bool>(named), "Cannot name the visibility fixture.");
         ui.dismissPopups(editor.input);
         editor.cursor(editor.scene.getCommittedComponentView(id)->getGridPosition());
@@ -1953,8 +1837,7 @@ void labelVisibility(GLFWwindow* window)
         require(
             editor.scene.getCommittedComponentView(id)->showsBodyLabel() != before &&
                 editor.scene.getCommittedComponentView(id)->getBodyLabel() == "Example" &&
-                editor.scene.getTopologyBuildCount() == builds &&
-                editor.input.getUndoCount() == count + 1,
+                editor.scene.getTopologyBuildCount() == builds && editor.input.getUndoCount() == count + 1,
             "Visibility click erased the name, rebuilt topology or missed undo history."
         );
         auto history = [&](int key)
@@ -1986,27 +1869,21 @@ void labelVisibility(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+
+/** @brief Verify gate arity, inversion and orientation controls retain valid pin identities and wire attachments. */
 void gateSettings(GLFWwindow* window)
 {
     glfwSetWindowSize(window, 800, 700);
     Editor editor(window);
     UI ui;
     auto layout = [&]
-    {
-        ui.layout(
-            editor.scene.getComponentCatalog(),
-            editor.input.getCameraFrame(window).surface,
-            editor.input
-        );
-    };
+    { ui.layout(editor.scene.getComponentCatalog(), editor.input.getCameraFrame(window).surface, editor.input); };
     layout();
     editor.input.setUiInputHandler(
         [&](const UiInputEvent& event)
         {
             layout();
-            return ui.handleInput(
-                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
-            );
+            return ui.handleInput(event, editor.scene, editor.input, editor.input.getCameraFrame(window));
         }
     );
     const int id = editor.scene.addComponent(BuiltinComponentIds::And, {0, 0});
@@ -2042,8 +1919,7 @@ void gateSettings(GLFWwindow* window)
     editor.input.setMode(EditorMode::Selection);
     history(GLFW_KEY_Z);
     require(!gate()->isInputInverted(0), "Popup input inversion was not undoable.");
-    for (auto direction :
-         {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+    for (auto direction : {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
     {
         click(ui.componentOrientationBounds(editor.scene, direction));
         require(
@@ -2093,16 +1969,12 @@ void gateSettings(GLFWwindow* window)
     Input::scrollCallback(window, 0, -20);
     require(
         ui.gateInputInversionBounds(editor.scene, 0).width == 0 &&
-            ui.gateInputInversionBounds(editor.scene, 7).width > 0 &&
-            editor.input.getZoom() == zoomBeforeScroll &&
+            ui.gateInputInversionBounds(editor.scene, 7).width > 0 && editor.input.getZoom() == zoomBeforeScroll &&
             ui.infoBounds(editor.scene).height == fourInputHeight,
         "Input scrolling did not reveal the last pins or leaked to the canvas."
     );
     click(ui.gateInputInversionBounds(editor.scene, 7));
-    require(
-        gate()->isInputInverted(7) && !gate()->isInputInverted(3),
-        "Scrolled input button edited the wrong pin."
-    );
+    require(gate()->isInputInverted(7) && !gate()->isInputInverted(3), "Scrolled input button edited the wrong pin.");
     history(GLFW_KEY_Z);
     require(!gate()->isInputInverted(7), "Scrolled input edit could not be undone.");
     const auto maxUndo = editor.input.getUndoCount();
@@ -2121,15 +1993,12 @@ void gateSettings(GLFWwindow* window)
             ui.gateInputInversionBounds(editor.scene, 1).width > 0,
         "Shrinking the input list retained an invalid scroll offset."
     );
-    for (const auto definition :
-         {BuiltinComponentIds::And, BuiltinComponentIds::Or, BuiltinComponentIds::Xor})
+    for (const auto definition : {BuiltinComponentIds::And, BuiltinComponentIds::Or, BuiltinComponentIds::Xor})
     {
         const int paired =
             definition == BuiltinComponentIds::And
                 ? id
-                : editor.scene.addComponent(
-                      definition, {definition == BuiltinComponentIds::Or ? 10 : 20, 0}
-                  );
+                : editor.scene.addComponent(definition, {definition == BuiltinComponentIds::Or ? 10 : 20, 0});
         open(paired);
         click(ui.gateInversionBounds(editor.scene));
         require(
@@ -2137,10 +2006,9 @@ void gateSettings(GLFWwindow* window)
             "Paired gate inversion did not change logic."
         );
         require(
-            ui.componentInfo(editor.scene).front() ==
-                (definition == BuiltinComponentIds::And  ? "NAND"
-                 : definition == BuiltinComponentIds::Or ? "NOR"
-                                                         : "NXOR"),
+            ui.componentInfo(editor.scene).front() == (definition == BuiltinComponentIds::And  ? "NAND"
+                                                       : definition == BuiltinComponentIds::Or ? "NOR"
+                                                                                               : "NXOR"),
             "Popup title retained the uninverted gate type."
         );
         click(ui.gateInversionBounds(editor.scene));
@@ -2150,10 +2018,7 @@ void gateSettings(GLFWwindow* window)
     for (char c : std::string("Test gate"))
         Input::charCallback(window, c);
     editor.key(GLFW_KEY_ENTER);
-    require(
-        editor.scene.getCommittedComponentView(id)->getBodyLabel() == "Test gate",
-        "Gate label did not save."
-    );
+    require(editor.scene.getCommittedComponentView(id)->getBodyLabel() == "Test gate", "Gate label did not save.");
     // Increasing arity moves anchors; existing drivers must follow the same logical pin indices.
     editor.key(GLFW_KEY_ESCAPE);
     ComponentOverrides high;
@@ -2165,20 +2030,16 @@ void gateSettings(GLFWwindow* window)
     open(id);
     click(ui.gateInputButtonBounds(editor.scene, true));
     require(
-        gate()->getInputPinCount() == 3 && gate()->getInConnections().size() == 1 &&
-            gate()->getStateInPin(0) && editor.scene.getLogicComponent(source)->getStateOutPin(),
+        gate()->getInputPinCount() == 3 && gate()->getInConnections().size() == 1 && gate()->getStateInPin(0) &&
+            editor.scene.getLogicComponent(source)->getStateOutPin(),
         "Arity growth silently disconnected or reassigned a retained driver."
     );
     history(GLFW_KEY_Z);
-    require(
-        gate()->getInputPinCount() == 2 && gate()->getStateInPin(0),
-        "Undo did not restore wired arity."
-    );
+    require(gate()->getInputPinCount() == 2 && gate()->getStateInPin(0), "Undo did not restore wired arity.");
     history(GLFW_KEY_Y);
     click(ui.gateInputButtonBounds(editor.scene, false));
     require(
-        gate()->getInputPinCount() == 2 && gate()->getStateInPin(0) &&
-            gate()->getInConnections().size() == 1,
+        gate()->getInputPinCount() == 2 && gate()->getStateInPin(0) && gate()->getInConnections().size() == 1,
         "Shrinking disconnected the retained input."
     );
     click(ui.gateInputButtonBounds(editor.scene, true));
@@ -2191,8 +2052,7 @@ void gateSettings(GLFWwindow* window)
     click(ui.gateInputButtonBounds(editor.scene, false));
     require(
         gate()->getInputPinCount() == 3 && editor.scene.getRevision() == before &&
-            editor.input.getUndoCount() == beforeUndo &&
-            editor.input.getLastEditError() == EditError::AttachedPin,
+            editor.input.getUndoCount() == beforeUndo && editor.input.getLastEditError() == EditError::AttachedPin,
         "Wired pin removal partially committed or entered history."
     );
     editor.input.setMode(EditorMode::Interaction);
@@ -2202,25 +2062,21 @@ void gateSettings(GLFWwindow* window)
     click(ui.gateInversionBounds(editor.scene));
     click(ui.nameBounds(editor.scene));
     require(
-        gate()->getInputPinCount() == 3 && !gate()->isInverted() &&
-            !editor.input.getUiCapture().keyboard,
+        gate()->getInputPinCount() == 3 && !gate()->isInverted() && !editor.input.getUiCapture().keyboard,
         "Interaction mode edited gate settings."
     );
     editor.input.setMode(EditorMode::Selection);
     layout();
-    for (const auto definition :
-         {BuiltinComponentIds::Not, BuiltinComponentIds::Clock, BuiltinComponentIds::SrLatch})
+    for (const auto definition : {BuiltinComponentIds::Not, BuiltinComponentIds::Clock, BuiltinComponentIds::SrLatch})
     {
         const int fixed = editor.scene.addComponent(definition, {0, -12});
         open(fixed);
         require(
-            ui.gateInputButtonBounds(editor.scene, true).width == 0 &&
-                ui.gateInversionBounds(editor.scene).width == 0,
+            ui.gateInputButtonBounds(editor.scene, true).width == 0 && ui.gateInversionBounds(editor.scene).width == 0,
             "Unsupported component exposed mutable gate controls."
         );
         require(
-            (ui.gateSettingsBounds(editor.scene).width > 0) ==
-                (definition == BuiltinComponentIds::Not),
+            (ui.gateSettingsBounds(editor.scene).width > 0) == (definition == BuiltinComponentIds::Not),
             "Clock/latch gained gate settings or NOT lost fixed settings."
         );
         const bool rotatable = definition != BuiltinComponentIds::Clock;
@@ -2237,16 +2093,14 @@ void gateSettings(GLFWwindow* window)
             );
             history(GLFW_KEY_Z);
             require(
-                editor.scene.getCommittedComponentView(fixed)->getOrientation() ==
-                    Orientation::Right,
+                editor.scene.getCommittedComponentView(fixed)->getOrientation() == Orientation::Right,
                 "Latch/NOT popup rotation did not enter history."
             );
             editor.input.setMode(EditorMode::Interaction);
             layout();
             click(ui.componentOrientationBounds(editor.scene, Orientation::Left));
             require(
-                editor.scene.getCommittedComponentView(fixed)->getOrientation() ==
-                    Orientation::Right,
+                editor.scene.getCommittedComponentView(fixed)->getOrientation() == Orientation::Right,
                 "Interaction mode rotated a latch/NOT."
             );
             editor.input.setMode(EditorMode::Selection);
@@ -2259,9 +2113,8 @@ void gateSettings(GLFWwindow* window)
     Scene blocked;
     const int small = blocked.addComponent(BuiltinComponentIds::And, {0, 0});
     blocked.addComponent(BuiltinComponentIds::Input, {-2, 5});
-    const auto resized = EditorActions(blocked).apply(
-        {ConfigureComponentProperties{.componentId = small, .inputCount = 8}}
-    );
+    const auto resized =
+        EditorActions(blocked).apply({ConfigureComponentProperties{.componentId = small, .inputCount = 8}});
     require(
         static_cast<bool>(resized) && blocked.getLogicComponent(small)->getInputPinCount() == 8 &&
             blocked.getCommittedComponentView(small)->getGridPosition() == GridCoords{0, 0} &&
@@ -2272,6 +2125,8 @@ void gateSettings(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+
+/** @brief Verify file, edit and view menus share the normal command paths and respect capture boundaries. */
 void navigationMenus(GLFWwindow* window)
 {
     glfwSetWindowSize(window, 900, 700);
@@ -2281,13 +2136,7 @@ void navigationMenus(GLFWwindow* window)
     const int second = editor.scene.addComponent(BuiltinComponentIds::Not, {20, 0});
     editor.wire({{-10, 10}, {10, 10}});
     auto layout = [&]
-    {
-        ui.layout(
-            editor.scene.getComponentCatalog(),
-            editor.input.getCameraFrame(window).surface,
-            editor.input
-        );
-    };
+    { ui.layout(editor.scene.getComponentCatalog(), editor.input.getCameraFrame(window).surface, editor.input); };
     auto refresh = [&]
     {
         layout();
@@ -2300,9 +2149,8 @@ void navigationMenus(GLFWwindow* window)
         [&](const UiInputEvent& event)
         {
             layout();
-            const bool consumed = ui.handleInput(
-                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
-            );
+            const bool consumed =
+                ui.handleInput(event, editor.scene, editor.input, editor.input.getCameraFrame(window));
             layout();
             return consumed;
         }
@@ -2340,14 +2188,12 @@ void navigationMenus(GLFWwindow* window)
     );
     menu(UI::Menu::Edit, 2);
     require(
-        ui.menuOptions(UI::Menu::Edit)[3].enabled &&
-            editor.input.getSelectedComponents().size() == 2,
+        ui.menuOptions(UI::Menu::Edit)[3].enabled && editor.input.getSelectedComponents().size() == 2,
         "Opening Edit erased the selection or Copy failed."
     );
     menu(UI::Menu::Edit, 4);
     require(
-        editor.scene.getComponentCount() == 0 && editor.scene.wireCount() == 0 &&
-            editor.input.getUndoCount() == 1,
+        editor.scene.getComponentCount() == 0 && editor.scene.wireCount() == 0 && editor.input.getUndoCount() == 1,
         "Menu Delete did not create one shared editor action."
     );
     menu(UI::Menu::Edit, 0);
@@ -2360,8 +2206,7 @@ void navigationMenus(GLFWwindow* window)
     key(GLFW_KEY_Z, GLFW_MOD_CONTROL);
     key(GLFW_KEY_A, GLFW_MOD_CONTROL);
     require(
-        editor.input.getSelectedComponents().size() == 2 &&
-            editor.input.getSelectedWires().size() == 1,
+        editor.input.getSelectedComponents().size() == 2 && editor.input.getSelectedWires().size() == 1,
         "Ctrl+A did not share the menu selection implementation."
     );
     menu(UI::Menu::Edit, 3);
@@ -2386,8 +2231,7 @@ void navigationMenus(GLFWwindow* window)
     for (const auto& [id, view] : editor.scene.getComponentViewMap())
     {
         const auto bounds = view->getBodyBounds();
-        for (const auto point :
-             {glm::vec2{bounds.left, bounds.bottom}, glm::vec2{bounds.right, bounds.top}})
+        for (const auto point : {glm::vec2{bounds.left, bounds.bottom}, glm::vec2{bounds.right, bounds.top}})
         {
             const auto screen = frame.worldToWindow(point);
             require(
@@ -2400,8 +2244,8 @@ void navigationMenus(GLFWwindow* window)
     menu(UI::Menu::Edit, 5);
     menu(UI::Menu::View, 1);
     require(
-        editor.input.getPanOffset() == fittedCenter &&
-            editor.scene.getRevision() == cameraRevision && editor.input.getUndoCount() == 0,
+        editor.input.getPanOffset() == fittedCenter && editor.scene.getRevision() == cameraRevision &&
+            editor.input.getUndoCount() == 0,
         "Center Selection did not navigate without editing."
     );
     editor.input.setZoom(2);
@@ -2413,8 +2257,7 @@ void navigationMenus(GLFWwindow* window)
     menu(UI::Menu::View, 3);
     require(
         !ui.bottomVisible() && ui.bottomBounds().height == 0 &&
-            editor.input.getCanvasViewport()->height >
-                bottom.y - editor.input.getCanvasViewport()->y,
+            editor.input.getCanvasViewport()->height > bottom.y - editor.input.getCanvasViewport()->y,
         "Hiding the lower panel did not expand the canvas."
     );
     key(GLFW_KEY_J, GLFW_MOD_CONTROL);
@@ -2423,10 +2266,7 @@ void navigationMenus(GLFWwindow* window)
         "Ctrl+J did not restore the previous lower-panel size."
     );
     menu(UI::Menu::View, 4);
-    require(
-        ui.debugVisible() && ui.menuOptions(UI::Menu::View)[4].checked,
-        "Debug menu state was not synchronized."
-    );
+    require(ui.debugVisible() && ui.menuOptions(UI::Menu::View)[4].checked, "Debug menu state was not synchronized.");
     key(GLFW_KEY_F3);
     require(!ui.debugVisible(), "F3 did not toggle the same debug state.");
     editor.input.setMode(EditorMode::Interaction);
@@ -2447,8 +2287,7 @@ void navigationMenus(GLFWwindow* window)
     key(GLFW_KEY_J, GLFW_MOD_CONTROL);
     key(GLFW_KEY_F3);
     require(
-        editor.input.getZoom() == 2 && ui.bottomVisible() && !ui.debugVisible(),
-        "View shortcuts escaped a text field."
+        editor.input.getZoom() == 2 && ui.bottomVisible() && !ui.debugVisible(), "View shortcuts escaped a text field."
     );
     key(GLFW_KEY_ESCAPE);
     click(ui.menuBounds(UI::Menu::Edit));
@@ -2465,26 +2304,21 @@ void navigationMenus(GLFWwindow* window)
     glfwSetWindowSize(window, 800, 800);
 }
 
+
+/** @brief Verify combinational and next-state table presentation, live-row navigation, scrolling and read-only
+ * behaviour. */
 void truthTablePopup(GLFWwindow* window)
 {
     glfwSetWindowSize(window, 800, 600);
     Editor editor(window);
     UI ui;
     auto layout = [&]
-    {
-        ui.layout(
-            editor.scene.getComponentCatalog(),
-            editor.input.getCameraFrame(window).surface,
-            editor.input
-        );
-    };
+    { ui.layout(editor.scene.getComponentCatalog(), editor.input.getCameraFrame(window).surface, editor.input); };
     editor.input.setUiInputHandler(
         [&](const UiInputEvent& event)
         {
             layout();
-            return ui.handleInput(
-                event, editor.scene, editor.input, editor.input.getCameraFrame(window)
-            );
+            return ui.handleInput(event, editor.scene, editor.input, editor.input.getCameraFrame(window));
         }
     );
     layout();
@@ -2521,23 +2355,19 @@ void truthTablePopup(GLFWwindow* window)
     const auto history = editor.input.getUndoCount();
     click(ui.infoTabBounds(editor.scene, true));
     require(
-        ui.truthTableOpen() && ui.truthTableCurrentRow(editor.scene) == 0 &&
-            editor.scene.getRevision() == revision && editor.input.getUndoCount() == history &&
-            editor.input.isIdle(),
+        ui.truthTableOpen() && ui.truthTableCurrentRow(editor.scene) == 0 && editor.scene.getRevision() == revision &&
+            editor.input.getUndoCount() == history && editor.input.isIdle(),
         "Opening a table changed the model, history or canvas gesture."
     );
-    auto change = EditorActions(editor.scene)
-                      .apply({ConfigureComponentProperties{
-                          .componentId = id,
-                          .inputCount = 8,
-                          .inverted = true,
-                          .inputInversion = ConfigureGateInput{0, true}
-                      }});
+    auto change =
+        EditorActions(editor.scene)
+            .apply({ConfigureComponentProperties{
+                .componentId = id, .inputCount = 8, .inverted = true, .inputInversion = ConfigureGateInput{0, true}
+            }});
     require(static_cast<bool>(change), "Cannot prepare an inverted eight-input table.");
     refresh();
     require(
-        ui.truthTable(editor.scene).rows.size() == 256 &&
-            ui.truthTable(editor.scene).headers[0] == "A*" &&
+        ui.truthTable(editor.scene).rows.size() == 256 && ui.truthTable(editor.scene).headers[0] == "A*" &&
             ui.truthTable(editor.scene).rows[255].back() == "1",
         "An open table retained stale arity/inversion data."
     );
@@ -2545,10 +2375,7 @@ void truthTablePopup(GLFWwindow* window)
     for (int i = 0; i < 8; ++i)
         logic->setStateInPin(i, true);
     refresh();
-    require(
-        ui.truthTableCurrentRow(editor.scene) == 255,
-        "Current row used effective rather than incoming levels."
-    );
+    require(ui.truthTableCurrentRow(editor.scene) == 255, "Current row used effective rather than incoming levels.");
     click(ui.currentTruthRowBounds(editor.scene));
     require(
         ui.truthTableScroll(editor.scene) + ui.truthTableVisibleRows(editor.scene) == 256 &&
@@ -2565,9 +2392,7 @@ void truthTablePopup(GLFWwindow* window)
     );
     click(ui.currentTruthRowBounds(editor.scene));
     editor.scene.markSimulationDirty();
-    require(
-        !ui.truthTableCurrentRow(editor.scene), "Dirty simulation highlighted stale input values."
-    );
+    require(!ui.truthTableCurrentRow(editor.scene), "Dirty simulation highlighted stale input values.");
     refresh();
     click(ui.infoTabBounds(editor.scene, false));
     require(
@@ -2580,8 +2405,7 @@ void truthTablePopup(GLFWwindow* window)
     open(ff);
     click(ui.infoTabBounds(editor.scene, true));
     require(
-        ui.truthTable(editor.scene).rows.size() == 4 &&
-            ui.truthTable(editor.scene).inputCount == 2 &&
+        ui.truthTable(editor.scene).rows.size() == 4 && ui.truthTable(editor.scene).inputCount == 2 &&
             ui.truthTable(editor.scene).rows[3][2] == "~Q",
         "JK table omitted edge-triggered toggle behavior."
     );
@@ -2598,8 +2422,7 @@ void truthTablePopup(GLFWwindow* window)
     require(
         static_cast<bool>(EditorActions(authored).apply(
             {ConfigureComponentProperties{.componentId = portIn, .label = "Data"},
-             ConfigureComponentProperties{.componentId = portOut, .label = "Result"},
-             AddWire{{{-11, 0}, {11, 0}}}}
+             ConfigureComponentProperties{.componentId = portOut, .label = "Result"}, AddWire{{{-11, 0}, {11, 0}}}}
         )),
         "Cannot create custom table fixture."
     );
@@ -2615,33 +2438,24 @@ void truthTablePopup(GLFWwindow* window)
     const auto customHistory = editor.input.getUndoCount();
     click(ui.infoTabBounds(editor.scene, true));
     require(
-        ui.truthTableOpen() &&
-            ui.truthTable(editor.scene).headers == std::vector<std::string>{"Data", "Result"} &&
-            ui.truthTable(editor.scene).rows ==
-                std::vector<std::vector<std::string>>{{"0", "0"}, {"1", "1"}} &&
+        ui.truthTableOpen() && ui.truthTable(editor.scene).headers == std::vector<std::string>{"Data", "Result"} &&
+            ui.truthTable(editor.scene).rows == std::vector<std::vector<std::string>>{{"0", "0"}, {"1", "1"}} &&
             ui.truthTableCurrentRow(editor.scene) == 0,
         "Custom popup did not calculate its named table."
     );
     editor.scene.getLogicComponent(customId)->setStateInPin(0, true);
     refresh();
     require(
-        ui.truthTableCurrentRow(editor.scene) == 1 &&
-            editor.scene.getLogicComponent(customId)->getStateOutPin(0) &&
-            editor.scene.getRevision() == customRevision &&
-            editor.input.getUndoCount() == customHistory,
+        ui.truthTableCurrentRow(editor.scene) == 1 && editor.scene.getLogicComponent(customId)->getStateOutPin(0) &&
+            editor.scene.getRevision() == customRevision && editor.input.getUndoCount() == customHistory,
         "Custom table changed live state/history or failed to update its highlight."
     );
     click(ui.infoTabBounds(editor.scene, false));
-    require(
-        ui.editSubcircuitBounds(editor.scene).width > 0,
-        "Truth table removed the custom circuit's Edit control."
-    );
+    require(ui.editSubcircuitBounds(editor.scene).width > 0, "Truth table removed the custom circuit's Edit control.");
     authored.addComponent(BuiltinComponentIds::Clock, {0, 8});
     const auto clocked = makeSubcircuit(authored, {"subcircuit.table-clock", 1}, "Clocked");
     require(
-        static_cast<bool>(
-            EditorActions(editor.scene).apply({RegisterComponentDefinition{clocked}})
-        ),
+        static_cast<bool>(EditorActions(editor.scene).apply({RegisterComponentDefinition{clocked}})),
         "Cannot register clocked custom table fixture."
     );
     const int clockedId = editor.scene.addComponent(clocked.identity.id, {0, -6});
@@ -2649,8 +2463,7 @@ void truthTablePopup(GLFWwindow* window)
     open(clockedId);
     click(ui.infoTabBounds(editor.scene, true));
     require(
-        ui.truthTableOpen() && ui.truthTable(editor.scene).rows.empty() &&
-            !ui.truthTableCurrentRow(editor.scene) &&
+        ui.truthTableOpen() && ui.truthTable(editor.scene).rows.empty() && !ui.truthTableCurrentRow(editor.scene) &&
             ui.currentTruthRowBounds(editor.scene).width == 0 &&
             ui.truthTable(editor.scene).notes[1].find("clocks") != std::string::npos,
         "Clocked custom circuit did not explain why its table is unavailable."
@@ -2667,15 +2480,14 @@ void truthTablePopup(GLFWwindow* window)
         "A failed simulation should keep theoretical rows but suppress live highlighting."
     );
     editor.input.handleFocus(false);
-    require(
-        ui.infoComponentId() == -1 && !ui.truthTableOpen(), "Focus loss retained the table popup."
-    );
+    require(ui.infoComponentId() == -1 && !ui.truthTableOpen(), "Focus loss retained the table popup.");
     editor.input.handleFocus(true);
     editor.input.setUiInputHandler({});
     glfwSetWindowSize(window, 800, 800);
 }
 
 } // namespace
+
 
 int main(int argc, char** argv)
 {

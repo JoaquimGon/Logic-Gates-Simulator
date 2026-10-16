@@ -24,6 +24,7 @@ enum class PlacementPolicy
     AllowOverlap,
     RejectSharedAnchors
 };
+
 enum class RemovedPinPolicy
 {
     RejectAttached,
@@ -166,22 +167,9 @@ struct DeleteWireSegment
 };
 
 using EditOperation = std::variant<
-    RegisterComponentDefinition,
-    CreateComponent,
-    CreateGate,
-    CreateInput,
-    CreateClock,
-    CreateLatch,
-    MoveComponent,
-    DeleteComponent,
-    ConfigureComponent,
-    ConfigureComponentProperties,
-    ConfigureInput,
-    ConfigureClock,
-    AddWire,
-    MoveWire,
-    DeleteWire,
-    DeleteWireSegment>;
+    RegisterComponentDefinition, CreateComponent, CreateGate, CreateInput, CreateClock, CreateLatch, MoveComponent,
+    DeleteComponent, ConfigureComponent, ConfigureComponentProperties, ConfigureInput, ConfigureClock, AddWire,
+    MoveWire, DeleteWire, DeleteWireSegment>;
 using EditBatch = std::vector<EditOperation>;
 
 enum class EditError

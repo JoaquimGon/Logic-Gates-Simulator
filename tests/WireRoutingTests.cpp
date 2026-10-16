@@ -20,6 +20,7 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+
 EditResult edit(Scene& scene, EditBatch batch)
 {
     auto result = EditorActions(scene).apply(batch);
@@ -28,6 +29,8 @@ EditResult edit(Scene& scene, EditBatch batch)
     return result;
 }
 
+
+/** @brief Verify route endpoints and detours respect visible component bounds with the intended half-cell clearance. */
 void clearance()
 {
     ComponentGeometry obstacle{1, {0, 0}, 0, 0, 0.2f, 0.2f, {}};
@@ -45,14 +48,7 @@ void clearance()
         const int steps = std::abs(a.x - b.x) + std::abs(a.y - b.y);
         for (int j = 0; j <= steps; ++j)
         {
-            GridCoords p{
-                a.x + (b.x > a.x   ? j
-                       : b.x < a.x ? -j
-                                   : 0),
-                a.y + (b.y > a.y   ? j
-                       : b.y < a.y ? -j
-                                   : 0)
-            };
+            GridCoords p{a.x + (b.x > a.x ? j : b.x < a.x ? -j : 0), a.y + (b.y > a.y ? j : b.y < a.y ? -j : 0)};
             require(
                 p.x <= -3 || p.x >= 5 || p.y <= -3 || p.y >= 3,
                 "Route crossed the body/pins or their half-cell padding."
@@ -61,15 +57,13 @@ void clearance()
     }
     // Actual source/bulb bounds sit near a grid threshold: the clock must not
     // acquire an extra blocked row just because its body is slightly wider.
-    for (const auto* definition :
-         {BuiltinComponentIds::Clock, BuiltinComponentIds::Input, BuiltinComponentIds::Output})
+    for (const auto* definition : {BuiltinComponentIds::Clock, BuiltinComponentIds::Input, BuiltinComponentIds::Output})
     {
         Scene scene;
         scene.addComponent(definition, {0, 0});
         const auto geometry = scene.committedGeometry();
         require(
-            routeWire({-6, 2}, {6, 2}, geometry, {}) ==
-                std::optional{std::vector<GridCoords>{{-6, 2}, {6, 2}}},
+            routeWire({-6, 2}, {6, 2}, geometry, {}) == std::optional{std::vector<GridCoords>{{-6, 2}, {6, 2}}},
             "Source/bulb routing still blocked the second grid row outside the body."
         );
         for (const bool reverse : {false, true})
@@ -77,8 +71,7 @@ void clearance()
             const GridCoords start = reverse ? GridCoords{-6, 0} : GridCoords{-2, 0};
             const GridCoords end = reverse ? GridCoords{-2, 0} : GridCoords{-6, 0};
             require(
-                routeWire(start, end, geometry, {}) ==
-                    std::optional{std::vector<GridCoords>{start, end}},
+                routeWire(start, end, geometry, {}) == std::optional{std::vector<GridCoords>{start, end}},
                 "A wire could not start/end two cells from a source/bulb centre."
             );
         }
@@ -87,16 +80,12 @@ void clearance()
         for (const auto point : *around)
             require(std::abs(point.y) <= 2, "Source/bulb detour left an excessive vertical gap.");
         require(
-            !routeWire({-1, 1}, {-6, 1}, geometry, {}) &&
-                !routeWire({-6, 1}, {-1, 1}, geometry, {}),
+            !routeWire({-1, 1}, {-6, 1}, geometry, {}) && !routeWire({-6, 1}, {-1, 1}, geometry, {}),
             "Reduced clearance allowed a non-pin endpoint too close to a source/bulb body."
         );
     }
     auto access = routeWire({4, 0}, {10, 0}, {&obstacle, 1}, {});
-    require(
-        access && access->front() == GridCoords{4, 0},
-        "Endpoint pin could not leave its own padding."
-    );
+    require(access && access->front() == GridCoords{4, 0}, "Endpoint pin could not leave its own padding.");
     Wire attached;
     attached.setPath({{4, 0}, {8, 0}});
     attached.setNet(2);
@@ -104,17 +93,9 @@ void clearance()
         routeWire({10, 4}, {4, 0}, {&obstacle, 1}, {{0, attached}}, 1).has_value(),
         "An explicit connection to an already-wired pin was rejected."
     );
-    require(
-        !routeWire({0, 0}, {10, 0}, {&obstacle, 1}, {}),
-        "A non-pin endpoint inside a body was accepted."
-    );
-    auto distant = routeWire(
-        {std::numeric_limits<int>::min(), 0}, {std::numeric_limits<int>::max(), 0}, {}, {}
-    );
-    require(
-        distant && distant->size() == 2,
-        "Distant straight route overflowed or required grid search."
-    );
+    require(!routeWire({0, 0}, {10, 0}, {&obstacle, 1}, {}), "A non-pin endpoint inside a body was accepted.");
+    auto distant = routeWire({std::numeric_limits<int>::min(), 0}, {std::numeric_limits<int>::max(), 0}, {}, {});
+    require(distant && distant->size() == 2, "Distant straight route overflowed or required grid search.");
     Wire other;
     other.setPath({{0, -2}, {0, 2}});
     other.setNet(2);
@@ -122,10 +103,7 @@ void clearance()
     require(crossing.has_value(), "A route could not cross an existing wire.");
     Wire routed;
     routed.setPath(*crossing);
-    require(
-        *crossing == std::vector<GridCoords>{{-4, 0}, {4, 0}},
-        "An interior crossing still forced a detour."
-    );
+    require(*crossing == std::vector<GridCoords>{{-4, 0}, {4, 0}}, "An interior crossing still forced a detour.");
     Scene separate;
     edit(separate, {AddWire{other.getPath()}, AddWire{*crossing}});
     require(
@@ -134,22 +112,14 @@ void clearance()
     );
     // An internal vertex also stays a visual crossing, not a whole-wire endpoint.
     other.setPath({{0, -2}, {0, 0}, {0, 2}, {2, 2}});
-    require(
-        routeWire({-4, 0}, {4, 0}, {}, {{0, other}}, 1) == crossing,
-        "An interior vertex forced a detour."
-    );
+    require(routeWire({-4, 0}, {4, 0}, {}, {{0, other}}, 1) == crossing, "An interior vertex forced a detour.");
     other.setPath({{0, 0}, {0, 3}});
     const auto endpoint = routeWire({-4, 0}, {4, 0}, {}, {{0, other}}, 1);
     require(endpoint.has_value(), "Could not route around another wire's endpoint.");
     routed.setPath(*endpoint);
-    require(
-        !routed.containsPoint({0, 0}),
-        "Routing made an unintended junction at another wire's endpoint."
-    );
+    require(!routed.containsPoint({0, 0}), "Routing made an unintended junction at another wire's endpoint.");
     const auto join = routeWire({-4, 0}, {0, 0}, {}, {{0, other}}, 1);
-    require(
-        join && join->back() == GridCoords{0, 0}, "Explicitly joining a wire endpoint was blocked."
-    );
+    require(join && join->back() == GridCoords{0, 0}, "Explicitly joining a wire endpoint was blocked.");
     other.setPath({{-1, 0}, {1, 0}});
     const auto overlap = routeWire({-4, 0}, {4, 0}, {}, {{0, other}}, 1);
     require(overlap.has_value(), "Could not route around a collinear span.");
@@ -157,11 +127,13 @@ void clearance()
     require(!routed.containsPoint({0, 0}), "Routing merged a collinear span of an unrelated net.");
 }
 
+
+/** @brief Verify attached-wire rerouting preserves driven connectivity while alternate movement retains fixed geometry.
+ */
 void moves()
 {
     Scene scene;
-    const int source =
-        scene.addComponent(BuiltinComponentIds::Input, {-12, 0}, {.inputState = true});
+    const int source = scene.addComponent(BuiltinComponentIds::Input, {-12, 0}, {.inputState = true});
     const int gate = scene.addComponent(BuiltinComponentIds::Not, {0, 0});
     const int output = scene.addComponent(BuiltinComponentIds::Output, {0, 8});
     edit(scene, {AddWire{{{-11, 0}, {-2, 0}}}, AddWire{{{-6, 0}, {-6, 8}, {-1, 8}}}});
@@ -171,10 +143,8 @@ void moves()
     scene.propagate();
     require(
         scene.getTopologyBuildCount() == builds + 1 && result.change &&
-            scene.netOfPin({gate, 0}, PinType::INPUT) ==
-                scene.netOfPin({source, 0}, PinType::OUTPUT) &&
-            scene.netOfPin({output, 0}, PinType::INPUT) ==
-                scene.netOfPin({source, 0}, PinType::OUTPUT),
+            scene.netOfPin({gate, 0}, PinType::INPUT) == scene.netOfPin({source, 0}, PinType::OUTPUT) &&
+            scene.netOfPin({output, 0}, PinType::INPUT) == scene.netOfPin({source, 0}, PinType::OUTPUT),
         "Movement broke an attachment/branch or rebuilt more than once."
     );
     bool junction = false;
@@ -182,9 +152,7 @@ void moves()
         junction |= wire.containsPoint({-6, 0});
     require(junction, "Rerouting moved a fixed branch junction.");
     require(
-        static_cast<bool>(
-            EditorActions(scene).restore(*result.change->before, scene.getRevision())
-        ),
+        static_cast<bool>(EditorActions(scene).restore(*result.change->before, scene.getRevision())),
         "Move and route could not be restored together."
     );
     require(
@@ -211,16 +179,15 @@ void moves()
     edit(latchScene, {MoveComponent{latch, {0, -2}}});
     edit(latchScene, {MoveComponent{latch, {4, 8}}});
     require(
-        latchScene.netOfPin({latch, 0}, PinType::OUTPUT) ==
-                latchScene.netOfPin({q, 0}, PinType::INPUT) &&
-            latchScene.netOfPin({latch, 1}, PinType::OUTPUT) ==
-                latchScene.netOfPin({nq, 0}, PinType::INPUT) &&
-            latchScene.netOfPin({q, 0}, PinType::INPUT) !=
-                latchScene.netOfPin({nq, 0}, PinType::INPUT),
+        latchScene.netOfPin({latch, 0}, PinType::OUTPUT) == latchScene.netOfPin({q, 0}, PinType::INPUT) &&
+            latchScene.netOfPin({latch, 1}, PinType::OUTPUT) == latchScene.netOfPin({nq, 0}, PinType::INPUT) &&
+            latchScene.netOfPin({q, 0}, PinType::INPUT) != latchScene.netOfPin({nq, 0}, PinType::INPUT),
         "Movement swapped or shorted independent output pins."
     );
 }
 
+
+/** @brief Verify a failed route leaves complete scene geometry and transaction state unchanged. */
 void rollback()
 {
     const ComponentGeometry blocked{1, {0, 0}, 0, 0, 1, 1, {}};
@@ -247,8 +214,7 @@ void rollback()
     const auto revision = scene.getRevision();
     const auto blockedMove = EditorActions(scene).apply({MoveComponent{source, {0, 0}}});
     require(
-        blockedMove.error == EditError::InvalidWire && !blockedMove.change &&
-            scene.getRevision() == revision &&
+        blockedMove.error == EditError::InvalidWire && !blockedMove.change && scene.getRevision() == revision &&
             scene.getCommittedComponentView(source)->getGridPosition() == GridCoords{-10, 0},
         "Insufficient clearance did not reject the complete move without mutation."
     );
@@ -260,6 +226,8 @@ void rollback()
     );
 }
 
+
+/** @brief Verify component landings trim only dangling body-side tails and preserve downstream pins and junctions. */
 void landings()
 {
     {
@@ -286,9 +254,7 @@ void landings()
             tail |= wire.containsPoint({6, 0});
             require(!wire.containsPoint({0, 0}), "A junction continuation stayed inside the body.");
         }
-        require(
-            degree == 3 && tail, "Landing deleted or bypassed a junction before normalization."
-        );
+        require(degree == 3 && tail, "Landing deleted or bypassed a junction before normalization.");
     }
     for (const bool fromLeft : {false, true})
     {
@@ -301,8 +267,7 @@ void landings()
         require(
             scene.netOfPin({gate, 0}, fromLeft ? PinType::INPUT : PinType::OUTPUT) ==
                     scene.netOfPin({source, 0}, PinType::OUTPUT) &&
-                scene.netOfPin({gate, 0}, fromLeft ? PinType::OUTPUT : PinType::INPUT) ==
-                    INVALID_NET_ID,
+                scene.netOfPin({gate, 0}, fromLeft ? PinType::OUTPUT : PinType::INPUT) == INVALID_NET_ID,
             "A second newly landed gate pin falsely protected the dangling body-side tail."
         );
         for (const auto& [id, wire] : scene.getWires())
@@ -311,8 +276,7 @@ void landings()
     for (const bool reverse : {false, true})
     {
         Scene scene;
-        const int source =
-            scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
+        const int source = scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
         const int sink = scene.addComponent(BuiltinComponentIds::Output, {0, 6});
         std::vector<GridCoords> path{{-9, 0}, {8, 0}};
         if (reverse)
@@ -325,31 +289,26 @@ void landings()
             scene.wireCount() == 1 && scene.getWires().begin()->second.containsPoint({-1, 0}) &&
                 !scene.getWires().begin()->second.containsPoint({0, 0}) &&
                 !scene.getWires().begin()->second.containsPoint({8, 0}) &&
-                scene.netOfPin({source, 0}, PinType::OUTPUT) ==
-                    scene.netOfPin({sink, 0}, PinType::INPUT) &&
-                scene.getLogicComponent(sink)->getStateInPin(0) &&
-                scene.getTopologyBuildCount() == builds + 1,
+                scene.netOfPin({source, 0}, PinType::OUTPUT) == scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                scene.getLogicComponent(sink)->getStateInPin(0) && scene.getTopologyBuildCount() == builds + 1,
             "Landing did not trim only the body-side dangling tail and connect the pin."
         );
         require(
-            static_cast<bool>(
-                EditorActions(scene).restore(*result.change->before, scene.getRevision())
-            ) && scene.getWires().begin()->second.getPath() == path &&
+            static_cast<bool>(EditorActions(scene).restore(*result.change->before, scene.getRevision())) &&
+                scene.getWires().begin()->second.getPath() == path &&
                 scene.getCommittedComponentView(sink)->getGridPosition() == GridCoords{0, 6},
             "Undo did not restore the shortened tail and component together."
         );
         require(
-            static_cast<bool>(
-                EditorActions(scene).restore(*result.change->after, scene.getRevision())
-            ) && !scene.getWires().begin()->second.containsPoint({8, 0}),
+            static_cast<bool>(EditorActions(scene).restore(*result.change->after, scene.getRevision())) &&
+                !scene.getWires().begin()->second.containsPoint({8, 0}),
             "Redo did not restore the landing trim."
         );
     }
     for (const bool branch : {false, true})
     {
         Scene scene;
-        const int source =
-            scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
+        const int source = scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
         const int landing = scene.addComponent(BuiltinComponentIds::Output, {0, 6});
         const int sink = scene.addComponent(BuiltinComponentIds::Output, {10, 0});
         edit(scene, {AddWire{{{-9, 0}, {branch ? 8 : 9, 0}}}});
@@ -359,27 +318,20 @@ void landings()
         scene.propagate();
         require(
             (!branch || scene.netOfPin({sink, 0}, PinType::INPUT) == INVALID_NET_ID) &&
-                (branch || (scene.netOfPin({source, 0}, PinType::OUTPUT) ==
-                                scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                (branch || (scene.netOfPin({source, 0}, PinType::OUTPUT) == scene.netOfPin({sink, 0}, PinType::INPUT) &&
                             scene.getLogicComponent(sink)->getStateInPin(0))) &&
-                scene.netOfPin({source, 0}, PinType::OUTPUT) ==
-                    scene.netOfPin({landing, 0}, PinType::INPUT) &&
+                scene.netOfPin({source, 0}, PinType::OUTPUT) == scene.netOfPin({landing, 0}, PinType::INPUT) &&
                 scene.getLogicComponent(landing)->getStateInPin(0),
             "Landing deleted or disconnected a continuation with another pin or junction."
         );
         bool hasBranch = false, hasTail = false;
         for (const auto& [id, wire] : scene.getWires())
         {
-            require(
-                !wire.containsPoint({0, 0}),
-                "Preserved continuation remained inside the moved body."
-            );
+            require(!wire.containsPoint({0, 0}), "Preserved continuation remained inside the moved body.");
             hasBranch |= wire.containsPoint({4, 5});
             hasTail |= wire.containsPoint({8, 0});
         }
-        require(
-            !branch || (hasBranch && hasTail), "Landing removed a junction or its dangling branch."
-        );
+        require(!branch || (hasBranch && hasTail), "Landing removed a junction or its dangling branch.");
     }
     {
         Scene scene;
@@ -415,8 +367,7 @@ void landings()
         edit(scene, {MoveComponent{clock, {0, 0}}});
         const auto& wire = scene.getWires().begin()->second;
         require(
-            wire.containsPoint({-6, 1}) && wire.containsPoint({6, 1}) &&
-                !wire.containsPoint({0, 1}),
+            wire.containsPoint({-6, 1}) && wire.containsPoint({6, 1}) && !wire.containsPoint({0, 1}),
             "Moving a body without a pin landing did not preserve and reroute the covered wire."
         );
     }
@@ -433,10 +384,7 @@ void landings()
             contact |= wire.containsPoint({-1, 0});
             require(!wire.containsPoint({0, 0}), "Landing left a loop inside the body.");
         }
-        require(
-            loop && contact && scene.netCount() == 1,
-            "Landing deleted a loop or disconnected it from the pin."
-        );
+        require(loop && contact && scene.netCount() == 1, "Landing deleted a loop or disconnected it from the pin.");
     }
     {
         Scene scene;
@@ -446,8 +394,7 @@ void landings()
         const auto path = scene.getWires().begin()->second.getPath();
         const auto result = EditorActions(scene).apply({MoveComponent{clock, {0, 0}}});
         require(
-            !result && scene.getRevision() == revision &&
-                scene.getWires().begin()->second.getPath() == path &&
+            !result && scene.getRevision() == revision && scene.getWires().begin()->second.getPath() == path &&
                 scene.getCommittedComponentView(clock)->getGridPosition() == GridCoords{0, 6},
             "An unroutable loop was deleted or the failed landing partially committed."
         );
@@ -464,33 +411,29 @@ void landings()
             require(fixed.front().y == 0 && fixed.back().y == 0, "Alt movement rerouted a wire.");
             length += std::abs(fixed.back().x - fixed.front().x);
         }
-        require(
-            length == 12,
-            "Alt movement trimmed a fixed wire rather than only splitting at its new pin."
-        );
+        require(length == 12, "Alt movement trimmed a fixed wire rather than only splitting at its new pin.");
     }
 }
 
+
+/** @brief Verify newly created components fit existing wires with the same trimming and preservation rules as moved
+ * components. */
 void placements()
 {
     {
         Scene scene;
         scene.addComponent(BuiltinComponentIds::Clock, {0, 0});
-        const int source =
-            scene.addComponent(BuiltinComponentIds::Input, {-10, -1}, {.inputState = true});
+        const int source = scene.addComponent(BuiltinComponentIds::Input, {-10, -1}, {.inputState = true});
         edit(scene, {AddWire{{{-9, -1}, {8, -1}}}});
-        const auto result = edit(
-            scene,
-            {CreateComponent{BuiltinComponentIds::Output, {0, 0}, {}, PlacementPolicy::FindFree}}
-        );
+        const auto result =
+            edit(scene, {CreateComponent{BuiltinComponentIds::Output, {0, 0}, {}, PlacementPolicy::FindFree}});
         const int sink = result.createdComponentIds.front();
         scene.propagate();
         require(
             scene.getCommittedComponentView(sink)->getGridPosition() == GridCoords{1, -1} &&
                 scene.getWires().begin()->second.containsPoint({0, -1}) &&
                 !scene.getWires().begin()->second.containsPoint({8, -1}) &&
-                scene.netOfPin({source, 0}, PinType::OUTPUT) ==
-                    scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                scene.netOfPin({source, 0}, PinType::OUTPUT) == scene.netOfPin({sink, 0}, PinType::INPUT) &&
                 scene.getLogicComponent(sink)->getStateInPin(0),
             "FindFree trimmed at the requested position instead of the resolved landing pin."
         );
@@ -498,8 +441,7 @@ void placements()
     for (const bool reverse : {false, true})
     {
         Scene scene;
-        const int source =
-            scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
+        const int source = scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
         std::vector<GridCoords> path{{-9, 0}, {8, 0}};
         if (reverse)
             std::reverse(path.begin(), path.end());
@@ -511,24 +453,18 @@ void placements()
         require(
             scene.wireCount() == 1 && scene.getWires().begin()->second.containsPoint({-1, 0}) &&
                 !scene.getWires().begin()->second.containsPoint({8, 0}) &&
-                scene.netOfPin({source, 0}, PinType::OUTPUT) ==
-                    scene.netOfPin({sink, 0}, PinType::INPUT) &&
-                scene.getLogicComponent(sink)->getStateInPin(0) &&
-                scene.getTopologyBuildCount() == builds + 1,
+                scene.netOfPin({source, 0}, PinType::OUTPUT) == scene.netOfPin({sink, 0}, PinType::INPUT) &&
+                scene.getLogicComponent(sink)->getStateInPin(0) && scene.getTopologyBuildCount() == builds + 1,
             "New placement did not trim the dangling tail and connect in one rebuild."
         );
         require(
-            static_cast<bool>(
-                EditorActions(scene).restore(*result.change->before, scene.getRevision())
-            ) && scene.getComponentCount() == 1 &&
-                scene.getWires().begin()->second.getPath() == path,
+            static_cast<bool>(EditorActions(scene).restore(*result.change->before, scene.getRevision())) &&
+                scene.getComponentCount() == 1 && scene.getWires().begin()->second.getPath() == path,
             "Undo did not remove the placed component and restore its trimmed tail together."
         );
         require(
-            static_cast<bool>(
-                EditorActions(scene).restore(*result.change->after, scene.getRevision())
-            ) && scene.getLogicComponent(sink) &&
-                !scene.getWires().begin()->second.containsPoint({8, 0}),
+            static_cast<bool>(EditorActions(scene).restore(*result.change->after, scene.getRevision())) &&
+                scene.getLogicComponent(sink) && !scene.getWires().begin()->second.containsPoint({8, 0}),
             "Redo did not restore placement and trimming together."
         );
     }
@@ -542,16 +478,14 @@ void placements()
         require(
             scene.netOfPin({gate, 0}, fromLeft ? PinType::INPUT : PinType::OUTPUT) ==
                     scene.netOfPin({source, 0}, PinType::OUTPUT) &&
-                scene.netOfPin({gate, 0}, fromLeft ? PinType::OUTPUT : PinType::INPUT) ==
-                    INVALID_NET_ID,
+                scene.netOfPin({gate, 0}, fromLeft ? PinType::OUTPUT : PinType::INPUT) == INVALID_NET_ID,
             "Another pin on a new gate protected its body-side dangling tail."
         );
     }
     for (const bool branch : {false, true})
     {
         Scene scene;
-        const int source =
-            scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
+        const int source = scene.addComponent(BuiltinComponentIds::Input, {-10, 0}, {.inputState = true});
         const int sink = scene.addComponent(BuiltinComponentIds::Output, {10, 0});
         edit(scene, {AddWire{{{-9, 0}, {branch ? 8 : 9, 0}}}});
         if (branch)
@@ -559,8 +493,7 @@ void placements()
         const int placed = scene.addComponent(BuiltinComponentIds::Output, {0, 0});
         scene.propagate();
         require(
-            scene.netOfPin({source, 0}, PinType::OUTPUT) ==
-                    scene.netOfPin({placed, 0}, PinType::INPUT) &&
+            scene.netOfPin({source, 0}, PinType::OUTPUT) == scene.netOfPin({placed, 0}, PinType::INPUT) &&
                 scene.getLogicComponent(placed)->getStateInPin(0) &&
                 (branch || scene.getLogicComponent(sink)->getStateInPin(0)),
             "Placement disconnected a continuation attached to another pin."
@@ -568,16 +501,11 @@ void placements()
         bool hasBranch = false, hasTail = false;
         for (const auto& [id, wire] : scene.getWires())
         {
-            require(
-                !wire.containsPoint({0, 0}),
-                "A preserved continuation remained inside the placed body."
-            );
+            require(!wire.containsPoint({0, 0}), "A preserved continuation remained inside the placed body.");
             hasBranch |= wire.containsPoint({4, 5});
             hasTail |= wire.containsPoint({8, 0});
         }
-        require(
-            !branch || (hasBranch && hasTail), "Placement deleted a junction or its continuation."
-        );
+        require(!branch || (hasBranch && hasTail), "Placement deleted a junction or its continuation.");
     }
     {
         Scene scene;
@@ -585,8 +513,7 @@ void placements()
         scene.addComponent(BuiltinComponentIds::Clock, {0, 0});
         const auto& wire = scene.getWires().begin()->second;
         require(
-            wire.containsPoint({-6, 1}) && wire.containsPoint({6, 1}) &&
-                !wire.containsPoint({0, 1}),
+            wire.containsPoint({-6, 1}) && wire.containsPoint({6, 1}) && !wire.containsPoint({0, 1}),
             "Placement without a pin landing did not preserve and reroute the covered wire."
         );
     }
@@ -595,11 +522,9 @@ void placements()
         edit(scene, {AddWire{{{-1, 1}, {1, 1}, {1, -1}, {-1, -1}, {-1, 1}}}});
         const auto revision = scene.getRevision();
         const auto path = scene.getWires().begin()->second.getPath();
-        const auto result =
-            EditorActions(scene).apply({CreateComponent{BuiltinComponentIds::Clock, {0, 0}}});
+        const auto result = EditorActions(scene).apply({CreateComponent{BuiltinComponentIds::Clock, {0, 0}}});
         require(
-            !result && !result.change && scene.getRevision() == revision &&
-                scene.getComponentCount() == 0 &&
+            !result && !result.change && scene.getRevision() == revision && scene.getComponentCount() == 0 &&
                 scene.getWires().begin()->second.getPath() == path,
             "Unroutable placement deleted a loop or partially committed."
         );
@@ -612,24 +537,19 @@ void placements()
         Scene scene;
         const std::vector<GridCoords> path{{-6, 0}, {6, 0}};
         edit(scene, {AddWire{path}});
-        edit(
-            scene,
-            {CreateComponent{BuiltinComponentIds::Clock, {0, 0}, {}, PlacementPolicy::AllowOverlap}}
-        );
+        edit(scene, {CreateComponent{BuiltinComponentIds::Clock, {0, 0}, {}, PlacementPolicy::AllowOverlap}});
         int length = 0;
         for (const auto& [id, wire] : scene.getWires())
         {
             const auto& fixed = wire.getPath();
-            require(
-                fixed.front().y == 0 && fixed.back().y == 0,
-                "Explicit import rerouted its authored wire."
-            );
+            require(fixed.front().y == 0 && fixed.back().y == 0, "Explicit import rerouted its authored wire.");
             length += std::abs(fixed.back().x - fixed.front().x);
         }
         require(length == 12, "Explicit import trimmed its authored wire geometry.");
     }
 }
 } // namespace
+
 
 int main(int argc, char** argv)
 {

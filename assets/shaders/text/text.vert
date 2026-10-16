@@ -1,12 +1,13 @@
 #version 330 core
-layout (location = 0) in vec2 aPos;
-layout (location = 1) in vec2 aTexCoord;
-layout (location = 2) in vec4 aColor;
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aTexCoord;
+layout(location = 2) in vec4 aColor;
 
 uniform mat4 uProjectionView;
 
 out vec2 TexCoord;
 out vec4 TextColor;
+
 
 void main()
 {

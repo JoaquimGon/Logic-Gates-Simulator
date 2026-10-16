@@ -43,14 +43,8 @@ struct TextVertex
  * @param outVertices Appended to, so several strings can share one mesh.
  */
 void buildTextGeometry(
-    const std::string& text,
-    float x,
-    float y,
-    float worldScale,
-    const glm::vec4& color,
-    const FontMetrics& font,
-    std::vector<TextVertex>& outVertices,
-    TextSpace space = TextSpace::World
+    const std::string& text, float x, float y, float worldScale, const glm::vec4& color, const FontMetrics& font,
+    std::vector<TextVertex>& outVertices, TextSpace space = TextSpace::World
 );
 
 /**
@@ -64,4 +58,6 @@ float getTextWidth(const std::string& text, float worldScale, const FontMetrics&
  * push a row of capitals downwards.
  */
 float getCapHeight(float worldScale, const FontMetrics& font);
+
+/** @brief Pack glyph positions, texture coordinates and tint into the text shader's vertex layout. */
 std::vector<float> packTextVertices(const std::vector<TextVertex>& vertices);

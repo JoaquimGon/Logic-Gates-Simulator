@@ -18,8 +18,10 @@ struct InterfaceComponent
     std::string name;
 };
 
-/** Committed input/output/clock instances, ordered by kind and component ID. */
+/** @brief Committed input/output/clock instances, ordered by kind and component ID. */
 std::vector<InterfaceComponent> interfaceComponents(const Scene& scene);
+
 bool blankComponentName(const std::string& name);
-/** Assigns first available numbered names without replacing existing labels. */
+
+/** @brief Assigns first available numbered names without replacing existing labels. */
 EditBatch missingInterfaceNames(const Scene& scene);

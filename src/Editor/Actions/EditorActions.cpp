@@ -22,10 +22,10 @@ struct EditFailure : std::runtime_error
 {
     EditError reason;
 
-    EditFailure(EditError reason, const char* message) : std::runtime_error(message), reason(reason)
-    {
-    }
+
+    EditFailure(EditError reason, const char* message) : std::runtime_error(message), reason(reason) {}
 };
+
 
 EditResult failure(EditError reason, const std::string& message)
 {
@@ -35,17 +35,18 @@ EditResult failure(EditError reason, const std::string& message)
     return result;
 }
 
+
 bool samePins(const std::vector<PinUI>& a, const std::vector<PinUI>& b)
 {
     if (a.size() != b.size())
         return false;
     for (std::size_t i = 0; i < a.size(); ++i)
-        if (a[i].type != b[i].type || a[i].pin_index != b[i].pin_index ||
-            a[i].relative_pos != b[i].relative_pos || a[i].id != b[i].id ||
-            a[i].label != b[i].label || a[i].lead != b[i].lead || a[i].inverted != b[i].inverted)
+        if (a[i].type != b[i].type || a[i].pin_index != b[i].pin_index || a[i].relative_pos != b[i].relative_pos ||
+            a[i].id != b[i].id || a[i].label != b[i].label || a[i].lead != b[i].lead || a[i].inverted != b[i].inverted)
             return false;
     return true;
 }
+
 
 GridCoords translated(GridCoords point, GridCoords offset)
 {
@@ -57,6 +58,8 @@ GridCoords translated(GridCoords point, GridCoords offset)
     return {static_cast<int>(x), static_cast<int>(y)};
 }
 
+
+/** @brief Validate an authored orthogonal route and construct its wire geometry without publishing partial edits. */
 Wire makeWire(const std::vector<GridCoords>& path)
 {
     Wire wire;
@@ -72,23 +75,22 @@ Wire makeWire(const std::vector<GridCoords>& path)
 }
 } // namespace
 
+
 EditResult EditorActions::apply(const EditBatch& batch)
 {
     return applyImpl(batch, false);
 }
 
+
+/** @brief Commit the validated candidate and return immutable before/after snapshots with final identity changes. */
 EditResult EditorActions::publish(
-    Scene candidate,
-    std::shared_ptr<const Scene> before,
-    std::vector<int> components,
-    std::vector<WireId> wires
+    Scene candidate, std::shared_ptr<const Scene> before, std::vector<int> components, std::vector<WireId> wires
 )
 {
     auto record = std::make_shared<EditRecord>();
     record->before = std::move(before);
-    record->after = edit_profile::measure(
-        edit_profile::Phase::Snapshot, [&] { return std::make_shared<Scene>(candidate); }
-    );
+    record->after =
+        edit_profile::measure(edit_profile::Phase::Snapshot, [&] { return std::make_shared<Scene>(candidate); });
     for (const auto& [id, wire] : candidate.m_wires)
         if (!record->before->m_wires.contains(id))
             record->addedWireIds.push_back(id);
@@ -104,24 +106,23 @@ EditResult EditorActions::publish(
     return result;
 }
 
+
+/** @brief Stage the complete edit batch on a scene copy, validate placement and routing, then publish atomically. */
 EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
 {
     if (m_scene.isReadOnly())
         return failure(EditError::InvalidConfiguration, "Live inspection is read only.");
     if (m_scene.m_previewToken != 0 && !allowPreview)
-        return failure(
-            EditError::PreviewActive, "Finish or cancel the active preview before editing."
-        );
+        return failure(EditError::PreviewActive, "Finish or cancel the active preview before editing.");
     if (batch.empty())
         return {};
 
     try
     {
-        auto before = edit_profile::measure(
-            edit_profile::Phase::Snapshot, [&] { return std::make_shared<Scene>(m_scene); }
-        );
-        Scene candidate =
-            edit_profile::measure(edit_profile::Phase::SceneCopy, [&] { return Scene(*before); });
+        // All mutations stay on the candidate until geometry, interfaces and topology have been validated.
+        auto before =
+            edit_profile::measure(edit_profile::Phase::Snapshot, [&] { return std::make_shared<Scene>(m_scene); });
+        Scene candidate = edit_profile::measure(edit_profile::Phase::SceneCopy, [&] { return Scene(*before); });
         std::vector<int> components;
         std::vector<int> moved;
         std::vector<WireId> translatedWires;
@@ -173,14 +174,11 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             placement[id] = request.placement;
             changed = topologyChanged = true;
         };
-        auto sourceOverrides =
-            [&](const char* definitionId, glm::vec2 size, const std::string& shader)
+        auto sourceOverrides = [&](const char* definitionId, glm::vec2 size, const std::string& shader)
         {
             auto resolved = candidate.m_catalog->resolve(definitionId);
             if (shader != resolved.presentation.shader.key)
-                throw EditFailure(
-                    EditError::InvalidConfiguration, "Source shader must match its definition."
-                );
+                throw EditFailure(EditError::InvalidConfiguration, "Source shader must match its definition.");
             resolved.layout.width = size.x;
             resolved.layout.height = size.y;
             ComponentOverrides options;
@@ -193,16 +191,12 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             auto& view = getView(id);
             auto* gate = dynamic_cast<Gate*>(candidate.m_circuit.getComponent(id));
             if (view.getSize() == layout.size && view.getShaderName() == layout.shader &&
-                samePins(view.getInputPins(), layout.inputs) &&
-                samePins(view.getOutputPins(), layout.outputs))
+                samePins(view.getInputPins(), layout.inputs) && samePins(view.getOutputPins(), layout.outputs))
                 return;
             for (const auto& pin : view.getInputPins())
                 if (pin.pin_index >= layout.inputs.size())
                     removedPins.push_back(
-                        {id,
-                         static_cast<int>(pin.pin_index),
-                         view.getAbsolutePinGridPos(pin),
-                         policy}
+                        {id, static_cast<int>(pin.pin_index), view.getAbsolutePinGridPos(pin), policy}
                     );
             if (gate)
             {
@@ -218,6 +212,8 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             changed = topologyChanged = true;
         };
 
+
+        // Apply authored operations in order while collecting the geometry repairs needed at commit.
         for (const auto& operation : batch)
         {
             std::visit(
@@ -227,8 +223,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     if constexpr (std::is_same_v<T, RegisterComponentDefinition>)
                     {
                         if (!stagedCatalog)
-                            stagedCatalog =
-                                std::make_shared<ComponentCatalog>(*candidate.m_catalog);
+                            stagedCatalog = std::make_shared<ComponentCatalog>(*candidate.m_catalog);
                         if (op.replace)
                         {
                             const auto* old = candidate.m_catalog->find(op.definition.identity.id);
@@ -236,41 +231,30 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                             {
                                 if (view->getDefinitionIdentity().id != op.definition.identity.id)
                                     continue;
-                                if (!old ||
-                                    !std::holds_alternative<SubcircuitBehavior>(old->behavior) ||
-                                    !std::holds_alternative<SubcircuitBehavior>(
-                                        op.definition.behavior
-                                    ))
+                                if (!old || !std::holds_alternative<SubcircuitBehavior>(old->behavior) ||
+                                    !std::holds_alternative<SubcircuitBehavior>(op.definition.behavior))
                                     throw std::invalid_argument(
                                         "Only subcircuit placements support definition updates."
                                     );
                                 // Match authored ports by identity, not their label or current
                                 // index.
                                 const auto& layout = op.definition.layout;
-                                for (const auto* pins :
-                                     {&view->getInputPins(), &view->getOutputPins()})
+                                for (const auto* pins : {&view->getInputPins(), &view->getOutputPins()})
                                     for (const auto& pin : *pins)
                                     {
                                         const auto from = view->getAbsolutePinGridPos(pin);
                                         const auto next = std::find_if(
-                                            layout.pins.begin(),
-                                            layout.pins.end(),
-                                            [&](const auto& value)
-                                            {
-                                                return value.id == pin.id &&
-                                                       value.direction == pin.type;
-                                            }
+                                            layout.pins.begin(), layout.pins.end(), [&](const auto& value)
+                                            { return value.id == pin.id && value.direction == pin.type; }
                                         );
                                         const auto relative =
                                             next != layout.pins.end()
                                                 ? next->anchor
                                                 : translated(
-                                                      pin.relative_pos,
-                                                      {pin.type == PinType::INPUT ? -2 : 2, 0}
+                                                      pin.relative_pos, {pin.type == PinType::INPUT ? -2 : 2, 0}
                                                   );
                                         const auto to = translated(
-                                            view->getGridPosition(),
-                                            rotateGridPoint(relative, view->getOrientation())
+                                            view->getGridPosition(), rotateGridPoint(relative, view->getOrientation())
                                         );
                                         // Leave room for pin access when another port takes this
                                         // row. Removed ports get a loose end outside the box, so a
@@ -284,27 +268,17 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                                 view->editOutputPins().clear();
                                 for (const auto& pin : layout.pins)
                                 {
-                                    PinUI visual{
-                                        pin.direction,
-                                        pin.index,
-                                        PinState::DISCONNECTED,
-                                        pin.anchor,
-                                        pin.id,
-                                        pin.label,
-                                        pin.lead,
-                                        pin.inverted
-                                    };
-                                    (pin.direction == PinType::INPUT ? view->editInputPins()
-                                                                     : view->editOutputPins())
+                                    PinUI visual{pin.direction, pin.index,   PinState::DISCONNECTED,
+                                                 pin.anchor,    pin.id,      pin.label,
+                                                 pin.lead,      pin.inverted};
+                                    (pin.direction == PinType::INPUT ? view->editInputPins() : view->editOutputPins())
                                         .push_back(std::move(visual));
                                 }
                                 view->m_size = {layout.width, layout.height};
                                 placement[id] = PlacementPolicy::RejectSharedAnchors;
                                 candidate.m_circuit.replaceComponent(
                                     id,
-                                    std::make_unique<Subcircuit>(
-                                        std::get<SubcircuitBehavior>(op.definition.behavior)
-                                    )
+                                    std::make_unique<Subcircuit>(std::get<SubcircuitBehavior>(op.definition.behavior))
                                 );
                                 view->m_definition = op.definition.identity;
                                 if (view->m_bodyLabel == old->presentation.bodyLabel)
@@ -323,30 +297,21 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     else if constexpr (std::is_same_v<T, CreateGate>)
                     {
                         const auto& definitionId = builtinDefinitionId(op.type);
-                        if (op.layout.shader !=
-                            candidate.m_catalog->find(definitionId)->presentation.shader.key)
+                        if (op.layout.shader != candidate.m_catalog->find(definitionId)->presentation.shader.key)
                             throw EditFailure(
-                                EditError::InvalidConfiguration,
-                                "Gate shader must match its definition."
+                                EditError::InvalidConfiguration, "Gate shader must match its definition."
                             );
-                        create(
-                            {definitionId,
-                             op.position,
-                             ComponentFactory::layoutOverrides(op.layout),
-                             op.placement}
-                        );
+                        create({definitionId, op.position, ComponentFactory::layoutOverrides(op.layout), op.placement});
                     }
                     else if constexpr (std::is_same_v<T, CreateInput>)
                     {
-                        auto options =
-                            sourceOverrides(BuiltinComponentIds::Input, op.size, op.shader);
+                        auto options = sourceOverrides(BuiltinComponentIds::Input, op.size, op.shader);
                         options.inputState = op.state;
                         create({BuiltinComponentIds::Input, op.position, options, op.placement});
                     }
                     else if constexpr (std::is_same_v<T, CreateClock>)
                     {
-                        auto options =
-                            sourceOverrides(BuiltinComponentIds::Clock, op.size, op.shader);
+                        auto options = sourceOverrides(BuiltinComponentIds::Clock, op.size, op.shader);
                         options.clockFrequency = op.frequency;
                         create({BuiltinComponentIds::Clock, op.position, options, op.placement});
                     }
@@ -375,8 +340,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     {
                         auto& view = getView(op.componentId);
                         configureLayout(
-                            op.componentId,
-                            ComponentFactory::validateLayout(*candidate.m_catalog, view, op.layout),
+                            op.componentId, ComponentFactory::validateLayout(*candidate.m_catalog, view, op.layout),
                             op.removedPins
                         );
                     }
@@ -386,37 +350,27 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                         auto* component = candidate.m_circuit.getComponent(op.componentId);
                         auto* gate = dynamic_cast<Gate*>(component);
                         auto* clock = dynamic_cast<Clock*>(component);
-                        const auto* definition =
-                            candidate.m_catalog->find(view.getDefinitionIdentity().id);
-                        if (op.label && candidate.m_requireInterfaceNames &&
-                            blankComponentName(*op.label) &&
-                            (dynamic_cast<InputPin*>(component) ||
-                             dynamic_cast<OutputPin*>(component)))
+                        const auto* definition = candidate.m_catalog->find(view.getDefinitionIdentity().id);
+                        if (op.label && candidate.m_requireInterfaceNames && blankComponentName(*op.label) &&
+                            (dynamic_cast<InputPin*>(component) || dynamic_cast<OutputPin*>(component)))
                             throw EditFailure(
-                                EditError::InvalidConfiguration,
-                                "Subcircuit inputs and outputs require a name."
+                                EditError::InvalidConfiguration, "Subcircuit inputs and outputs require a name."
                             );
                         if (op.inputCount)
                         {
                             if (!gate)
                                 throw EditFailure(
-                                    EditError::InvalidConfiguration,
-                                    "Input count editing requires a gate."
+                                    EditError::InvalidConfiguration, "Input count editing requires a gate."
                                 );
-                            const int count = gate->getType() == NOT
-                                                  ? *op.inputCount
-                                                  : std::clamp(*op.inputCount, 2, 8);
+                            const int count =
+                                gate->getType() == NOT ? *op.inputCount : std::clamp(*op.inputCount, 2, 8);
                             if (gate->getType() == NOT && count != 1)
-                                throw EditFailure(
-                                    EditError::InvalidConfiguration, "NOT has exactly one input."
-                                );
+                                throw EditFailure(EditError::InvalidConfiguration, "NOT has exactly one input.");
                             if (count != gate->getInputPinCount())
                             {
                                 configureLayout(
                                     op.componentId,
-                                    ComponentFactory::resizeGateLayout(
-                                        *candidate.m_catalog, view, count
-                                    ),
+                                    ComponentFactory::resizeGateLayout(*candidate.m_catalog, view, count),
                                     RemovedPinPolicy::RejectAttached
                                 );
                                 moved.push_back(op.componentId);
@@ -427,19 +381,15 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                             if (!gate || gate->getType() == NOT ||
                                 definition->presentation.kind != PresentationKind::NativeSdf)
                                 throw EditFailure(
-                                    EditError::InvalidConfiguration,
-                                    "Inversion editing requires a native paired gate."
+                                    EditError::InvalidConfiguration, "Inversion editing requires a native paired gate."
                                 );
                             if (gate->isInverted() != *op.inverted)
                             {
-                                const auto layout = ComponentFactory::invertedGateLayout(
-                                    *candidate.m_catalog, view, *op.inverted
-                                );
+                                const auto layout =
+                                    ComponentFactory::invertedGateLayout(*candidate.m_catalog, view, *op.inverted);
                                 gate->setInverted(*op.inverted);
                                 view.m_bodyStyle.inverted = *op.inverted;
-                                configureLayout(
-                                    op.componentId, layout, RemovedPinPolicy::RejectAttached
-                                );
+                                configureLayout(op.componentId, layout, RemovedPinPolicy::RejectAttached);
                                 moved.push_back(op.componentId);
                                 candidate.m_circuit.markStateDirty();
                                 changed = true;
@@ -449,8 +399,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                         {
                             if (!gate)
                                 throw EditFailure(
-                                    EditError::InvalidConfiguration,
-                                    "Input inversion requires a logic gate."
+                                    EditError::InvalidConfiguration, "Input inversion requires a logic gate."
                                 );
                             const auto setting = *op.inputInversion;
                             const auto layout = ComponentFactory::invertedInputLayout(
@@ -458,9 +407,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                             );
                             if (gate->isInputInverted(setting.pinIndex) != setting.inverted)
                             {
-                                configureLayout(
-                                    op.componentId, layout, RemovedPinPolicy::RejectAttached
-                                );
+                                configureLayout(op.componentId, layout, RemovedPinPolicy::RejectAttached);
                                 placement[op.componentId] = PlacementPolicy::RejectSharedAnchors;
                                 moved.push_back(op.componentId);
                             }
@@ -484,10 +431,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                         if (op.clockFrequency || op.clockPaused)
                         {
                             if (!clock)
-                                throw EditFailure(
-                                    EditError::InvalidConfiguration,
-                                    "Clock settings require a clock."
-                                );
+                                throw EditFailure(EditError::InvalidConfiguration, "Clock settings require a clock.");
                             if (op.clockFrequency)
                             {
                                 validateClockFrequency(*op.clockFrequency);
@@ -517,13 +461,10 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     else if constexpr (std::is_same_v<T, ConfigureInput>)
                     {
                         getView(op.componentId);
-                        auto* input = dynamic_cast<InputPin*>(
-                            candidate.m_circuit.getComponent(op.componentId)
-                        );
+                        auto* input = dynamic_cast<InputPin*>(candidate.m_circuit.getComponent(op.componentId));
                         if (!input)
                             throw EditFailure(
-                                EditError::InvalidConfiguration,
-                                "Input configuration requires a manual input."
+                                EditError::InvalidConfiguration, "Input configuration requires a manual input."
                             );
                         if (input->getState() != op.state)
                         {
@@ -535,13 +476,9 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     else if constexpr (std::is_same_v<T, ConfigureClock>)
                     {
                         getView(op.componentId);
-                        auto* clock =
-                            dynamic_cast<Clock*>(candidate.m_circuit.getComponent(op.componentId));
+                        auto* clock = dynamic_cast<Clock*>(candidate.m_circuit.getComponent(op.componentId));
                         if (!clock)
-                            throw EditFailure(
-                                EditError::InvalidConfiguration,
-                                "Clock configuration requires a clock."
-                            );
+                            throw EditFailure(EditError::InvalidConfiguration, "Clock configuration requires a clock.");
                         validateClockFrequency(op.frequency);
                         if (clock->getFrequency() != op.frequency || clock->isPaused() != op.paused)
                         {
@@ -591,18 +528,13 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                             }
                         if (cut == path.size())
                             throw EditFailure(
-                                EditError::InvalidSegment,
-                                "Selected segment no longer exists; nothing was deleted."
+                                EditError::InvalidSegment, "Selected segment no longer exists; nothing was deleted."
                             );
                         candidate.m_wires.erase(found);
                         if (cut > 1)
-                            insert(
-                                makeWire(std::vector<GridCoords>(path.begin(), path.begin() + cut))
-                            );
+                            insert(makeWire(std::vector<GridCoords>(path.begin(), path.begin() + cut)));
                         if (cut + 1 < path.size())
-                            insert(
-                                makeWire(std::vector<GridCoords>(path.begin() + cut, path.end()))
-                            );
+                            insert(makeWire(std::vector<GridCoords>(path.begin() + cut, path.end())));
                         changed = topologyChanged = true;
                     }
                 },
@@ -612,6 +544,8 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
 
         for (const auto& [id, view] : candidate.m_componentViews)
             ComponentFactory::validatePosition(*view, view->getGridPosition());
+
+        // Resolve placement policies against the complete candidate, not intermediate batch positions.
         for (const auto& [id, policy] : placement)
         {
             if (!candidate.m_componentViews.contains(id) || policy == PlacementPolicy::AllowOverlap)
@@ -619,38 +553,31 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             if (policy == PlacementPolicy::RejectSharedAnchors)
             {
                 if (sharesComponentAnchor(candidate.committedGeometry(), id))
-                    throw EditFailure(
-                        EditError::Overlap, "Components cannot share a grid center or pin position."
-                    );
+                    throw EditFailure(EditError::Overlap, "Components cannot share a grid center or pin position.");
                 continue;
             }
             auto& view = getView(id);
             int attempts = 0;
-            while (policy == PlacementPolicy::FindFree
-                       ? sharesComponentAnchor(candidate.committedGeometry(), id)
-                       : candidate.checkOverlap(id))
+            while (policy == PlacementPolicy::FindFree ? sharesComponentAnchor(candidate.committedGeometry(), id)
+                                                       : candidate.checkOverlap(id))
             {
                 if (policy != PlacementPolicy::FindFree || attempts++ >= 4096)
-                    throw EditFailure(
-                        EditError::Overlap, "No valid component placement; the edit was cancelled."
-                    );
+                    throw EditFailure(EditError::Overlap, "No valid component placement; the edit was cancelled.");
                 auto position = view.getGridPosition();
-                if (position.x == std::numeric_limits<int>::max() ||
-                    position.y == std::numeric_limits<int>::min())
-                    throw EditFailure(
-                        EditError::Overlap, "Placement would exceed the grid coordinate range."
-                    );
+                if (position.x == std::numeric_limits<int>::max() || position.y == std::numeric_limits<int>::min())
+                    throw EditFailure(EditError::Overlap, "Placement would exceed the grid coordinate range.");
                 view.setGridPosition({position.x + 1, position.y - 1});
                 ComponentFactory::validatePosition(view, view.getGridPosition());
             }
         }
+
+        // Removed ports either leave safe loose ends or reject the batch according to their policy.
         for (const auto& removed : removedPins)
         {
             if (!candidate.m_componentViews.contains(removed.componentId))
                 continue;
             const auto& view = getView(removed.componentId);
-            if (removed.pinIndex <
-                candidate.m_circuit.getComponent(removed.componentId)->getInputPinCount())
+            if (removed.pinIndex < candidate.m_circuit.getComponent(removed.componentId)->getInputPinCount())
                 continue;
             for (const auto& [id, wire] : candidate.m_wires)
             {
@@ -665,8 +592,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     for (const auto& pin : *pins)
                         if (view.getAbsolutePinGridPos(pin) == removed.position)
                             throw EditFailure(
-                                EditError::AttachedPin,
-                                "A retained pin cannot reuse an attached removed-pin position."
+                                EditError::AttachedPin, "A retained pin cannot reuse an attached removed-pin position."
                             );
             }
         }
@@ -679,34 +605,27 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             }
         if (!changed)
             return {};
+
+        // Repair attached and covered wires before rebuilding connectivity once for the committed batch.
         if (topologyChanged)
         {
             if (!moved.empty() && !rerouteMovedWires(
-                                      before->committedGeometry(),
-                                      candidate.committedGeometry(),
-                                      moved,
-                                      candidate.m_wires,
-                                      translatedWires
+                                      before->committedGeometry(), candidate.committedGeometry(), moved,
+                                      candidate.m_wires, translatedWires
                                   ))
                 throw EditFailure(
-                    EditError::InvalidWire,
-                    "No safe wire route. Hold Alt while moving to leave wires in place."
+                    EditError::InvalidWire, "No safe wire route. Hold Alt while moving to leave wires in place."
                 );
             const auto geometry = candidate.committedGeometry();
             auto fittedComponents = moved;
             for (const int id : components)
-                if (candidate.m_componentViews.contains(id) &&
-                    placement.at(id) != PlacementPolicy::AllowOverlap &&
-                    std::find(fittedComponents.begin(), fittedComponents.end(), id) ==
-                        fittedComponents.end())
+                if (candidate.m_componentViews.contains(id) && placement.at(id) != PlacementPolicy::AllowOverlap &&
+                    std::find(fittedComponents.begin(), fittedComponents.end(), id) == fittedComponents.end())
                     fittedComponents.push_back(id);
-            if (!fittedComponents.empty() && !fitWiresToComponents(
-                                                 geometry,
-                                                 fittedComponents,
-                                                 candidate.m_wires,
-                                                 candidate.m_nextWireId,
-                                                 translatedWires
-                                             ))
+            if (!fittedComponents.empty() &&
+                !fitWiresToComponents(
+                    geometry, fittedComponents, candidate.m_wires, candidate.m_nextWireId, translatedWires
+                ))
                 throw EditFailure(
                     EditError::InvalidWire,
                     "Cannot preserve nearby wire connections. Place the component in a clear area."
@@ -715,8 +634,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
             {
                 auto& [from, to] = interfaceMoves[index];
                 const bool attached = std::any_of(
-                    candidate.m_wires.begin(),
-                    candidate.m_wires.end(),
+                    candidate.m_wires.begin(), candidate.m_wires.end(),
                     [&](const auto& entry)
                     {
                         const auto& path = entry.second.getPath();
@@ -753,8 +671,7 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
                     to = translated(to, direction);
                 }
             }
-            if (!interfaceMoves.empty() &&
-                !rerouteWireEndpoints(interfaceMoves, geometry, candidate.m_wires))
+            if (!interfaceMoves.empty() && !rerouteWireEndpoints(interfaceMoves, geometry, candidate.m_wires))
                 throw EditFailure(
                     EditError::InvalidWire,
                     "Cannot reroute the updated subcircuit pins. Move nearby components or wires "
@@ -764,9 +681,9 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
         }
         else
             ++candidate.m_revision;
-        return publish(
-            std::move(candidate), std::move(before), std::move(components), std::move(wires)
-        );
+
+        // Publish only after every operation and derived repair has succeeded.
+        return publish(std::move(candidate), std::move(before), std::move(components), std::move(wires));
     }
     catch (const EditFailure& error)
     {
@@ -778,10 +695,12 @@ EditResult EditorActions::applyImpl(const EditBatch& batch, bool allowPreview)
     }
 }
 
+
 std::optional<MovePreviewHandle> EditorActions::beginMove(int componentId)
 {
     return beginMove({&componentId, 1}, {});
 }
+
 
 std::optional<MovePreviewHandle>
 EditorActions::beginMove(std::span<const int> components, std::span<const WireId> wires)
@@ -815,18 +734,19 @@ EditorActions::beginMove(std::span<const int> components, std::span<const WireId
     return MovePreviewHandle{m_scene.m_previewToken};
 }
 
+
 bool EditorActions::previewMove(MovePreviewHandle handle, GridCoords position)
 {
     if (handle.token != m_scene.m_previewToken || m_scene.m_previewComponentId == -1)
         return false;
-    const auto origin =
-        m_scene.m_componentViews.at(m_scene.m_previewComponentId)->getGridPosition();
+    const auto origin = m_scene.m_componentViews.at(m_scene.m_previewComponentId)->getGridPosition();
     const auto x = std::int64_t(position.x) - origin.x, y = std::int64_t(position.y) - origin.y;
     if (x < std::numeric_limits<int>::min() || x > std::numeric_limits<int>::max() ||
         y < std::numeric_limits<int>::min() || y > std::numeric_limits<int>::max())
         return false;
     return previewMoveBy(handle, {static_cast<int>(x), static_cast<int>(y)});
 }
+
 
 bool EditorActions::previewMoveBy(MovePreviewHandle handle, GridCoords offset)
 {
@@ -862,6 +782,7 @@ bool EditorActions::previewMoveBy(MovePreviewHandle handle, GridCoords offset)
     }
 }
 
+
 bool EditorActions::cancelMove(MovePreviewHandle handle)
 {
     if (handle.token == 0 || handle.token != m_scene.m_previewToken)
@@ -876,6 +797,7 @@ bool EditorActions::cancelMove(MovePreviewHandle handle)
     return true;
 }
 
+
 EditResult EditorActions::commitMove(MovePreviewHandle handle, bool reroute)
 {
     if (handle.token == 0 || handle.token != m_scene.m_previewToken ||
@@ -886,15 +808,14 @@ EditResult EditorActions::commitMove(MovePreviewHandle handle, bool reroute)
     }
     EditBatch batch;
     for (int id : m_scene.m_previewComponentIds)
-        batch.push_back(
-            MoveComponent{id, m_scene.m_previewViews.at(id)->getGridPosition(), reroute}
-        );
+        batch.push_back(MoveComponent{id, m_scene.m_previewViews.at(id)->getGridPosition(), reroute});
     for (WireId id : m_scene.m_previewWireIds)
         batch.push_back(MoveWire{id, m_scene.m_previewOffset});
     auto result = applyImpl(batch, true);
     cancelMove(handle);
     return result;
 }
+
 
 EditResult EditorActions::restore(const Scene& snapshot, std::uint64_t expectedRevision)
 {
@@ -903,16 +824,12 @@ EditResult EditorActions::restore(const Scene& snapshot, std::uint64_t expectedR
     if (m_scene.m_previewToken != 0)
         return failure(EditError::PreviewActive, "Finish or cancel the preview before restoring.");
     if (m_scene.m_revision != expectedRevision)
-        return failure(
-            EditError::StaleRevision, "The scene changed since this restore was requested."
-        );
+        return failure(EditError::StaleRevision, "The scene changed since this restore was requested.");
     try
     {
-        auto before = edit_profile::measure(
-            edit_profile::Phase::Snapshot, [&] { return std::make_shared<Scene>(m_scene); }
-        );
-        Scene candidate =
-            edit_profile::measure(edit_profile::Phase::SceneCopy, [&] { return Scene(snapshot); });
+        auto before =
+            edit_profile::measure(edit_profile::Phase::Snapshot, [&] { return std::make_shared<Scene>(m_scene); });
+        Scene candidate = edit_profile::measure(edit_profile::Phase::SceneCopy, [&] { return Scene(snapshot); });
         candidate.m_requireInterfaceNames = m_scene.m_requireInterfaceNames;
         if (candidate.m_requireInterfaceNames)
             for (const auto& operation : missingInterfaceNames(candidate))
