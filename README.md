@@ -2,6 +2,23 @@
 
 A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 Core. Circuit signals settle through a bounded change-driven queue with support for feedback and chronological clock transitions, and rendering uses custom Signed Distance Field (SDF) shaders with analytical anti-aliasing.
 
+## Download for Windows
+
+Download the Windows x64 ZIP from [GitHub Releases](https://github.com/JoaquimGon/Logic-Gates-Simulator/releases/latest),
+extract it, and open `LogicGateSimulator.exe`. Keep the `assets` folder next to the executable.
+No installation or compilation is needed. Requires Windows 10/11 and an OpenGL 3.3 graphics driver.
+
+To build the same portable package from a Visual Studio Developer PowerShell:
+
+```powershell
+cmake -S . -B out/build/portable -G Ninja -DCMAKE_BUILD_TYPE=Release -DLOGIC_SIMULATOR_PORTABLE=ON -DBUILD_BENCHMARKS=OFF -DBUILD_TESTING=OFF
+cmake --build out/build/portable --parallel 4
+cmake --install out/build/portable --component Runtime --prefix out/package
+```
+
+The portable build uses the static MSVC runtime, executable-relative shaders, and an installed Windows font.
+Include the entire installed folder when sharing it, including its license notices.
+
 ---
 
 ## Features

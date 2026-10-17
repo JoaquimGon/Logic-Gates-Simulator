@@ -1,5 +1,7 @@
 ﻿#include "Shader.h"
 
+#include "Graphics/RuntimeResources.h"
+
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
@@ -26,15 +28,7 @@ std::optional<std::filesystem::file_time_type> sourceTime(const std::string& pat
 
 std::string Shader::resolvePath(const std::string& path)
 {
-    std::filesystem::path p(path);
-
-    if (p.is_absolute())
-    {
-        return p.string();
-    }
-
-    std::filesystem::path fullPath = std::filesystem::path(PROJECT_ASSETS_DIR) / p;
-    return fullPath.lexically_normal().string();
+    return RuntimeResources::assetPath(path).string();
 }
 
 

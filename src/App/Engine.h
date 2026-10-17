@@ -40,7 +40,7 @@ class Engine
     Engine(std::string windowName, int windowWidth, int windowHeight);
     ~Engine();
 
-    int init();
+    int init(bool visible = true);
 
     void run();
 

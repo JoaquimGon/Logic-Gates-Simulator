@@ -4,6 +4,7 @@
 #include "Geometry/GridMetrics.h"
 #include "Geometry/GridSystem.h"
 #include "Graphics/Presentation/LabelLayout.h"
+#include "Graphics/RuntimeResources.h"
 #include "WireGeometry.h"
 
 #include <algorithm>
@@ -141,7 +142,7 @@ bool Renderer::init()
     m_debugTextMesh =
         std::make_unique<Mesh>(std::vector<float>{}, std::vector<unsigned int>{}, textLayout, GL_TRIANGLES);
 
-    ready = m_text.init(PROJECT_FONT_PATH) && ready;
+    ready = m_text.init(RuntimeResources::fontPath().string()) && ready;
     if (!ready)
     {
         std::cerr << "[Renderer] Required shader/font initialization failed.\n";
