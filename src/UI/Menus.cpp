@@ -113,6 +113,7 @@ std::vector<UI::MenuItem> UI::menuOptions(Menu menu) const
     for (const auto& name : fileOptions())
         items.push_back({name, "", !m_readOnly});
     items.push_back({"Examples", ">"});
+    items.push_back({"About / Licenses"});
     return items;
 }
 
@@ -334,7 +335,10 @@ bool UI::handleMenus(const UiInputEvent& event, Input& input)
                                 m_examplesOpen = true;
                                 return true;
                             }
-                            m_fileCommand = commands.at(i);
+                            if (i == static_cast<int>(commands.size()) + 1)
+                                m_licenseRequested = true;
+                            else
+                                m_fileCommand = commands.at(i);
                         }
                         else
                             m_menuCommand = std::pair{menu, i};

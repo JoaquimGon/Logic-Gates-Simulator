@@ -194,13 +194,20 @@ OpenGL context current. Renderer initialization returns failure for missing
 required shaders/font resources; Engine aborts initialization and releases them.
 Shutdown is idempotent.
 
+The standalone Windows build embeds shaders and license notices into the executable.
+`RuntimeResources` supplies virtual shader paths and source text, including nested
+includes, without extracting files or polling the working directory. Development
+builds retain file-based shaders and hot reload. Explicit absolute shader paths
+remain available for reload regression tests. See [building and packaging](Building.md).
+
 UI-first capture/focus lives in Input; see [InputRouting.md](InputRouting.md).
 Shared camera/viewport transforms, DPI resolution, and canvas clipping are complete
 under RM-U2; see [CanvasCamera.md](CanvasCamera.md). Renderer uses one forward
 matrix for world passes and the same inverse for the procedural grid. Screen text
 remains full-window. Explicit instance label/inversion edits are available (RM-C3).
 Basic right-click information and input/output naming are complete (RM-F7/RM-F8);
-truth tables and other editing controls remain RM-U3. Presentation caching remains RM-R3 and packed junction integration remains RM-A8.
+[truth and next-state tables](TruthTables.md) are available in the same popup.
+Presentation caching remains RM-R3 and packed junction integration remains RM-A8.
 
 ## Verification
 
@@ -217,8 +224,8 @@ ctest --preset x64-debug -R "render_|component_pin_leads|text_presentation"
 
 The framebuffer test writes `mixed-sizes.ppm` and
 `component-presentations.ppm` under the build's `render-artifacts/` directory
-for visual review. The application build has 46 groups; the headless build has
-45. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
+for visual review. Use `ctest --preset debug -N` to list the tests enabled in your
+build. Rendering was exercised on Windows with OpenGL 3.3/NVIDIA; other drivers and
 font choices have not been visually verified.
 
 Camera framebuffer regressions also cover a panned/zoomed offset canvas at simulated

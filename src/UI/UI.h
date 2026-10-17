@@ -64,6 +64,7 @@ class UI
 
     bool examplesMenuOpen() const { return m_openMenu == Menu::File && m_examplesOpen; }
     std::optional<CircuitExample> takeExample() { return std::exchange(m_example, std::nullopt); }
+    bool takeLicenseRequest() { return std::exchange(m_licenseRequested, false); }
 
     /** @brief Lets the frame loop present the reset state before advancing automatic clock time. */
     bool takeSimulationReset() { return std::exchange(m_simulationReset, false); }
@@ -451,6 +452,7 @@ class UI
     CircuitTabs m_circuitTabs;
     std::optional<Menu> m_openMenu;
     bool m_examplesOpen = false;
+    bool m_licenseRequested = false;
     std::optional<CircuitExample> m_example;
     std::optional<std::pair<Menu, int>> m_menuCommand;
     std::vector<MenuItem> m_editOptions, m_viewOptions;

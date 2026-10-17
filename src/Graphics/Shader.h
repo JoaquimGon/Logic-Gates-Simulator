@@ -33,8 +33,7 @@ class Shader
     std::string readFile(const std::string& path, std::vector<std::string>& files, std::vector<std::string>& stack);
 
     /**
-     * @brief Converts a relative asset path into an absolute file path using
-     * the CMake project root.
+     * @brief Resolve a shader to a development file or an embedded resource identifier.
      */
     static std::string resolvePath(const std::string& path);
 

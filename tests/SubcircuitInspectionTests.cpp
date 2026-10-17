@@ -209,10 +209,16 @@ void run(GLFWwindow* window)
     const auto fileOptions = ui.menuOptions(UI::Menu::File);
     for (std::size_t i = 0; i < ui.fileCommands().size(); ++i)
         require(!fileOptions[i].enabled, "Viewer offered saving or replacing the observed scene.");
-    require(
-        fileOptions.back().label == "Examples" && fileOptions.back().enabled,
-        "Viewer blocked examples that open in a separate workspace."
-    );
+    for (const auto label : {"Examples", "About / Licenses"})
+    {
+        const auto item = std::find_if(
+            fileOptions.begin(), fileOptions.end(), [&](const auto& option) { return option.label == label; }
+        );
+        require(
+            item != fileOptions.end() && item->enabled,
+            "Viewer blocked a menu action that does not modify the observed scene."
+        );
+    }
     require(!ui.menuOptions(UI::Menu::Simulation)[0].enabled, "Viewer offered reset simulation.");
     click(ui.bottomTabBounds(UI::BottomTab::Clocks));
     click(ui.clockControlBounds(UI::ClockControl::SingleStep));

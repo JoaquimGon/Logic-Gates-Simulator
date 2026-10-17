@@ -3,7 +3,6 @@
 #include "Graphics/RuntimeResources.h"
 
 #include <algorithm>
-#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -11,14 +10,12 @@
 #include <system_error>
 #include <vector>
 
-#ifndef PROJECT_ASSETS_DIR
-#define PROJECT_ASSETS_DIR "assets"
-#endif
-
 namespace
 {
 std::optional<std::filesystem::file_time_type> sourceTime(const std::string& path)
 {
+    if (RuntimeResources::isEmbeddedAsset(path))
+        return std::nullopt;
     std::error_code error;
     const auto time = std::filesystem::last_write_time(path, error);
     return error ? std::nullopt : std::optional{time};
@@ -105,7 +102,7 @@ Shader::Shader(const char* vertexPath, const char* fragmentPath)
 
 void Shader::checkAndReload()
 {
-    if (m_vertPath.empty() || m_fragPath.empty())
+    if (m_vertPath.empty() || m_fragPath.empty() || RuntimeResources::isEmbeddedAsset(m_vertPath))
         return;
 
     // Throttle checks to ~5 times a second per shader instance
@@ -222,9 +219,7 @@ std::string Shader::readFile(const std::string& path, std::vector<std::string>& 
     m_attemptedSources[path] = sourceTime(path);
     if (std::find(stack.begin(), stack.end(), path) != stack.end())
         throw std::runtime_error("Cyclic shader include: " + path);
-    std::ifstream file(path);
-    if (!file)
-        throw std::runtime_error("Cannot read shader: " + path);
+    std::istringstream file(RuntimeResources::shaderSource(path));
     const auto found = std::find(files.begin(), files.end(), path);
     const auto sourceId = found == files.end() ? files.size() : found - files.begin();
     if (found == files.end())

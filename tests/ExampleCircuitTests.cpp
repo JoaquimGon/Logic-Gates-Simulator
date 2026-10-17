@@ -183,6 +183,12 @@ void menus()
             selected == CircuitExample::HalfAdder && !ui.takeExample() && !ui.fileMenuOpen() && !ui.takeFileCommand(),
             "Example selection did not queue one distinct request and close the menu."
         );
+        click(ui.fileBounds());
+        click(ui.fileOptionBounds(static_cast<int>(ui.fileCommands().size()) + 1));
+        require(
+            ui.takeLicenseRequest() && !ui.takeLicenseRequest() && !ui.fileMenuOpen() && !ui.takeFileCommand(),
+            "License menu selection did not queue one distinct request and close the menu."
+        );
         const auto oldSize = views.size();
         openExampleCircuit(*selected, ui, views, input, surface);
         require(

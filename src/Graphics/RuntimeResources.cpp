@@ -1,5 +1,8 @@
 #include "RuntimeResources.h"
 
+#include "EmbeddedResources.h"
+
+#include <fstream>
 #include <stdexcept>
 #include <string>
 
@@ -10,31 +13,54 @@
 #include <windows.h>
 #endif
 
-namespace
-{
-#if LOGIC_SIMULATOR_PORTABLE
-std::filesystem::path executableDirectory()
-{
-    std::wstring buffer(32768, L'\0');
-    const DWORD size = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
-    if (size == 0 || size >= buffer.size())
-        throw std::runtime_error("Cannot locate the application folder.");
-    buffer.resize(size);
-    return std::filesystem::path(buffer).parent_path();
-}
-#endif
-} // namespace
-
-
 std::filesystem::path RuntimeResources::assetPath(const std::filesystem::path& path)
 {
     if (path.is_absolute())
         return path.lexically_normal();
 #if LOGIC_SIMULATOR_PORTABLE
-    return (executableDirectory() / "assets" / path).lexically_normal();
+    return path.lexically_normal();
 #else
     return (std::filesystem::path(PROJECT_ASSETS_DIR) / path).lexically_normal();
 #endif
+}
+
+
+bool RuntimeResources::isEmbeddedAsset(const std::filesystem::path& path)
+{
+#if LOGIC_SIMULATOR_PORTABLE
+    return path.is_relative();
+#else
+    return false;
+#endif
+}
+
+
+std::string RuntimeResources::shaderSource(const std::filesystem::path& path)
+{
+    const auto resolved = assetPath(path);
+#if LOGIC_SIMULATOR_PORTABLE
+    if (isEmbeddedAsset(resolved))
+    {
+        const auto name = resolved.generic_string();
+        for (const auto& [key, source] : EmbeddedResources::shaders)
+            if (key == name)
+                return std::string(source);
+        throw std::runtime_error("Unknown embedded shader: " + name);
+    }
+#endif
+    std::ifstream file(resolved, std::ios::binary);
+    if (!file)
+        throw std::runtime_error("Cannot read shader: " + resolved.string());
+    std::string source{std::istreambuf_iterator<char>(file), {}};
+    if (file.bad())
+        throw std::runtime_error("Failed reading shader: " + resolved.string());
+    return source;
+}
+
+
+std::string_view RuntimeResources::licenseNotices()
+{
+    return EmbeddedResources::notices;
 }
 
 

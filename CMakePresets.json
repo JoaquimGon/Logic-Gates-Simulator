@@ -59,6 +59,16 @@
             }
         },
         {
+            "name": "windows-portable",
+            "displayName": "Windows x64 portable release",
+            "inherits": "x64-release",
+            "cacheVariables": {
+                "LOGIC_SIMULATOR_PORTABLE": "ON",
+                "BUILD_BENCHMARKS": "OFF",
+                "BUILD_TESTING": "ON"
+            }
+        },
+        {
             "name": "x86-debug",
             "displayName": "x86 Debug",
             "inherits": "windows-base",
@@ -80,6 +90,10 @@
         }
     ],
     "buildPresets": [
+        {
+            "name": "windows-portable",
+            "configurePreset": "windows-portable"
+        },
         {
             "name": "debug",
             "configurePreset": "debug"
@@ -106,6 +120,13 @@
         }
     ],
     "testPresets": [
+        {
+            "name": "windows-portable",
+            "configurePreset": "windows-portable",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
         {
             "name": "debug",
             "configurePreset": "debug",

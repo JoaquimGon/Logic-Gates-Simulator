@@ -1,12 +1,14 @@
 #include "Engine.h"
 
 #include "App/CircuitFiles.h"
+#include "App/Licenses.h"
 #include "App/UnsavedWork.h"
 #include "Components/Definitions/NativeDefinitions.h"
 #include "Editor/Actions/EditorActions.h"
 #include "Editor/CircuitViews.h"
 #include "Editor/Scene.h"
 #include "Graphics/Presentation/ComponentPresentation.h"
+#include "Graphics/RuntimeResources.h"
 #include "Persistence/CircuitFile.h"
 #include "Persistence/SubcircuitLibrary.h"
 
@@ -192,6 +194,18 @@ void Engine::run()
             try
             {
                 openExampleCircuit(*example, m_ui, circuits, input, input.getCameraFrame(window).surface);
+            }
+            catch (const std::exception& error)
+            {
+                m_ui.setFileStatus(error.what(), true);
+            }
+            lastFrameTime = glfwGetTime();
+        }
+        if (m_ui.takeLicenseRequest())
+        {
+            try
+            {
+                showLicenseNotices(window, RuntimeResources::licenseNotices());
             }
             catch (const std::exception& error)
             {

@@ -1,9 +1,9 @@
 # UI and Canvas Input Routing
 
 `Input` adapts GLFW callbacks; `InputRouting.cpp` owns UI capture, focus, bounds,
-and interruption policy. Gesture state stays in `Editor/Gestures/`. No UI toolkit
-or widgets are installed yet: the default handler passes events to the full-window
-canvas, preserving current controls.
+and interruption policy. Gesture state stays in `Editor/Gestures/`. The application's
+custom UI handles menus, panels and popups before forwarding unconsumed events to
+the canvas. The adapter contract below also supports other UI integrations.
 
 ## Connecting a UI adapter
 

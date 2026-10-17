@@ -2,10 +2,11 @@
 
 Use `EditorActions` (`src/Editor/Actions/`) for structural edits and editable
 properties. Keyboard input, the component palette, and application startup use
-this service; future inspectors and loaders should submit the same typed operations.
+this service; other inspectors and loaders should submit the same typed operations.
 Definitions/catalog creation are described in [ComponentDefinitions.md](ComponentDefinitions.md).
 Instance customization uses explicit fields in ConfigureComponentProperties;
-the information popup shows live pins and edits input/output names; further educational controls remain pending.
+the information popup shows live pins, edits component settings and names, and offers
+[truth and next-state tables](TruthTables.md).
 
 ## Applying a complete edit
 
@@ -197,7 +198,7 @@ memory/time scale with scene size, and callers control record retention.
 
 ## Verification
 
-CTest runs 46 groups with the application (45 headlessly), including seven `EditorActionsTests` groups for atomic batches,
+`EditorActionsTests` covers atomic batches,
 preview ownership, configuration/migration, wire surgery/rejection recovery,
 snapshot restoration, body-placement rollback, and explicit component settings
 (including native-pair truth tables, clock phase, and custom lead preservation). `InputTests` additionally verifies actual keyboard spawning,

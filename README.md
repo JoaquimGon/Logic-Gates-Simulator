@@ -1,417 +1,43 @@
 # Logic Gates Simulator
 
-A hardware-accelerated digital logic simulator written in C++20 and OpenGL 3.3 Core. Circuit signals settle through a bounded change-driven queue with support for feedback and chronological clock transitions, and rendering uses custom Signed Distance Field (SDF) shaders with analytical anti-aliasing.
+A digital logic circuit editor and simulator built with C++20 and OpenGL 3.3.
 
-## Download for Windows
+## Download and run
 
-Download the Windows x64 ZIP from [GitHub Releases](https://github.com/JoaquimGon/Logic-Gates-Simulator/releases/latest),
-extract it, and open `LogicGateSimulator.exe`. Keep the `assets` folder next to the executable.
-No installation or compilation is needed. Requires Windows 10/11 and an OpenGL 3.3 graphics driver.
+Download **LogicGateSimulator.exe** from [GitHub Releases](https://github.com/JoaquimGon/Logic-Gates-Simulator/releases/latest)
+and double-click it. No installation, extraction or compilation is needed.
 
-To build the same portable package from a Visual Studio Developer PowerShell:
-
-```powershell
-cmake -S . -B out/build/portable -G Ninja -DCMAKE_BUILD_TYPE=Release -DLOGIC_SIMULATOR_PORTABLE=ON -DBUILD_BENCHMARKS=OFF -DBUILD_TESTING=OFF
-cmake --build out/build/portable --parallel 4
-cmake --install out/build/portable --component Runtime --prefix out/package
-```
-
-The portable build uses the static MSVC runtime, executable-relative shaders, and an installed Windows font.
-Include the entire installed folder when sharing it, including its license notices.
-
----
+Requires Windows 10/11 (64-bit) and a graphics driver supporting OpenGL 3.3.
 
 ## Features
 
-- **Component Roster:** Interactive logic primitives:
-  - Base gates: `AND`, `OR`, `XOR`, `NOT`
-  - Inverted gates: `NAND`, `NOR`, `NXOR` (with dedicated inversion bubbles)
-  - Interactive inputs: `InputPin` (clickable manual toggle switch)
-  - Outputs: `OutputPin` (one-input bulb, dark for LOW and green for HIGH)
-  - Input/output names: editable instance labels displayed beneath their symbols
-- **Grid & Routing Engine:** Discrete integer coordinate snapping, collinear overlap merging, mid-wire branch-splitting, and automatic wire healing.
-- **Feedback Simulation:** Changed signals propagate until stable; bounded settling pauses unstable circuits while keeping the editor responsive.
-- **Clock Edges:** Every elapsed rising/falling transition settles the circuit before the next transition; simultaneous clocks advance together.
-- **SDF Graphics Pipeline:** Resolution-independent gate geometry rendered on dynamic quads with sub-pixel screen-space anti-aliasing (`fwidth`).
-- **Component Outlines:** Thin slate edges on basic components, inversion bubbles, pins, and latches, matching the unpowered output bulb fill.
-- **Circuit Tabs:** Independent named workspaces/subcircuit editors with retained cameras, a permanent Main tab, and rename/delete popups.
-- **Reusable Subcircuits:** Save authored designs to JSON, import them into Custom, place independent instances, and reopen their original layout for editing. Main embeds used definitions and dependencies.
-- **Live Shader Hot-Reloading:** Edit `.frag` or `.vert` files on disk; shaders recompile automatically at runtime.
+- Logic gates, inputs, outputs, clocks, latches and flip-flops.
+- Circuit editing with automatic wire routing, copy/paste and undo/redo.
+- Multiple circuit tabs, JSON saving/loading and reusable nested subcircuits.
+- Clock and signal waveforms, component settings, and truth/next-state tables.
+- Four editable examples in **File > Examples**.
 
----
+## Basic controls
 
-## Controls & Keybindings *(Temporary)*
+| Action | Control |
+| --- | --- |
+| Switch Selection / Interaction mode | F2 |
+| Select or move components; draw wires | Left mouse button in Selection mode |
+| Toggle an input | Click it in Interaction mode |
+| Component information and settings | Right-click a component |
+| Pan / zoom | Middle mouse drag / scroll |
+| Undo / redo | Ctrl+Z / Ctrl+Y |
+| Copy / paste | Ctrl+C / Ctrl+V |
+| Fit the circuit in view | Home |
 
-The application starts in **Selection mode**. Move/select/delete components,
-create wires, and use spawn shortcuts in this mode; clicking an input body never
-toggles its value. **Interaction mode** operates inputs and clock controls while
-blocking structural edits. Simulation continues in both modes; pan and zoom are
-available in both. The window title shows the mode and F2 shortcut.
+Menus show additional commands and shortcuts. See [input and editing controls](docs/InputRouting.md)
+for selection, wire gestures and other interactions.
 
-The permanent **Clocks** bottom tab shows one digital waveform per live clock,
-including clocks inside placed subcircuits. **Run/Pause**, **Half cycle**, and **Full cycle**
-work in both modes. One step settles the next scheduled edge; two steps settle
-two consecutive edge times (one full cycle for a single clock). Click a native
-clock's frequency to edit Hz, and use Enable/Disable for individual clocks.
-Global pause preserves those settings. **Time frame = N s** labels the zoom span.
-**Fit** automatically shows four cycles of the fastest enabled clock (4 / Hz);
-−/+ adjust the span manually. Scroll rows, Shift+scroll time, and Live to follow.
-The far-right **Clear** starts fresh recordings without resetting the simulation.
-Hover buttons briefly for explanations and disabled-clock warnings.
-See [clock timing](docs/Simulation.md).
+## Build from source
 
-The **Signals** bottom tab watches up to eight input/output pins. Right-click a
-component and click **Trace** beside a pin, including pins inside a placed
-subcircuit's live view. It shares clock stepping and graph controls, records
-settled changes between frames, and keeps bounded session history. Inputs are
-observed before inversion; unavailable signals are gray. See
-[signal traces](docs/SignalTraces.md) for timing and edit/reset behavior.
-
-Compact Sel. and Int. buttons above the bottom feature panel also switch
-modes. The active button is faded and underlined; hover either button for
-a short explanation of its behavior.
-
-Hold **Shift** and drag the left mouse button in Selection mode to box-select
-fully enclosed component bodies and wire sections. The box works in either direction.
-**Ctrl-click** toggles individual whole wire sections without starting a branch.
-Drag a selected body or selected wire to move the group; relative placement and
-explicitly selected wire bends stay intact. **Delete/Backspace** removes all selected
-objects. Faint rounded outlines show every selected body and wire segment.
-Connected wires outside the selection follow moved pins; **Alt on drop** leaves
-those wires fixed. Escape clears selection and cancels unfinished movement.
-
-In Selection mode, **Ctrl+Z** undoes and **Ctrl+Y** or **Ctrl+Shift+Z** redoes.
-Each workspace/subcircuit keeps up to **100 committed edits**, including group
-moves/deletions, wire edits, palette placement, and component-name changes. A new
-edit after undo discards redo. Failed edits, selection, camera movement and clock
-ticks do not add entries. During a pending gesture, the shortcut cancels that
-gesture first; press again to undo the last committed edit. Saving preserves
-history; Open replaces that view's history. History is kept only for this session.
-
-The **Edit** menu exposes Undo, Redo, Copy, Paste, Delete and Select All, with their
-shortcuts shown beside each entry. Unavailable commands are dimmed; editing stays
-restricted to Selection mode. **Ctrl+A** selects all components and whole wires.
-Opening a menu preserves the selection. Menu Paste starts a placement preview at
-the canvas center and follows the pointer once it enters the canvas.
-
-The **View** menu works in either interaction mode:
-
-| Command | Shortcut |
-|---|---|
-| Fit Circuit | Home |
-| Center Selection | F |
-| Reset Zoom | Ctrl+0 |
-| Show/hide Lower Panel | Ctrl+J |
-| Debug Overlay | F3 |
-
-Fit includes component bounds and wire routes, using the actual canvas viewport.
-Center Selection retains zoom; Reset Zoom restores 1× and retains the camera center.
-Hiding the lower panel expands the canvas and restores its previous height when
-shown again. Clicking a problem notice reveals Messages even when the panel is
-hidden. View changes do not enter editing history, and text fields retain their
-keyboard input.
-
-F2 changes modes immediately and cancels unfinished dragging, wire drawing,
-branching, box selection, and panning. Escape, right-click, focus loss, and scene switching also
-discard unfinished gestures; a later mouse release cannot commit them.
-Ctrl+Shift was avoided because Windows can reserve it for keyboard-layout changes.
-Pin/wire routing, Delete/Backspace, and component spawn shortcuts below apply only
-in Selection mode. UI adapters receive events first and can capture keyboard/pointer
-input. Canvas bounds restrict gestures; UI focus cancels previews while retaining
-selection for an inspector. See [input routing](docs/InputRouting.md) for integration
-and [shared camera/viewport transforms](docs/CanvasCamera.md). Canvas layout now
-controls rendering and picking together, including framebuffer scaling; screen
-text remains independent.
-
-Connected wires follow component moves **on drop**, retaining fixed branch junctions.
-Routing avoids bodies and pins with one grid cell of clearance, except the short
-access to the intended endpoint pin. Wires can cross through each other's interiors
-without joining; unrelated endpoints and collinear overlaps are avoided. Hold
-**Alt at drop time** to leave wiring fixed: the moved component disconnects, then
-reconnects wherever its pins touch existing wiring. Releasing Alt before the drop
-restores rerouting. New drawn wires use the same clearance. A blocked route cancels
-the move/wire and shows a panel hint; Escape/focus loss cancels without changes.
-
-The left component panel reserves 220 pixels of the window, leaving the rest for
-the simulator. Its **Native** tab shows shader-preview cards with names below,
-ordered Input, Output, Clock, NOT, AND, NAND, OR, NOR, XOR, NXOR, SR LATCH, D LATCH.
-Latch previews show the latch name inside the body without pin labels. Cards use
-two columns, or one in narrow windows. The **Custom** tab lists registered custom
-definitions by name and input/output counts; it starts empty, with no sample circuits.
-In Selection mode, press a card or custom row, drag onto the canvas,
-and release to place it on the grid. An outline follows the proposed placement;
-occupied space rejects the drop and shows a message. Escape, right-click, focus
-loss, or resizing cancels the drag. Scroll inside the panel in shorter windows.
-Debug metrics start hidden; F3 shows average/worst CPU timings in one-second
-sampling windows, cumulative propagation work, backlog and compact draw counts.
-Switching scenes or lower-panel tabs resets the timing window. Timings measure
-CPU work/driver waiting, not GPU execution; propagation overlaps simulation/input.
-The debug overlay's own cost is listed, while its draws are excluded from totals.
-F3 is available in Release too. Its display refreshes four times per second and
-reuses cached drawing buffers; measurements still run every frame. Opening F3,
-resizing, switching contexts or changing simulation error status refreshes it
-immediately.
-
-The full-width top bar reserves 30 pixels. A quiet amber **Unsaved changes** message
-on the right tracks the active tab, including new empty scenes. It clears after a successful
-save/open and returns after edits; clock edges, camera movement, and selection do not count.
-Subcircuits also show a reminder to save for Custom. A saved invalid draft is clean but
-remains unpublished, as explained by the file status message. Click **File** to expand **Save**,
-**Save As**, **Open**, and **Import subcircuit...** in a workspace. Save/Open operate on
-the **active workspace**. Save asks for a JSON path the first time, then updates
-that file; Save As always asks for a path.
-Each workspace remembers its own file. Open validates the file before replacing the active
-workspace; other authored scenes are retained. Subcircuit editors instead show **Save to library**
-and **Export subcircuit...**. Save writes the editable design to the persistent
-app-managed library; Export writes a portable copy. Published designs reappear
-in Custom on startup; saved drafts are editable rows which cannot be placed.
-Right-click a Custom row or a placed box to **Edit subcircuit**.
-A placed box also offers **View inside (live)**: a read-only view of that instance's
-current internal signals and retained states, using its original authored layout.
-Right-click internal components for information; nested boxes can be viewed too.
-**Back** or Escape returns to the containing circuit and restores its camera.
-The parent keeps simulating, with Run/Pause and stepping available in
-**Clocks (parent)**. This creates no editable tab or saved changes.
-File also offers **Open storage in Explorer** and **Change storage location...**;
-changing the location copies managed designs/drafts and preserves the originals.
-Dirty Open, tab closure, and exit ask Save/Discard/Cancel; cancelling a picker or
-failing a Save preserves the open work. See
-[subcircuit behavior and save rules](docs/Subcircuits.md). Windows uses the native file picker; cancelling it changes
-nothing. Success/errors appear in the bar, with error details in the console.
-Escape, outside clicks, focus loss, and resizing dismiss the dropdown.
-
-The Native panel also includes **D**, **T**, and **JK flip-flops**. All sample on
-CLK's rising edge (0 to 1), hold between edges, and provide Q and ~Q outputs.
-D captures a value, T toggles when enabled, and JK supports hold/reset/set/toggle.
-Their right-click information explains the behavior. See
-[flip-flop examples and tables](docs/FlipFlops.md).
-
-**Simulation > Reset Simulation** resets the active circuit's manual inputs and
-all clocks (including clocks inside subcircuits) to LOW. Clock frequencies and
-pause/enable settings are preserved. Clock phases, elapsed time, pending catch-up
-work, and chronograms start fresh; connected logic settles normally from the
-reset sources. Other tabs keep their simulation state. Resetting a saved HIGH
-manual input marks that design unsaved, just like toggling it.
-
-The circuit strip reserves another 30 pixels below the top bar and above the canvas. Click the square **+**
-after the last circuit tab to create and open an empty `unnamed`; click a
-tab to switch.
-Each circuit retains its components, wires, signal state, pan, and zoom. Only
-the visible scene runs; inactive clocks freeze until that scene is revisited.
-Tabs have a compact fixed width measured from `unnamed`, including padding and
-space for the close button.
-Long titles end in `...`; scroll over the strip when the tabs do not fit.
-Hover a title for one second or right-click it to show its full name and a
-prefilled name field. Click the field to replace the name, then Enter to save;
-Backspace and Ctrl+A edit, while Escape, outside clicks, resize, and focus loss
-cancel the draft. Names accept up to 64 printable ASCII characters. The popup
-also shows its role; non-main views offer **Convert to subcircuit** or **Use as
-workspace**, preserving the scene and its camera. Names and input/output
-components never determine that role. Saving a valid subcircuit publishes its
-reusable box in Custom. Click a circuit tab's **X**
-to open a **Delete / Cancel** confirmation. Closing the active circuit switches
-to the tab on its left; Main cannot be deleted. Escape or an outside click
-cancels deletion. Deletion does not check for unsaved changes yet. Main is
-saved as a single circuit design in JSON, including labels, settings, pin
-layouts, manual input values, and wire bends. Clock phase, latch memory, and
-derived signals reset on load. Used subcircuit definitions and their authored
-dependencies are embedded; unused editor drafts are saved separately.
-See [circuit files](docs/CircuitFiles.md) for the format and loading behavior.
-
-A bottom panel sits beneath the simulator, beside the full-height component
-panel. **Messages** and **Clocks** are always available; **Subcircuit** is
-visible only in subcircuit editors. The Subcircuit tab shows its name, basic
-interface
-validity (at least one named input and one named output), input/output/clock
-counts, and a list of each vital component's name. Scroll the list for more
-entries; the name, status, and counts stay visible. Drag the panel's top edge
-up or down to resize it; the centered grip highlights when hovered. Its height
-stays the same across views during the session, with limits to keep the canvas
-and controls accessible. The component catalog stays fixed. It reserves canvas
-space and consumes pointer/scroll events, so it cannot draw wires, place components, or
-zoom the canvas. Subcircuit inputs, outputs, and clocks receive editable defaults
-like `input 1`, `output 1`, and `clock 1`. Existing names are preserved and
-defaults skip names already in use. Empty/whitespace input/output edits are
-rejected only in subcircuit editors. Right-click a vital component to rename it
-in Selection mode; clocks also have a name field in this context. Converting
-a workspace fills missing names; returning to Workspace keeps labels but
-allows optional names again. Publication also requires unique interface names
-per direction and settling, unshorted wiring. The panel includes clocks inside
-saved nested components; publishing occurs on explicit Save.
-
-Right-click an idle component or its pin to open a small information popup in
-either mode. It shows the component name, body label when present, and live
-input/output states (`0 (OFF)` or `1 (ON)`), with pin names or numbered fallbacks.
-Blocked simulation states read `Unavailable`. Escape or a click outside closes
-it; resize and focus loss also dismiss it. Scroll inside if the rows do not fit.
-Gates, latches, flip-flops and custom circuits also offer a **Truth table** tab. Gates enumerate
-all input combinations (up to eight inputs), including configured inversions;
-the current input row is highlighted green. Large tables scroll eight rows at a
-time; **Current row** returns to the active combination. Sequential tables explain
-hold/toggle and next-state behavior, with flip-flop results applying only at a
-rising clock edge. Custom combinational circuits calculate every named output on
-an isolated copy, including nested circuits. Above eight inputs the popup says
-**Truth table too big**; clocks, stored state, feedback and calculation failures
-show explanations instead of unreliable rows. Actual output states remain visible separately. See
-[Educational truth tables](docs/TruthTables.md).
-
-Wire-point guides are larger and more opaque on hover. Pressing to draw or
-branch keeps a highlighted dot at the starting point throughout the drag, with
-another at the moving endpoint. Release clears creation highlights; after a
-successful commit, normal hover highlighting resumes when leaving that grid cell.
-
-To name an input or output in Selection mode, right-click it, click the **Name**
-field, type, and press Enter to save. Backspace edits; Escape, outside clicks,
-resize, or focus loss discard unfinished typing. Names accept up to 32 printable
-ASCII characters; an empty name clears the label. Interaction mode shows the
-name without editing it. Names preserve pin identities and wiring. Workspace
-labels remain optional; subcircuit input/output labels must be nonempty and
-unique within each direction before publication.
-In Selection mode, the right-click popup's **Show label: On/Off** button controls
-whether the component's name appears on the canvas. Hiding it keeps the name in
-information panels and subcircuit interfaces. The setting supports undo/redo,
-copy/paste, and saving. Clock labels start hidden; other labels start visible.
-
-Output bulbs have one incoming pin and no outgoing pins; unavailable signals
-appear gray.
-
-| Input | Action |
-| :--- | :--- |
-| **Click (Native / Custom Tab)** | Switch the component palette category in either mode |
-| **Drag (Component Card / Custom Row)** | Selection: release on the canvas to create a component |
-| **Left Click (Pin)** | Begin routing wire from an input/output pin |
-| **Left Click (Wire)** | Branch or split an existing wire segment |
-| **Left Click (Component Body)** | Selection: select/drag any component; Interaction: operate actionable components |
-| **Left Click (InputPin Body)** | Selection: move without toggling; Interaction: toggle logic state |
-| **Right Click (Component/Pin)** | Open live component information when no gesture is active |
-| **Middle Mouse (Drag on Canvas)** | Pan view camera, including when starting over a component |
-| **Right Click (Active Gesture)** | Cancel wire placement / component dragging |
-| **Ctrl + Scroll** | Zoom in / Zoom out |
-| **Ctrl + C** | Selection: copy selected components and wires |
-| **Ctrl + V** | Selection: preview a paste; left-click to place (one undo step) |
-| **Delete / Backspace** | Delete selected component or wire segment |
-| **Escape** | Abort current gesture |
-| **F2** | Toggle Selection / Interaction mode |
-| **F3** | Toggle debug metrics |
-| **Space** | Interaction: pause/resume the shared clock timeline |
-| **Period** | Interaction: advance to the next clock edge and pause |
-| **1** | Spawn `InputPin` |
-| **2** | Spawn `NOT` Gate |
-| **3** | Spawn `AND` Gate |
-| **4** | Spawn `NAND` Gate |
-| **5** | Spawn `OR` Gate |
-| **6** | Spawn `NOR` Gate |
-| **7** | Spawn `XOR` Gate |
-| **8** | Spawn `NXOR` Gate |
-| **9** | Spawn clock |
-| **U / I** | Spawn SR / D latch |
-
----
-
-Copy/paste keeps relative positions, labels, pin layouts, gate settings, manual input
-states, and clock settings. Only selected wires are copied; an ordinary wire click
-copies its selected segment, while Ctrl-click and box selection copy whole sections.
-The in-app clipboard works across tabs. Ctrl+V starts a translucent preview following
-the mouse. Partial overlaps get an amber notice and remain placeable; identical grid
-centers or shared pin positions are highlighted red and block placement. Palette
-placement, dragging and gate settings use this same rule. Keyboard spawning keeps
-the requested position when valid, or tries the next diagonal grid position.
-Left-click to place and select the
-group; Escape/right-click cancels. The real circuit and undo history change only on
-placement. New instances start fresh clock/latch runtime state, as when placed from
-the palette.
-
-## Project Structure & Architecture
-
-```text
-src/
-  App/                 Entry point, GLFW lifecycle, and application loop
-  Editor/              Input gestures and Scene coordination
-    Actions/           Typed edits, preview lifecycle, and reversible changes
-    Gestures/          Component dragging, wire drawing, panning, and selection
-    Connectivity/      Derived nets, pin/wire indexes, and edge rejection diagnostics
-  Components/          Native behavior classes and logical pin types
-    Definitions/       Built-in declarations, validated descriptors, and catalog
-    Views/             Component presentation and PinUI data
-  Simulation/          Circuit propagation, nets, and endpoint identities
-  Geometry/            Coordinates, wire normalization, hit/placement queries, and paths
-  Graphics/            OpenGL drawing, meshes, shaders, and wire vertices
-    Presentation/      Typed canvas instances, batching, labels, and HUD layout
-    Text/              CPU glyph geometry and context-owned atlas/text submission
-  UI/                  Component palette, popups, tabs, and File menu
-  Persistence/         Circuit JSON and file reading/writing without graphics dependencies
-cmake/                 Dependencies, compiler options, and font discovery
-assets/shaders/        GLSL presentations and live-reload sources
-tests/                 Logic, editor, catalog, input, presentation, and pixel regressions
-docs/                  Editor action contracts and integration examples
-external/              Vendored GLAD and stb_truetype
-```
-
-Input and startup submit batches through EditorActions. Scene supplies committed
-bounds and indexed pin anchors to Geometry services, then uses ConnectivityBuilder
-to derive nets and Circuit edges from the normalized routes. Circuit settles changed
-signals and advances clocks chronologically; Scene synchronizes states for rendering.
-Connections permit feedback. Signals that exceed the settling limit pause simulation
-until an input or edit requests another attempt.
-
-CMake compiles shared `simulator_components`, `simulator_simulation`,
-`simulator_geometry`, `simulator_component_factory`, `simulator_scene`, and `simulator_input` libraries.
-The application and tests link these libraries instead of recompiling separate
-copies of their sources. Views form an interface target; the application also
-links `simulator_graphics`; CPU presentation functions form `simulator_presentation`.
-
-Register new implementation files in their owning target in `CMakeLists.txt`.
-Use forward-slash, source-root includes between modules, such as
-`"Simulation/Circuit.h"`; same-directory includes can use `"Circuit.h"`.
-Headers include their own requirements; implementation-only headers belong in
-`.cpp` files. Native behavior and simulation must not include views, Graphics,
-GLFW, or GLAD. Wire vertex generation belongs in Graphics, not the wire model.
-
-Editor actions live under `Editor/Actions/`; concrete gesture handlers live under
-`Editor/Gestures/` and require no GLFW. Input adapts events, applies the mode policy,
-and dispatches shortcuts. `Editor/ComponentShortcuts.cpp` maps keys to definition IDs;
-`Components/Definitions/NativeDefinitions.cpp` owns all built-in defaults, pins,
-labels, and shader resources. `Components/ComponentFactory` creates matching logic
-and views through the catalog. See [component definitions](docs/ComponentDefinitions.md)
-for validated options, custom registration, and adding native declarations. Geometry services
-consume plain bounds/anchors without view or graphics dependencies. The builder
-under `Editor/Connectivity/` consumes normalized routes and pin interfaces without
-accessing Scene or healing geometry. Scene owns and publishes derived topology.
-Definition file import/export and extended educational inspection remain pending.
-See [geometry and connectivity contracts](docs/SceneTopology.md).
-
-`UI` lays out catalog buttons and handles one drag-to-create gesture. On release,
-it submits `CreateComponent` through EditorActions. Drawing reuses screen
-rectangles and text from Renderer; no widget framework or additional dependency
-is introduced. Its input logic can be tested without an OpenGL context.
-The same class handles the information popup, resolving its component ID on each
-draw and reading synchronized pin data from the committed view. Its small
-input/output name field submits the existing `ConfigureComponentProperties`
-label operation through EditorActions.
-
-Rendering adapts common view metadata into typed values once per frame. Bodies
-carry individual sizes/tints; stable component-ID ordering and adjacent shader
-batches preserve compositing. Renderer coordinates fixed canvas layers; separate
-CPU functions lay out labels/overlays, and TextPainter owns GPU text submission.
-See [rendering contracts and validation](docs/Rendering.md).
-
-## Dependencies & Vendoring
-
-- C++20 and CMake 3.20+ (3.21+ for the version-3 presets).
-- GLFW 3.4 and GLM 1.0.1: fetched by CMake; the first configure needs network
-  access unless local sources are supplied through `FETCHCONTENT_SOURCE_DIR_GLFW`
-  and `FETCHCONTENT_SOURCE_DIR_GLM`.
-- nlohmann/json 3.12.0: fetched from a release archive with a SHA-256 check;
-  local sources can use `FETCHCONTENT_SOURCE_DIR_JSON`.
-- GLAD: vendored in `external/glad/` for OpenGL 3.3 Core.
-- stb_truetype 1.26: vendored in `external/stb_truetype.h`, including its license.
-- OpenGL: supplied by the system driver for the application.
-- A TrueType font: discovered at configure time or selected explicitly below.
-  Fonts are not bundled.
-
-## Building the Project
-
-With a C++20 compiler and Ninja available, use the portable presets:
+Requires a C++20 compiler, CMake 3.21+, Ninja, OpenGL and a TrueType font.
+CMake fetches GLFW, GLM and nlohmann/json during the first configuration.
+On Windows, use a Visual Studio Developer PowerShell with the C++ tools installed.
 
 ```sh
 cmake --preset debug
@@ -419,167 +45,20 @@ cmake --build --preset debug
 ctest --preset debug
 ```
 
-Run `out/build/debug/bin/Debug/LogicGateSimulator` (append `.exe` on Windows).
-Use the `release` presets for a Release build. On Windows, run these commands
-from an appropriate compiler environment, such as the Visual Studio Developer
-Command Prompt.
+For a shareable Windows build, use the `windows-portable` preset.
+See [build, test and packaging instructions](docs/Building.md) for the complete steps.
 
-For another generator or a custom build directory:
+## Documentation
 
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --config Debug
-ctest --test-dir build -C Debug --output-on-failure
-```
+- [Examples](docs/Examples.md) and [truth tables](docs/TruthTables.md)
+- [Circuit files](docs/CircuitFiles.md) and [subcircuits](docs/Subcircuits.md)
+- [Simulation and clocks](docs/Simulation.md), [flip-flops](docs/FlipFlops.md) and [signal traces](docs/SignalTraces.md)
+- [Editor actions and history](docs/EditorActions.md) and [input routing](docs/InputRouting.md)
+- [Component definitions](docs/ComponentDefinitions.md) and [scene topology](docs/SceneTopology.md)
+- [Rendering](docs/Rendering.md) and [camera](docs/CanvasCamera.md)
+- [Performance benchmarks](benchmarks/README.md)
 
-The Debug application is in `build/bin/Debug/`. Use `-DBUILD_TESTING=OFF` to omit
-test executables. Use `-DBUILD_SIMULATOR_APP=OFF` for model/editor tests without
-OpenGL, GLAD, or font discovery; presentation tests use vendored stb_truetype
-metrics, and input tests still require GLFW's
-null platform.
+## License
 
-### Font Configuration
-
-CMake searches common Windows, Linux, and macOS font locations and
-`assets/fonts/`. Override the selection with an existing TrueType font:
-
-```sh
-cmake --preset debug -DLOGIC_SIMULATOR_FONT=/absolute/path/to/font.ttf
-```
-
-An unavailable font produces a configure error with the override instructions.
-The selected path is cached per build directory; reconfigure to change it.
-The application reads the selected font at runtime.
-
-### Visual Studio Presets and Assets
-
-The `x64-debug`, `x64-release`, `x86-debug`, and `x86-release` presets retain
-MSVC configurations. Use a matching developer environment on the command line.
-They no longer depend on a Visual Studio installation-specific CMake script.
-Each configure preset has a matching build and test preset.
-
-Shaders resolve against `PROJECT_ASSETS_DIR`, the source checkout's asset
-directory, for live editing. Shader and font packaging for standalone releases
-remains separate work.
-
-## Roadmap
-
-    [x] Primitive Gate Set (AND, OR, XOR, NOT, NAND, NOR, NXOR, InputPin)
-
-    [x] SDF-based graphics pipeline with anti-aliasing
-
-    [ ] Multi-driver short-circuit contention diagnostics
-
-    [ ] Native edge-triggered flip-flops (clocks and level-sensitive latches are available)
-
-    [ ] Sub-circuit modular packaging (Adders, Multiplexers, ALUs)
-
-## Component Pins and Regression Tests
-
-`Component` owns input and output state arrays; invalid pin access throws
-`std::out_of_range`. Native counts are validated at creation. Gate input counts
-can also change through a coherent editor configuration action.
-`Gate` keeps one output and supports configurable input counts: NOT requires
-one input, and AND/NAND/OR/NOR/XOR/NXOR accept two or more. XOR uses odd parity;
-NXOR uses its inverse. Existing spawn shortcuts retain their default counts.
-
-```cpp
-Circuit circuit;
-int latch = circuit.addLatch(LatchType::SR_LATCH);
-int gate = circuit.addGate(GateType::AND, 4);
-circuit.connectComponents(latch, 1, gate, 3); // ~Q -> fourth input
-circuit.disconnectComponents(latch, 1, gate, 3);
-```
-
-Connections always specify source component, source output index, destination
-component, and destination input index. Catalog creation resolves gate arity and
-pin layout together; compatibility APIs validate supplied layouts through the same
-factory. Visual pins carry stable definition IDs and valid directional indices;
-vector order does not determine pin identity.
-
-CTest builds a headless `LogicTests` executable by default. It covers gate truth
-tables, pin bounds, both latch outputs, connection lifecycle, and scene pin mapping:
-
-```powershell
-cmake --build out/build/x64-debug
-ctest --test-dir out/build/x64-debug --output-on-failure
-```
-
-For a generic build directory, substitute `build` and pass `-C Debug` to CTest
-when using a multi-configuration generator. Use `-DBUILD_TESTING=OFF` to omit tests.
-
-Input regression tests run in a separate `InputTests` executable using GLFW's
-null platform, so they require no display, native window, or OpenGL context.
-They cover Escape/right-click drag cancellation, movement and overlap rollback,
-connectivity after every component spawn shortcut, middle-segment deletion,
-mode isolation, immediate mode/focus cancellation, wire branching, panning, UI
-capture, held-input cleanup, canvas bounds, panned/zoomed subcanvas editing, and
-palette creation/cancellation/scrolling in both modes, and right-click information
-with live indexed states, custom labels, dismissal, and preserved pan/cancel behavior.
-`CameraTests` covers shared forward/inverse transforms, viewport clipping/rounding,
-resizing, invalid/minimized layouts, and uniform/nonuniform DPI.
-Catalog regressions validate built-in defaults/assets, custom box/native behavior,
-registration rollback, applicable options, and catalog/identity restoration.
-Presentation tests cover typed instances/batching, pin leads, label layout, and
-world/screen glyph geometry. The application build also runs an invisible-window
-framebuffer test; it skips when an OpenGL context is unavailable and writes PPM
-previews under the build's `render-artifacts/` directory when exercised.
-`SimulationTests` covers stable feedback, bounded oscillation/recovery, chronological
-and simultaneous clocks, retained catch-up, rising/falling receivers, register
-ordering, and a master/slave circuit made from existing D latches.
-CTest runs 46 groups with the application, or 45 headlessly; use `ctest --test-dir out/build/x64-debug -R "drag_|spawn_|wire_segment_deletion|interaction_modes|mode_cancellation|wire_and_pan|ui_|canvas_|component_palette|component_information|component_naming" --output-on-failure`
-to run only the input tests.
-`component_outputs` checks passive output propagation, labels, and restoration;
-`component_naming` checks text capture, submission, and cancellation.
-
-## Shared Editor Actions
-
-`EditorActions::apply()` stages typed create/move/configure/delete/wire operations
-as one batch. Structural edits validate final placement and rebuild connectivity
-once; failures leave the committed scene unchanged. Drag previews affect only
-presentation, so cancellation needs no topology rebuild.
-
-`ConfigureComponent` updates layouts and gate arity together. Surviving pin indices
-retain identity; removing wired inputs requires an explicit attachment policy or
-wire removal in the same batch. Pin layouts and committed wires are read-only to
-callers. Complete before/after records preserve normalized wire IDs and runtime
-state for future undo/redo; history controls and persistence remain pending.
-
-`ConfigureComponentProperties` edits explicit optional fields: body label,
-scalable input count (clamped 2–8), supported native output inversion, per-input
-inversion, clock frequency,
-and pause. Omitted fields retain current values. Inversion updates logic and the
-bubble together; failed batches roll back. In Selection mode, right-click a native
-logic gate and toggle **Invert** beside any input. The input bank gains one grid
-cell for round bubbles, without stretching the gate body; attached wire endpoints
-reroute. Clearing the last inverted input restores the original bank. Incoming
-wire/pin states stay raw; the popup shows `0 -> 1` or `1 -> 0` for inverted inputs.
-These settings survive saving, copying, input-count edits, and undo/redo.
-Logic gates, latches, and custom subcircuit instances offer **Up**, **Down**,
-**Left**, and **Right** orientation in their popup (default Right). The body, pin positions, input rail/arcs and bubbles rotate together;
-attached wires reroute while logical pin identities stay the same. Labels stay upright.
-Orientation also survives saving, copying and undo/redo. Rotating a subcircuit
-instance changes its outer box/pins only; its authored internal layout is preserved.
-The information popup shows live pins/state, edits input/output names and supported
-gate settings, and displays bounded educational truth/next-state tables.
-
-See [Editor action contracts and examples](docs/EditorActions.md) for API use,
-pointer lifetimes, migration rules, and snapshot-restoration semantics.
-`EditorActionsTests` covers these boundaries without a window or OpenGL context.
-
-### Feedback and simulation status
-
-Feedback connections, including self-loops, are accepted. Stable circuits settle
-normally; a circuit exceeding the settling limit pauses automatic clocks, displays
-unavailable signals, and shows a warning even with F3 hidden. Input changes or
-edits request another attempt. Gate-built memory may need Set/Reset initialization.
-
-Invalid endpoints or multiple drivers on one input still reject connectivity and
-pause the scene. Wiring remains editable; the console reports rejected endpoints
-and reasons. Repairing the wiring rebuilds connectivity and resumes simulation.
-See [clock timing and feedback](docs/Simulation.md) for limits, catch-up behavior,
-and the educational Boolean model.
-
-`Circuit::tryConnectComponents()` returns a typed `ConnectionResult`; the
-existing `connectComponents()` boolean API remains available.
-`Scene::getRejectedConnections()` exposes diagnostics from the latest rebuild.
+[MIT](LICENSE). Project and dependency notices are available in **File > About / Licenses**
+and [THIRD-PARTY-NOTICES.txt](packaging/THIRD-PARTY-NOTICES.txt).

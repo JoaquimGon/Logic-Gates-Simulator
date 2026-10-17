@@ -12,7 +12,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(BUILD_SIMULATOR_APP "Build the OpenGL simulator application" ON)
 option(BUILD_BENCHMARKS "Build the opt-in performance benchmark runner" OFF)
-option(LOGIC_SIMULATOR_PORTABLE "Build a portable Windows application with executable-relative assets" OFF)
+option(LOGIC_SIMULATOR_PORTABLE "Build a standalone Windows executable with embedded shaders and notices" OFF)
 option(BENCHMARK_EDIT_PROFILING "Compile opt-in edit phase probes (benchmark builds only)" ON)
 if(LOGIC_SIMULATOR_PORTABLE)
     if(NOT WIN32)
@@ -113,6 +113,7 @@ endif()
 
 if(BUILD_SIMULATOR_APP)
     include(cmake/Font.cmake)
+    include(cmake/EmbedResources.cmake)
     add_library(simulator_graphics STATIC
         src/Graphics/Mesh.cpp
         src/Graphics/Renderer.cpp
@@ -128,6 +129,7 @@ if(BUILD_SIMULATOR_APP)
         simulator_geometry simulator_presentation glad stb_truetype
         PRIVATE OpenGL::GL
     )
+    target_include_directories(simulator_graphics PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
     target_compile_definitions(simulator_graphics PRIVATE
         PROJECT_ASSETS_DIR="${PROJECT_SOURCE_DIR}/assets"
         PROJECT_FONT_PATH="${PROJECT_FONT_PATH}"
@@ -136,7 +138,7 @@ if(BUILD_SIMULATOR_APP)
 
     target_sources(simulator_ui PRIVATE src/UI/UIDrawing.cpp src/UI/CircuitTabsDrawing.cpp src/UI/ClocksDrawing.cpp src/UI/UnsavedPromptDrawing.cpp src/UI/TruthTableDrawing.cpp)
     target_link_libraries(simulator_ui PRIVATE simulator_graphics)
-    add_executable(${PROJECT_NAME} src/App/main.cpp src/App/Engine.cpp src/App/FileDialog.cpp src/App/CircuitFiles.cpp src/App/UnsavedWork.cpp)
+    add_executable(${PROJECT_NAME} src/App/main.cpp src/App/Engine.cpp src/App/FileDialog.cpp src/App/CircuitFiles.cpp src/App/UnsavedWork.cpp src/App/Licenses.cpp)
     target_link_libraries(${PROJECT_NAME} PRIVATE simulator_ui simulator_graphics simulator_files glfw)
     if(WIN32)
         target_link_libraries(${PROJECT_NAME} PRIVATE comdlg32 shell32 ole32 uuid)
@@ -150,16 +152,7 @@ if(BUILD_SIMULATOR_APP)
     if(LOGIC_SIMULATOR_PORTABLE)
         set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
         target_compile_definitions(${PROJECT_NAME} PRIVATE LOGIC_SIMULATOR_PORTABLE=1)
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${PROJECT_SOURCE_DIR}/assets/shaders" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/shaders")
-        # Test executables live in the build root rather than the application's bin directory.
-        if(BUILD_TESTING)
-            file(COPY "${PROJECT_SOURCE_DIR}/assets/shaders" DESTINATION "${CMAKE_BINARY_DIR}/assets")
-        endif()
         install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION . COMPONENT Runtime)
-        install(DIRECTORY assets/shaders DESTINATION assets COMPONENT Runtime)
-        install(FILES LICENSE packaging/THIRD-PARTY-NOTICES.txt packaging/README.txt DESTINATION . COMPONENT Runtime)
     endif()
     if(BUILD_TESTING)
         add_executable(RuntimeResourceTests tests/RuntimeResourceTests.cpp)
